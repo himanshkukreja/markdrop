@@ -1,9 +1,9 @@
 """MCP tools for suggested edits and AI on comment threads (Track B): suggest_edit, accept_suggestion,
-summarize_discussion.
+reject_suggestion, withdraw_suggestion, summarize_discussion.
 
 The website's rules, through the same services: anyone who can comment on a page or document suggests an
 edit (on an existing thread, or a new one on a quote); people who can edit it accept one (the page then says
-it, as its own version in the history, and the thread is resolved). While someone has the page open in the
+it, as its own version in the history, and the thread is resolved) or reject it; its author withdraws it. While someone has the page open in the
 editor an accepted suggestion waits for them instead (they apply it from their comments panel). Writes need
 the documents:write scope. Files in comments are uploaded from the app; tools see them in list_comments.
 """
@@ -111,6 +111,40 @@ async def accept_suggestion(ctx: Context, args: dict) -> tuple[str, dict]:
             "their comments panel with Apply. Nothing was changed yet."), out
 
 
+async def _decide(ctx: Context, args: dict, *, withdraw: bool) -> tuple[str, dict]:
+    """reject_suggestion / withdraw_suggestion: suggestions.reject, as DELETE …/suggestion (its author
+    withdraws; an editor rejects someone else's)."""
+    raw = await _item(ctx, args["document"])
+    tid = _thread_id(args["thread"])
+    actor, actx = actor_of(ctx), _actx(ctx)
+    try:
+        before = await suggestions.detail(ctx.db, actor, raw, actx, tid)
+        s = before.get("suggestion") or {}
+        own = bool(actor.user_id) and (s.get("by") or {}).get("id") == actor.user_id
+        if withdraw and s.get("state") == "open" and not own:
+            raise ToolError("That suggestion isn't yours, so you can't withdraw it. Someone who can edit the page "
+                            "can turn it down with reject_suggestion.")
+        thread = await suggestions.reject(ctx.db, actor, raw, actx, tid)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    urls = await url_pair(ctx, raw)
+    out = {**urls, "slug": raw["slug"], "thread_id": tid, "withdrawn": own, "suggestion": thread.get("suggestion")}
+    if own:
+        return (f"Withdrew your suggested edit on thread {tid} ({urls['url']}). The page is unchanged and the "
+                "thread stays open."), out
+    who = (s.get("by") or {}).get("name") or "Someone"
+    return (f"Rejected {who}'s suggested edit on thread {tid} ({urls['url']}). The page is unchanged and the "
+            "thread stays open."), out
+
+
+async def reject_suggestion(ctx: Context, args: dict) -> tuple[str, dict]:
+    return await _decide(ctx, args, withdraw=False)
+
+
+async def withdraw_suggestion(ctx: Context, args: dict) -> tuple[str, dict]:
+    return await _decide(ctx, args, withdraw=True)
+
+
 async def summarize_discussion(ctx: Context, args: dict) -> tuple[str, dict]:
     raw = await _item(ctx, args["document"])
     try:
@@ -134,6 +168,9 @@ async def summarize_discussion(ctx: Context, args: dict) -> tuple[str, dict]:
 
 
 _LINE = {"type": "array", "items": {"type": "object"}}
+_DECIDE_OUT = _out({**_URL_PROPS, "slug": {"type": "string"}, "thread_id": {"type": "string"},
+                    "withdrawn": {"type": "boolean"}, "suggestion": {"type": ["object", "null"]}},
+                   ["url", "slug", "thread_id", "withdrawn", "suggestion"])
 
 REVIEW_TOOLS: list[Tool] = [
     Tool(
@@ -183,6 +220,34 @@ REVIEW_TOOLS: list[Tool] = [
                            ["url", "slug", "thread_id", "applied", "offered"]),
         annotations=_ann(False, True, False),
         handler=accept_suggestion,
+    ),
+    Tool(
+        name="reject_suggestion",
+        title="Reject a suggested edit",
+        description=("Turn down the open suggested edit on a comment thread (people who can edit the page). The "
+                     "page doesn't change and the thread stays open for more discussion. Used on the user's own "
+                     "suggestion, it withdraws it. Confirm with the user first."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {"document": _DOC_REF, "thread": _THREAD},
+                      "required": ["document", "thread"]},
+        output_schema=_DECIDE_OUT,
+        annotations=_ann(False, False, False),
+        handler=reject_suggestion,
+    ),
+    Tool(
+        name="withdraw_suggestion",
+        title="Withdraw your suggested edit",
+        description=("Take back the user's own open suggested edit on a comment thread. The page doesn't change "
+                     "and the thread stays open. Only works on their own suggestion: someone else's is turned "
+                     "down by an editor with reject_suggestion."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {"document": _DOC_REF, "thread": _THREAD},
+                      "required": ["document", "thread"]},
+        output_schema=_DECIDE_OUT,
+        annotations=_ann(False, False, False),
+        handler=withdraw_suggestion,
     ),
     Tool(
         name="summarize_discussion",

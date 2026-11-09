@@ -12,7 +12,7 @@ Markdrop works with **Jira Cloud** in four ways:
 - **To-dos and issues stay in step.** Tick a to-do that has an issue and the issue moves to Done in Jira. Move the issue to Done in Jira and the to-do ticks in Markdrop. Reopening works both ways.
 - **Ask and links.** Ask "what's Ben working on in Jira?" or "status of PAY-123", and a Jira link pasted in a page shows the issue's live status.
 
-Issues can also live inside any page as live chips, cards and lists that you change from the page: see [Jira in pages](/pages/jira-in-pages).
+Issues can also live inside any page as live chips, cards and lists that you change from the page: see [Jira in pages](/collaboration/jira-in-pages).
 
 Everything Markdrop does in Jira, it does **as the person doing it**, through their own Atlassian account. Jira's own permissions apply, and you are the reporter of the issues you create.
 

@@ -76,6 +76,7 @@
     "areas": [
       "Documents",
       "Pages",
+      "Collaboration",
       "Search and Ask",
       "Files",
       "Sharing and access",
@@ -159,8 +160,6 @@
         "/pages/templates",
         "/pages/embed-and-mention",
         "/pages/mentions-and-notifications",
-        "/pages/comments",
-        "/pages/jira-in-pages",
         "/pages/sub-pages",
         "/pages/properties-and-views",
         "/pages/images",
@@ -173,6 +172,23 @@
         "/pages/export",
         "/pages/markdown-reference",
         "/pages/keyboard-shortcuts"
+      ]
+    },
+    {
+      "group": "Collaboration",
+      "icon": "message",
+      "tab": "platform",
+      "new": true,
+      "pages": [
+        "/collaboration/overview",
+        "/collaboration/comments",
+        "/collaboration/suggested-edits",
+        "/collaboration/notifications",
+        "/collaboration/assign-and-sign-off",
+        "/collaboration/jira-in-pages",
+        "/collaboration/insights-and-exports",
+        "/collaboration/settings-and-privacy",
+        "/collaboration/for-ai-apps"
       ]
     },
     {

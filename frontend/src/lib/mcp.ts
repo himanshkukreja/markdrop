@@ -15,7 +15,7 @@ export interface McpToolName {
 }
 
 /**
- * The hosted server's 84 tools, grouped as the docs group them (docs: ai/tools "Hosted server
+ * The hosted server's 132 tools, grouped as the docs group them (docs: ai/tools "Hosted server
  * tools"). Keep in step with the backend's tool list and that page.
  */
 export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToolName[] }> = [
@@ -41,6 +41,7 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "search", scope: "read" },
       { name: "fetch", scope: "read" },
       { name: "ask_documents", scope: "read" },
+      { name: "ask_suggestions", scope: "read" },
     ],
   },
   {
@@ -94,6 +95,31 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
     tools: [
       { name: "list_notifications", scope: "read" },
       { name: "mark_notifications_read", scope: "write" },
+      { name: "get_comment_notifications", scope: "read" },
+      { name: "set_comment_notifications", scope: "write" },
+    ],
+  },
+  {
+    title: "Comments",
+    icon: "message",
+    tools: [
+      { name: "list_comments", scope: "read" },
+      { name: "get_thread", scope: "read" },
+      { name: "list_waiting_on_me", scope: "read" },
+      { name: "add_comment", scope: "write" },
+      { name: "reply_comment", scope: "write" },
+      { name: "edit_comment", scope: "write" },
+      { name: "delete_comment", scope: "write" },
+      { name: "resolve_comment", scope: "write" },
+      { name: "reopen_comment", scope: "write" },
+      { name: "assign_thread", scope: "write" },
+      { name: "react_comment", scope: "write" },
+      { name: "set_comment_settings", scope: "write" },
+      { name: "suggest_edit", scope: "write" },
+      { name: "accept_suggestion", scope: "write" },
+      { name: "reject_suggestion", scope: "write" },
+      { name: "withdraw_suggestion", scope: "write" },
+      { name: "summarize_discussion", scope: "read" },
     ],
   },
   {
@@ -106,6 +132,7 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "get_file_info", scope: "read" },
       { name: "list_file_versions", scope: "read" },
       { name: "restore_file_version", scope: "write" },
+      { name: "set_captions", scope: "write" },
     ],
   },
   {
@@ -118,6 +145,9 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "ask_analytics", scope: "read" },
       { name: "content_gaps", scope: "read" },
       { name: "analyze_document_engagement", scope: "read" },
+      { name: "comment_insights", scope: "read" },
+      { name: "get_analytics_settings", scope: "read" },
+      { name: "set_analytics_settings", scope: "write" },
     ],
   },
   {
@@ -149,6 +179,25 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "ask_meetings", scope: "read" },
       { name: "meeting_context", scope: "read" },
       { name: "meetings_connection", scope: "read" },
+      { name: "check_meetings_now", scope: "read" },
+    ],
+  },
+  {
+    title: "Team",
+    icon: "users",
+    tools: [
+      { name: "list_team", scope: "read" },
+      { name: "get_person_profile", scope: "read" },
+      { name: "get_project_status", scope: "read" },
+      { name: "set_my_status", scope: "write" },
+      { name: "set_focus_note", scope: "write" },
+      { name: "hide_team_line", scope: "write" },
+      { name: "correct_team_line", scope: "write" },
+      { name: "mark_team_item_done", scope: "write" },
+      { name: "list_team_groups", scope: "read" },
+      { name: "save_team_group", scope: "write" },
+      { name: "delete_team_group", scope: "write" },
+      { name: "send_weekly_summary_now", scope: "write" },
     ],
   },
   {
@@ -168,6 +217,10 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "link_jira_issue", scope: "write" },
       { name: "list_jira_issues", scope: "read" },
       { name: "transition_jira_issue", scope: "write" },
+      { name: "insert_jira", scope: "write" },
+      { name: "update_jira_issue", scope: "write" },
+      { name: "list_jira_transitions", scope: "read" },
+      { name: "thread_to_jira", scope: "write" },
     ],
   },
   {
@@ -176,6 +229,8 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
     tools: [
       { name: "get_viewers", scope: "read" },
       { name: "set_presence", scope: "write" },
+      { name: "get_document_viewers", scope: "read" },
+      { name: "get_view_timeline", scope: "read" },
     ],
   },
   {

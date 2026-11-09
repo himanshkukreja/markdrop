@@ -3598,10 +3598,12 @@ TOOLS += JIRA_PAGE_TOOLS
 from app.mcp.comment_tools import COMMENT_TOOLS  # noqa: E402
 from app.mcp.comment_review_tools import REVIEW_TOOLS  # noqa: E402
 from app.mcp.comment_insights_tools import INSIGHTS_TOOLS  # noqa: E402
+from app.mcp.comment_notify_tools import COMMENT_NOTIFY_TOOLS  # noqa: E402
 
 TOOLS += COMMENT_TOOLS
 TOOLS += REVIEW_TOOLS
 TOOLS += INSIGHTS_TOOLS
+TOOLS += COMMENT_NOTIFY_TOOLS
 
 # Every write tool takes an optional idempotency_key (mcp/protocol.py): a retry with the same key
 # answers with the first call's result instead of writing twice.

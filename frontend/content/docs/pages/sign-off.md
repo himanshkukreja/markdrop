@@ -28,7 +28,7 @@ Choose an option to sign. The block then shows the decision in its colour (green
 
 The signer can choose **Change decision** to pick another option, or **Clear my decision** to withdraw it. Every change is kept.
 
-If [comment](/pages/comments) threads are still open on the page when you sign, the block says how many first and asks you to confirm: **Sign off anyway**, or **Cancel** and resolve them. Every sign-off records the discussion as it stood: how many threads were resolved and how many were still open (the block shows it, and so does the version history entry). From an AI app, `sign_off` signs and says in its answer when threads were open.
+If [comment](/collaboration/comments) threads are still open on the page when you sign, the block says how many first and asks you to confirm: **Sign off anyway**, or **Cancel** and resolve them. Every sign-off records the discussion as it stood: how many threads were resolved and how many were still open (the block shows it, and so does the version history entry). From an AI app, `sign_off` signs and says in its answer when threads were open.
 
 Nobody else can sign for them: not the page's owner, not a workspace admin, and not an AI app acting for someone else. The decision is stored by Markdrop, never in the page's Markdown, so editing the Markdown can't fake one.
 

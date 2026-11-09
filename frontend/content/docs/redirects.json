@@ -1,5 +1,6 @@
 {
   "/changelog/docs-studio-beta": "/changelog/guides-beta",
+  "/collaboration": "/collaboration/overview",
   "/docs-studio": "/guides/overview",
   "/docs-studio/ask-ai": "/guides/ask-ai",
   "/docs-studio/brand-and-style": "/guides/brand-and-style",
@@ -19,5 +20,7 @@
   "/docs-studio/themes": "/guides/themes",
   "/docs-studio/what-readers-get": "/guides/what-readers-get",
   "/guides": "/guides/overview",
-  "/guides/github-sync": "/guides/import-from-github"
+  "/guides/github-sync": "/guides/import-from-github",
+  "/pages/comments": "/collaboration/comments",
+  "/pages/jira-in-pages": "/collaboration/jira-in-pages"
 }

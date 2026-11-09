@@ -648,7 +648,7 @@
         "403": "Comments are off for this item (code `comments_off`).",
         "404": "No such document, or it can't have comments (code `comments_unavailable`: encrypted, a file, or no owner)."
       },
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Comments", "href": "/collaboration/comments" }
     },
     "POST /api/v1/documents/{slug}/comments": {
       "title": "Start a thread",
@@ -659,13 +659,13 @@
       "responses": {
         "422": "The quoted text or block isn't on the page (code `anchor_not_found`), or the comment is empty or too long."
       },
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Comments", "href": "/collaboration/comments" }
     },
     "GET /api/v1/documents/{slug}/comments/people": {
       "title": "People to mention",
       "group": "comments",
       "description": "Who a comment can @mention: the item's owner, its workspace's members, the people it's shared with and those already in its threads, each with `has_access`. An email address of someone who can't open it answers `invite` (with whether you may share it with them); it never says whether that address has an account. Emails show only to people with a relationship to the item.",
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Comments", "href": "/collaboration/comments" }
     },
     "PUT /api/v1/documents/{slug}/comments/settings": {
       "title": "Comment settings",
@@ -673,14 +673,14 @@
       "description": "The owner's switches: `enabled` (comments on or off for this item) and `public` (show comments to readers who aren't signed in).",
       "mcp": "set_comment_settings",
       "example": { "public": true },
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Comment settings", "href": "/collaboration/settings-and-privacy" }
     },
     "GET /api/v1/documents/{slug}/comments/{thread_id}": {
       "title": "Get a thread",
       "group": "comments",
       "description": "One thread with every message.",
       "mcp": "get_thread",
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Comments", "href": "/collaboration/comments" }
     },
     "POST /api/v1/documents/{slug}/comments/{thread_id}/replies": {
       "title": "Reply",
@@ -688,19 +688,21 @@
       "description": "Adds a reply. Replying to a resolved thread opens it again. Everyone in the thread and the people in `mentions` are notified.",
       "mcp": "reply_comment",
       "example": { "body": "Yes, the build is green.", "mentions": [] },
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Comments", "href": "/collaboration/comments" }
     },
     "PATCH /api/v1/documents/{slug}/comments/{thread_id}/messages/{message_id}": {
       "title": "Edit a comment",
       "group": "comments",
       "description": "Changes your own comment's text (and its mentions; people newly mentioned are notified).",
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "mcp": "edit_comment",
+      "guide": { "label": "Comments", "href": "/collaboration/comments" }
     },
     "DELETE /api/v1/documents/{slug}/comments/{thread_id}/messages/{message_id}": {
       "title": "Delete a comment",
       "group": "comments",
       "description": "Deletes your own comment; the item's owner and workspace admins may delete anyone's. A thread whose every comment is deleted goes too.",
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "mcp": "delete_comment",
+      "guide": { "label": "Comments", "href": "/collaboration/comments" }
     },
     "POST /api/v1/documents/{slug}/comments/{thread_id}/messages/{message_id}/reactions": {
       "title": "React",
@@ -708,21 +710,21 @@
       "description": "Toggles your emoji reaction on a comment (`on` sets it either way).",
       "mcp": "react_comment",
       "example": { "emoji": "👍" },
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Comments", "href": "/collaboration/comments" }
     },
     "POST /api/v1/documents/{slug}/comments/{thread_id}/resolve": {
       "title": "Resolve a thread",
       "group": "comments",
       "description": "Marks a thread resolved, keeping its history. The person who started it, its assignee and anyone who can edit the item may.",
       "mcp": "resolve_comment",
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Comments", "href": "/collaboration/comments" }
     },
     "POST /api/v1/documents/{slug}/comments/{thread_id}/reopen": {
       "title": "Reopen a thread",
       "group": "comments",
       "description": "Opens a resolved thread again.",
       "mcp": "reopen_comment",
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Comments", "href": "/collaboration/comments" }
     },
     "PUT /api/v1/documents/{slug}/comments/{thread_id}/assignee": {
       "title": "Assign a thread",
@@ -730,19 +732,20 @@
       "description": "Assigns a thread to someone who can open the item, as a task on their home and the Team page; `user_id: null` clears it. Editors and the thread's author may.",
       "mcp": "assign_thread",
       "example": { "user_id": "665f1c2e9b1e8a0012345678" },
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Comments", "href": "/collaboration/comments" }
     },
     "GET /api/v1/comments/mine": {
       "title": "Your comment threads",
       "group": "comments",
       "description": "Open threads across everything you can open: `waiting` (assigned to you, mentioning you in the latest message, or answered on yours), `assigned` or `mentions`.",
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "mcp": "list_waiting_on_me",
+      "guide": { "label": "Waiting on you", "href": "/collaboration/assign-and-sign-off#waiting-on-you-on-home" }
     },
     "GET /api/v1/documents/{slug}/comments/{thread_id}/suggestion": {
       "title": "Get a suggested edit",
       "group": "comments",
       "description": "A thread's suggested edit as you see it, with what accepting it would do now: `applies`, and `reason` when it wouldn't (`stale`: the text changed; `unappliable`: it crosses formatting; `locked`: someone else is editing, so it would wait for them), the line `before` and `after`, and what you may do (`can`).",
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Suggested edits", "href": "/collaboration/suggested-edits" }
     },
     "PUT /api/v1/documents/{slug}/comments/{thread_id}/suggestion": {
       "title": "Suggest an edit",
@@ -751,13 +754,14 @@
       "mcp": "suggest_edit",
       "example": { "text": "ship the redesigned editor" },
       "responses": { "409": "Someone else's suggestion is open on this thread, or the thread is resolved.", "422": "The thread isn't on selected text." },
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Suggested edits", "href": "/collaboration/suggested-edits" }
     },
     "DELETE /api/v1/documents/{slug}/comments/{thread_id}/suggestion": {
       "title": "Withdraw or reject a suggested edit",
       "group": "comments",
       "description": "Its author withdraws an open suggestion, or someone who can edit the page rejects it. The page doesn't change. Returns the thread.",
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "mcp": "reject_suggestion",
+      "guide": { "label": "Suggested edits", "href": "/collaboration/suggested-edits#accept-or-reject" }
     },
     "POST /api/v1/documents/{slug}/comments/{thread_id}/suggestion/accept": {
       "title": "Accept a suggested edit",
@@ -766,86 +770,86 @@
       "mcp": "accept_suggestion",
       "example": { "resolve": true },
       "responses": { "409": "The text it replaces changed (`suggestion_stale`), it crosses formatting (`suggestion_unappliable`), or nothing is open.", "423": "The page is locked, or the edit touches a signed-off section." },
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Suggested edits", "href": "/collaboration/suggested-edits" }
     },
     "POST /api/v1/documents/{slug}/comments/{thread_id}/ai/apply": {
       "title": "Draft a suggested edit with AI",
       "group": "comments",
       "description": "Apply with AI: replacement text for the thread's quote, drafted from the discussion. Nothing is saved; suggest it with PUT …/suggestion. Within fair-use limits (429 `ai_limit` when reached).",
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "AI help", "href": "/collaboration/suggested-edits#ai-help" }
     },
     "POST /api/v1/documents/{slug}/comments/{thread_id}/ai/ask": {
       "title": "Ask Markdrop AI in a thread",
       "group": "comments",
       "description": "Posts your question (as \"@AI …\") and Markdrop AI's answer in the thread, for everyone in it. The answer uses the page, the thread and pages of its workspace that everyone who can see the thread can open. Writing @AI in a comment does the same.",
       "example": { "question": "Which date did we agree on?" },
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "AI help", "href": "/collaboration/suggested-edits#ai-help" }
     },
     "GET /api/v1/documents/{slug}/comments/ai/status": {
       "title": "Comment AI status",
       "group": "comments",
       "description": "Whether comment AI can run for you on this item right now, and why not (`reason`). Doesn't count as a request.",
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "AI help", "href": "/collaboration/suggested-edits#ai-help" }
     },
     "POST /api/v1/documents/{slug}/comments/ai/summary": {
       "title": "Summarize the discussion",
       "group": "comments",
       "description": "What the item's threads decided, what's still open and who they're waiting on (open threads and those resolved in the last 30 days), each line with its thread ids. Kept until the discussion changes (`cached`); `refresh: true` asks again.",
       "mcp": "summarize_discussion",
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "AI help", "href": "/collaboration/suggested-edits#ai-help" }
     },
     "POST /api/v1/documents/{slug}/comments/ai/tone": {
       "title": "Check a comment's tone",
       "group": "comments",
       "description": "Whether a draft comment reads clear and kind, with a suggested `rewrite` when it doesn't. Only drafts that look harsh reach AI unless `force` is true.",
       "example": { "body": "Can we move this to Tuesday?", "force": true },
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "AI help", "href": "/collaboration/suggested-edits#ai-help" }
     },
     "POST /api/v1/documents/{slug}/comments/attachments": {
       "title": "Upload a file for a comment",
       "group": "comments",
       "description": "A file for a comment you're writing (images, PDF, Word, Excel, PowerPoint, zip, text; up to 10 MB), as multipart `file`. Send its `id` in the comment's `attachments`. Anyone who can comment.",
       "responses": { "415": "That kind of file can't go in a comment." },
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Comments", "href": "/collaboration/comments#images-and-files" }
     },
     "POST /api/v1/documents/{slug}/comments/attachments/urls": {
       "title": "Get links to files in comments",
       "group": "comments",
       "description": "Personal, expiring links to files in the item's comments, for people who can see its comments. Files of deleted comments aren't served.",
       "example": { "ids": ["5f1c0e9a2b7d4c3e8f6a1b2c"] },
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Comments", "href": "/collaboration/comments#images-and-files" }
     },
     "DELETE /api/v1/documents/{slug}/comments/attachments/{attachment_id}": {
       "title": "Remove a file from a draft comment",
       "group": "comments",
       "description": "Removes a file you uploaded before it's posted.",
-      "guide": { "label": "Comments", "href": "/pages/comments" }
+      "guide": { "label": "Comments", "href": "/collaboration/comments#images-and-files" }
     },
     "GET /api/v1/documents/{slug}/comments/insights": {
       "title": "Comment insights",
       "group": "comments",
       "description": "How the discussion on an item is going: open and resolved threads, messages and people, the typical time to a first reply (`first_reply.median_s`, seconds) and how many open threads still wait for one, time to resolve, the most-discussed sections, a daily series for `range` and who comments most. Anyone who can see the item's comments.",
       "mcp": "comment_insights",
-      "guide": { "label": "Comments", "href": "/pages/comments#insights" }
+      "guide": { "label": "Comments", "href": "/collaboration/insights-and-exports#insights" }
     },
     "GET /api/v1/documents/{slug}/comments/export": {
       "title": "Threads for an export",
       "group": "comments",
       "description": "The item's threads in page order, numbered, with every message (author, date, text): what a printed export shows as notes. `status=open` leaves resolved ones out. Markdown and Word exports take `comments=footnotes|margin` on [Export a page](/api/pages/export-a-page) instead.",
-      "guide": { "label": "Export with comments", "href": "/pages/comments#export-with-comments" }
+      "guide": { "label": "Export with comments", "href": "/collaboration/insights-and-exports#export-with-comments" }
     },
     "GET /api/v1/comments/digest/settings": {
       "title": "Daily comments digest",
       "group": "comments",
       "description": "Whether you get the daily comments digest (`on`): at 8:00 your time, threads waiting on you and open threads on your items, only on days with something new.",
-      "guide": { "label": "Comments", "href": "/pages/comments#daily-comments-digest" }
+      "guide": { "label": "Comments", "href": "/collaboration/notifications#daily-comments-digest" }
     },
     "PUT /api/v1/comments/digest/settings": {
       "title": "Turn the comments digest on or off",
       "group": "comments",
       "description": "Turns your daily comments digest on or off. Not from a workspace's own domain.",
       "example": { "on": false },
-      "guide": { "label": "Comments", "href": "/pages/comments#daily-comments-digest" }
+      "guide": { "label": "Comments", "href": "/collaboration/notifications#daily-comments-digest" }
     },
     "GET /api/v1/documents/{slug}/signoffs": {
       "title": "List sign-offs",
@@ -2007,87 +2011,89 @@
     "GET /api/v1/jira/pages/{slug}/items": {
       "title": "Jira chips and cards on a page",
       "description": "The page's Jira chips and cards, keyed `<site>/<KEY>`: the key, title and link for everyone who can read the page, and `issue` (status, assignee, priority, due date, sprint…) only when your own Atlassian connection can open it. Works signed out (key and title only; Markdrop never asks Jira for anyone who isn't signed in). `X-Read-Password` for a password-protected page.",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "POST /api/v1/jira/pages/{slug}/list": {
       "title": "One page of a Jira list",
       "description": "Runs a list block's query (`jql`, `project` or `filter`) as you, through your own Jira: nobody sees an issue their Jira hides. Readers can run only the lists saved on the page; editors can preview a new one. `page_token` (the previous answer's `next`) for the next page.",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "POST /api/v1/jira/pages/{slug}/remember": {
       "title": "Remember an issue put on a page",
       "description": "For people who can edit the page: saves the issue's title as the page's snapshot, the \"KEY · title\" every reader sees. Answers the issue as your Jira shows it.",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "GET /api/v1/jira/pages/{slug}/threads": {
       "title": "Comment threads linked to Jira issues",
       "description": "The page's comment threads that have a Jira issue: key, title and link for everyone who can see the comments, live details only through your own Jira; and whether you can create issues from threads (`can_create`).",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "POST /api/v1/jira/pages/{slug}/threads/{thread_id}/draft": {
       "title": "Draft a Jira issue from a comment thread",
       "description": "Markdrop AI's draft of an issue from the discussion (summary, description, project, type, priority, assignee, due date) for you to review. Creates nothing.",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "mcp": "thread_to_jira",
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "POST /api/v1/jira/pages/{slug}/threads/{thread_id}/issue": {
       "title": "Create a Jira issue from a comment thread",
       "description": "Creates the issue as you from the reviewed `fields` and links the thread to it. The issue's description links back to the thread.",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "mcp": "thread_to_jira",
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "POST /api/v1/jira/pages/{slug}/threads/{thread_id}/link": {
       "title": "Link a comment thread to a Jira issue",
       "description": "Links the thread to an existing issue (a key or its link) that your own Jira can open.",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "DELETE /api/v1/jira/pages/{slug}/threads/{thread_id}/link": {
       "title": "Unlink a comment thread's Jira issue",
       "description": "Removes the link between the thread and its issue. Nothing changes in Jira.",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "GET /api/v1/jira/search": {
       "title": "Find Jira issues",
       "description": "The editor's issue picker: a key or link, words of a title, or (with nothing typed) issues assigned to you or reported by you, as your Jira finds them.",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "GET /api/v1/jira/priorities": {
       "title": "A Jira site's priorities",
       "description": "The priorities you can choose on the site, for editing an issue.",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "GET /api/v1/jira/issue/{key}": {
       "title": "A Jira issue",
       "description": "The issue as your own Jira shows it now (status, assignee, priority, type, due date, sprint, updated).",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "PATCH /api/v1/jira/issue/{key}": {
       "title": "Edit a Jira issue",
       "description": "Changes the title (`summary`), `priority` or `due` date (`null` clears it), as you. Pass `slug` to update the page it's on for its readers at once.",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "GET /api/v1/jira/issue/{key}/transitions": {
       "title": "A Jira issue's workflow steps",
       "description": "Every step you can take on the issue now (name, the status it leads to), each with the fields its screen needs: required ones first, with their allowed values.",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "POST /api/v1/jira/issue/{key}/transition": {
       "title": "Move a Jira issue",
       "description": "Takes a workflow step as you: `transition` is the step's id, its name or the status it leads to; `fields` gives what the step needs (a resolution…). Jira's refusal comes back as it is.",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "GET /api/v1/jira/issue/{key}/assignable": {
       "title": "People a Jira issue can be assigned to",
       "description": "The people Jira lets you assign the issue to, matching `q`.",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "PUT /api/v1/jira/issue/{key}/assignee": {
       "title": "Assign a Jira issue",
       "description": "Assigns the issue to a person (`account_id`, from the assignable list) or unassigns it (`null`), as you.",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "POST /api/v1/jira/issue/{key}/comment": {
       "title": "Comment on a Jira issue",
       "description": "Adds your comment to the issue in Jira, as you.",
-      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+      "guide": {"label": "Jira in pages", "href": "/collaboration/jira-in-pages"}
     },
     "GET /api/v1/jira/team/{workspace_id}": {
       "title": "Jira on the Team board",

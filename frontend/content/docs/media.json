@@ -219,6 +219,530 @@
     "bytes": 51454,
     "kind": "image"
   },
+  "/docs-assets/collaboration/assign-and-sign-off/assigned.dark.webp": {
+    "w": 710,
+    "h": 536,
+    "bytes": 16286,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/assign-and-sign-off/assigned.webp": {
+    "w": 710,
+    "h": 536,
+    "bytes": 16626,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/assign-and-sign-off/home.dark.webp": {
+    "w": 1784,
+    "h": 852,
+    "bytes": 51844,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/assign-and-sign-off/home.webp": {
+    "w": 1784,
+    "h": 852,
+    "bytes": 52882,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/assign-and-sign-off/signoff-guard.dark.webp": {
+    "w": 1344,
+    "h": 492,
+    "bytes": 21810,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/assign-and-sign-off/signoff-guard.webp": {
+    "w": 1344,
+    "h": 492,
+    "bytes": 24698,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/comments/comment-flow.mp4": {
+    "w": 1440,
+    "h": 864,
+    "duration": 10.53,
+    "bytes": 275217,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/comments/comment-flow.webm": {
+    "w": 1440,
+    "h": 864,
+    "duration": 10.53,
+    "bytes": 266593,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/comments/comment-flow.webp": {
+    "w": 1440,
+    "h": 864,
+    "bytes": 57496,
+    "kind": "poster"
+  },
+  "/docs-assets/collaboration/comments/live.mp4": {
+    "w": 1440,
+    "h": 864,
+    "duration": 10.57,
+    "bytes": 246716,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/comments/live.webm": {
+    "w": 1440,
+    "h": 864,
+    "duration": 10.57,
+    "bytes": 280194,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/comments/live.webp": {
+    "w": 1440,
+    "h": 864,
+    "bytes": 57860,
+    "kind": "poster"
+  },
+  "/docs-assets/collaboration/comments/phone-sheet-clip.mp4": {
+    "w": 780,
+    "h": 1688,
+    "duration": 7.23,
+    "bytes": 260357,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/comments/phone-sheet-clip.webm": {
+    "w": 780,
+    "h": 1688,
+    "duration": 7.23,
+    "bytes": 287063,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/comments/phone-sheet-clip.webp": {
+    "w": 780,
+    "h": 1688,
+    "bytes": 52824,
+    "kind": "poster"
+  },
+  "/docs-assets/collaboration/comments/phone-sheet.dark.webp": {
+    "w": 780,
+    "h": 1688,
+    "bytes": 53196,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/comments/phone-sheet.webp": {
+    "w": 780,
+    "h": 1688,
+    "bytes": 53966,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/comments/thread.dark.webp": {
+    "w": 710,
+    "h": 914,
+    "bytes": 28094,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/comments/thread.webp": {
+    "w": 710,
+    "h": 914,
+    "bytes": 28828,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/insights-and-exports/export.dark.webp": {
+    "w": 1240,
+    "h": 934,
+    "bytes": 40816,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/insights-and-exports/export.webp": {
+    "w": 1240,
+    "h": 934,
+    "bytes": 43582,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/insights-and-exports/insights.dark.webp": {
+    "w": 1280,
+    "h": 1446,
+    "bytes": 44714,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/insights-and-exports/insights.webp": {
+    "w": 1280,
+    "h": 1446,
+    "bytes": 47696,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/jira-in-pages/card-status.mp4": {
+    "w": 1440,
+    "h": 864,
+    "duration": 11.27,
+    "bytes": 134779,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/jira-in-pages/card-status.webm": {
+    "w": 1440,
+    "h": 864,
+    "duration": 11.27,
+    "bytes": 143076,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/jira-in-pages/card-status.webp": {
+    "w": 1440,
+    "h": 864,
+    "bytes": 28090,
+    "kind": "poster"
+  },
+  "/docs-assets/collaboration/jira-in-pages/chip-and-card.dark.webp": {
+    "w": 1352,
+    "h": 996,
+    "bytes": 47062,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/jira-in-pages/chip-and-card.webp": {
+    "w": 1352,
+    "h": 996,
+    "bytes": 50142,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/jira-in-pages/list.dark.webp": {
+    "w": 1344,
+    "h": 450,
+    "bytes": 26332,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/jira-in-pages/list.webp": {
+    "w": 1344,
+    "h": 450,
+    "bytes": 28382,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/jira-in-pages/live-list.mp4": {
+    "w": 1440,
+    "h": 864,
+    "duration": 8.27,
+    "bytes": 68686,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/jira-in-pages/live-list.webm": {
+    "w": 1440,
+    "h": 864,
+    "duration": 8.27,
+    "bytes": 90993,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/jira-in-pages/live-list.webp": {
+    "w": 1440,
+    "h": 864,
+    "bytes": 29780,
+    "kind": "poster"
+  },
+  "/docs-assets/collaboration/jira-in-pages/paste-link.mp4": {
+    "w": 1440,
+    "h": 864,
+    "duration": 6.97,
+    "bytes": 52173,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/jira-in-pages/paste-link.webm": {
+    "w": 1440,
+    "h": 864,
+    "duration": 6.97,
+    "bytes": 78639,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/jira-in-pages/paste-link.webp": {
+    "w": 1440,
+    "h": 864,
+    "bytes": 26540,
+    "kind": "poster"
+  },
+  "/docs-assets/collaboration/jira-in-pages/signed-out.dark.webp": {
+    "w": 1506,
+    "h": 300,
+    "bytes": 12570,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/jira-in-pages/signed-out.webp": {
+    "w": 1506,
+    "h": 300,
+    "bytes": 13482,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/jira-in-pages/thread-issue.dark.webp": {
+    "w": 710,
+    "h": 624,
+    "bytes": 17152,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/jira-in-pages/thread-issue.webp": {
+    "w": 710,
+    "h": 624,
+    "bytes": 17646,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/jira-in-pages/thread-to-issue.mp4": {
+    "w": 1440,
+    "h": 864,
+    "duration": 9.67,
+    "bytes": 282844,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/jira-in-pages/thread-to-issue.webm": {
+    "w": 1440,
+    "h": 864,
+    "duration": 9.67,
+    "bytes": 338837,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/jira-in-pages/thread-to-issue.webp": {
+    "w": 1440,
+    "h": 864,
+    "bytes": 56930,
+    "kind": "poster"
+  },
+  "/docs-assets/collaboration/notifications/bell.dark.webp": {
+    "w": 832,
+    "h": 1176,
+    "bytes": 57004,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/notifications/bell.webp": {
+    "w": 832,
+    "h": 1176,
+    "bytes": 62260,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/notifications/email-settings.dark.webp": {
+    "w": 1676,
+    "h": 572,
+    "bytes": 49978,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/notifications/email-settings.webp": {
+    "w": 1676,
+    "h": 572,
+    "bytes": 53502,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-ai.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 25672,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-ai.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 26732,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-assign.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 25352,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-assign.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 25662,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-comments.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 18862,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-comments.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 19274,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-insights.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 21964,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-insights.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 23054,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-jira.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 31266,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-jira.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 32622,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-notifications.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 26726,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-notifications.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 28568,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-settings.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 12724,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-settings.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 13414,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-suggested-edits.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 17580,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-suggested-edits.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 17442,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/hero.dark.webp": {
+    "w": 2672,
+    "h": 1520,
+    "bytes": 142106,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/hero.webp": {
+    "w": 2672,
+    "h": 1520,
+    "bytes": 148028,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/settings-and-privacy/share-switches.dark.webp": {
+    "w": 1092,
+    "h": 208,
+    "bytes": 12922,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/settings-and-privacy/share-switches.webp": {
+    "w": 1092,
+    "h": 208,
+    "bytes": 13672,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/settings-and-privacy/sign-in-to-comment.dark.webp": {
+    "w": 1946,
+    "h": 274,
+    "bytes": 22738,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/settings-and-privacy/sign-in-to-comment.webp": {
+    "w": 1946,
+    "h": 274,
+    "bytes": 23270,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/suggested-edits/apply-ai.mp4": {
+    "w": 1440,
+    "h": 864,
+    "duration": 8.43,
+    "bytes": 156638,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/suggested-edits/apply-ai.webm": {
+    "w": 1440,
+    "h": 864,
+    "duration": 8.43,
+    "bytes": 168197,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/suggested-edits/apply-ai.webp": {
+    "w": 1440,
+    "h": 864,
+    "bytes": 60930,
+    "kind": "poster"
+  },
+  "/docs-assets/collaboration/suggested-edits/suggest-accept.mp4": {
+    "w": 1440,
+    "h": 864,
+    "duration": 7.13,
+    "bytes": 131240,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/suggested-edits/suggest-accept.webm": {
+    "w": 1440,
+    "h": 864,
+    "duration": 7.13,
+    "bytes": 163718,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/suggested-edits/suggest-accept.webp": {
+    "w": 1440,
+    "h": 864,
+    "bytes": 47948,
+    "kind": "poster"
+  },
+  "/docs-assets/collaboration/suggested-edits/suggestion.dark.webp": {
+    "w": 710,
+    "h": 980,
+    "bytes": 32728,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/suggested-edits/suggestion.webp": {
+    "w": 710,
+    "h": 980,
+    "bytes": 32514,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/suggested-edits/summarize.mp4": {
+    "w": 1440,
+    "h": 864,
+    "duration": 9.1,
+    "bytes": 211179,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/suggested-edits/summarize.webm": {
+    "w": 1440,
+    "h": 864,
+    "duration": 9.1,
+    "bytes": 230780,
+    "kind": "clip"
+  },
+  "/docs-assets/collaboration/suggested-edits/summarize.webp": {
+    "w": 1440,
+    "h": 864,
+    "bytes": 33720,
+    "kind": "poster"
+  },
+  "/docs-assets/collaboration/suggested-edits/summary.dark.webp": {
+    "w": 1244,
+    "h": 504,
+    "bytes": 33170,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/suggested-edits/summary.webp": {
+    "w": 1244,
+    "h": 504,
+    "bytes": 34646,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/suggested-edits/tone-check.dark.webp": {
+    "w": 960,
+    "h": 794,
+    "bytes": 23820,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/suggested-edits/tone-check.webp": {
+    "w": 960,
+    "h": 794,
+    "bytes": 24878,
+    "kind": "image"
+  },
   "/docs-assets/documents/addresses/change-url.mp4": {
     "w": 1440,
     "h": 810,
