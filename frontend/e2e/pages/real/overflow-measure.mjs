@@ -149,9 +149,12 @@ export function measureOverflow({ tol = 1.5, max = 60 } = {}) {
     const tr = { left, right, top, bottom };
     if (c.clipper && !ellipsisOn(el, c.clipper)) {
       const k = inner(c.clipper);
-      const cutR = right - k.right, cutL = k.left - left;
+      // Only the lines that show (a line-clamped paragraph hides the rest).
+      const shown = rects.filter((r) => r.bottom > k.top + 1 && r.top < k.bottom - 1);
+      const sl = shown.length ? Math.min(...shown.map((r) => r.left)) : 0, sr = shown.length ? Math.max(...shown.map((r) => r.right)) : 0;
+      const cutR = sr - k.right, cutL = k.left - sl;
       // Part of it shows and part is gone (not a slide parked entirely out of view).
-      if ((cutR > tol && left < k.right - 4) || (cutL > tol && right > k.left + 4)) {
+      if (shown.length && ((cutR > tol && sl < k.right - 4) || (cutL > tol && sr > k.left + 4))) {
         push("cut", el, c.clipper, tr, k, Math.max(cutR, cutL), t.nodeValue.trim().replace(/\s+/g, " "));
         continue;
       }

@@ -111,7 +111,7 @@ function WeekRow({ row, showWho = true }: { row: Row; showWho?: boolean }) {
         : <span className="tm-wk__av tm-wk__av--none" aria-hidden />)}
       <div className="tm-wk__body">
         <button type="button" className="tm-wk__text" title={row.text} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-          {showWho && row.person && <b className="tm-wk__who">{firstName(row.person.name)}</b>}
+          {showWho && row.person && <b className="tm-wk__who" title={row.person.name}>{firstName(row.person.name)}</b>}
           <span className="tm-wk__line">{row.text}</span>
         </button>
         {(row.src || row.when) && (

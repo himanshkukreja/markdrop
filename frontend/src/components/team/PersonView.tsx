@@ -101,21 +101,21 @@ export default function PersonView({ workspaceId, userId }: { workspaceId: strin
             <section className="tm-sec" data-testid="team-comment-tasks">
               <h2 className="tm-h2">Assigned comments</h2>
               <ul className="tm-links">{p.comment_tasks.map((t) => (
-                <li key={t.thread_id}><Link href={t.href}><Icon name="message" /><span>{t.excerpt ? `“${t.excerpt}”` : t.title}</span></Link><span className="tm-muted">{t.title}</span></li>))}</ul>
+                <li key={t.thread_id}><Link href={t.href}><Icon name="message" /><span title={t.excerpt || t.title}>{t.excerpt ? `“${t.excerpt}”` : t.title}</span></Link><span className="tm-muted" title={t.title}>{t.title}</span></li>))}</ul>
             </section>
           )}
           {p.meetings.length > 0 && (
             <section className="tm-sec">
               <h2 className="tm-h2">Recent meetings</h2>
               <ul className="tm-links">{p.meetings.map((m) => (
-                <li key={m.slug}><Link href={m.href}><Icon name="mic" /><span>{m.series || m.title}</span></Link><span className="tm-muted">{fmtDay(m.date)}</span></li>))}</ul>
+                <li key={m.slug}><Link href={m.href}><Icon name="mic" /><span title={m.series || m.title}>{m.series || m.title}</span></Link><span className="tm-muted">{fmtDay(m.date)}</span></li>))}</ul>
             </section>
           )}
           {p.documents.length > 0 && (
             <section className="tm-sec">
               <h2 className="tm-h2">Recent documents</h2>
               <ul className="tm-links">{p.documents.map((d) => (
-                <li key={d.slug}><Link href={d.href}><Icon name="doc" /><span>{d.title}</span></Link><span className="tm-muted">{fmtDay(d.updated_at)}</span></li>))}</ul>
+                <li key={d.slug}><Link href={d.href}><Icon name="doc" /><span title={d.title}>{d.title}</span></Link><span className="tm-muted">{fmtDay(d.updated_at)}</span></li>))}</ul>
             </section>
           )}
           {you && p.hidden.length > 0 && (

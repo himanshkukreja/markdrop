@@ -116,7 +116,7 @@ async function seed() {
       { key: "status", name: `Status ${WORD.slice(0, 30)}`, type: "select", options: opts.slice(0, 3) },
       { key: "tags", name: "Tags", type: "multi_select", options: opts },
       { key: "owner", name: "Owner", type: "text" },
-      { key: "link", name: "Link", type: "url" },
+      { key: "link", name: "Link", type: "link" },
     ],
   }), "board schema");
   const page = ok(await api("POST", "/api/v1/pages", T.owner, { title: TITLE, workspace: WS, folder: folderId, content: MD, auto_cover: false }), "hostile page").document;
@@ -146,7 +146,7 @@ async function seed() {
   // Team memory: meetings with long words in every kind of line (the fake Team AI reads them).
   const meeting = (title, date, lines, extra = {}) => api("POST", "/api/v1/meetings/import", T.owner, {
     workspace: WS, wait: true, date, title, restricted: false, ...extra,
-    sources: [{ name: `${title} - Transcript`, text: `${title} - Transcript\nAttendees\n${[...new Set(lines.map((l) => l.split(":")[0]))].join(", ")}\nTranscript\n${lines.join("\n")}\nTranscription ended after 00:15:00\n` }],
+    sources: [{ name: `${title.slice(0, 150)} - Transcript`, text: `${title} - Transcript\nAttendees\n${[...new Set(lines.map((l) => l.split(":")[0]))].join(", ")}\nTranscript\n${lines.join("\n")}\nTranscription ended after 00:15:00\n` }],
   });
   const meetings = [];
   for (const [i, lines] of [
@@ -157,7 +157,7 @@ async function seed() {
     [`${NAME}: Blocked: ${LINE} (waiting on Ben Member). Done: ${URL_NODOT}. Target: ${WORD} by tomorrow. Target: ${LINE} by Friday. Target: ${URL_NODOT} by tomorrow.`,
       `Ben Member: Done: ${LINE} for sourcing. Target: ${URL_NODOT} by today.`],
   ].entries()) {
-    const m = soft(await meeting(i === 0 ? TITLE : `Standup ${WORD}`.slice(0, 190), day(-1 - i), lines), `meeting ${i}`);
+    const m = soft(await meeting((i === 0 ? TITLE : `Standup ${WORD}`).slice(0, 150), day(-1 - i), lines), `meeting ${i}`);
     if (m?.meetings?.[0]) meetings.push(m.meetings[0]);
   }
   soft(await api("POST", "/__sandbox/team-memory/run"), "team run");
@@ -335,20 +335,16 @@ async function record(p, name, width, theme) {
     const file = path.join(OUT, `${String(shots.length).padStart(3, "0")}-${name}-${width}-${theme}-${f.rule}.png`);
     row.shot = file;
     try {
-      const clip = await p.evaluate((n) => {
+      await p.evaluate((n) => {
         const el = document.querySelector(`[data-ovf="${n}"]`);
         const box = document.querySelector(`[data-ovf-box="${n}"]`);
-        if (!el) return null;
-        (box || el).scrollIntoView({ block: "center", inline: "nearest" });
+        if (!el) return;
+        el.scrollIntoView({ block: "center", inline: "nearest" });
         el.style.outline = "2px solid #ff00ff";
         el.style.outlineOffset = "-1px";
         if (box) { box.style.outline = "2px dashed #00bcd4"; box.style.outlineOffset = "1px"; }
-        const r = el.getBoundingClientRect(), b = (box || el).getBoundingClientRect();
-        const l = Math.max(0, Math.min(r.left, b.left) - 24), t = Math.max(0, Math.min(r.top, b.top) - 24);
-        const w = Math.min(window.innerWidth, Math.max(r.right, b.right) + 24) - l, h = Math.min(window.innerHeight, Math.max(r.bottom, b.bottom) + 24) - t;
-        return w > 8 && h > 8 ? { x: l, y: t, width: w, height: h } : null;
       }, f.n);
-      await p.screenshot({ path: file, ...(clip ? { clip } : {}) });
+      await p.screenshot({ path: file });
       await p.evaluate((n) => {
         for (const e of document.querySelectorAll(`[data-ovf="${n}"], [data-ovf-box="${n}"]`)) { e.style.outline = ""; e.style.outlineOffset = ""; }
       }, f.n);
