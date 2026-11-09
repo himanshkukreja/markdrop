@@ -245,8 +245,16 @@ class RequestMemo(_home.HomeWorld):
             pass
 
         for method in ("GET", "POST", "PUT", "PATCH", "DELETE"):
-            await mw({"type": "http", "method": method, "path": "/", "headers": []}, receive, send)
+            await mw({"type": "http", "method": method, "path": "/api/v1/workspaces/w1/members", "headers": []},
+                     receive, send)
         self.assertEqual([m is not None for m in seen], [True, False, False, False, False])
+        # The editor's autosave and lock calls never change a person, a workspace or a role.
+        self.assertTrue(request_memo.memo_applies("PUT", "/api/v1/documents/abc"))
+        self.assertTrue(request_memo.memo_applies("POST", "/api/v1/documents/abc/lock"))
+        self.assertTrue(request_memo.memo_applies("DELETE", "/api/v1/documents/abc/lock"))
+        self.assertFalse(request_memo.memo_applies("DELETE", "/api/v1/documents/abc"))
+        self.assertFalse(request_memo.memo_applies("POST", "/api/v1/documents/abc/claim"))
+        self.assertFalse(request_memo.memo_applies("PATCH", "/api/v1/documents/abc/settings"))
 
 
 class RecentViews(_home.HomeWorld):

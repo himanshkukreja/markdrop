@@ -8,18 +8,24 @@ production cluster every operation counts against its throughput cap, so within 
 an ``asyncio.gather``.
 
 Never across requests, and never for a request that writes (POST/PUT/PATCH/DELETE: it may change a
-role or a workspace and then read it back), so nothing here can serve a stale answer to a later request.
+role or a workspace and then read it back), so nothing here can serve a stale answer to a later request —
+except the page editor's own writes (a save, the edit lock and its heartbeat: ``EDITOR_WRITES``), which
+come every few seconds while someone types and never change a person, a workspace or a role.
 """
 
 from __future__ import annotations
 
 import asyncio
+import re
 from contextvars import ContextVar
 from typing import Any, Awaitable, Callable
 
 _memo: ContextVar[dict | None] = ContextVar("markdrop_request_memo", default=None)
 
 READ_METHODS = ("GET", "HEAD")
+# The editor's autosave (PUT /documents/{slug}), its lock (POST/DELETE …/lock, POST …/lock/keep, the
+# close beacon …/lock/release).
+EDITOR_WRITES = re.compile(r"^/api/v1/documents/[^/]+(?:/lock(?:/keep|/release)?)?$")
 
 
 async def remember(key: tuple, factory: Callable[[], Awaitable[Any]]) -> Any:
@@ -59,14 +65,25 @@ def forget(*key_prefix: Any) -> None:
         memo.pop(k, None)
 
 
+def memo_applies(method: str, path: str) -> bool:
+    if method in READ_METHODS:
+        return True
+    if not EDITOR_WRITES.match(path):
+        return False
+    # The document itself only by its save (PUT); the lock by POST/DELETE.
+    return method == "PUT" if path.count("/") == 4 else method in ("POST", "DELETE")
+
+
 class RequestMemoMiddleware:
-    """Pure ASGI: a fresh memo for each GET/HEAD request, none otherwise."""
+    """Pure ASGI: a fresh memo for each read request and the editor's own writes, none otherwise."""
 
     def __init__(self, app):
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or scope.get("method") not in READ_METHODS:
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        if not memo_applies(scope.get("method") or "", scope.get("path") or ""):
             return await self.app(scope, receive, send)
         token = _memo.set({})
         try:
