@@ -47,10 +47,12 @@
 .url {
   flex: 1;
   min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   height: 22px;
+  line-height: 22px;
+  padding: 0 8px;
+  text-align: center;
+  text-overflow: ellipsis;
   border-radius: 6px;
   background: var(--surface-inset);
   font-family: var(--font-mono);

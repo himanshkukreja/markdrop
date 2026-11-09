@@ -156,7 +156,7 @@ function Meta({ site, where, extra, className }: { site: SiteSummary; where: str
       </span>
       <span aria-hidden>·</span>
       <span className="shrink-0">{plural(site.page_count, "page")}</span>
-      {extra ? <><span aria-hidden>·</span><span className={extra.length < 18 ? "shrink-0 whitespace-nowrap" : "min-w-0 truncate"} title={extra}>{extra}</span></> : <><span aria-hidden className="max-sm:hidden">·</span><span className="shrink-0 whitespace-nowrap max-sm:hidden" title={change}>{change}</span></>}
+      {extra ? <><span aria-hidden>·</span><span className="min-w-0 truncate" title={extra}>{extra}</span></> : <><span aria-hidden className="max-sm:hidden">·</span><span className="min-w-0 truncate max-sm:hidden" title={change}>{change}</span></>}
     </div>
   );
 }
@@ -241,9 +241,9 @@ export function GuideCard({ site, where, insights, canManagePeople, onDelete }: 
           </div>
         </div>
       </div>
-      {/* Touch: 44 px buttons may not fit one row of a narrow card; people and More then wrap to a
-          second row, on the right (never clipped by the card). */}
-      <div className="flex items-center gap-1.5 border-t border-border px-3 py-2.5 pointer-coarse:flex-wrap pointer-coarse:gap-y-2">
+      {/* The buttons may not fit one row of a narrow card (touch's 44 px buttons, or three cards across
+          at 1024 px); people and More then wrap to a second row, on the right (never clipped by the card). */}
+      <div className="flex flex-wrap items-center gap-1.5 gap-y-2 border-t border-border px-3 py-2.5">
         <OpenButton site={site} className="max-sm:flex-1" block />
         <ViewButton site={site} />
         {showNumbers && <FixChip ins={insights} site={site} />}

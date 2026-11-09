@@ -8,7 +8,13 @@
   --tm-week: var(--chart-1);
   --tm-later: var(--chart-other);
   width: 100%; max-width: none; margin: 0; padding: 0 0 96px; color: var(--text);
+  /* Long words, URLs, emails and Jira keys from meetings and pages break inside their card instead of
+     running out of it (and let flex / grid children shrink: their min-content is one character). Single-line
+     labels keep white-space: nowrap + an ellipsis and the full text in a title. */
+  overflow-wrap: anywhere;
 }
+/* Team's dialogs render in a portal, outside .tm-page. */
+.tm-groups, .tm-groupedit, .tm-dialog__quote, .tm-presets { overflow-wrap: anywhere; }
 /* Tokens are dark on :root / [data-theme="dark"] and light under [data-theme="light"] (styles/ds/tokens.css). */
 [data-theme="light"] .tm-page, .tm-page[data-theme="light"] { --tm-overdue: #c81e1e; }
 :root .tm-page, [data-theme="dark"] .tm-page { --tm-overdue: #e5484d; }
@@ -59,10 +65,12 @@
 .tm-tabs { margin-bottom: 14px; }
 
 /* ── status chip ── */
-.tm-status { display: inline-flex; align-items: center; gap: 5px; flex: none; height: 26px; padding: 0 9px; border-radius: var(--radius-full); border: 1px solid var(--border); background: var(--surface-raised); color: var(--text-secondary); font-size: 12.5px; font-weight: 600; white-space: nowrap; max-width: 100%; }
+.tm-status { display: inline-flex; align-items: center; gap: 5px; flex: 0 1 auto; min-width: 0; height: 26px; padding: 0 9px; border-radius: var(--radius-full); border: 1px solid var(--border); background: var(--surface-raised); color: var(--text-secondary); font-size: 12.5px; font-weight: 600; white-space: nowrap; max-width: 100%; }
 .tm-status--sm { height: 24px; font-size: 12px; padding: 0 8px; }
 .tm-status svg { width: 13px; height: 13px; flex: none; }
-.tm-status__label { overflow: hidden; text-overflow: ellipsis; }
+.tm-status__label { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* A member card's top row: the name keeps at least half; a long own status ends in "…" (full text in its title). */
+.tm-card__top .tm-status { max-width: 50%; }
 .tm-status__emoji { font-size: 13px; line-height: 1; }
 .tm-status--on_track { color: var(--success); border-color: color-mix(in srgb, var(--success) 35%, var(--border)); background: var(--success-soft); }
 .tm-status--blocked { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); background: var(--danger-soft); }
@@ -88,7 +96,9 @@
 .tm-card a:not(.tm-card__link), .tm-card button { position: relative; z-index: 1; }
 .tm-card__top { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .tm-card__who { flex: 1; min-width: 0; }
-.tm-card__name { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 15px; line-height: 20px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-card__name { margin: 0; display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 15px; line-height: 20px; font-weight: 650; white-space: nowrap; }
+.tm-card__nametext { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tm-card__name .tm-you { flex: none; }
 .tm-card__role { margin: 0; font-size: 13px; line-height: 18px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tm-card__reason { margin: 0; font-size: 14px; line-height: 21px; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tm-card__label { display: block; font-size: 12px; line-height: 16px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 3px; }
@@ -205,12 +215,14 @@
 .tm-links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .tm-links li { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; border-top: 1px solid var(--border); }
 .tm-links li:first-child { border-top: 0; }
-.tm-links a { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--text); text-decoration: none; font-size: 15px; }
+.tm-links a { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; color: var(--text); text-decoration: none; font-size: 15px; }
+.tm-links li > .tm-muted { flex: 0 1 auto; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tm-links a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tm-links a svg { width: 14px; height: 14px; flex: none; color: var(--text-muted); }
 .tm-links a:hover { text-decoration: underline; }
 .tm-people { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
-.tm-people a { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px 0 4px; border-radius: var(--radius-full); border: 1px solid var(--border); background: var(--surface); color: var(--text); text-decoration: none; font-size: 13.5px; }
+.tm-people li { min-width: 0; max-width: 100%; }
+.tm-people a { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-height: 36px; padding: 0 12px 0 4px; border-radius: var(--radius-full); border: 1px solid var(--border); background: var(--surface); color: var(--text); text-decoration: none; font-size: 13.5px; }
 .tm-people a:hover { border-color: var(--border-strong); }
 
 /* dialogs */
@@ -295,7 +307,8 @@
 .tm-wk__body { flex: 1; min-width: 0; }
 .tm-wk__text { display: flex; gap: 6px; width: 100%; min-width: 0; margin: 0; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; font-size: 15px; line-height: 22px; color: var(--text); }
 .tm-wk__text:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; border-radius: 4px; }
-.tm-wk__who { flex: none; font-weight: 650; }
+/* The first name keeps its width (a very long one ends in "…" at 40%); the line beside it takes the rest. */
+.tm-wk__who { flex: 0 0 auto; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
 .tm-wk__line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tm-wk__row.is-open .tm-wk__line { white-space: normal; overflow-wrap: anywhere; }
 .tm-wk__meta { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; margin-top: 2px; min-width: 0; font-size: 13px; line-height: 18px; color: var(--text-secondary); }

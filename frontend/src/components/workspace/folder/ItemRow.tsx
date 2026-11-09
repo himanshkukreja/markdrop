@@ -157,14 +157,15 @@ export function ItemRow({
             onClick={onAccess}
             aria-label={`Who can open it: ${words}. Change`}
             aria-haspopup="dialog"
-            className="text-text-secondary"
+            title={words}
+            className="max-w-48 text-text-secondary"
           >
             {words}
           </Button>
         ) : (
-          <span className="inline-flex h-8 items-center gap-1.5 px-2 text-caption text-text-secondary" title={`Who can open it: ${words}`}>
-            <Icon name={icon} size={14} />
-            {words}
+          <span className="inline-flex h-8 max-w-48 items-center gap-1.5 px-2 text-caption text-text-secondary" title={`Who can open it: ${words}`}>
+            <Icon name={icon} size={14} className="shrink-0" />
+            <span className="min-w-0 truncate">{words}</span>
           </span>
         )}
         {copy && <CopyButton text={copy} label="Copy link" variant="secondary" size="sm" announceText="Link copied" />}

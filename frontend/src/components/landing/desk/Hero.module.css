@@ -399,6 +399,10 @@
   background: var(--text-subtle);
   opacity: 0.5;
 }
+/* Phones and tablets: the laptop's base overhangs it, but never past the mat's 16 px padding. */
+@media (max-width: 1023px) {
+  .base { margin: 0 max(-4%, -12px); }
+}
 
 /* What the screen shows: the render's poster, then the real render once a file is dropped. */
 .show {

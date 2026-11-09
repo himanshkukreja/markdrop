@@ -306,7 +306,8 @@
 }
 .base {
   height: 12px;
-  margin: 0 -6%;
+  /* The laptop's base overhangs it, never past the desk's edge. */
+  margin: 0 max(-6%, -12px);
   border-radius: 2px 2px 12px 12px;
   background: var(--border-strong);
 }

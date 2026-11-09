@@ -47,7 +47,14 @@ body {
   -moz-osx-font-smoothing: grayscale;
   /* clip, not hidden: hidden would make body a scroll container and break position: sticky. */
   overflow-x: clip;
+  /* No content overflows (owner 2026-11-09): a word longer than its line (a URL, an email, a Jira key, a
+     long workspace name, a pasted hash) breaks instead of running out of its card. `anywhere` (not
+     break-word) also lets a flex or grid child holding such a word shrink with its row. Single-line labels
+     keep white-space: nowrap and end in an ellipsis; e2e/pages/real/overflow.mjs checks every page. */
+  overflow-wrap: anywhere;
 }
+/* Tables keep their columns at their words' widths (their wrappers scroll sideways instead). */
+table { overflow-wrap: break-word; }
 
 /* One frame without transitions when the theme switches (lib/theme.ts), so nothing smears. */
 .theme-switching, .theme-switching *, .theme-switching *::before, .theme-switching *::after {

@@ -188,8 +188,8 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
           <p className="mt-0.5 text-[13px] text-text-muted">Files go back to the people who own them, as private. Your domain stops serving.</p>
         </div>
         <Locked locked={!isOwner} reason="Only the owner can delete it">
-          <Button variant="secondary" iconLeft="trash" {...lockProps(!isOwner)} onClick={isOwner ? () => setConfirm("delete") : lockProps(true).onClick}>
-            Delete <span className="ph-sensitive ph-mask">{ws.name}</span>…
+          <Button variant="secondary" iconLeft="trash" title={`Delete ${ws.name}…`} {...lockProps(!isOwner)} onClick={isOwner ? () => setConfirm("delete") : lockProps(true).onClick}>
+            <span className="md-btn__label">Delete <span className="ph-sensitive ph-mask">{ws.name}</span>…</span>
           </Button>
         </Locked>
       </section>

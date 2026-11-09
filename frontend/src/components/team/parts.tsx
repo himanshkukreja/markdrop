@@ -22,7 +22,7 @@ const STATUS_ICON: Record<StatusState, string> = {
 
 export function StatusChip({ status, size = "md" }: { status: Status; size?: "sm" | "md" }) {
   return (
-    <span className={`tm-status tm-status--${status.state} tm-status--${size}`} data-testid="team-status" data-state={status.state}>
+    <span className={`tm-status tm-status--${status.state} tm-status--${size}`} data-testid="team-status" data-state={status.state} title={status.label}>
       {status.emoji ? <span aria-hidden className="tm-status__emoji">{status.emoji}</span> : <Icon name={STATUS_ICON[status.state]} />}
       <span className="tm-status__label">{status.label}</span>
     </span>

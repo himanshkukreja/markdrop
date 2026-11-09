@@ -105,7 +105,7 @@ function WorkspaceBadge() {
   const label = current.workspace_id ? name : "Personal";
   if (!label) return null;
   return (
-    <Anchor href={studioHome(scopeOf(current))} className="md-focus md-touch-hit hidden shrink-0 rounded-full no-underline sm:inline-flex pointer-coarse:max-lg:hidden" title={current.workspace_id ? `In the ${label} workspace` : "Your personal guide"}>
+    <Anchor href={studioHome(scopeOf(current))} className="md-focus md-touch-hit hidden min-w-0 max-w-48 rounded-full no-underline sm:inline-flex pointer-coarse:max-lg:hidden" title={current.workspace_id ? `In the ${label} workspace` : "Your personal guide"}>
       <Badge size="sm" icon={current.workspace_id ? "users" : "user"}>{label}</Badge>
     </Anchor>
   );

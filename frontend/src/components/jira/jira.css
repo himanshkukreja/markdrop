@@ -4,6 +4,7 @@
   display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%;
   padding: 1px 8px; border: 1px solid var(--border); border-radius: var(--radius-full);
   background: var(--surface); color: var(--text); font-size: 12px; line-height: 18px; text-decoration: none; white-space: nowrap;
+  overflow: hidden;
 }
 .jr-chip__main:hover { border-color: var(--border-strong); background: var(--surface-hover); }
 .jr-chip__key { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent-text); }
@@ -15,7 +16,7 @@
 .jr-chip__sync--pending { color: var(--text-muted); }
 .jr-chip__retry { border: 0; background: none; padding: 0; color: var(--accent-text); font: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; }
 
-.jr-status { display: inline-block; padding: 0 6px; border-radius: 4px; font-size: 11px; font-weight: 600; line-height: 16px; text-transform: uppercase; letter-spacing: 0.02em; }
+.jr-status { display: inline-block; max-width: 14em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; padding: 0 6px; border-radius: 4px; font-size: 11px; font-weight: 600; line-height: 16px; text-transform: uppercase; letter-spacing: 0.02em; }
 .jr-status--new { background: var(--surface-active); color: var(--text-secondary); }
 .jr-status--indeterminate { background: var(--accent-soft); color: var(--accent-text); }
 .jr-status--done { background: var(--success-soft); color: var(--success); }
@@ -32,10 +33,12 @@ li:hover > .jr-add, li:focus-within > .jr-add, .jr-add:focus-visible { opacity: 
 @media (hover: none) { .jr-add { opacity: 0.85; } }
 .jr-add:hover { color: var(--accent-text); border-color: var(--accent); }
 
-.jr-row { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 0; font-size: 13px; }
-.jr-row .jr-chip { margin: 0; flex: none; }
-.jr-row__summary { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
-.jr-row__due { flex: none; color: var(--text-muted); font-size: 12px; }
+/* Chip, summary, due: the due date drops to its own line when the three don't fit (phones), the chip
+   shrinks before it overflows, the summary ends in "…" (full text in its title). */
+.jr-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; padding: 4px 0; font-size: 13px; }
+.jr-row .jr-chip { margin: 0; flex: 0 1 auto; min-width: 0; }
+.jr-row__summary { min-width: 0; flex: 1 1 10ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.jr-row__due { flex: none; max-width: 100%; color: var(--text-muted); font-size: 12px; white-space: nowrap; }
 .jr-row__due--late { color: var(--danger); }
 
 .jr-quote { margin: 0; padding: 8px 12px; border-inline-start: 3px solid var(--border-strong); background: var(--surface-raised); border-radius: 6px; color: var(--text-secondary); font-size: 13px; overflow-wrap: anywhere; }

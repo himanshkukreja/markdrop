@@ -54,7 +54,7 @@ export function JiraIssueRow({ issue, dense }: { issue: JiraIssue; dense?: boole
   return (
     <li className="jr-row" data-testid="jira-issue-row">
       <JiraChip issue={issue} compact />
-      <span className="jr-row__summary">{issue.summary}</span>
+      <span className="jr-row__summary" title={issue.summary ?? undefined}>{issue.summary}</span>
       {issue.due && !dense && <span className={`jr-row__due${issue.overdue ? " jr-row__due--late" : ""}`}>{issue.overdue ? "Overdue · " : "Due "}{issue.due}</span>}
     </li>
   );

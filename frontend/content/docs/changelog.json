@@ -53,6 +53,19 @@
       }
     },
     {
+      "id": "no-overflow-nov-9",
+      "date": "2026-11-09",
+      "title": "Long text stays inside its card",
+      "kind": "fixed",
+      "area": "Design",
+      "products": [
+        "web"
+      ],
+      "summary": "Long text no longer spills out of cards: long links, emails, names, Jira keys and titles now wrap or end in \"…\" on every page, on phones, tablets and desktops.",
+      "body": "- **Team.** Highlights, due and overdue rows, member cards, a person's assigned comments, focus notes and statuses, and Jira issue rows keep long words, links and Jira keys inside their cards. A long status ends in \"…\" with the full text on hover; an issue's due date moves to its own line on a phone.\n- **Everywhere else.** Home, notifications, search results, Ask, file lists, folders, the landing page and the rest of the app wrap a word that's longer than its line instead of running out of the box, and a button with a long label (like a long workspace name) ends in \"…\".\n- **Checked on every page.** Each release now opens every page with very long text at phone, tablet and desktop widths, in light and dark, and fails if anything spills out.",
+      "docs": []
+    },
+    {
       "id": "faster-together",
       "date": "2026-11-09",
       "title": "Faster when your whole team is in at once",

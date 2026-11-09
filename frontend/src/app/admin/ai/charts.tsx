@@ -98,9 +98,11 @@ export function DailyByFeature({ series, features, metric, height = 180, colorOf
               );
             })}
           </div>
+          {/* Day labels: centred under their column, the last ones end at the chart's edge (never past
+              the card), and phones show every other one so they don't run into each other. */}
           <div className="mt-1 flex gap-[2px]" aria-hidden>
             {series.map((d, i) => (
-              <div key={d.t} className="min-w-0 flex-1 overflow-visible whitespace-nowrap text-center text-micro text-text-muted">
+              <div key={d.t} className={`flex min-w-0 flex-1 overflow-visible whitespace-nowrap text-micro text-text-muted ${i >= series.length - Math.max(2, every) ? "justify-end" : "justify-center"} ${(i / every) % 2 === 1 ? "max-sm:invisible" : ""}`}>
                 {i % every === 0 ? dayLabel(d.t) : ""}
               </div>
             ))}
