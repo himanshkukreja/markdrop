@@ -297,9 +297,11 @@ class Roles(unittest.IsolatedAsyncioTestCase):
     async def test_web_runs_no_loops_and_the_worker_does(self):
         from app import worker
 
-        with mock.patch.object(settings, "role", "web"):
+        with mock.patch.object(settings, "role", "web"), mock.patch.object(settings, "redis_url", "redis://localhost:6379"):
             self.assertFalse(worker.runs_loops())
             self.assertTrue(live._bus_on())
+        with mock.patch.object(settings, "role", "web"), mock.patch.object(settings, "redis_url", "memory://"):
+            self.assertFalse(live._bus_on())  # no Redis, no bus (and a warning at start)
         for role in ("all", "worker"):
             with mock.patch.object(settings, "role", role):
                 self.assertTrue(worker.runs_loops())
