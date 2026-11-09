@@ -206,7 +206,7 @@ async def manage_role(actor: access.Actor, row: dict, ctx: access.Ctx) -> str | 
     doc = row.get("doc") or {}
     if uid and doc.get("owner_id") == uid:
         return "owner"
-    if actor.edit_secret and access._secret_ok(actor.edit_secret, doc.get("edit_secret_hash")):
+    if actor.edit_secret and await access._secret_ok(actor.edit_secret, doc.get("edit_secret_hash")):
         return "owner"
     ws_id = doc.get("workspace_id")
     if uid and ws_id and await ctx.role(ws_id, uid) in ("owner", "admin"):

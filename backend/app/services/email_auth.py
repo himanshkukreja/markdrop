@@ -9,7 +9,6 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 
-import bcrypt
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
@@ -35,11 +34,14 @@ async def create_challenge(db: AsyncIOMotorDatabase, email: str) -> tuple[str, s
     link_token = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc)
 
+    from app.utils import security
+
+    otp_hash = await security.hash_secret(otp)
     await db["login_challenges"].delete_many({"email": email})
     await db["login_challenges"].insert_one(
         {
             "email": email,
-            "otp_hash": bcrypt.hashpw(otp.encode(), bcrypt.gensalt()).decode(),
+            "otp_hash": otp_hash,
             "link_token_hash": _hash_link_token(link_token),
             "expires_at": now + timedelta(minutes=settings.login_challenge_ttl_minutes),
             "attempts": 0,
@@ -65,7 +67,12 @@ async def verify_otp(db: AsyncIOMotorDatabase, email: str, code: str) -> str | N
     if challenge.get("attempts", 0) >= settings.login_max_attempts:
         return None
 
-    if not bcrypt.checkpw(code.encode(), challenge["otp_hash"].encode()):
+    import asyncio
+
+    from app.utils import security
+
+    # Never the cached check: a login code is single-use and its guesses are counted.
+    if not await asyncio.to_thread(security.check_sync, code, challenge["otp_hash"]):
         await db["login_challenges"].update_one(
             {"_id": challenge["_id"]}, {"$inc": {"attempts": 1}}
         )

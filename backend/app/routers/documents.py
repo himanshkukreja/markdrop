@@ -300,14 +300,14 @@ async def rotate_edit_secret(
 ):
     """A9: the owner replaces a leaked edit secret. The old one stops working
     at once; the new one is returned once."""
-    from app.utils.security import generate_edit_secret
+    from app.utils.security import new_edit_secret
 
     actor = access.actor_from_request(request, user)
     ctx = _ctx(db, request)
     raw = await db["documents"].find_one({"slug": slug})
     d = await access.can(actor, raw, "change_access", ctx)  # owner session only
     d.raise_()
-    secret, hashed = generate_edit_secret()
+    secret, hashed = await new_edit_secret()
     await db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"edit_secret_hash": hashed}})
     return {"slug": slug, "edit_secret": secret}
 
