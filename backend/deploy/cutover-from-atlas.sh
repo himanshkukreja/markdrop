@@ -23,7 +23,7 @@ lines = open(p).read().splitlines()
 out = ['MARKDROP_MONGODB_URI=' + os.environ['LOCAL_URI'] if l.startswith("MARKDROP_MONGODB_URI=") else l for l in lines]
 open(p, "w").write("\n".join(out) + "\n")
 EOF
-cd /opt/markdrop/backend
+cd /opt/markdrop/backend || exit 1
 if ! sudo -u ubuntu .venv/bin/python -c "
 from app.config import Settings; import pymongo
 s = Settings(); db = pymongo.MongoClient(s.mongodb_uri, serverSelectionTimeoutMS=5000)[s.mongodb_db]
@@ -36,4 +36,4 @@ print('  validated: documents =', db.documents.estimated_document_count())"; the
 fi
 systemctl start markdrop markdrop-worker
 for _ in $(seq 60); do curl -sf -o /dev/null http://127.0.0.1:8080/health && break; sleep 1; done
-echo "API back after $(( $(date +%s) - T0 )) s: health $(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:8080/health)"
+echo "API back after $(( $(date +%s) - T0 )) s: health $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/health)"

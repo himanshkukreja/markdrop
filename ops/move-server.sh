@@ -13,6 +13,8 @@
 #   Disaster recovery (the old server is gone): a new VM from the newest R2 backup, in one run:
 #        ops/move-server.sh --from-backup latest --to USER@NEW --to-key new.pem \
 #            --env-file ~/secure/markdrop.env --backup-env ~/secure/backup.env [--geoip-conf ~/secure/GeoIP.conf]
+#        add --practice to rehearse that on a spare VM while the real server lives: restore + API check only
+#        (no worker, no DNS, no certificate)
 #
 # Options:  --dry-run      read-only checks of both servers + the plan; changes nothing anywhere
 #           --status       where things stand (roles, services, sync, DNS)
@@ -36,10 +38,10 @@ KIT_SRC="$(cd "$HERE/../backend/deploy" && pwd)"
 DOMAIN="${MARKDROP_DOMAIN:-api.markdrop.in}"
 ZONE_NAME="${DOMAIN#*.}"
 
-MODE=prepare DRY=0 YES=0 ALLOW_DRIFT=0 PYTHON=auto REF="" TUNNEL_PORT=27118 EMAIL="" AWS_EIP=0
+MODE=prepare DRY=0 YES=0 ALLOW_DRIFT=0 PYTHON=auto REF="" TUNNEL_PORT=27118 EMAIL="" AWS_EIP=0 PRACTICE=0
 FROM="" FROM_KEY="" TO="" TO_KEY="" FROM_BACKUP="" ENV_FILE="" BACKUP_ENV="" GEOIP_CONF=""
 
-usage() { sed -n '3,35p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-1}"; }
+usage() { sed -n '3,37p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-1}"; }
 while [ $# -gt 0 ]; do
   case $1 in
     --from) FROM=$2; shift 2 ;;
@@ -59,6 +61,7 @@ while [ $# -gt 0 ]; do
     --tunnel-port) TUNNEL_PORT=$2; shift 2 ;;
     --allow-drift) ALLOW_DRIFT=1; shift ;;
     --aws-eip) AWS_EIP=1; shift ;;
+    --practice) PRACTICE=1; shift ;;
     --dry-run) DRY=1; shift ;;
     --yes|-y) YES=1; shift ;;
     -h|--help) usage 0 ;;
@@ -292,6 +295,8 @@ preflight_old() {
     a=$(shasum -a 256 "$KIT_SRC/$kit" | cut -c1-64)
     b=$(on_old "sha256sum '$path' 2>/dev/null | cut -c1-64" || true)
     if [ -z "$b" ]; then warn "OLD has no $path"
+    elif [ "$a" != "$b" ] && [ "${path#/usr/local/sbin/}" != "$path" ]; then
+      info "$path: NEW gets the kit's newer backend/deploy/$kit (a helper script, not config)"
     elif [ "$a" != "$b" ]; then
       drift=1; warn "$path differs from backend/deploy/$kit:"
       on_old "cat '$path'" | diff -u --label "backend/deploy/$kit" --label "OLD:$path" "$KIT_SRC/$kit" - | sed 's/^/      /' | head -40 || true
@@ -659,11 +664,16 @@ mode_backup() {  # disaster recovery: NEW from the newest (or a named) R2 backup
     step "plan (dry-run)"
     would "ship the kit; send your .env/backup.env${GEOIP_CONF:+/GeoIP.conf} to NEW (root 600)"
     would "provision NEW (fresh MongoDB passwords + keyfile, code @ $REF, placeholder TLS)"
-    would "download + restore R2 backup '$FROM_BACKUP', go live"
-    would "switch DNS $DOMAIN → $NEW_IP, then issue a Let's Encrypt certificate"
+    if [ "$PRACTICE" = 1 ]; then
+      would "download + restore R2 backup '$FROM_BACKUP', start the API alone, probe it, stop it (practice: no worker, DNS, cert)"
+    else
+      would "download + restore R2 backup '$FROM_BACKUP', go live"
+      would "switch DNS $DOMAIN → $NEW_IP, then issue a Let's Encrypt certificate"
+    fi
     return
   fi
-  confirm "Build $TO from backup '$FROM_BACKUP' and point $DOMAIN at it?"
+  if [ "$PRACTICE" = 1 ]; then confirm "Practice: build $TO from backup '$FROM_BACKUP' (DNS untouched, nothing goes live)?"
+  else confirm "Build $TO from backup '$FROM_BACKUP' and point $DOMAIN at it?"; fi
   step "ship the kit + your secrets"
   ship_kit new
   ENV_FILE="$ENV_FILE" BACKUP_ENV="$BACKUP_ENV" GEOIP_CONF="$GEOIP_CONF" python3 - <<'EOF' | pipe_new 'sudo install -d -m 700 /root/markdrop-move && sudo sh -c "umask 077; cat > /root/markdrop-move/bundle.tar"'
@@ -683,6 +693,14 @@ EOF
   on_new "sudo /opt/markdrop-ops/provision.sh install --ref '$REF' --bundle /root/markdrop-move/bundle.tar --python '$PYTHON'" || die "provision failed (re-run is safe)"
   step "restore"
   on_new "sudo /opt/markdrop-ops/provision.sh restore-backup '$FROM_BACKUP'" || die "restore failed"
+  if [ "$PRACTICE" = 1 ]; then
+    on_new 'sudo /opt/markdrop-ops/provision.sh smoke' || die "the API did not come up on the restored data"
+    save phase practice-restored
+    echo
+    echo "✓ practice recovery on $TO ($NEW_IP) from backup '$FROM_BACKUP': restored, API healthy on it, stopped again."
+    echo "  Nothing went live; DNS untouched. Terminate the VM when done (it holds a copy of the data)."
+    return
+  fi
   on_new 'sudo /opt/markdrop-ops/provision.sh go-live' || die "NEW did not come up"
   if [ -n "$GEOIP_CONF" ]; then
     on_new 'sudo geoipupdate && sudo systemctl restart markdrop markdrop-worker' && ok "GeoIP database downloaded" || warn "geoipupdate failed (the app runs without GeoIP)"
