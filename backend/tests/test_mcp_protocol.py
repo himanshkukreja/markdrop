@@ -170,6 +170,10 @@ class Transport(McpTestCase):
             # Team: your own status, focus note and lines; groups and the weekly summary (admins).
             "set_my_status", "set_focus_note", "hide_team_line", "correct_team_line", "mark_team_item_done",
             "list_team_groups", "save_team_group", "delete_team_group", "send_weekly_summary_now",
+            # Teams inside a workspace (mcp/teams_tools.py).
+            "list_teams", "get_team", "get_team_brief", "list_projects", "create_team", "update_team",
+            "add_team_members", "remove_team_members", "move_to_team", "share_to_team", "edit_team_brief",
+            "create_project", "route_meeting",
         # A video's captions (search and Ask read it by minute).
         "set_captions"})
         for t in tools.values():
@@ -223,7 +227,7 @@ class Transport(McpTestCase):
     async def test_modern_tools_list_and_call(self):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
-        self.assertEqual(len(r.json()["result"]["tools"]), 132)
+        self.assertEqual(len(r.json()["result"]["tools"]), 145)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")

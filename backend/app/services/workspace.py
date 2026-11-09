@@ -330,6 +330,10 @@ async def remove_member(db: AsyncIOMotorDatabase, workspace_id: str, user_id: st
     # transfer racing this removal left a workspace with no owner at all: c248). The transfer
     # promotes the membership before it moves `owner_id`, so the role is the thing to condition on.
     res = await db["memberships"].delete_one({"workspace_id": workspace_id, "user_id": user_id, "role": {"$ne": "owner"}})
+    if res.deleted_count:
+        # Teams (services/teams.py): out of the workspace is out of its teams and projects too.
+        await db["teams"].update_many({"workspace_id": workspace_id}, {"$pull": {"member_ids": user_id, "lead_ids": user_id}})
+        await db["team_projects"].update_many({"workspace_id": workspace_id}, {"$pull": {"member_ids": user_id, "lead_ids": user_id}})
     if not res.deleted_count and await db["memberships"].find_one(
         {"workspace_id": workspace_id, "user_id": user_id, "role": "owner"}, {"_id": 1}):
         raise HTTPException(

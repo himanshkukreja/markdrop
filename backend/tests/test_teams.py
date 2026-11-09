@@ -110,6 +110,26 @@ class Rule(TeamsWorld):
         self.assertFalse(cards["Sales"]["can_read"])
         self.assertEqual(cards["Eng"]["my_role"], "lead")
 
+    async def test_mcp_team_tools(self):
+        out = await self.mcp_token("ownv", write=True)
+        _s, res = await self.mcp_call(out, "get_team", {"workspace": self.W, "team": "Sales"})
+        sc = res["structuredContent"]
+        self.assertFalse(sc["can_read"])
+        self.assertNotIn("members", sc)
+        _s, res = await self.mcp_call(out, "move_to_team", {"document": self.c_w["slug"], "team": "Sales"})
+        self.assertTrue(res.get("isError"))
+        lead = await self.mcp_token("owner", write=True)
+        _s, res = await self.mcp_call(lead, "move_to_team", {"document": self.c_w["slug"], "team": "Sales"})
+        self.assertFalse(res.get("isError"), res)
+        self.assertNotIn(self.c_w["slug"], await self.listed("ownv"))
+        _s, res = await self.mcp_call(lead, "share_to_team", {"document": self.c_w["slug"], "team": "Eng"})
+        self.assertTrue(res.get("isError"))            # the lead of Sales isn't in Eng
+        _s, res = await self.mcp_call(lead, "add_team_members", {"workspace": self.W, "team": "Sales", "people": [self.email["ownv"]]})
+        self.assertFalse(res.get("isError"), res)
+        self.assertIn(self.c_w["slug"], await self.listed("ownv"))
+        _s, res = await self.mcp_call(out, "create_team", {"workspace": self.W, "name": "X"})
+        self.assertTrue(res.get("isError"))
+
     async def test_move_and_share_rules(self):
         put = f"{self.base}/items/{self.c_w['_id']}/teams"
         # wv (not in Sales) can't move into Sales; wm (member) can; then wv loses it.
@@ -196,7 +216,7 @@ class Memory(TeamsWorld):
             self.assertEqual((await self.db["documents"].find_one({"_id": row["transcript_doc_id"]}))["team_ids"], [self.sales])
         for who, seen in (("wm", True), ("wa", True), ("wv", False), ("ownv", False)):
             r = await self.http.get("/api/v1/meetings", headers=self.session(who), params={"workspace": self.W})
-            ids = {m["id"] for m in r.json()["meetings"]}
+            self.assertEqual(r.status_code, 200, (who, r.text)); ids = {m["id"] for m in r.json()["meetings"]}
             self.assertEqual(self.m["id"] in ids, seen, who)
         r = await self.http.get(f"/api/v1/meetings/{self.m['id']}/teams", headers=self.session("owner"))
         self.assertEqual(r.json()["suggestions"][0]["team_id"], self.sales)
@@ -206,6 +226,23 @@ class Memory(TeamsWorld):
         self.assertEqual((r.status_code, r.json()["state"]), (200, "confirmed"), r.text)
         r = await self.http.get("/api/v1/meetings", headers=self.session("ownv"), params={"workspace": self.W})
         self.assertIn(self.m["id"], {m["id"] for m in r.json()["meetings"]})
+
+    async def test_import_picks_or_suggests_teams(self):
+        from tests.test_workspace_memory import STANDUP
+
+        src = [{"name": "Sync", "text": "\n".join(STANDUP["lines"])}]
+        r = await self.http.post("/api/v1/meetings/preview", headers=self.session("owner"),
+                                 json={"sources": src, "workspace": self.W})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual([s["team_id"] for s in r.json()["meetings"][0]["team_suggestions"]], [self.sales])
+        body = {"workspace": self.W, "sources": src, "title": "Eng sync", "date": "2026-11-04", "wait": True,
+                "restricted": False, "team_ids": [self.eng]}
+        r = await self.http.post("/api/v1/meetings/import", headers=self.session("owner"), json=body)
+        self.assertEqual(r.status_code, 403, r.text)          # not in Eng
+        r = await self.http.post("/api/v1/meetings/import", headers=self.session("wa"), json=body)
+        self.assertEqual(r.status_code, 200, r.text)
+        row = await self.db["meetings"].find_one({"_id": T.oid(r.json()["meetings"][0]["id"])})
+        self.assertEqual((row["team_ids"], row["routing"]["state"]), ([self.eng], "confirmed"))
 
     async def test_profiles_and_memory_leak_free(self):
         bo = self.uid["wm"]
