@@ -436,4 +436,387 @@ export default [
     },
     crop: { selector: { role: "dialog", name: "Before you post" }, pad: 16 },
   },
+
+  // ── Notifications ───────────────────────────────────────────────────────────
+  {
+    id: "collab-bell",
+    page: NOTIFY,
+    name: "bell",
+    kind: "screenshot",
+    auth: "owner",
+    url: "/dashboard",
+    viewport: { width: 1440, height: 900 },
+    prepare: async (h) => {
+      await h.settle(800);
+      const bell = h.page.locator('button[title="Notifications"]:visible, [data-testid="rail-inbox"]:visible').first();
+      await bell.click();
+      await h.page.getByRole("dialog", { name: "Notifications" }).or(h.page.locator('[aria-label="Notifications"][role="dialog"]')).first().waitFor({ timeout: 15000 });
+      await h.settle(900);
+      await h.page.mouse.move(5, 895);
+    },
+    crop: { selector: { css: '[role="dialog"][aria-label="Notifications"]' }, pad: 8 },
+  },
+  {
+    id: "collab-email-settings",
+    page: NOTIFY,
+    name: "email-settings",
+    kind: "screenshot",
+    auth: "owner",
+    url: "/settings/account",
+    viewport: { width: 1440, height: 1100 },
+    prepare: async (h) => {
+      await h.loc("#email-comment-mentions").waitFor({ timeout: 30000 });
+      await h.loc("#email-comment-mentions").scrollIntoViewIfNeeded();
+      await still(h);
+    },
+    keepScroll: true,
+    crop: async (h) => {
+      const a = await h.page.locator("#email-comment-mentions").boundingBox();
+      const b = await h.page.locator("#comment-digest").boundingBox();
+      const col = await h.page.locator("#email-comment-mentions").locator("xpath=ancestor::div[contains(@class,'rounded')][1]").boundingBox().catch(() => null);
+      const x = col ? col.x : a.x - 24;
+      const w = col ? col.width : 760;
+      return { box: { x, y: a.y - 70, width: w, height: b.y + b.height - a.y + 100 } };
+    },
+  },
+
+  // ── Assign, Home and sign-off ───────────────────────────────────────────────
+  {
+    id: "collab-home-waiting",
+    page: ASSIGN,
+    name: "home",
+    kind: "screenshot",
+    auth: "owner",
+    url: "/dashboard",
+    viewport: { width: 1440, height: 1200 },
+    prepare: async (h) => {
+      await h.loc('[data-testid="home-comment-waiting"]').first().waitFor({ timeout: 30000 });
+      await still(h);
+    },
+    crop: { union: ['[data-testid="home-today"]', '[data-testid="home-actions"]'], pad: 12 },
+  },
+  {
+    id: "collab-assigned",
+    page: ASSIGN,
+    name: "assigned",
+    kind: "screenshot",
+    auth: "member",
+    url: "/dashboard",
+    viewport: WIDE,
+    prepare: async (h) => {
+      await view(h, h.fx.collab.plan);
+      await card(h, h.fx.collab.threads.runbook).scrollIntoViewIfNeeded();
+      await still(h);
+    },
+    keepScroll: true,
+    crop: (h) => ({ selector: `article.mdc-thread[data-thread-id="${h.fx.collab.threads.runbook}"]`, pad: 10 }),
+  },
+  {
+    id: "collab-signoff-guard",
+    page: ASSIGN,
+    name: "signoff-guard",
+    kind: "screenshot",
+    auth: "owner",
+    url: "/dashboard",
+    viewport: { width: 1440, height: 900 },
+    prepare: async (h) => {
+      const block = `:::signoff{#b-relgo1 person="${h.fx.users.riya.id}" label="Launch go-ahead" options="Approved|Not approved"}\nQA passed on all payment flows.\n:::`;
+      S.slug = await freshPage(h, { title: "Checkout launch: go-ahead", content: `${LAUNCH}\n${block}\n` });
+      await thread(h, S.slug, "member", text("three waves"), "Do we need three waves?");
+      await thread(h, S.slug, "admin", text("help article"), "Who reviews the help article?");
+      await view(h, S.slug, { open: false });
+      const so = h.page.locator(".pb-signoff").first();
+      await so.scrollIntoViewIfNeeded();
+      await so.getByRole("button", { name: "Approved", exact: true }).click();
+      await so.locator(".pb-signoff__confirm").waitFor({ timeout: 15000 });
+      await still(h);
+    },
+    keepScroll: true,
+    crop: { selector: ".pb-signoff", pad: 14 },
+  },
+
+  // ── Insights and exports ────────────────────────────────────────────────────
+  {
+    id: "collab-insights",
+    page: INSIGHTS,
+    name: "insights",
+    kind: "screenshot",
+    auth: "owner",
+    url: "/dashboard",
+    viewport: { width: 1440, height: 1000 },
+    prepare: async (h) => {
+      await view(h, h.fx.collab.plan);
+      await panel(h).getByRole("button", { name: "More" }).first().click();
+      await h.page.getByRole("menuitem", { name: "Comment insights" }).click();
+      await h.loc('[data-testid="comment-insights"]').waitFor({ timeout: 20000 });
+      await still(h);
+    },
+    crop: { selector: { css: '[role="dialog"]:has([data-testid="comment-insights"])' }, pad: 0 },
+  },
+  {
+    id: "collab-export",
+    page: INSIGHTS,
+    name: "export",
+    kind: "screenshot",
+    auth: "owner",
+    url: "/dashboard",
+    viewport: { width: 1440, height: 1000 },
+    prepare: async (h) => {
+      await view(h, h.fx.collab.plan);
+      await panel(h).getByRole("button", { name: "More" }).first().click();
+      await h.page.getByRole("menuitem", { name: /Export with comments/ }).click();
+      await h.page.getByRole("dialog").filter({ hasText: "Include comments" }).first().waitFor({ timeout: 20000 });
+      await still(h);
+    },
+    crop: { selector: { css: '[role="dialog"]:has-text("Include comments")' }, pad: 0 },
+  },
+
+  // ── Settings and privacy ────────────────────────────────────────────────────
+  {
+    id: "collab-share-switches",
+    page: SETTINGS,
+    name: "share-switches",
+    kind: "screenshot",
+    auth: "owner",
+    url: "/dashboard",
+    viewport: { width: 1440, height: 1100 },
+    prepare: async (h) => {
+      await view(h, h.fx.collab.pricing, { open: false });
+      await h.page.getByRole("button", { name: "Share", exact: true }).first().click();
+      await h.page.locator("label", { hasText: "Show comments publicly" }).first().waitFor({ timeout: 20000 });
+      await h.page.locator("label", { hasText: "Show comments publicly" }).first().scrollIntoViewIfNeeded();
+      await still(h);
+    },
+    keepScroll: true,
+    crop: { union: [{ css: 'label:has-text("Signed-in people who can open it")' }, { css: 'label:has-text("Show comments publicly")' }], pad: 18 },
+  },
+  {
+    id: "collab-anon-signin",
+    page: SETTINGS,
+    name: "sign-in-to-comment",
+    kind: "screenshot",
+    auth: "anon",
+    url: "/dashboard",
+    viewport: { width: 1440, height: 900 },
+    prepare: async (h) => {
+      S.slug = await freshPage(h, { title: "Checkout launch plan" });
+      await ok(h, "PUT", `/api/v1/documents/${S.slug}/access/level`, { level: "link" });
+      await h.goto(`/${S.slug}`);
+      await h.loc(".pb-paper").waitFor({ timeout: 30000 });
+      await h.settle(800);
+      await selectText(h, "three waves: our own team first");
+      await h.loc(".mdc-selbtn").waitFor({ timeout: 10000 });
+      await h.settle(300);
+    },
+    crop: async (h) => {
+      const b = await h.page.locator(".mdc-selbtn").boundingBox();
+      const p = await h.page.locator(".pb-paper p", { hasText: "three waves" }).first().boundingBox();
+      return { box: { x: p.x - 24, y: Math.min(b.y, p.y) - 30, width: p.width + 48, height: Math.max(b.y + b.height, p.y + p.height) - Math.min(b.y, p.y) + 60 } };
+    },
+  },
+
+  // ── Jira in pages ───────────────────────────────────────────────────────────
+  {
+    id: "collab-jira-chip-card",
+    page: JIRA,
+    name: "chip-and-card",
+    kind: "screenshot",
+    auth: "member",
+    url: "/dashboard",
+    viewport: { width: 1440, height: 1100 },
+    prepare: async (h) => {
+      await view(h, h.fx.collab.plan, { open: false });
+      await h.loc('[data-testid="jira-card"] [data-testid="jira-status"]').waitFor({ timeout: 30000 });
+      await still(h);
+    },
+    crop: { union: [{ css: '.pb-paper li:has-text("Card retries")' }, '[data-testid="jira-card"]'], pad: 16 },
+  },
+  {
+    id: "collab-jira-list",
+    page: JIRA,
+    name: "list",
+    kind: "screenshot",
+    auth: "member",
+    url: "/dashboard",
+    viewport: { width: 1440, height: 1100 },
+    prepare: async (h) => {
+      await view(h, h.fx.collab.plan, { open: false });
+      await h.loc('[data-testid="jira-list-row"]').first().waitFor({ timeout: 30000 });
+      await h.loc('[data-testid="jira-list"]').scrollIntoViewIfNeeded();
+      await still(h);
+    },
+    keepScroll: true,
+    crop: { selector: '[data-testid="jira-list"]', pad: 14 },
+  },
+  {
+    id: "collab-jira-anon",
+    page: JIRA,
+    name: "signed-out",
+    kind: "screenshot",
+    auth: "anon",
+    url: "/dashboard",
+    viewport: { width: 1440, height: 1100 },
+    prepare: async (h) => {
+      S.slug = await freshPage(h, { title: "Checkout launch plan", content: "Card retries ship with :jira[PAY-1] before the first wave.\n\n::jira{key=PAY-2}\n" });
+      await ok(h, "PUT", `/api/v1/documents/${S.slug}/access/level`, { level: "link" });
+      await h.goto(`/${S.slug}`);
+      await h.loc('[data-testid="jira-card"]').waitFor({ timeout: 30000 });
+      await still(h);
+    },
+    crop: { union: [{ css: '.pb-paper p:has-text("Card retries")' }, '[data-testid="jira-card"]'], pad: 16 },
+  },
+  {
+    id: "collab-jira-paste",
+    page: JIRA,
+    name: "paste-link",
+    kind: "clip",
+    auth: "owner",
+    url: "/dashboard",
+    viewport: { width: 1200, height: 720 },
+    tail: 500,
+    prepare: async (h) => {
+      S.slug = await freshPage(h, { title: "Website launch checklist", content: "The cookie banner has to be live for EU visitors before we switch on the new pricing page.\n\nTracked in\n" });
+      await h.goto(`/${S.slug}`);
+      await h.loc(".pb-paper").waitFor({ timeout: 30000 });
+      await h.page.locator('[data-page-mode="edit"]').first().click();
+      await h.loc('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+      await h.settle(1200);
+      await h.page.mouse.move(700, 500);
+    },
+    steps: async (h) => {
+      await h.sleep(400);
+      await h.click(h.page.locator(".pb-live .ProseMirror").getByText("Tracked in").first());
+      await h.press("End", 200);
+      await h.type(null, " ", { speed: 2 });
+      await h.sleep(500);
+      await h.page.evaluate(() => {
+        const dt = new DataTransfer();
+        dt.setData("text/plain", "https://acme.atlassian.net/browse/WEB-2");
+        document.querySelector(".pb-live .ProseMirror").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+      });
+      await h.loc('.pb-live [data-testid="jira-inline"][data-key="WEB-2"]').waitFor({ timeout: 10000 });
+      await h.sleep(900);
+      await h.type(null, " and ", { speed: 2 });
+      await h.type(null, "@WEB-1", { speed: 1.6 });
+      await h.page.locator(".dxe-people [role=option]", { hasText: "WEB-1" }).first().waitFor({ state: "attached", timeout: 8000 });
+      await h.sleep(500);
+      await h.press("Enter", 300);
+      await h.loc('.pb-live [data-testid="jira-inline"][data-key="WEB-1"]').waitFor({ timeout: 10000 });
+      await h.sleep(1500);
+    },
+  },
+  {
+    id: "collab-jira-card-status",
+    page: JIRA,
+    name: "card-status",
+    kind: "clip",
+    auth: "member",
+    url: "/dashboard",
+    viewport: { width: 1200, height: 720 },
+    tail: 500,
+    prepare: async (h) => {
+      S.slug = await freshPage(h, { title: "Invoices: open issues", content: "The invoice footer is blocked on the new legal copy.\n\n::jira{key=PAY-3}\n\nWe'll pick it up once legal replies.\n" });
+      await view(h, S.slug, { open: false });
+      await h.loc('[data-testid="jira-card"] [data-testid="jira-status"]').waitFor({ timeout: 30000 });
+      await h.settle(600);
+      await h.page.mouse.move(800, 600);
+    },
+    steps: async (h) => {
+      await h.sleep(500);
+      const c = h.page.locator('[data-testid="jira-card"]').first();
+      await h.click(c.locator('[data-testid="jira-status"]'));
+      await h.sleep(500);
+      await h.click(h.page.getByRole("menuitem", { name: /In Progress/ }).first());
+      await c.locator(".jr-status", { hasText: /In Progress/i }).waitFor({ timeout: 15000 });
+      await h.sleep(900);
+      await h.click(c.getByTestId("jira-comment"));
+      await h.type(null, "Legal sent the copy, picking this up today.", { speed: 2.4 });
+      await h.click(h.page.getByTestId("jira-comment-send"));
+      await h.sleep(1300);
+    },
+    after: async (h) => {
+      await h.sandbox("/__sandbox/jira/move", { key: "PAY-3", status: "Blocked", workspace_id: h.fx.workspace.id }).catch(() => {});
+    },
+  },
+  {
+    id: "collab-jira-live-list",
+    page: JIRA,
+    name: "live-list",
+    kind: "clip",
+    auth: "member",
+    url: "/dashboard",
+    viewport: { width: 1200, height: 720 },
+    tail: 500,
+    prepare: async (h) => {
+      S.slug = await freshPage(h, { title: "Website work", content: "Everything open on the website, always current:\n\n::jira-list{project=WEB cols=\"status,assignee,priority,due\" title=\"Website issues\"}\n" });
+      await view(h, S.slug, { open: false });
+      await h.loc('[data-testid="jira-list-row"]').first().waitFor({ timeout: 30000 });
+      await h.settle(600);
+      await h.page.mouse.move(900, 600);
+    },
+    steps: async (h) => {
+      await h.sleep(900);
+      // Someone moves WEB-2 in Jira: the list follows without a reload.
+      await h.sandbox("/__sandbox/jira/move", { key: "WEB-2", status: "In Review", workspace_id: h.fx.workspace.id });
+      const row = h.page.locator('[data-testid="jira-list-row"]', { hasText: "Cookie banner" }).first();
+      await row.locator(".jr-status", { hasText: /In Review/i }).waitFor({ timeout: 20000 });
+      await h.sleep(1200);
+      // And a row's status menu moves an issue, as you.
+      await h.click(row.locator('[data-testid="jira-status"]'));
+      await h.sleep(400);
+      await h.click(h.page.getByRole("menuitem", { name: /^Done/ }).first());
+      await row.locator(".jr-status", { hasText: /Done/i }).waitFor({ timeout: 15000 });
+      await h.sleep(1400);
+    },
+    after: async (h) => {
+      await h.sandbox("/__sandbox/jira/move", { key: "WEB-2", status: "To Do", workspace_id: h.fx.workspace.id }).catch(() => {});
+    },
+  },
+  {
+    id: "collab-jira-thread",
+    page: JIRA,
+    name: "thread-to-issue",
+    kind: "clip",
+    auth: "member",
+    url: "/dashboard",
+    viewport: { width: 1200, height: 720 },
+    tail: 500,
+    prepare: async (h) => {
+      S.slug = await freshPage(h);
+      S.tid = await thread(h, S.slug, "admin", text("new help article"), "The help article needs screenshots of the new checkout. Who takes it?");
+      await ok(h, "POST", `${C(S.slug)}/${S.tid}/replies`, { body: "I can, but let's track it so it doesn't slip." }, "member");
+      await view(h, S.slug);
+      await card(h, S.tid).click({ position: { x: 120, y: 20 } }).catch(() => {});
+      await h.settle(600);
+      await h.page.mouse.move(600, 500);
+    },
+    steps: async (h) => {
+      await h.sleep(500);
+      const th = card(h, S.tid);
+      await h.click(th.locator('button[title="Create Jira issue from this discussion"]').first());
+      await h.loc('[data-testid="jira-create"]').waitFor({ timeout: 20000 });
+      await h.sleep(1800);
+      await h.click('[data-testid="jira-create"]');
+      await th.getByTestId("jira-thread").waitFor({ timeout: 20000 });
+      await h.sleep(1800);
+    },
+  },
+  {
+    id: "collab-jira-thread-shot",
+    page: JIRA,
+    name: "thread-issue",
+    kind: "screenshot",
+    auth: "member",
+    url: "/dashboard",
+    viewport: WIDE,
+    prepare: async (h) => {
+      S.slug = await freshPage(h);
+      S.tid = await thread(h, S.slug, "admin", text("new help article"), "The help article needs screenshots of the new checkout. Who takes it?");
+      await ok(h, "POST", `/api/v1/jira/pages/${S.slug}/threads/${S.tid}/issue`, { fields: { project: "PAY", issue_type: "Task", summary: "Screenshots for the new checkout help article", description: "From the launch plan discussion." } }, "member");
+      await view(h, S.slug);
+      await card(h, S.tid).getByTestId("jira-thread").waitFor({ timeout: 20000 });
+      await still(h);
+    },
+    crop: (h) => ({ selector: `article.mdc-thread[data-thread-id="${S.tid}"]`, pad: 10 }),
+  },
 ];
