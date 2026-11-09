@@ -28,6 +28,14 @@ def log(msg):
     print(time.strftime("%H:%M:%S"), msg, flush=True)
 
 
+def same_server(a, b) -> bool:
+    """True when both clients reach the same mongod (e.g. a tunnel looping back to the destination)."""
+    def ident(c):
+        return (c.admin.command("hostInfo")["system"].get("hostname"),
+                c.admin.command("serverStatus", repl=0, metrics=0, locks=0).get("pid"))
+    return ident(a) == ident(b)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default="markdrop")
@@ -37,8 +45,11 @@ def main():
     if os.path.exists(args.stop_file):
         os.remove(args.stop_file)
 
-    src = pymongo.MongoClient(src_uri)[args.db]
-    dst = pymongo.MongoClient(dest_uri)[args.db]
+    src_client, dst_client = pymongo.MongoClient(src_uri), pymongo.MongoClient(dest_uri)
+    if same_server(src_client, dst_client):
+        sys.exit("✗ source and destination are the same MongoDB server (check the tunnel): refusing")
+    src = src_client[args.db]
+    dst = dst_client[args.db]
 
     events: "queue.Queue[dict]" = queue.Queue()
     failure: list = []

@@ -15,6 +15,15 @@ OUT=/var/backups/markdrop
 sudo install -d -o "$(id -u)" -m 700 "$OUT"
 ARCHIVE="$OUT/copy-$DB-$(date -u +%Y%m%dT%H%M%SZ).archive.gz"
 
+"$PY" - <<'EOF' || { echo "✗ SRC_URI and DEST_URI reach the same server (check the tunnel)"; exit 1; }
+import os, sys, pymongo
+def ident(uri):
+    c = pymongo.MongoClient(uri, serverSelectionTimeoutMS=10000)
+    return (c.admin.command("hostInfo")["system"].get("hostname"),
+            c.admin.command("serverStatus", repl=0, metrics=0, locks=0).get("pid"))
+sys.exit(1 if ident(os.environ["SRC_URI"]) == ident(os.environ["DEST_URI"]) else 0)
+EOF
+
 t0=$(date +%s)
 echo "▶ dump $DB"
 mongodump --uri="$SRC_URI" --db="$DB" --archive="$ARCHIVE" --gzip --quiet
