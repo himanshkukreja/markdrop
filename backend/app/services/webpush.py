@@ -37,6 +37,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from app.config import get_settings
+from app.utils.http import shared_ssl
 
 RECORD_SIZE = 4096
 MAX_PAYLOAD = 3993  # 4096 - 16 (tag) - 1 (delimiter) - 86 (header); push services take up to 4096 bytes
@@ -277,7 +278,7 @@ async def send(endpoint: str, p256dh: str, auth: str, payload: bytes, *, ttl: in
     if topic:
         headers["Topic"] = topic[:32]
     own = client is None
-    c = client or httpx.AsyncClient(timeout=10.0, follow_redirects=False, transport=transport)
+    c = client or httpx.AsyncClient(verify=shared_ssl(), timeout=10.0, follow_redirects=False, transport=transport)
     try:
         r = await c.post(endpoint, content=body, headers=headers)
     except httpx.HTTPError as exc:

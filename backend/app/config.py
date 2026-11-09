@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
@@ -228,6 +230,20 @@ class Settings(BaseSettings):
     # the expiry sweeper and the access reconciler. Each takes a Mongo lease so
     # only one API worker runs it. Off in tests (they call the loops' bodies).
     background_workers_enabled: bool = True
+    # Which part of the API this process is (MARKDROP_ROLE): "all" (one process does everything, the
+    # default), "web" (serves requests; no background loops) or "worker" (runs the background loops;
+    # started by `python -m app.worker`, the markdrop-worker service). Web requests then never wait
+    # behind a loop's work, and several web processes can run beside one worker.
+    role: Literal["all", "web", "worker"] = "all"
+    # Memory watchdog (services/memory_health.py): every process samples its RSS every 5 minutes
+    # (logged, kept 3 days for the admin's Product health card) and the owners get an email (at
+    # most one an hour) when a process is over memory_alert_rss_mb or using swap.
+    memory_watchdog_enabled: bool = True
+    memory_alert_rss_mb: int = 900
+    memory_alert_swap_mb: int = 1
+    # MARKDROP_TRACEMALLOC=1: trace Python allocations from startup, so /admin/health/memory can show
+    # the top 20 allocation sites (costs CPU and memory; for an investigation, not always on).
+    tracemalloc: bool = False
     # Page images nothing references (services/page_history.py): the daily pass only counts
     # (logs the counts) when on; off, it marks and, 30 days later, deletes them.
     page_image_cleanup_dry_run: bool = False

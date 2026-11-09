@@ -1194,6 +1194,28 @@ export async function adminFeatureUsage(token: string): Promise<FeatureUsage> {
   return res.json();
 }
 
+/** The API's memory (GET /api/v1/admin/health/memory): this process now, every process's samples. */
+export interface MemorySample { at: string; role: string; pid: number; host?: string; rss_mb: number; swap_mb: number }
+export interface MemoryHealth {
+  process: { pid: number; host: string; role: string; rss_mb: number; swap_mb: number; peak_mb: number; threads: number; tasks: number; uptime_s: number };
+  caches: Record<string, number | Record<string, number> | null>;
+  gc: { counts: number[]; frozen: number; uncollectable: number };
+  tracemalloc: { traced_mb: number; peak_mb: number; top: { where: string; kb: number; count: number }[] } | null;
+  alert: { rss_mb: number; swap_mb: number };
+  samples: MemorySample[];
+  processes: MemorySample[];
+}
+
+export async function adminMemoryHealth(token: string, hours = 24): Promise<MemoryHealth> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/health/memory?hours=${hours}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Failed to load memory health");
+  return res.json();
+}
+
 export async function adminListShareEvents(
   token: string,
   page = 1,

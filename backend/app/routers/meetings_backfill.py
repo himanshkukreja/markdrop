@@ -34,6 +34,7 @@ from app.models.user import User
 from app.routers.auth import require_user
 from app.routers.meetings import SourceIn, _ac, _ws
 from app.services import gdocs, meeting_backfill, meeting_google, meeting_organize, meeting_series, meetings
+from app.utils.http import shared_ssl
 
 router = APIRouter(prefix="/api/v1/meetings", tags=["meetings"])
 
@@ -79,7 +80,7 @@ class EditBody(BaseModel):
 async def _google_created(token: str, file_id: str) -> str | None:
     """The Doc's createdTime (drive.file reaches a file the person picked)."""
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(verify=shared_ssl(), timeout=15) as client:
             r = await client.get(f"{meeting_google.DRIVE_API}/{file_id}", params={"fields": "createdTime"},
                                  headers={"Authorization": f"Bearer {token}"})
         if r.status_code == 200:

@@ -54,6 +54,7 @@ from pymongo import ReturnDocument
 from app.config import get_settings
 from app.services import docs_jobs
 from app.services.docs_jobs import JOBS, get_jobs_settings, now, oid
+from app.utils.http import shared_ssl
 
 log = logging.getLogger(__name__)
 
@@ -182,7 +183,7 @@ async def dispatch_actions(db: AsyncIOMotorDatabase, job: dict, *, client: httpx
                "x-github-api-version": "2022-11-28", "user-agent": "markdrop-docs-dispatch"}
     try:
         if client is None:
-            async with httpx.AsyncClient(timeout=15.0) as c:
+            async with httpx.AsyncClient(verify=shared_ssl(), timeout=15.0) as c:
                 r = await c.post(url, json=body, headers=headers)
         else:
             r = await client.post(url, json=body, headers=headers)

@@ -1023,7 +1023,8 @@ async def people_universe(db: AsyncIOMotorDatabase, workspace_id: str, people: P
     labels: list[str] = []
     whole: dict[str, set] = {}
     pipeline = [{"$match": {"workspace_id": workspace_id}},
-                {"$project": {"invited": 1, "attendees": 1, "sp": "$segments.speaker", "steps": "$notes.next_steps"}}]
+                {"$project": {"invited": 1, "attendees": 1, "sp": {"$setUnion": [{"$ifNull": ["$segments.speaker", []]}, []]},
+                                 "steps": "$notes.next_steps"}}]
     async for r in db[COLL].aggregate(pipeline):
         for a in [*(r.get("invited") or []), *(r.get("attendees") or [])]:
             if a.get("email") and not mp.topicish(a.get("name")) and len(mp.clean_name(a.get("name")).split()) <= 4:
@@ -1655,8 +1656,8 @@ async def names_tick(db: AsyncIOMotorDatabase, *, batch: int = 50) -> int:
     n = 0
     cache: dict[str, People] = {}
     async for row in db[COLL].find({"names_v": {"$not": {"$gte": NAMES_V}}}, {"segments": 0, "notes": 0}).limit(batch):
-        ws = row["workspace_id"]
         try:
+            ws = row["workspace_id"]
             cache[ws] = cache.get(ws) or await people_of(db, ws)
             await repair_names(db, row, cache[ws])
         except Exception:
@@ -1997,8 +1998,8 @@ async def attendees_tick(db: AsyncIOMotorDatabase, *, batch: int = 50) -> int:
     known: dict[str, mp.Universe] = {}
     q = {"attendees_v": {"$not": {"$gte": ATTENDEES_V}}}
     async for row in db[COLL].find(q).limit(batch):     # the notes too: fix_task_segments reads them
-        ws = row["workspace_id"]
         try:
+            ws = row["workspace_id"]
             cache[ws] = cache.get(ws) or await people_of(db, ws)
             known[ws] = known.get(ws) or await people_universe(db, ws, cache[ws])
             with _quiet():

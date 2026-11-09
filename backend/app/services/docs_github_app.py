@@ -40,6 +40,7 @@ import httpx
 import jwt
 
 from app.config import get_settings
+from app.utils.http import shared_ssl
 
 log = logging.getLogger("markdrop.docs_github")
 
@@ -171,7 +172,7 @@ def verify_signature(body: bytes, header: str | None) -> bool:
 
 
 def _client(**kw) -> httpx.AsyncClient:
-    return httpx.AsyncClient(timeout=TIMEOUT, transport=TRANSPORT, headers={"user-agent": USER_AGENT}, **kw)
+    return httpx.AsyncClient(verify=shared_ssl(), timeout=TIMEOUT, transport=TRANSPORT, headers={"user-agent": USER_AGENT}, **kw)
 
 
 def _headers(auth: str | None) -> dict:

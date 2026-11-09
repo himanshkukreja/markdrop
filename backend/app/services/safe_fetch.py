@@ -33,6 +33,8 @@ from urllib.parse import urljoin, urlsplit
 
 import httpx
 
+from app.utils.http import shared_ssl
+
 MAX_REDIRECTS = 5
 USER_AGENT = "Markdrop-Guides/1.0 (+https://markdrop.in)"
 
@@ -159,7 +161,7 @@ async def _get_pinned(url: str, host: str, ip: str, *, max_bytes: int, timeout: 
     scheme = "http" if parts.scheme.lower() == "http" else "https"
     target = f"{scheme}://{ip_host}{parts.path or '/'}" + (f"?{parts.query}" if parts.query else "")
     headers = {"Host": host, "Accept": accept, "User-Agent": USER_AGENT, "Accept-Encoding": "gzip, deflate"}
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, trust_env=False) as client:
+    async with httpx.AsyncClient(verify=shared_ssl(), timeout=timeout, follow_redirects=False, trust_env=False) as client:
         request = client.build_request("GET", target, headers=headers,
                                        extensions={"sni_hostname": host} if scheme == "https" else {})
         response = await client.send(request, stream=True)

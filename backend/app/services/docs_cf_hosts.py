@@ -58,6 +58,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
 from app.services.docs_jobs import BUILDS, JOBS, SITES, SNAPSHOTS, aware, get_jobs_settings, now, oid
+from app.utils.http import shared_ssl
 
 log = logging.getLogger(__name__)
 
@@ -140,7 +141,7 @@ def checked(host: Any) -> str:
 
 def _client() -> httpx.AsyncClient:
     s = get_jobs_settings()
-    return httpx.AsyncClient(base_url=API, timeout=TIMEOUT, transport=_TRANSPORT, headers={
+    return httpx.AsyncClient(verify=shared_ssl(), base_url=API, timeout=TIMEOUT, transport=_TRANSPORT, headers={
         "authorization": f"Bearer {s.docs_cf_api_token}", "user-agent": "markdrop-docs-hosts"})
 
 

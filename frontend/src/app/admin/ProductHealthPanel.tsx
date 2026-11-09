@@ -6,6 +6,7 @@ import { Alert, Button, FileIcon, Pagination, Progress, Switch, Table, type Colu
 import { adminFeatureUsage, adminListShareEvents, type AdminShareEventItem, type FeatureUsage, type GuidesUsage } from "@/lib/api";
 import { RangePicker, rangeParams, useAdminFetch, type RangeValue } from "./analytics/controls";
 import { BarList, ShareHealthCard, type Shares } from "./analytics/sections";
+import { MemoryHealthCard } from "./MemoryHealthCard";
 import { Card, CardError, CardSkeleton, CardTitle } from "./analytics/ui";
 import { PageHead, bytes, fmtDateTime, iconRenderer, isUnauthorized, plural, useOnUnauthorized, LoadingBlock } from "./shared";
 
@@ -42,7 +43,7 @@ export function ProductHealthPanel({ token, range, onRange }: { token: string; r
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHead title="Product health" caption="Feature adoption from Markdrop's own records, and how file sharing is holding up." />
+      <PageHead title="Product health" caption="Feature adoption from Markdrop's own records, how file sharing is holding up, and the API's memory." />
 
       <section aria-labelledby="adoption-h" className="flex flex-col gap-3">
         <h2 id="adoption-h" className="text-h4 text-text">Adoption <span className="text-caption font-normal text-text-secondary">· all time</span></h2>
@@ -91,6 +92,8 @@ export function ProductHealthPanel({ token, range, onRange }: { token: string; r
         : <CardSkeleton title="File sharing" height={320} />}
 
       <ShareLog token={token} />
+
+      <MemoryHealthCard token={token} />
     </div>
   );
 }

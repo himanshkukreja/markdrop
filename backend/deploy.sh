@@ -17,6 +17,7 @@ set -euo pipefail
 APP_DIR="/opt/markdrop/backend"
 REPO_DIR="/opt/markdrop"
 SERVICE="markdrop"
+WORKER="markdrop-worker"
 BRANCH="${1:-main}"
 HEALTH_URL="http://127.0.0.1:8080/health"
 
@@ -52,16 +53,25 @@ fi
 
 echo "▶ Restarting $SERVICE ..."
 sudo systemctl restart "$SERVICE"
+# The background loops' own process (MARKDROP_ROLE=web on the API; deploy/markdrop-worker.service),
+# when it is installed.
+if systemctl list-unit-files "$WORKER.service" --no-legend 2>/dev/null | grep -q "^$WORKER.service"; then
+  echo "▶ Restarting $WORKER ..."
+  sudo systemctl restart "$WORKER"
+fi
 
 echo "▶ Waiting for health check ..."
 for i in $(seq 1 15); do
   if curl -fs --max-time 3 "$HEALTH_URL" >/dev/null 2>&1; then
     echo "✅ Deploy OK — $SERVICE is healthy at ${NEW_REV:0:7}"
+    if systemctl list-unit-files "$WORKER.service" --no-legend 2>/dev/null | grep -q "^$WORKER.service"; then
+      systemctl is-active --quiet "$WORKER" && echo "✅ $WORKER is running" || { echo "❌ $WORKER is not running:"; sudo journalctl -u "$WORKER" --no-pager -n 30; exit 1; }
+    fi
     exit 0
   fi
   sleep 1
 done
 
 echo "❌ Health check failed after restart. Recent logs:"
-sudo journalctl -u "$SERVICE" --no-pager -n 30
+sudo journalctl -u "$SERVICE" -u "$WORKER" --no-pager -n 30
 exit 1

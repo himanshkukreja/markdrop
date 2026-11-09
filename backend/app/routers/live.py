@@ -40,10 +40,15 @@ from app.utils.net import get_client_ip
 router = APIRouter(tags=["live"])
 
 
+_NO_BODY = {"content": 0, "search_text": 0, "versions": 0}
+
+
 async def _admitted(slug: str, ticket: str | None) -> dict | None:
     """The document, when the read rule admits this socket to it."""
     db = get_database()
-    raw = await db["documents"].find_one({"slug": slug})
+    # Without the body: the socket keeps this row for as long as it is open (presence re-reads the
+    # headings itself), and a long document per open tab adds up.
+    raw = await db["documents"].find_one({"slug": slug}, _NO_BODY)
     if raw is None or publicity.is_expired(raw):
         return None
     if tickets.valid_for(ticket, raw):
@@ -63,16 +68,28 @@ async def serve(websocket: WebSocket, slug: str) -> None:
     conn = viewers.connect(queue, get_client_ip(websocket)) if queue is not None else None
 
     async def _pump() -> None:
-        while True:
-            event = await queue.get()
-            if not isinstance(event, dict):  # legacy publishers sent a bare rev
-                event = {"type": "changed", "rev": event}
-            await websocket.send_json(event)
-            if event.get("type") in ("access", "gone"):
-                # The page re-checks through the read path and reconnects with
-                # a fresh ticket if it still may read.
-                await websocket.close(code=4001 if event["type"] == "access" else 4004)
-                return
+        try:
+            while True:
+                event = await queue.get()
+                if not isinstance(event, dict):  # legacy publishers sent a bare rev
+                    event = {"type": "changed", "rev": event}
+                if event.get("type") == "_overflow":
+                    # The reader stopped reading (a phone that lost signal): drop the socket rather
+                    # than keep queueing for it; the page reconnects when it comes back.
+                    await websocket.close(code=1013)
+                    return
+                await websocket.send_json(event)
+                if event.get("type") in ("access", "gone"):
+                    # The page re-checks through the read path and reconnects with
+                    # a fresh ticket if it still may read.
+                    await websocket.close(code=4001 if event["type"] == "access" else 4004)
+                    return
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # The peer went away mid-send (ConnectionClosedError "keepalive ping timeout"): the
+            # receive loop below sees it too and cleans up.
+            pass
 
     pump = asyncio.create_task(_pump()) if queue is not None else None
     try:

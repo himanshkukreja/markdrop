@@ -583,6 +583,11 @@ class _Entry:
 
 _cache: dict[str, _Entry] = {}
 _CACHE_MAX = 400
+# Replay snapshots (`snap:` keys) are decompressed rrweb events: tens to hundreds of MB each, and a
+# live viewer's every poll is a new key. Only the newest few are kept, and only briefly (prod OOM,
+# 2026-11-09: expired entries were never dropped below _CACHE_MAX keys).
+SNAP_PREFIX = "snap:"
+SNAP_MAX = 2
 _HOLD_MIN, _HOLD_MAX = 15.0, 60.0
 
 
@@ -597,11 +602,16 @@ def _resolved(value: Any) -> asyncio.Future:
 
 
 def _prune(now: float) -> None:
-    if len(_cache) <= _CACHE_MAX:
-        return
+    """Drop every expired, settled entry (always: an entry past its TTL is never served again, so
+    keeping it only holds its value), then the oldest replay snapshots past SNAP_MAX, then the
+    oldest settled entries past _CACHE_MAX."""
     for k, e in list(_cache.items()):
         if e.expires <= now and e.fut.done():
             _cache.pop(k, None)
+    snaps = [k for k in _cache if k.startswith(SNAP_PREFIX)]  # the one just asked for included
+    done = sorted((_cache[k].expires, k) for k in snaps if _cache[k].fut.done())
+    for _, k in done[: max(0, len(snaps) - SNAP_MAX)]:
+        _cache.pop(k, None)
     if len(_cache) > _CACHE_MAX:
         done = sorted((e.expires, k) for k, e in _cache.items() if e.fut.done())
         for _, k in done[: len(_cache) - _CACHE_MAX]:
@@ -646,6 +656,13 @@ async def cached(key: str, ttl: float, fn: Callable[[], Awaitable[T]], *, keep: 
         entry.kept = True
         remember(key, value)
     return value
+
+
+def cache_stats() -> dict:
+    """Entries in the request cache (snapshots apart) and the stale-answer store, for
+    /admin/health/memory."""
+    return {"entries": len(_cache), "snapshots": sum(1 for k in _cache if k.startswith(SNAP_PREFIX)),
+            "good_keys": len(_good), "good_rows": _good_rows}
 
 
 def uncache(prefix: str) -> None:
@@ -836,7 +853,7 @@ async def snapshots(recording_id: str, *, after: int | None = None) -> dict | No
         events: list[dict] = []
         if keys:
             events = await cached(
-                f"snap:{recording_id}:{keys[0]}:{keys[-1]}", 300, lambda: _blob_events(recording_id, keys), keep=False
+                f"{SNAP_PREFIX}{recording_id}:{keys[0]}:{keys[-1]}", 60, lambda: _blob_events(recording_id, keys), keep=False
             )
         return {"events": events, "last_key": v2[-1][0], "live_edge": v2[-1][1].get("end_timestamp")}
     if after is not None:
@@ -854,5 +871,5 @@ async def snapshots(recording_id: str, *, after: int | None = None) -> dict | No
         out.sort(key=lambda e: e.get("timestamp") or 0)
         return out
 
-    events = await cached(f"snap:{recording_id}:legacy", 300, legacy, keep=False)
+    events = await cached(f"{SNAP_PREFIX}{recording_id}:legacy", 60, legacy, keep=False)
     return {"events": events, "last_key": None, "live_edge": None}

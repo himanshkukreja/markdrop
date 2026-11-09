@@ -334,6 +334,13 @@ async def connect() -> None:
         await _doc_views.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] viewer indexes skipped: {exc}")
+    # The memory watchdog's samples (services/memory_health.py): 3-day TTL.
+    try:
+        from app.services import memory_health as _memory_health
+
+        await _memory_health.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] memory sample indexes skipped: {exc}")
     # Analytics AI per document (services/analytics_ai_doc.py): cached analyses, 90-day TTL.
     try:
         from app.services import analytics_ai_doc as _analytics_ai_doc

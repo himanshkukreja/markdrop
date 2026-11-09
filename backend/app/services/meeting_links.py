@@ -20,6 +20,8 @@ from urllib.parse import parse_qs, urlsplit
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.utils.http import shared_ssl
+
 COLL = "meeting_fetch_queue"
 QUEUE_TTL = timedelta(days=7)          # a request the script never picked up is dropped after a week
 MAX_QUEUED = 50                        # per person, at once
@@ -158,7 +160,7 @@ async def fetch_public(file_id: str, *, client=None) -> tuple[str, str]:
     if not _ID.match(file_id or ""):
         raise ValueError("That isn't a Google Drive file id.")
     own = client is None
-    client = client or httpx.AsyncClient(timeout=FETCH_TIMEOUT, follow_redirects=False,
+    client = client or httpx.AsyncClient(verify=shared_ssl(), timeout=FETCH_TIMEOUT, follow_redirects=False,
                                          headers={"User-Agent": "Markdrop meetings import"})
     try:
         for start in (f"https://docs.google.com/document/d/{file_id}/export?format=txt",

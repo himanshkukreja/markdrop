@@ -20,6 +20,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from app.config import get_settings
+from app.utils.http import shared_ssl
 
 log = logging.getLogger("markdrop.slack")
 
@@ -50,7 +51,7 @@ class SlackError(Exception):
 
 
 def _client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(timeout=TIMEOUT, transport=TRANSPORT)
+    return httpx.AsyncClient(verify=shared_ssl(), timeout=TIMEOUT, transport=TRANSPORT)
 
 
 def api_url(method: str) -> str:
