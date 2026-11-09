@@ -258,7 +258,7 @@ class AdminAiUsage(unittest.IsolatedAsyncioTestCase):
         b = await self.get("/budgets")
         caps = {c["key"]: c for c in b["caps"]}
         self.assertEqual(list(caps), ["*", "docs_ask", "docs_editor", "pages_ai", "search_ai", "analytics_ai", "meetings_ai",
-                                      "ask_suggestions", "workspace_memory", "jira_ai"])
+                                      "ask_suggestions", "workspace_memory", "jira_ai", "comments_ai"])
         # Jira drafts (owner decision 2026-11-06): $1 a day, $10 a month, editable here.
         self.assertEqual((caps["jira_ai"]["default_daily_usd"], caps["jira_ai"]["effective_monthly_usd"]), (1.0, 10.0))
         # Ask's live suggestions (owner decision 2026-11-06): $0.50 a day, $5 a month, editable here.
