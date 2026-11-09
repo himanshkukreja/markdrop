@@ -2126,7 +2126,7 @@ async def list_meetings(db: AsyncIOMotorDatabase, workspace_id: str, actor: acce
     (YYYY-MM-DD); ``series``: only that series (any case; "none": meetings without one)."""
     from app.services import meetings_list, workspace_items
 
-    sx = await workspace_items.space_extra(actor, ctx, workspace_id, space) if space else None
+    sx = await workspace_items.space_extra(actor, ctx, workspace_id, space) if (space or ctx.space) else None
     return await meetings_list.list_page(
         db, workspace_id, actor, ctx, limit=limit, cursor=cursor, sort=sort, overview=overview,
         attendees_max=attendees_max,
