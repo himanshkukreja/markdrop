@@ -739,6 +739,10 @@ if os.environ.get("PB_FAKE_JIRA"):
         f.add_issue("WEB", "Pricing page copy", status="Done", assignee="acc-ben")
         f.add_issue("WEB", "Cookie banner for EU", assignee="acc-ada", due=_jtoday(3))
         f.add_issue("SEC", "Rotate the signing keys", assignee="acc-wes")
+        # Jira in pages (jira-pages.mjs): a workflow step whose screen asks for a resolution.
+        f.extra_transitions.append(("61", "Resolve", "Done", {"resolution": {
+            "name": "Resolution", "required": True, "schema": {"type": "resolution"},
+            "allowedValues": [{"id": "1", "name": "Fixed"}, {"id": "2", "name": "Won't do"}]}}))
         return f
 
     _JIRA = {"fake": _jira_world()}
@@ -821,6 +825,10 @@ if os.environ.get("PB_FAKE_JIRA"):
     async def _jira_issue(key: str):
         it = _JIRA["fake"].issues.get(key)
         return it or {"missing": True}
+
+    @mod.app.get("/__sandbox/jira/comments/{key}", include_in_schema=False)
+    async def _jira_comments(key: str):
+        return {"comments": _JIRA["fake"].comments.get(key, [])}
 
     @mod.app.get("/__sandbox/jira/webhooks", include_in_schema=False)
     async def _jira_webhooks():
