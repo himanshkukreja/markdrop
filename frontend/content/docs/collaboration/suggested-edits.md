@@ -3,7 +3,7 @@ title: Suggested edits and AI help
 description: Suggest the exact words a passage should say, accept them in one click, and let AI draft an edit, summarize a discussion, answer in a thread or check your tone.
 updated: 2026-11-09
 prerequisites: [/collaboration/comments]
-keywords: [suggested edits, suggestion, suggest, accept, reject, withdraw, out of date, apply with ai, ai draft, summarize discussion, summary, decided, still open, waiting on, ask markdrop ai, at ai, @ai, tone check, before you post, rewrite, version history, suggest_edit, accept_suggestion, reject_suggestion, withdraw_suggestion, summarize_discussion]
+keywords: [suggested edits, suggestion, suggest, accept, reject, withdraw, out of date, apply with ai, ai draft, summarize discussion, summary, decided, still open, waiting on, ask markdrop ai, at ai, "@ai", tone check, before you post, rewrite, version history, suggest_edit, accept_suggestion, reject_suggestion, withdraw_suggestion, summarize_discussion]
 ---
 
 A comment says what's wrong; a suggested edit says what the text should be. Anyone who can comment can suggest the words, and anyone who can edit the page accepts them in one click. AI can draft the edit from the discussion, sum up a long discussion, answer a question in a thread and help you keep comments kind.
