@@ -156,7 +156,7 @@ function Meta({ site, where, extra, className }: { site: SiteSummary; where: str
       </span>
       <span aria-hidden>·</span>
       <span className="shrink-0">{plural(site.page_count, "page")}</span>
-      {extra ? <><span aria-hidden>·</span><span className={extra.length < 18 ? "shrink-0 whitespace-nowrap" : "min-w-0 truncate"} title={extra}>{extra}</span></> : <><span aria-hidden className="max-sm:hidden">·</span><span className="shrink-0 whitespace-nowrap max-sm:hidden" title={change}>{change}</span></>}
+      {extra ? <><span aria-hidden>·</span><span className="min-w-0 truncate" title={extra}>{extra}</span></> : <><span aria-hidden className="max-sm:hidden">·</span><span className="min-w-0 truncate max-sm:hidden" title={change}>{change}</span></>}
     </div>
   );
 }
