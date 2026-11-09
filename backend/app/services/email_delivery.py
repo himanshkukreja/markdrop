@@ -48,6 +48,7 @@ from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 from app.config import get_settings
+from app.utils.http import shared_ssl
 
 settings = get_settings()
 log = logging.getLogger("uvicorn.error").getChild("email")
@@ -223,7 +224,7 @@ class Resend(Provider):
     async def _request(self, url: str, payload: Any, headers: dict[str, str] | None = None) -> httpx.Response:
         h = {"Authorization": f"Bearer {settings.resend_api_key}", **(headers or {})}
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with httpx.AsyncClient(verify=shared_ssl(), timeout=30) as client:
                 resp = await client.post(url, headers=h, json=payload)
         except httpx.HTTPError as e:
             raise ProviderError(f"Couldn't reach Resend: {e.__class__.__name__}") from e
@@ -308,7 +309,7 @@ class Brevo(Provider):
 
     async def send(self, msg: dict[str, Any]) -> str | None:
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with httpx.AsyncClient(verify=shared_ssl(), timeout=30) as client:
                 resp = await client.post(
                     BREVO_URL, json=brevo_payload(msg),
                     headers={"api-key": settings.brevo_api_key, "accept": "application/json"},

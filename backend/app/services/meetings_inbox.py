@@ -46,6 +46,7 @@ from pymongo.errors import DuplicateKeyError
 from app.config import get_settings
 from app.services import api_token, meetings
 from app.services import meeting_parse as mp
+from app.utils.http import shared_ssl
 
 log = logging.getLogger("markdrop.meetings_inbox")
 
@@ -453,7 +454,7 @@ async def check_now(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
         except asyncio.TimeoutError:
             return {"ok": False, "error": "timeout"}
 
-    async with httpx.AsyncClient(timeout=CHECK_TIMEOUT, transport=CHECK_TRANSPORT, follow_redirects=False) as client:
+    async with httpx.AsyncClient(verify=shared_ssl(), timeout=CHECK_TIMEOUT, transport=CHECK_TRANSPORT, follow_redirects=False) as client:
         answers = await asyncio.gather(*(bounded(client, c) for c in ready))
     people = await _names(db, [c["user_id"] for c in ready])
     rows = []

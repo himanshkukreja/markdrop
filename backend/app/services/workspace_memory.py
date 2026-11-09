@@ -672,9 +672,11 @@ async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, membe
     from app.services import meetings
 
     page = await db["documents"].find_one({"_id": _oid(row.get("doc_id"))}, {"content": 0})
-    if page is None or page.get("deleted_at"):
-        return {"outcome": "no_page", "facts": 0}
     src_key = f"m:{row['_id']}"
+    if page is None or page.get("deleted_at"):
+        # Seen: not picked again until the meeting changes (it was re-read whole every 30 s).
+        await _mark(db, src_key, ws.id, meeting_hash(row), _aware(row.get("updated_at")), 0, 0.0, "no_page")
+        return {"outcome": "no_page", "facts": 0}
     base = await meeting_day(db, ws.id, row)
     facts = await _meeting_free_facts(db, row, page, base)
     transcript, sent_transcript = _transcript_lines(row)
@@ -709,6 +711,10 @@ async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, membe
         chars = sum(len(b) for b in blocks)
         reason = await budget_reason(db)
         if reason:
+            if reason in ("off", "not_configured"):
+                # Never paused for (only daily / monthly are): without this the source was re-read
+                # whole every 30 s.
+                await _retry_later(db, src_key, ws.id, off=True)
             return {"outcome": "limit", "reason": reason, "facts": 0}
         run = Run(db, ws.id, src_key, "meeting")
         mtitle = clean(row.get("title"), 200) or "Meeting"
@@ -723,6 +729,7 @@ async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, membe
                 got = await _extract_json(run, blocks)
             except pages_ai.Upstream as exc:
                 await run.record("error", error_code=exc.code)
+                await _retry_later(db, src_key, ws.id)
                 return {"outcome": "error", "facts": 0}
             n_facts = len(got or [])
             run.log.update(output=facts_markdown(got), results={"facts": n_facts},
@@ -872,6 +879,10 @@ async def extract_page(db: AsyncIOMotorDatabase, ws: WsInfo, raw: dict, members:
         chars = sum(len(b) for b in blocks)
         reason = await budget_reason(db)
         if reason:
+            if reason in ("off", "not_configured"):
+                # Never paused for (only daily / monthly are): without this the source was re-read
+                # whole every 30 s.
+                await _retry_later(db, src_key, ws.id, off=True)
             return {"outcome": "limit", "reason": reason, "facts": 0}
         run = Run(db, ws.id, src_key, "page")
         ptitle = clean(raw.get("title"), 200) or "Untitled"
@@ -885,6 +896,7 @@ async def extract_page(db: AsyncIOMotorDatabase, ws: WsInfo, raw: dict, members:
                 got = await _extract_json(run, blocks)
             except pages_ai.Upstream as exc:
                 await run.record("error", error_code=exc.code)
+                await _retry_later(db, src_key, ws.id)
                 return {"outcome": "error", "facts": 0}
             n_facts = len(got or [])
             run.log.update(output=facts_markdown(got), results={"facts": n_facts},
@@ -1021,7 +1033,8 @@ async def _mark(db: AsyncIOMotorDatabase, src_key: str, workspace_id: str, h: st
                 n: int, cost: float, outcome: str) -> None:
     await db[SOURCES].update_one({"_id": src_key}, {"$set": {
         "workspace_id": workspace_id, "hash": h, "seen_at": seen or now_utc(), "extracted_at": now_utc(),
-        "facts": n, "cost_usd": round(cost, 6), "outcome": outcome, "v": VERSION}}, upsert=True)
+        "facts": n, "cost_usd": round(cost, 6), "outcome": outcome, "v": VERSION},
+        "$unset": {"retry_at": "", "errors": ""}}, upsert=True)
 
 
 async def drop_source(db: AsyncIOMotorDatabase, src_key: str) -> int:
@@ -1066,6 +1079,41 @@ async def switched(db: AsyncIOMotorDatabase, workspace_id: str, on: bool) -> Non
         await purge(db, workspace_id)
 
 
+_SOURCE_PICK = {"v": 1, "seen_at": 1, "retry_at": 1}
+_PAGE_PICK = {"_id": 1, "updated_at": 1, "workspace_id": 1, "encrypted": 1, "read_password_hash": 1, "template": 1,
+              "meeting_id": 1, "deleted_at": 1, "kind": 1}
+# A source whose extraction failed (the model errored) waits before it is tried again: 2, 4, 8 …
+# minutes, at most 6 hours. Before 2026-11-09 it was re-read whole, and the model asked again, every
+# 30 s until it worked.
+RETRY_BASE = timedelta(minutes=2)
+RETRY_MAX = timedelta(hours=6)
+
+
+def _fresh(s: dict | None, row: dict, now: datetime) -> bool:
+    return s is not None and s.get("v") == VERSION and (_aware(s.get("seen_at")) or now) >= (_aware(row.get("updated_at")) or now)
+
+
+def _backing_off(s: dict | None, now: datetime) -> bool:
+    return s is not None and (_aware(s.get("retry_at")) or now) > now
+
+
+OFF_WAIT = timedelta(minutes=10)
+
+
+async def _retry_later(db: AsyncIOMotorDatabase, src_key: str, workspace_id: str, *, off: bool = False) -> None:
+    """The extraction failed (or the AI is off / not configured: ``off``, a flat 10 minutes): try
+    again after a growing wait. The row is otherwise left as it was."""
+    if off:
+        await db[SOURCES].update_one({"_id": src_key}, {"$set": {"workspace_id": workspace_id,
+                                                                 "retry_at": now_utc() + OFF_WAIT}}, upsert=True)
+        return
+    row = await db[SOURCES].find_one({"_id": src_key}, {"errors": 1}) or {}
+    n = int(row.get("errors") or 0) + 1
+    wait = min(RETRY_MAX, RETRY_BASE * (2 ** min(n - 1, 12)))
+    await db[SOURCES].update_one({"_id": src_key}, {"$set": {"workspace_id": workspace_id, "errors": n,
+                                                             "retry_at": now_utc() + wait}}, upsert=True)
+
+
 async def stale_sources(db: AsyncIOMotorDatabase, ws: WsInfo, state: dict, *, limit: int = MAX_SOURCES_PER_TICK,
                         now: datetime | None = None) -> list[tuple[str, dict]]:
     """("meeting" | "page", row) to (re-)extract, oldest first: meetings with a finished summary and
@@ -1078,11 +1126,14 @@ async def stale_sources(db: AsyncIOMotorDatabase, ws: WsInfo, state: dict, *, li
     mrows = await db[meetings.COLL].find(
         {"workspace_id": ws.id, "doc_id": {"$ne": None}, "ai.state": {"$ne": "pending"},
          "$or": [{"date": {"$gte": since.strftime("%Y-%m-%d")}}, {"updated_at": {"$gte": since}}]},
-        {"segments": 0}).sort("date", 1).limit(400).to_list(length=400)
-    done = {r["_id"]: r for r in await db[SOURCES].find({"_id": {"$in": [f"m:{r['_id']}" for r in mrows]}}).to_list(length=len(mrows) or 1)}
+        # Only what picking needs: run_workspace re-reads the chosen rows whole. (The notes, AI
+        # sections and attendees of 400 meetings every 30 s were most of this loop's memory churn.)
+        {"_id": 1, "updated_at": 1, "date": 1}).sort("date", 1).limit(400).to_list(length=400)
+    done = {r["_id"]: r for r in await db[SOURCES].find(
+        {"_id": {"$in": [f"m:{r['_id']}" for r in mrows]}}, _SOURCE_PICK).to_list(length=len(mrows) or 1)}
     for r in mrows:
         s = done.get(f"m:{r['_id']}")
-        if s is not None and s.get("v") == VERSION and (_aware(s.get("seen_at")) or now) >= (_aware(r.get("updated_at")) or now):
+        if _fresh(s, r, now) or _backing_off(s, now):
             continue
         out.append(("meeting", r))
         if len(out) >= limit:
@@ -1091,13 +1142,14 @@ async def stale_sources(db: AsyncIOMotorDatabase, ws: WsInfo, state: dict, *, li
         {"workspace_id": ws.id, "updated_at": {"$gte": since, "$lte": now - DEBOUNCE},
          "encrypted": {"$ne": True}, "template": {"$ne": True}, "meeting_id": {"$exists": False},
          "deleted_at": None, "kind": {"$in": [None, "markdown"]}},
-        {"content": 0}).sort("updated_at", 1).limit(400).to_list(length=400)
-    done = {r["_id"]: r for r in await db[SOURCES].find({"_id": {"$in": [f"d:{r['_id']}" for r in drows]}}).to_list(length=len(drows) or 1)}
+        _PAGE_PICK).sort("updated_at", 1).limit(400).to_list(length=400)
+    done = {r["_id"]: r for r in await db[SOURCES].find(
+        {"_id": {"$in": [f"d:{r['_id']}" for r in drows]}}, _SOURCE_PICK).to_list(length=len(drows) or 1)}
     for r in drows:
         if not page_eligible(r):
             continue
         s = done.get(f"d:{r['_id']}")
-        if s is not None and s.get("v") == VERSION and (_aware(s.get("seen_at")) or now) >= (_aware(r.get("updated_at")) or now):
+        if _fresh(s, r, now) or _backing_off(s, now):
             continue
         out.append(("page", r))
         if len(out) >= limit:

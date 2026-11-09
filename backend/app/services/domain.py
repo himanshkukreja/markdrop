@@ -35,6 +35,7 @@ from pymongo.errors import DuplicateKeyError, OperationFailure
 
 from app.config import get_settings
 from app.models.domain import Domain, DomainKind
+from app.utils.http import shared_ssl
 
 settings = get_settings()
 log = logging.getLogger(__name__)
@@ -300,7 +301,7 @@ async def detach_from_hosting(host: str) -> bool:
         f"/domains/{host}"
     )
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(verify=shared_ssl(), timeout=15.0) as client:
             resp = await client.delete(
                 url, params=params,
                 headers={"Authorization": f"Bearer {settings.vercel_api_token}"},
@@ -557,7 +558,7 @@ async def _vercel_attach(host: str) -> tuple[bool, str | None]:
         params["teamId"] = settings.vercel_team_id
     url = f"https://api.vercel.com/v10/projects/{settings.vercel_project_id}/domains"
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(verify=shared_ssl(), timeout=15.0) as client:
             resp = await client.post(
                 url,
                 params=params,

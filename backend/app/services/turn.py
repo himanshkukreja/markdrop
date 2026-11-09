@@ -24,6 +24,7 @@ import time
 import httpx
 
 from app.config import get_settings
+from app.utils.http import shared_ssl
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ def _usable_turn_urls(urls: list[str]) -> list[str]:
 
 async def _mint() -> list[dict] | None:
     s = get_settings()
-    async with httpx.AsyncClient(timeout=5.0) as client:
+    async with httpx.AsyncClient(verify=shared_ssl(), timeout=5.0) as client:
         resp = await client.post(
             _CF_URL.format(key=s.cf_turn_key_id),
             headers={"Authorization": f"Bearer {s.cf_turn_api_token}"},

@@ -38,6 +38,7 @@ import httpx
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
+from app.utils.http import shared_ssl
 
 settings = get_settings()
 log = logging.getLogger(__name__)
@@ -338,7 +339,7 @@ async def _post(payload: dict) -> int:
     """POST one purge. Returns the HTTP status (0 when nothing answered)."""
     url = f"{settings.frontend_url.rstrip('/')}/api/revalidate"
     try:
-        async with httpx.AsyncClient(timeout=TIMEOUT_S) as client:
+        async with httpx.AsyncClient(verify=shared_ssl(), timeout=TIMEOUT_S) as client:
             r = await client.post(url, json=payload)
             return r.status_code
     except Exception:

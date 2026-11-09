@@ -31,6 +31,7 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 
 from app.config import get_settings
+from app.utils.http import shared_ssl
 
 settings = get_settings()
 
@@ -148,7 +149,7 @@ async def _get(url: str) -> tuple[int, str | None, bytes]:
     # The connection goes to the address we checked; TLS still verifies the
     # certificate against the hostname.
     extensions = {"sni_hostname": host} if scheme == "https" else {}
-    async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS, follow_redirects=False) as client:
+    async with httpx.AsyncClient(verify=shared_ssl(), timeout=TIMEOUT_SECONDS, follow_redirects=False) as client:
         request = client.build_request("GET", target, headers=headers, extensions=extensions)
         response = await client.send(request, stream=True)
         try:

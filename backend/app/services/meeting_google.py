@@ -20,6 +20,7 @@ from app.config import get_settings
 from app.services import gdocs, oauth
 from app.services import meeting_parse as mp
 from app.utils import crypto
+from app.utils.http import shared_ssl
 
 log = logging.getLogger("markdrop.meeting_google")
 
@@ -59,7 +60,7 @@ async def owner(access_token: str, file_id: str) -> dict | None:
     """The picked file's owner in Drive ({name, email}): who organized the call. None when Google
     doesn't say (a shared drive, an error)."""
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(verify=shared_ssl(), timeout=15) as client:
             r = await client.get(f"{DRIVE_API}/{file_id}", params={"fields": "owners(displayName,emailAddress)",
                                                                     "supportsAllDrives": "true"},
                                  headers={"Authorization": f"Bearer {access_token}"})
@@ -77,7 +78,7 @@ async def fetch(access_token: str, file_id: str) -> tuple[str, str, str]:
     if not file_id or not all(c.isalnum() or c in "-_" for c in file_id) or len(file_id) > 200:
         raise PickError("That isn't a Google Doc id.")
     headers = {"Authorization": f"Bearer {access_token}"}
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(verify=shared_ssl(), timeout=30) as client:
         r = await client.get(f"{DOCS_API}/{file_id}", params={"includeTabsContent": "true"}, headers=headers)
         if r.status_code == 200:
             doc = r.json()

@@ -11,6 +11,7 @@ import httpx
 import jwt
 
 from app.config import get_settings
+from app.utils.http import shared_ssl
 
 settings = get_settings()
 
@@ -70,7 +71,7 @@ async def exchange_code(code: str) -> str:
         "redirect_uri": settings.google_redirect_uri,
         "grant_type": "authorization_code",
     }
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(verify=shared_ssl(), timeout=10) as client:
         resp = await client.post(TOKEN_URL, data=data)
         resp.raise_for_status()
         return resp.json()["access_token"]
@@ -129,7 +130,7 @@ async def exchange_docs_code(code: str) -> dict:
         "redirect_uri": settings.google_docs_redirect_uri,
         "grant_type": "authorization_code",
     }
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(verify=shared_ssl(), timeout=10) as client:
         resp = await client.post(TOKEN_URL, data=data)
         resp.raise_for_status()
         return resp.json()
@@ -147,7 +148,7 @@ async def refresh_access_token(refresh_token: str) -> str:
         "client_secret": settings.google_client_secret,
         "grant_type": "refresh_token",
     }
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(verify=shared_ssl(), timeout=10) as client:
         resp = await client.post(TOKEN_URL, data=data)
         resp.raise_for_status()
         return resp.json()["access_token"]
@@ -160,7 +161,7 @@ async def revoke_token(token: str) -> None:
     longer touch the user's Drive files until they reconnect. Best-effort: a
     token that is already dead returns 400, which we treat as success.
     """
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(verify=shared_ssl(), timeout=10) as client:
         resp = await client.post(
             REVOKE_URL,
             data={"token": token},
@@ -173,7 +174,7 @@ async def revoke_token(token: str) -> None:
 
 async def fetch_userinfo(access_token: str) -> dict:
     """Fetch the Google profile (sub, email, email_verified, name, picture)."""
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(verify=shared_ssl(), timeout=10) as client:
         resp = await client.get(
             USERINFO_URL, headers={"Authorization": f"Bearer {access_token}"}
         )

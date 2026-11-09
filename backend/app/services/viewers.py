@@ -67,6 +67,7 @@ import time
 from dataclasses import dataclass, field
 
 from app.config import get_settings
+from app.services import live
 
 HEARTBEAT_S = 15.0          # the page pings this often (documented for the client)
 TIMEOUT_S = 40.0            # an active tab silent this long drops off the list
@@ -449,10 +450,7 @@ def flush(slug: str) -> None:
     for cid, snap in snapshots(r).items():
         c = r.conns.get(cid)
         if c is not None:
-            try:
-                c.queue.put_nowait(snap)
-            except asyncio.QueueFull:  # unbounded — defensive only
-                pass
+            live.offer(c.queue, snap)
 
 
 def _schedule(r: Room) -> None:
@@ -674,11 +672,8 @@ def access_changed_for(user_id: str | None) -> int:
     for r in list(_rooms.values()):
         for c in list(r.conns.values()):
             if c.user_id == user_id:
-                try:
-                    c.queue.put_nowait({"type": "access"})
-                    told += 1
-                except asyncio.QueueFull:  # unbounded queue — defensive only
-                    pass
+                live.offer(c.queue, {"type": "access"})
+                told += 1
     return told
 
 

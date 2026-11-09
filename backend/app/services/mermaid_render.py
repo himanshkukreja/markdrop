@@ -13,6 +13,8 @@ import zlib
 
 import httpx
 
+from app.utils.http import shared_ssl
+
 _KROKI_MERMAID_PNG = "https://kroki.io/mermaid/png/"
 # Kroki 403s requests without a User-Agent.
 _HEADERS = {"User-Agent": "MarkdropBot/1.0 (+https://markdrop.in)"}
@@ -27,7 +29,7 @@ def _kroki_path(source: str) -> str:
 async def fetch_mermaid_png(source: str, *, timeout: float = 20.0) -> bytes:
     """Return a rendered Mermaid PNG from Kroki. Raises on any failure."""
     url = _KROKI_MERMAID_PNG + _kroki_path(source)
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=shared_ssl(), timeout=timeout, follow_redirects=True) as client:
         resp = await client.get(url, headers=_HEADERS)
         resp.raise_for_status()
         data = resp.content

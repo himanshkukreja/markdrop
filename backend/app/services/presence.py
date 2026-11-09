@@ -26,6 +26,10 @@ MAX_ENTRIES = 50_000
 # doc_id → sid → entry
 _presence: dict[str, dict[str, dict]] = {}
 _count = 0
+# Every engage beacon is a new sid; entries nobody asks about were only dropped at MAX_ENTRIES.
+# Sweep the stale ones at most once a minute instead.
+SWEEP_S = 60.0
+_swept = 0.0
 
 
 def _now() -> float:
@@ -55,8 +59,11 @@ def touch(doc_id: str, sid: str, *, pos: dict | None, country: str | None,
           device: str | None, kind: str, internal: bool = False) -> None:
     """Mark ``sid`` live on ``doc_id`` now (keeping its last known position
     when this beacon carries none)."""
-    global _count
+    global _count, _swept
     now = _now()
+    if now - _swept > SWEEP_S:
+        _swept = now
+        _prune_all(now)
     if _count >= MAX_ENTRIES:
         _prune_all(now)
         while _count >= MAX_ENTRIES and _presence:
@@ -122,3 +129,8 @@ def clear() -> None:
     global _count
     _presence.clear()
     _count = 0
+
+
+def stats() -> dict:
+    """For /admin/health/memory."""
+    return {"docs": len(_presence), "entries": _count}

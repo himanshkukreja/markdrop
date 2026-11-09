@@ -11,6 +11,7 @@ The admin Journeys tab resolves refs back to slugs and titles with
 `resolve_refs`, which hashes every document id once and caches the map.
 """
 
+import asyncio
 import hashlib
 import hmac
 import re
@@ -109,6 +110,25 @@ async def resolve_refs(db: AsyncIOMotorDatabase, refs: set[str]) -> dict[str, di
         # A ref that is still missing after a rebuild belongs to a deleted
         # document; don't rebuild again for it within the minute.
         if stale or time.monotonic() - _map_built_at > 60:
-            _map = await _build_map(db)
-            _map_built_at = time.monotonic()
+            # One rebuild at a time: concurrent admin requests each scanned the whole collection.
+            async with _lock():
+                if time.monotonic() - _map_built_at > 60 or not _map:
+                    _map = await _build_map(db)
+                    _map_built_at = time.monotonic()
     return {r: _map[r] for r in refs if r in _map}
+
+
+_locks: dict[int, asyncio.Lock] = {}
+
+
+def _lock() -> asyncio.Lock:
+    loop = id(asyncio.get_running_loop())
+    lk = _locks.get(loop)
+    if lk is None:
+        _locks.clear()  # tests run a loop per case; the app has one
+        lk = _locks[loop] = asyncio.Lock()
+    return lk
+
+
+def stats() -> dict:
+    return {"entries": len(_map)}

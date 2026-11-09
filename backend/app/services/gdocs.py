@@ -22,6 +22,7 @@ from app.services import diagram_render
 from app.services import oauth
 from app.services import user as user_service
 from app.utils import crypto
+from app.utils.http import shared_ssl
 
 DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files"
 DOC_MIME = "application/vnd.google-apps.document"
@@ -292,7 +293,7 @@ async def create_doc(access_token: str, title: str, markdown: str) -> dict:
     body, content_type = _multipart_body(metadata, markdown)
     params = {"uploadType": "multipart", "fields": _FIELDS}
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": content_type}
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(verify=shared_ssl(), timeout=30) as client:
         resp = await client.post(DRIVE_UPLOAD_URL, params=params, headers=headers, content=body)
     _raise_if_insufficient_scope(resp)
     if resp.status_code >= 400:
@@ -310,7 +311,7 @@ async def update_doc(access_token: str, file_id: str, title: str, markdown: str)
     params = {"uploadType": "media", "fields": _FIELDS}
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": MD_MIME}
     url = f"{DRIVE_UPLOAD_URL}/{file_id}"
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(verify=shared_ssl(), timeout=30) as client:
         resp = await client.patch(
             url, params=params, headers=headers, content=markdown.encode("utf-8")
         )
@@ -331,5 +332,5 @@ async def _rename(access_token: str, file_id: str, title: str) -> None:
     """Best-effort metadata rename (non-fatal if it fails)."""
     url = f"https://www.googleapis.com/drive/v3/files/{file_id}"
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with httpx.AsyncClient(verify=shared_ssl(), timeout=15) as client:
         await client.patch(url, headers=headers, content=json.dumps({"name": title}))

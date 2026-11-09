@@ -26,12 +26,33 @@ from collections import defaultdict
 
 # slug → set of live subscriber queues
 _subscribers: dict[str, set[asyncio.Queue]] = defaultdict(set)
+# Events waiting for one socket. A reader keeps up easily (a change, an access event, a presence
+# snapshot at most every ~0.75 s); a socket whose peer stopped reading is told to close instead of
+# queueing without end until its keepalive gives up.
+QUEUE_MAX = 64
 
 
 def subscribe(slug: str) -> asyncio.Queue:
-    q: asyncio.Queue = asyncio.Queue()
+    q: asyncio.Queue = asyncio.Queue(maxsize=QUEUE_MAX)
     _subscribers[slug].add(q)
     return q
+
+
+def offer(q: asyncio.Queue, event) -> None:
+    """Put ``event`` on one socket's queue without blocking; when it is full, the socket is told to
+    close (its pump sees ``_overflow``) and the queue is emptied."""
+    try:
+        q.put_nowait(event)
+    except asyncio.QueueFull:
+        while not q.empty():
+            q.get_nowait()
+        q.put_nowait({"type": "_overflow"})
+
+
+def stats() -> dict:
+    """For /admin/health/memory."""
+    return {"slugs": len(_subscribers), "sockets": sum(len(v) for v in _subscribers.values()),
+            "queued": sum(q.qsize() for v in _subscribers.values() for q in v)}
 
 
 def unsubscribe(slug: str, q: asyncio.Queue) -> None:
@@ -57,10 +78,7 @@ def notify(slug: str | None, event: dict) -> None:
     elif event.get("type") == "changed":
         viewers.content_changed(slug)
     for q in list(_subscribers.get(slug, ())):
-        try:
-            q.put_nowait(dict(event))
-        except asyncio.QueueFull:  # unbounded queue — defensive only
-            pass
+        offer(q, dict(event))
 
 
 def publish(slug: str, rev: int) -> None:
