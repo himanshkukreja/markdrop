@@ -386,7 +386,39 @@ _CELL_ATTR = re.compile(r"[ \t]*\{([^{}\n|]*)\}(?=[ \t]*\|)")
 _ATTR_LINE = re.compile(r"^[ \t]*\{([^{}\n]*)\}[ \t]*$")
 _IMAGE = re.compile(r"!\[((?:\\.|[^\]\\\n])*)\]\(\s*<?([^\s)>]+)>?(?:\s+\"((?:\\.|[^\"\\\n])*)\")?\s*\)(\{[^{}\n]*\})?")
 _CODE_SPAN = re.compile(r"(`+)(?!`)(.+?)(?<!`)\1(?!`)")
-_INLINE_NAMES = ("markdrop", "person", "date", "kbd", "span", "u")
+_INLINE_NAMES = ("markdrop", "person", "date", "kbd", "span", "u", "jira")
+
+# Jira in pages (Track D, services/jira_pages.py): ``:jira[KEY]{site=…}`` chips, ``::jira{key=… site=…}`` cards and
+# ``::jira-list{jql=…|project=…|filter=… site=…}`` live lists leave an export as plain links to Jira (never an
+# issue's title or status: those are the viewer's own Jira data). Without a site, just the key.
+_JIRA_KEY = re.compile(r"^[A-Z][A-Z0-9_]{0,30}-\d{1,9}$")
+_JIRA_HOST = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$")
+
+
+def jira_issue_url(key: str | None, site: str | None) -> str | None:
+    key, site = (key or "").strip(), (site or "").strip().lower()
+    if not _JIRA_KEY.match(key) or not _JIRA_HOST.match(site):
+        return None
+    return f"https://{site}/browse/{key}"
+
+
+def jira_list_link(a: dict) -> tuple[str, str | None]:
+    """(label, link) for a ``::jira-list``."""
+    from urllib.parse import quote
+
+    site = (a.get("site") or "").strip().lower()
+    title = (a.get("title") or "").strip()
+    jql, project, flt = (a.get("jql") or "").strip(), (a.get("project") or "").strip(), (a.get("filter") or "").strip()
+    if flt and flt.isdigit():
+        what, q = f"Jira filter {flt}", f"filter={flt}"
+    elif project and re.match(r"^[A-Z][A-Z0-9_]{0,30}$", project):
+        what, q = f"Jira issues in {project}", "jql=" + quote(f"project = {project}")
+    elif jql:
+        what, q = f"Jira issues: {jql[:200]}", "jql=" + quote(jql[:2000])
+    else:
+        what, q = "Jira issues", None
+    link = f"https://{site}/issues/?{q}" if q and _JIRA_HOST.match(site) else None
+    return title or what, link
 
 
 # ── The context an export is made in ─────────────────────────────────────────
@@ -561,6 +593,13 @@ class Inline:
             if attrs:
                 return None
             return self.directives(label) if self.out == "md" else self.slot(f"<u>{self.label_html(label)}</u>")
+        if name == "jira":
+            key = re.sub(r"\\(.)", r"\1", label).strip()
+            href = jira_issue_url(key, attrs.get("site"))
+            if self.out == "md":
+                return f"[{md_text(key)}]({md_url(href)})" if href else md_text(key)
+            return self.slot(f'<a class="chip" href="{esc(href)}">{esc(key)}</a>' if href
+                             else f'<span class="chip">{esc(key)}</span>')
         return None
 
     def directives(self, text: str) -> str:
@@ -800,6 +839,13 @@ def _leaf_md(b: Block, pc: PageCtx, headings: list[tuple[int, str]]) -> str:
         w = web_embeds.resolve(url)
         label = f"{w['name']}: {url}" if w else url
         return f"[{md_text(label)}]({md_url(url)})"
+    if b.name == "jira":
+        key = (a.get("key") or "").strip()
+        href = jira_issue_url(key, a.get("site"))
+        return f"[{md_text(key)}]({md_url(href)})" if href else md_text(key)
+    if b.name == "jira-list":
+        label, href = jira_list_link(a)
+        return f"[{md_text(label)}]({md_url(href)})" if href else md_text(label)
     if b.name == "toc":
         return _toc_md(headings)
     if b.name == "breadcrumb":
@@ -981,6 +1027,13 @@ def _leaf_html(b: Block, pc: PageCtx, md) -> str:
 
         w = web_embeds.resolve(url)
         return _card("▶️", esc(a.get("title") or (w["name"] if w else _host_of(url))), esc(url), url, cls="webembed")
+    if b.name == "jira":
+        key = (a.get("key") or "").strip()
+        href = jira_issue_url(key, a.get("site"))
+        return _card("🎫", esc(key), "Jira issue" + (f" · {esc(_host_of(href))}" if href else ""), href, cls="jira")
+    if b.name == "jira-list":
+        label, href = jira_list_link(a)
+        return _card("🎫", esc(label), "Jira" + (f" · {esc(_host_of(href))}" if href else ""), href, cls="jira")
     if b.name == "toc":
         return "\ue000TOC\ue001"
     if b.name == "breadcrumb":

@@ -198,3 +198,30 @@ class Exports(ReachWorld):
         status, res = await self.mcp_call(await self.mcp_token("owner", write=False), "export_page",
                                           {"document": w["doc"]["slug"], "format": "html", "comments": "margin"})
         self.assertTrue(res["isError"])
+
+
+class JiraInExports(ReachWorld):
+    """Track D's Jira chips, cards and lists leave every export as plain links (never an issue's title)."""
+
+    async def test_markdown_html_and_word(self):
+        md = ("# Plan\n\nBlocked by :jira[PROJ-12]{site=acme.atlassian.net} today.\n\n"
+              "::jira{key=PROJ-7 site=acme.atlassian.net}\n\n::jira-list{project=PROJ site=acme.atlassian.net}\n\n"
+              "::jira{key=PROJ-9}\n\n:jira[EVIL]{site=\"x.com/<script>\"}\n")
+        doc = await self.item(content=md, title="Plan")
+        r = await self.http.get(f"/api/v1/documents/{doc['slug']}/export", params={"format": "md"},
+                                headers=self.session("owner"))
+        self.assertIn("[PROJ-12](https://acme.atlassian.net/browse/PROJ-12)", r.text)
+        self.assertIn("[PROJ-7](https://acme.atlassian.net/browse/PROJ-7)", r.text)
+        self.assertIn("[Jira issues in PROJ](https://acme.atlassian.net/issues/?jql=project%20%3D%20PROJ)", r.text)
+        self.assertIn("\nPROJ-9\n", r.text)
+        self.assertNotIn("::jira", r.text)
+        self.assertNotIn("<script>", r.text)
+        r = await self.http.get(f"/api/v1/documents/{doc['slug']}/export", params={"format": "html"},
+                                headers=self.session("owner"))
+        self.assertIn('href="https://acme.atlassian.net/browse/PROJ-12"', r.text)
+        self.assertNotIn("<script>", r.text.split("<body", 1)[1].split("<script", 1)[0])
+        r = await self.http.get(f"/api/v1/documents/{doc['slug']}/export", params={"format": "docx"},
+                                headers=self.session("owner"))
+        parts = docx_parts(r.content)
+        self.assertIn("https://acme.atlassian.net/browse/PROJ-12", parts["word/_rels/document.xml.rels"])
+        self.assertIn("PROJ-12", text_of(parts["word/document.xml"]))
