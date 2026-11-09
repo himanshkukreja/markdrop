@@ -184,6 +184,7 @@ export default async function SlugPage({ params }: Props) {
       readTicket={doc?.read_ticket ?? null}
       track={doc?.track ?? null}
       page={doc && !doc.encrypted ? pageFieldsOf(doc as unknown as Record<string, unknown>) : null}
+      comments={doc?.comments ?? null}
     />
     </Suspense>
     </div>

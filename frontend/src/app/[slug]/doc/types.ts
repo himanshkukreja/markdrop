@@ -36,6 +36,8 @@ export interface DocumentViewProps {
   readTicket?: string | null;
   /** A page (the block editor): its page fields from the server render. Client reads replace them. */
   page?: PageFields | null;
+  /** Comments (components/comments): what the server render's read said. Client reads replace it. */
+  comments?: import("@/lib/comments").DocComments | null;
 }
 
 /** What a document read says about it as a page (lib/pages PageDocument). */

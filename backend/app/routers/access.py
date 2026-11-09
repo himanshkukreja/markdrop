@@ -20,6 +20,7 @@ from app.schemas.access import (
     PresenceUpdate,
     ResharingUpdate,
 )
+from app.services.comments import perms as comments_perms
 from app.services import access as access_service
 from app.services import mailer, urls, viewers
 from app.utils.net import get_client_ip
@@ -140,6 +141,9 @@ async def get_access(
         workspace_url=await urls.workspace_url(db, raw) if f.ws_id else None,
         expires_at=raw.get("expires_at"),
         show_presence=raw.get("show_presence") is not False,
+        comments_eligible=comments_perms.eligible(raw),
+        comments_enabled=raw.get("comments_off") is not True,
+        comments_public=raw.get("comments_public") is True,
     )
 
 
