@@ -3,7 +3,7 @@
   "info": {
     "title": "Markdrop",
     "version": "0.1.0",
-    "x-markdrop-exported": "2026-11-07"
+    "x-markdrop-exported": "2026-11-09"
   },
   "paths": {
     "/api/v1/trash": {
@@ -4222,6 +4222,1177 @@
           "auth": "token",
           "rateLimits": [
             "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "List Comments",
+        "operationId": "list_comments_api_v1_documents__slug__comments_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "open",
+                "resolved",
+                "all"
+              ],
+              "type": "string",
+              "default": "all",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "mine",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Mine"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "optional",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      },
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Create Comment",
+        "operationId": "create_comment_api_v1_documents__slug__comments_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThreadCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/people": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Comment People",
+        "operationId": "comment_people_api_v1_documents__slug__comments_people_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/settings": {
+      "put": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Comment Settings",
+        "operationId": "comment_settings_api_v1_documents__slug__comments_settings_put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentSettingsIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/{thread_id}": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Get Comment Thread",
+        "operationId": "get_comment_thread_api_v1_documents__slug__comments__thread_id__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "optional",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/{thread_id}/replies": {
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Reply Comment",
+        "operationId": "reply_comment_api_v1_documents__slug__comments__thread_id__replies_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplyCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/{thread_id}/messages/{message_id}": {
+      "patch": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Edit Comment",
+        "operationId": "edit_comment_api_v1_documents__slug__comments__thread_id__messages__message_id__patch",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Message Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Delete Comment",
+        "operationId": "delete_comment_api_v1_documents__slug__comments__thread_id__messages__message_id__delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Message Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/{thread_id}/messages/{message_id}/reactions": {
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "React Comment",
+        "operationId": "react_comment_api_v1_documents__slug__comments__thread_id__messages__message_id__reactions_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Message Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReactionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/{thread_id}/resolve": {
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Resolve Comment",
+        "operationId": "resolve_comment_api_v1_documents__slug__comments__thread_id__resolve_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/{thread_id}/reopen": {
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Reopen Comment",
+        "operationId": "reopen_comment_api_v1_documents__slug__comments__thread_id__reopen_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/{thread_id}/assignee": {
+      "put": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Assign Comment",
+        "operationId": "assign_comment_api_v1_documents__slug__comments__thread_id__assignee_put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__routers__comments__AssigneeIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/comments/mine": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "My Comments",
+        "operationId": "my_comments_api_v1_comments_mine_get",
+        "parameters": [
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "assigned",
+                "waiting",
+                "mentions"
+              ],
+              "type": "string",
+              "default": "waiting",
+              "title": "View"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
           ]
         }
       }
@@ -19327,6 +20498,1204 @@
         }
       }
     },
+    "/api/v1/jira/pages/{slug}/items": {
+      "get": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "Jira chips and cards on a page, for this viewer",
+        "operationId": "page_items_api_v1_jira_pages__slug__items_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "optional",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/jira/pages/{slug}/list": {
+      "post": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "One page of a Jira list block (as you)",
+        "operationId": "page_list_api_v1_jira_pages__slug__list_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/jira/pages/{slug}/remember": {
+      "post": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "Remember an issue put on a page (its snapshot)",
+        "operationId": "page_remember_api_v1_jira_pages__slug__remember_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RememberIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/jira/pages/{slug}/threads": {
+      "get": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "Discussions on a page linked to Jira issues",
+        "operationId": "page_threads_api_v1_jira_pages__slug__threads_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "optional",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/jira/pages/{slug}/threads/{thread_id}/draft": {
+      "post": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "Draft a Jira issue from a discussion",
+        "operationId": "thread_draft_api_v1_jira_pages__slug__threads__thread_id__draft_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThreadDraftIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/jira/pages/{slug}/threads/{thread_id}/issue": {
+      "post": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "Create a Jira issue from a discussion",
+        "operationId": "thread_issue_api_v1_jira_pages__slug__threads__thread_id__issue_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThreadIssueIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/jira/pages/{slug}/threads/{thread_id}/link": {
+      "post": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "Link a discussion to a Jira issue",
+        "operationId": "thread_link_api_v1_jira_pages__slug__threads__thread_id__link_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThreadLinkIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "Unlink a discussion from its Jira issue",
+        "operationId": "thread_unlink_api_v1_jira_pages__slug__threads__thread_id__link_delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/jira/search": {
+      "get": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "Find Jira issues (the editor's picker)",
+        "operationId": "search_api_v1_jira_search_get",
+        "parameters": [
+          {
+            "name": "site",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9:/._-]{3,200}$",
+              "title": "Site"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "default": "",
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/jira/priorities": {
+      "get": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "A Jira site's priorities",
+        "operationId": "priorities_api_v1_jira_priorities_get",
+        "parameters": [
+          {
+            "name": "site",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9:/._-]{3,200}$",
+              "title": "Site"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/jira/issue/{key}": {
+      "get": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "A Jira issue, fresh (as you)",
+        "operationId": "issue_api_v1_jira_issue__key__get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "site",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9:/._-]{3,200}$",
+              "title": "Site"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "patch": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "Edit an issue's title, priority or due date (as you)",
+        "operationId": "edit_api_v1_jira_issue__key__patch",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/jira/issue/{key}/transitions": {
+      "get": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "The workflow steps you can take on an issue",
+        "operationId": "transitions_api_v1_jira_issue__key__transitions_get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "site",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9:/._-]{3,200}$",
+              "title": "Site"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/jira/issue/{key}/transition": {
+      "post": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "Move an issue (as you)",
+        "operationId": "transition_api_v1_jira_issue__key__transition_post",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/jira/issue/{key}/assignable": {
+      "get": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "People an issue can be assigned to",
+        "operationId": "assignable_api_v1_jira_issue__key__assignable_get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "site",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9:/._-]{3,200}$",
+              "title": "Site"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "default": "",
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/jira/issue/{key}/assignee": {
+      "put": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "Assign an issue (as you)",
+        "operationId": "assignee_api_v1_jira_issue__key__assignee_put",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__routers__jira_pages__AssigneeIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/jira/issue/{key}/comment": {
+      "post": {
+        "tags": [
+          "jira"
+        ],
+        "summary": "Comment on an issue in Jira (as you)",
+        "operationId": "comment_api_v1_jira_issue__key__comment_post",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/ask/home": {
       "get": {
         "tags": [
@@ -20315,6 +22684,21 @@
             "type": "boolean",
             "title": "Show Presence",
             "default": true
+          },
+          "comments_eligible": {
+            "type": "boolean",
+            "title": "Comments Eligible",
+            "default": false
+          },
+          "comments_enabled": {
+            "type": "boolean",
+            "title": "Comments Enabled",
+            "default": true
+          },
+          "comments_public": {
+            "type": "boolean",
+            "title": "Comments Public",
+            "default": false
           }
         },
         "type": "object",
@@ -20420,6 +22804,70 @@
           "asset_id"
         ],
         "title": "AltTextBody"
+      },
+      "AnchorIn": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "block",
+              "page"
+            ],
+            "title": "Type"
+          },
+          "block_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Block Id"
+          },
+          "block_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Block Text"
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuoteIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "AnchorIn"
       },
       "AnswerFeedbackBody": {
         "properties": {
@@ -21865,6 +24313,73 @@
         ],
         "title": "ClickBody"
       },
+      "CommentIn": {
+        "properties": {
+          "site": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9:/._-]{3,200}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "CommentIn"
+      },
+      "CommentSettingsIn": {
+        "properties": {
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "public": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public"
+          }
+        },
+        "type": "object",
+        "title": "CommentSettingsIn"
+      },
       "ConnectBody": {
         "properties": {
           "workspace": {
@@ -22761,6 +25276,18 @@
             ],
             "title": "Show Presence"
           },
+          "comments": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comments"
+          },
           "editor": {
             "anyOf": [
               {
@@ -23306,6 +25833,18 @@
               }
             ],
             "title": "Show Presence"
+          },
+          "comments": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comments"
           },
           "editor": {
             "anyOf": [
@@ -24012,6 +26551,72 @@
         },
         "type": "object",
         "title": "EditBody"
+      },
+      "EditIn": {
+        "properties": {
+          "site": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9:/._-]{3,200}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 400
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "due": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due"
+          }
+        },
+        "type": "object",
+        "title": "EditIn"
       },
       "EditRow": {
         "properties": {
@@ -25854,6 +28459,112 @@
         "type": "object",
         "title": "LinkStartIn"
       },
+      "ListIn": {
+        "properties": {
+          "jql": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jql"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project"
+          },
+          "filter": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 12
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filter"
+          },
+          "site": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9:/._-]{3,200}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site"
+          },
+          "cols": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cols"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100,
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "page_token": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Token"
+          }
+        },
+        "type": "object",
+        "title": "ListIn"
+      },
       "LockKeepRequest": {
         "properties": {
           "title": {
@@ -26088,6 +28799,36 @@
           "role"
         ],
         "title": "MemberRoleRequest"
+      },
+      "MessageEdit": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Body"
+          },
+          "mentions": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mentions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "MessageEdit"
       },
       "MyDocListItem": {
         "properties": {
@@ -27007,6 +29748,71 @@
         ],
         "title": "PreviewsBody"
       },
+      "QuoteIn": {
+        "properties": {
+          "exact": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Exact"
+          },
+          "prefix": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prefix"
+          },
+          "suffix": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suffix"
+          }
+        },
+        "type": "object",
+        "required": [
+          "exact"
+        ],
+        "title": "QuoteIn"
+      },
+      "ReactionIn": {
+        "properties": {
+          "emoji": {
+            "type": "string",
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Emoji"
+          },
+          "on": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On"
+          }
+        },
+        "type": "object",
+        "required": [
+          "emoji"
+        ],
+        "title": "ReactionIn"
+      },
       "RelatedBody": {
         "properties": {
           "page": {
@@ -27129,6 +29935,89 @@
         },
         "type": "object",
         "title": "RelatedBody"
+      },
+      "RememberIn": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,19}-[1-9][0-9]{0,8}$",
+            "title": "Key"
+          },
+          "site": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9:/._-]{3,200}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "title": "RememberIn"
+      },
+      "ReplyCreate": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Body"
+          },
+          "mentions": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mentions"
+          },
+          "attachments": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attachments"
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggestion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "ReplyCreate"
       },
       "ReportRequest": {
         "properties": {
@@ -27456,6 +30345,11 @@
               }
             ],
             "title": "Timezone"
+          },
+          "comments_enabled": {
+            "type": "boolean",
+            "title": "Comments Enabled",
+            "default": true
           }
         },
         "type": "object",
@@ -28020,6 +30914,136 @@
         "type": "object",
         "title": "TestPush"
       },
+      "ThreadCreate": {
+        "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/AnchorIn"
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Body"
+          },
+          "mentions": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mentions"
+          },
+          "assignee": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignee"
+          },
+          "attachments": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attachments"
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggestion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "anchor",
+          "body"
+        ],
+        "title": "ThreadCreate"
+      },
+      "ThreadDraftIn": {
+        "properties": {
+          "project": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project"
+          }
+        },
+        "type": "object",
+        "title": "ThreadDraftIn"
+      },
+      "ThreadIssueIn": {
+        "properties": {
+          "fields": {
+            "$ref": "#/components/schemas/Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fields"
+        ],
+        "title": "ThreadIssueIn"
+      },
+      "ThreadLinkIn": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Key"
+          },
+          "site": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9:/._-]{3,200}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "title": "ThreadLinkIn"
+      },
       "TickBody": {
         "properties": {
           "slug": {
@@ -28149,6 +31173,57 @@
           "text"
         ],
         "title": "TransformBody"
+      },
+      "TransitionIn": {
+        "properties": {
+          "site": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9:/._-]{3,200}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          },
+          "transition": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Transition"
+          },
+          "fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transition"
+        ],
+        "title": "TransitionIn"
       },
       "TranslateBody": {
         "properties": {
@@ -29212,6 +32287,24 @@
         "type": "object",
         "title": "AskBody"
       },
+      "app__routers__comments__AssigneeIn": {
+        "properties": {
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          }
+        },
+        "type": "object",
+        "title": "AssigneeIn"
+      },
       "app__routers__docs_ai__AskBody": {
         "properties": {
           "question": {
@@ -29301,6 +32394,48 @@
           "state"
         ],
         "title": "CodeIn"
+      },
+      "app__routers__jira_pages__AssigneeIn": {
+        "properties": {
+          "site": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9:/._-]{3,200}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          }
+        },
+        "type": "object",
+        "title": "AssigneeIn"
       },
       "app__routers__meetings__AskBody": {
         "properties": {
