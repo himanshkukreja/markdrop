@@ -132,6 +132,15 @@ If the copy-back fails, NEW is started again and nothing else changes.
 
 ---
 
+## Rehearsed 2026-11-09
+
+Mumbai t3.small (x86_64) → Hyderabad t4g.medium (arm64, Ubuntu 26.04.1, Elastic IP 16.112.116.140), with
+`ops/rehearse-move.sh`: 0 failed checks. Prepare **~100 s** on an already-provisioned box (first run ~8 min,
+mostly apt + MongoDB download); database copy **53 s** (147 collections, ~54k documents) through the Mac;
+identical commit and all 79 package versions; OLD's certificate served by NEW; every count equal while live.
+NEW's half of the cut-over: drain + count check 19 s (13 s of that was the count check, since made parallel),
+API start → healthy 6 s ⇒ **estimated downtime ≈ 20–30 s**. The bridge (NEW → OLD) was also checked on NEW.
+
 ## Re-running, safety, state
 
 - Every step can be re-run. Prepare restarts the database copy from scratch (`mongorestore --drop`, on NEW only).

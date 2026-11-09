@@ -82,7 +82,7 @@ on_new 'bash -s' <<'REMOTE' | sed 's/^/  /'
 echo "✓ $(awk '/MemTotal/{printf "%.1f GB RAM", $2/1048576}' /proc/meminfo), $(nproc) vCPU, swap $(swapon --noheadings --show=SIZE | tr '\n' ' ')"
 echo "✓ mongod: $(grep -o 'cacheSizeGB: .*' /etc/mongod.conf), $(systemctl show mongod -p MemoryHigh -p MemoryMax | tr '\n' ' ')"
 echo "✓ API unit: $(systemctl show markdrop -p MemoryHigh -p MemoryMax -p User | tr '\n' ' ')"
-echo "✓ role $(cat /etc/markdrop/role); enabled: $(for u in markdrop markdrop-worker markdrop-backup.timer; do printf '%s=%s ' $u "$(systemctl is-enabled $u 2>/dev/null)"; done)"
+echo "✓ role $(sudo cat /etc/markdrop/role); enabled: $(for u in markdrop markdrop-worker markdrop-backup.timer; do printf '%s=%s ' $u "$(systemctl is-enabled $u 2>/dev/null)"; done)"
 echo "✓ certbot renewal: $(sudo grep -E '^authenticator' /etc/letsencrypt/renewal/*.conf | sed 's#.*/##')"
 REMOTE
 for u in markdrop markdrop-worker markdrop-backup.timer; do

@@ -511,7 +511,7 @@ mode_cutover() {
   local s; s=$(sync_state)
   grep -q 'UNIT active' <<<"$s" && grep -q LIVE <<<"$s" || { printf '%s\n' "$s" | sed 's/^/    /'; die "the copy on NEW is not live: re-run the prepare step"; }
   ok "copy live: $(printf '%s\n' "$s" | grep LIVE | tail -1 | cut -c1-80)"
-  [ "$(on_new 'cat /etc/markdrop/role')" = standby ] || die "NEW is not on standby"
+  [ "$(on_new 'sudo cat /etc/markdrop/role')" = standby ] || die "NEW is not on standby"
   [ "$(on_old "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8080/health")" = 200 ] || die "OLD's API is not healthy"
   https_check "$NEW_IP" 502 || https_check "$NEW_IP" 200 || die "NEW's nginx/TLS does not answer"
   ok "OLD healthy; NEW standing by at $NEW_IP"
@@ -596,7 +596,7 @@ mode_rollback() {
   OLD_IP=$(load old_ip); NEW_IP=$(load new_ip)
   [ -n "$OLD_IP" ] && [ -n "$NEW_IP" ] || die "no move recorded for $TO on this Mac ($STATE)"
   step "checks"
-  [ "$(on_new 'cat /etc/markdrop/role')" = live ] || die "NEW is not live: nothing to roll back"
+  [ "$(on_new 'sudo cat /etc/markdrop/role')" = live ] || die "NEW is not live: nothing to roll back"
   on_old 'systemctl is-active -q mongod' || die "OLD's mongod is not running"
   on_old 'test -x /opt/markdrop-ops/provision.sh' || die "OLD has no /opt/markdrop-ops (the cut-over ships it)"
   ok "NEW live, OLD's mongod up"
