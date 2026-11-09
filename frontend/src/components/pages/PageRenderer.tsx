@@ -47,6 +47,8 @@ import "@/components/jira/jira.css";
 
 // Jira chips load only on pages that have some (components/jira; never on a public page's first paint).
 const JiraChip = dynamic(() => import("@/components/jira/JiraChip").then((m) => m.JiraChip), { ssr: false, loading: () => null });
+// Jira inside pages (:jira chips, ::jira cards, ::jira-list): components/jira/pages/reader.tsx, loaded when the page has some.
+const JiraReaderBlock = dynamic(() => import("@/components/jira/pages/reader").then((m) => m.JiraReaderBlock), { ssr: false, loading: () => null });
 
 /** Jira on a page, for a signed-in member (DocumentView): linked items' chips, and "Create Jira issue". */
 export interface PageJira {
@@ -59,8 +61,8 @@ export interface PageJira {
 }
 
 
-const PB_ATTRS = ["dataPb", "dataKind", "dataLabel", "dataSrc", "dataMode", "dataAsset", "dataIcon", "dataColor", "dataHeading", "dataUrl", "dataTitle", "dataDesc", "dataImage", "dataSite", "dataPerson", "dataOptions", "dataLock", "dataRef"];
-const PB_PROPS = ["data-pb", "data-kind", "data-label", "data-src", "data-mode", "data-asset", "data-icon", "data-color", "data-heading", "data-url", "data-title", "data-desc", "data-image", "data-site", "data-person", "data-options", "data-lock", "data-ref"];
+const PB_ATTRS = ["dataPb", "dataKind", "dataLabel", "dataSrc", "dataMode", "dataAsset", "dataIcon", "dataColor", "dataHeading", "dataUrl", "dataTitle", "dataDesc", "dataImage", "dataSite", "dataPerson", "dataOptions", "dataLock", "dataRef", "dataQuery"];
+const PB_PROPS = ["data-pb", "data-kind", "data-label", "data-src", "data-mode", "data-asset", "data-icon", "data-color", "data-heading", "data-url", "data-title", "data-desc", "data-image", "data-site", "data-person", "data-options", "data-lock", "data-ref", "data-query"];
 
 /** Block attributes (attrs.mjs) any element may carry: anchor, colours, image and table layout. */
 const BLOCK_ATTRS = ["dataBid", "dataColor", "dataBg", "dataWidth", "dataAlign", "dataWidths", "dataHcol", "dataHrow", "dataCaption", "dataBlock"];
@@ -98,6 +100,8 @@ interface Ctx {
   jiraUrls?: Record<string, JiraIssue>;
   /** On a meeting page: where the items under Decisions / Action items / Open questions start (offsets). */
   jiraItems?: Set<number> | null;
+  /** Jira inside the page (chips, cards, lists): who's reading, the socket, and the page's issues. */
+  jiraEnv?: { slug: string; viewer: string | null; subscribeLive?: PageRendererProps["subscribeLive"]; refsKey: string } | null;
 }
 const PageCtx = createContext<Ctx>({ embeds: {}, headings: [], crumbs: [], title: null, href: (s) => `/${encodeURIComponent(s)}`, signoffs: null });
 /** The list item a checkbox belongs to: where it starts in the body (from the Markdown's positions). */
@@ -173,6 +177,7 @@ function DivInner({ node: _n, children, ...rest }: P<"div">) {
   if (pb === "subpage") return <SubPageBlock src={String(rest["data-src"] ?? "")} />;
   if (pb === "webembed") return <WebEmbedBlock url={str(rest["data-url"]) ?? ""} title={str(rest["data-title"])} />;
   if (pb === "signoff") return <SignoffBlock rest={rest}>{children}</SignoffBlock>;
+  if (pb === "jira-card" || pb === "jira-list") return <JiraBlock kind={pb === "jira-card" ? "card" : "list"} rest={rest} />;
   if (pb === "signoff-range") return <SignoffRange id={str(rest["data-ref"])}>{children}</SignoffRange>;
   if (pb === "unknown") return <div className="pb-unknown">{children}</div>;
   return <div {...(plainProps(rest) as object)}>{children}</div>;
@@ -262,6 +267,7 @@ function WebEmbedBlock({ url, title }: { url: string; title?: string }) {
 function Span({ node: _n, children, ...rest }: P<"span">) {
   const pb = rest["data-pb"];
   if (pb === "mention") return <MentionChip src={String(rest["data-src"] ?? "")} />;
+  if (pb === "jira") return <JiraBlock kind="chip" rest={rest} />;
   if (pb === "date") {
     const iso = String(rest["data-label"] ?? "");
     const d = new Date(`${iso}T12:00:00`);
@@ -290,6 +296,21 @@ function Span({ node: _n, children, ...rest }: P<"span">) {
     );
   }
   return <span {...(plainProps(rest) as object)}>{children}</span>;
+}
+
+/** A Jira chip, card or list: drawn by components/jira/pages (one shared store per page). */
+function JiraBlock({ kind, rest }: { kind: "chip" | "card" | "list"; rest: Record<string, unknown> }) {
+  const { jiraEnv } = useContext(PageCtx);
+  const key = str(rest["data-label"]) ?? null;
+  let attrs: Record<string, string> | null = null;
+  if (kind === "list") {
+    try { attrs = JSON.parse(String(rest["data-query"] ?? "{}")); } catch { attrs = null; }
+  }
+  if (!jiraEnv) {
+    // No page around it (a preview): the key as text.
+    return key ? <span className="pb-mention">{key}</span> : null;
+  }
+  return <JiraReaderBlock env={jiraEnv} kind={kind} site={str(rest["data-site"]) ?? null} issueKey={key} attrs={attrs} />;
 }
 
 function MentionChip({ src }: { src: string }) {
@@ -436,6 +457,7 @@ export function meetingItemOffsets(body: string): Set<number> {
 }
 
 const JIRA_URL = /https:\/\/[a-z0-9.-]+\/browse\/[A-Z][A-Z0-9_]{0,19}-[1-9][0-9]{0,8}/g;
+const JIRA_REF = /:jira\[[A-Za-z][A-Za-z0-9_]*-\d+\][^\s]*|::jira\{[^}\n]*\}/g;
 
 function Input({ node: _n, type, checked, ...props }: P<"input">) {
   const { onToggleTask } = useContext(PageCtx);
@@ -545,7 +567,10 @@ export function PageRenderer({ slug, content: source, assets, signInHref, onHead
     import("@/lib/jira").then((m) => m.jiraLookup(jiraKey.split(" "))).then((r) => { if (!gone) setJiraUrls(r.issues); }).catch(() => {});
     return () => { gone = true; };
   }, [jiraKey]);
-  const ctx = useMemo(() => ({ embeds, signInHref, headings, crumbs: crumbs ?? [], title: title ?? null, href: href ?? defaultHref, signoffs, onToggleTask: toggle, jira, jiraUrls, jiraItems }), [embeds, signInHref, headings, crumbs, title, href, signoffs, toggle, jira, jiraUrls, jiraItems]);
+  // Jira inside the page: its chips and cards ("site/KEY"), so the shared store re-reads when they change.
+  const jiraRefs = useMemo(() => (/:jira(?:-list)?[[{]/.test(content) ? Array.from(new Set(content.match(JIRA_REF) ?? [])).sort().join(" ") || "list" : ""), [content]);
+  const jiraEnv = useMemo(() => (jiraRefs ? { slug, viewer, subscribeLive, refsKey: jiraRefs } : null), [jiraRefs, slug, viewer, subscribeLive]);
+  const ctx = useMemo(() => ({ embeds, signInHref, headings, crumbs: crumbs ?? [], title: title ?? null, href: href ?? defaultHref, signoffs, onToggleTask: toggle, jira, jiraUrls, jiraItems, jiraEnv }), [embeds, signInHref, headings, crumbs, title, href, signoffs, toggle, jira, jiraUrls, jiraItems, jiraEnv]);
   const root = useRef<HTMLDivElement>(null);
   useBlockAnchor(root);
   return (

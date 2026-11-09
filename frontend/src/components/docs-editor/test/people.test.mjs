@@ -130,7 +130,7 @@ test("the trigger context reads the character before, code and the query", () =>
 test("the / menu in a table cell: only inline items, and /person is there", () => {
   const page = itemsFor(PAGE_BLOCKS);
   const cell = cellItems(page);
-  assert.deepEqual(cell.map((x) => x.id).sort(), ["date", "emoji", "mention", "person"]);
+  assert.deepEqual(cell.map((x) => x.id).sort(), ["date", "emoji", "jira", "mention", "person"]);
   assert.equal(filterItems("person", cell)[0].id, "person");
   assert.equal(filterItems("@", cell)[0].id, "person");
   // No blocks in a cell.

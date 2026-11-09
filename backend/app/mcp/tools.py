@@ -3574,6 +3574,10 @@ TOOLS += TEAM_TOOLS
 from app.mcp.jira_tools import JIRA_TOOLS  # noqa: E402
 
 TOOLS += JIRA_TOOLS
+# Jira inside pages (insert_jira, update_jira_issue, list_jira_transitions): app/mcp/jira_page_tools.py.
+from app.mcp.jira_page_tools import JIRA_PAGE_TOOLS  # noqa: E402
+
+TOOLS += JIRA_PAGE_TOOLS
 
 # Comments (Track A core; Track B review/AI; Track C insights): app/mcp/comment_tools.py and friends.
 from app.mcp.comment_tools import COMMENT_TOOLS  # noqa: E402

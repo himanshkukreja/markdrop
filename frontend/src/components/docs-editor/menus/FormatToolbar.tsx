@@ -409,9 +409,15 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
             )}
             {host.pages?.jira && (
               <Btn label="Create Jira issue" onClick={() => {
-                const { from, to } = editor.state.selection;
+                const { from, to, $from, $to } = editor.state.selection;
                 const text = editor.state.doc.textBetween(from, to, "\n", " ").trim();
-                if (text) host.pages?.jira?.({ block: null, selection: text.slice(0, 4000), text });
+                // Text within one line becomes the new issue's chip (components/jira/pages), if it's still there.
+                const replace = $from.parent === $to.parent && $from.parent.isTextblock ? (key: string, site: string | null) => {
+                  const mention = editor.schema.nodes.mention;
+                  if (editor.isDestroyed || !mention || editor.state.doc.textBetween(from, to, "\n", " ").trim() !== text) return;
+                  editor.view.dispatch(editor.state.tr.replaceWith(from, to, mention.create({ name: "jira", label: key, attributes: site ? { site } : {} })).scrollIntoView());
+                } : null;
+                if (text) host.pages?.jira?.({ block: null, selection: text.slice(0, 4000), text, replace });
               }}>
                 <Icon name="checkSquare" />
               </Btn>

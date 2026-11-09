@@ -66,6 +66,20 @@
       "docs": []
     },
     {
+      "id": "jira-in-pages",
+      "date": "2026-11-09",
+      "title": "Jira issues inside your pages",
+      "kind": "new",
+      "area": "Pages",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "Put Jira issues anywhere in a page as live chips, cards or lists, change them from the page, and turn a comment thread into an issue.",
+      "body": "- **Chips, cards and live lists.** Paste a Jira link and it becomes a chip; **/jira**, **/Jira card** and **/Jira list** add an issue or a table from a project, a saved filter or a JQL query, always current.\n- **Change issues from the page.** Every step of the issue's workflow (Jira asks for what a step needs), the assignee, a Jira comment, the title, priority and due date, made as you, so Jira's own permissions apply.\n- **From text or a discussion.** Select text and choose **Create Jira issue**: the text becomes the new issue's chip. A comment thread can become an issue too, and resolving one offers to resolve the other.\n- **Each reader sees their own Jira.** Live details only through your own Atlassian account; everyone else sees the key and title. Lists run as each reader.\n- **For AI apps:** `insert_jira`, `update_jira_issue` and `list_jira_transitions`, and `create_jira_issue` puts the new issue's chip where the text was. [Jira in pages](/pages/jira-in-pages)."
+    },
+    {
       "id": "ai-and-your-data",
       "date": "2026-11-07",
       "title": "AI and your data, in one place",

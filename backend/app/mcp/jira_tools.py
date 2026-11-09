@@ -164,9 +164,35 @@ async def create_jira_issue(ctx: Context, args: dict) -> tuple[str, dict]:
     except (HTTPException, jira.NotConnected) as exc:
         raise _err(exc)
     data = {"created": True, "key": made["key"], "url": made["url"], "linked": made.get("link") is not None,
-            "issue": made.get("issue"), "draft": out}
+            "issue": made.get("issue"), "draft": out, "chip": False}
+    note = await _back_into_page(ctx, kw, made, args)
+    data["chip"] = note is not None
     return (f"Created {made['key']} ({made['url']}) as you" + (", linked to the item on the page" if data["linked"] else "")
-            + "."), data
+            + "." + (f" {note}" if note else "")), data
+
+
+async def _back_into_page(ctx: Context, kw: dict, made: dict, args: dict) -> str | None:
+    """Made from selected text: the text on the page becomes the issue's chip (as in the editor), unless
+    put_chip is false. Never fails the creation."""
+    if not kw.get("selection") or args.get("put_chip") is False:
+        return None
+    from app.mcp import jira_page_tools, page_tools
+    from app.services import access, jira_pages
+
+    try:
+        raw = await ctx.db["documents"].find_one({"slug": kw["slug"], "deleted_at": None})
+        if raw is None or not (await access.can(actor_of(ctx), raw, "edit_content", _actx(ctx))).allowed:
+            return None
+        host = jira_pages.host_of(made.get("url"))
+        site_attr = None if host == await jira_pages.default_host(ctx.db, raw) else host
+        new = jira_page_tools.chip_for_selection(raw.get("content") or "", kw["selection"], made["key"], site_attr)
+        if new is None:
+            return None
+        await page_tools._lock_check(raw, ctx)
+        await page_tools._save(ctx, raw, new, int(raw.get("rev") or 1))
+        return "The selected text on the page is now the issue's chip."
+    except (ToolError, HTTPException):
+        return None
 
 
 async def link_jira_issue(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -287,7 +313,9 @@ JIRA_TOOLS: list[Tool] = [
                      "(their own Atlassian connection: they are the reporter) with any fields given here over the draft; "
                      "the description gets the item quoted and a link back to the page (to the exact moment of a meeting), "
                      "and the item shows a live Jira chip; ticking a linked to-do then moves the issue to Done and the "
-                     "reverse. Needs read access to the page and the user's Atlassian account connected."),
+                     "reverse. Made from selection, the selected text on the page becomes the issue's inline chip "
+                     "(put_chip: false keeps the text). Needs read access to the page and the user's Atlassian account "
+                     "connected."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
@@ -302,9 +330,12 @@ JIRA_TOOLS: list[Tool] = [
             "assignee": {"type": ["string", "null"], "maxLength": 200, "description": "A member: name, email, id, or 'me'."},
             "due": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
             "labels": {"type": "array", "items": {"type": "string", "maxLength": 40}, "maxItems": 10},
+            "put_chip": {"type": "boolean", "default": True,
+                         "description": "Made from selection: replace that text on the page with the new issue's chip (default true)."},
         }, "required": ["page"]},
         output_schema=_out({"created": {"type": "boolean"}, "key": {"type": "string"}, "url": {"type": "string"},
-                            "linked": {"type": "boolean"}, "issue": {"type": ["object", "null"]}, "draft": {"type": "object"}},
+                            "linked": {"type": "boolean"}, "issue": {"type": ["object", "null"]}, "draft": {"type": "object"},
+                            "chip": {"type": "boolean"}},
                            ["created", "draft"]),
         annotations=_ann(False, False, False),
         handler=create_jira_issue,

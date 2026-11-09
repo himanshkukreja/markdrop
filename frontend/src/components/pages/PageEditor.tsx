@@ -56,6 +56,7 @@ import { clearPageDraft, dropLegacyPageDraft, readPageDraft, restorePageDraft, w
 import { useAssistantEditor } from "@/components/assistant/store";
 import { insertAfterCaret, insertAfterHeading } from "./editorInsert";
 import { sectionAround } from "./memory/memoryCore.mjs";
+import { useJiraEditorHost } from "@/components/jira/pages/editor";
 import "./pages.css";
 import "./page-blocks.css";
 
@@ -474,7 +475,11 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     return () => { gone = true; };
   }, [slug, workspaceId, userId, addressing.tenant]);
   const flush = session.flush;
-  const openJira = useCallback((ref: { block: string | null; selection: string | null }) => {
+  // Jira inside the page (components/jira/pages): chips, cards, lists; text made into an issue becomes its chip.
+  const jiraEd = useJiraEditorHost({ slug, userId, subscribeLive, enabled: !!userId && !addressing.tenant, workspaceId: workspaceId ?? null });
+  const jiraReplace = useRef<((key: string, site: string | null) => void) | null>(null);
+  const openJira = useCallback((ref: { block: string | null; selection: string | null; replace?: ((key: string, site: string | null) => void) | null }) => {
+    jiraReplace.current = ref.replace ?? null;
     window.setTimeout(async () => {
       try { await flush(); } catch { /* the dialog says what's wrong */ }
       setJiraItem({ slug, block: ref.block, selection: ref.selection });
@@ -484,6 +489,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
   const pages = useMemo<PagesEditorHost>(
     () => ({
       jira: jiraOn ? openJira : null,
+      jiraPages: jiraEd.host,
       workspaceName: workspaceId ? workspaceName ?? "Workspace" : null,
       async search(scope, q, cursor) {
         if (scope === "workspace" && workspaceId) return searchWorkspace(workspaceId, q, cursor);
@@ -524,7 +530,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       href: (s, ancestors) => pagePath(s, { tenant: addressing.tenant, folderPath: addressing.folderPath, ancestors }),
       assetSize,
     }),
-    [slug, mentionable, workspaceId, workspaceName, crumbs, title, addressing.tenant, addressing.folderPath, signoffs, assetSize, jiraOn, openJira],
+    [slug, mentionable, workspaceId, workspaceName, crumbs, title, addressing.tenant, addressing.folderPath, signoffs, assetSize, jiraOn, openJira, jiraEd.host],
   );
 
   const setBody = useCallback(
@@ -935,7 +941,13 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       </div>
       {(phone || touch) && <PagePhoneBar editor={editor} readOnly={readOnly} ai={aiUsable} />}
       {workspaceId && userId && <MeetingMemory slug={slug} workspaceId={workspaceId} title={title} editor={mode === "visual" ? editor : null} readOnly={readOnly} ai={aiUsable} />}
-      {jiraItem && <CreateIssueDialog open={!!jiraItem} item={jiraItem} workspaceId={workspaceId ?? null} onClose={() => setJiraItem(null)} />}
+      {jiraItem && <CreateIssueDialog open={!!jiraItem} item={jiraItem} workspaceId={workspaceId ?? null} onClose={() => setJiraItem(null)}
+        onCreated={(c) => {
+          const site = (c.url.match(/^https:\/\/([^/]+)/)?.[1] ?? "").toLowerCase() || null;
+          jiraReplace.current?.(c.key, site && site !== jiraEd.host?.store.state.default_site ? site : null);
+          jiraReplace.current = null;
+        }} />}
+      {jiraEd.dialog}
     </PageFrame>
   );
 }

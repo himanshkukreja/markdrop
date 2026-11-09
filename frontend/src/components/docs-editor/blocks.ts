@@ -16,6 +16,8 @@ interface BlockServices {
   openMeetings?: (e: Editor, r: Range) => void;
 }
 const svc = (e: Editor) => (e.storage as unknown as { dxeServices?: BlockServices }).dxeServices ?? {};
+/** Jira in the page (components/jira/pages): the editor's host gives it when the person can use Jira here. */
+const jiraOn = (e: Editor) => !!(svc(e) as { pages?: { jiraPages?: unknown } }).pages?.jiraPages;
 const insertColumns = (e: Editor, n: number, r: Range) => svc(e).insertColumns?.(e, n, r);
 const uploadMedia = (e: Editor, r: Range, kind: "video" | "audio" | "file") => svc(e).uploadMedia?.(e, r, kind);
 const openEmoji = (e: Editor, r: Range) => svc(e).openEmoji?.(e, r);
@@ -407,6 +409,55 @@ export const PAGE_ONLY_ITEMS: BlockItem[] = [
   },
 ];
 
+/** Jira inside pages (components/jira/pages/editor.tsx): an empty node opens the issue picker. */
+export const JIRA_ITEMS: BlockItem[] = [
+  {
+    id: "jira",
+    label: "Jira issue",
+    hint: "A live chip: status for people with Jira",
+    icon: "checkSquare",
+    keywords: "jira issue ticket task bug story atlassian chip link",
+    group: "inline",
+    cell: true,
+    available: jiraOn,
+    run: (e, r) => {
+      e.chain().focus().deleteRange(r).insertContent([{ type: "mention", attrs: { name: "jira", label: "", attributes: {} } }, { type: "text", text: " " }]).run();
+    },
+  },
+  {
+    id: "jira-card",
+    label: "Jira card",
+    hint: "An issue with its status, assignee and actions",
+    icon: "checkSquare",
+    keywords: "jira issue card ticket status assignee atlassian block",
+    group: "markdrop",
+    available: jiraOn,
+    run: insert({ type: "directiveLeaf", attrs: { name: "jira", attributes: {} } }),
+  },
+  {
+    id: "jira-list",
+    label: "Jira list",
+    hint: "Live issues from a project, filter or JQL",
+    icon: "list",
+    keywords: "jira list table issues jql filter project sprint board backlog atlassian",
+    group: "markdrop",
+    available: jiraOn,
+    run: insert({ type: "directiveLeaf", attrs: { name: "jira-list", attributes: {} } }),
+  },
+  {
+    id: "jira-create",
+    label: "New Jira issue",
+    hint: "Create one (drafted for you) and put its chip here",
+    icon: "plus",
+    keywords: "jira create new issue ticket task bug atlassian",
+    group: "markdrop",
+    available: jiraOn,
+    run: (e, r) => {
+      e.chain().focus().deleteRange(r).insertContent([{ type: "mention", attrs: { name: "jira", label: "", attributes: { create: "1" } } }, { type: "text", text: " " }]).run();
+    },
+  },
+];
+
 /**
  * The page's "/" menu, in order within each section (GROUPS): text, headings, lists, toggles,
  * quote, divider, callout; media; Markdrop items; advanced blocks; inline chips. Guides-only blocks
@@ -417,15 +468,15 @@ export const PAGE_BLOCKS = [
   "text", "h1", "h2", "h3", "tasks", "bullets", "numbers", "toggle", "toggle-h1", "toggle-h2", "toggle-h3",
   "quote", "divider", "callout-note", "callout-tip", "callout-warning", "callout-danger",
   "image", "page-video", "page-audio", "page-file", "bookmark", "web-embed",
-  "page-embed", "mention", "subpage", "signoff", "meetings",
+  "page-embed", "mention", "subpage", "signoff", "meetings", "jira-card", "jira-list", "jira-create",
   "table", "columns-2", "columns-3", "columns-4", "columns-5", "code", "math", "mermaid", "toc", "breadcrumb", "button",
-  "person", "date", "emoji",
+  "person", "date", "emoji", "jira",
 ] as const;
 
 /** Markdown shortcuts only pages have (pageKeys.ts), shown in the page's menu. */
 const PAGE_SHORTCUTS: Record<string, string> = { tasks: "[]", math: "$$" };
 
-const ALL_ITEMS = [...BLOCK_ITEMS, ...PAGE_ONLY_ITEMS];
+const ALL_ITEMS = [...BLOCK_ITEMS, ...PAGE_ONLY_ITEMS, ...JIRA_ITEMS];
 
 /** The items for a block set (ids, in order); every Guides block when no set is given. */
 export function itemsFor(ids?: readonly string[] | null): BlockItem[] {

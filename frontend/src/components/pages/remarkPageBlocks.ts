@@ -7,6 +7,8 @@
  *   :::details{summary="…"} / [label]   → <details data-pb="details" data-label>
  *   ::markdrop{src mode title}          → <div data-pb="embed" data-src data-mode data-label>
  *   :markdrop[Title]{src}               → <span data-pb="mention" data-src data-label>
+ *   :jira[KEY]{site} / ::jira{key site} → <span data-pb="jira"> / <div data-pb="jira-card"> data-label data-site
+ *   ::jira-list{jql|project|filter …}   → <div data-pb="jira-list" data-query> (components/jira/pages)
  *   :kbd[⌘ K]                           → <kbd>
  *   ![alt](asset:<id>)                  → the viewer's URL for that page image (or a placeholder)
  *
@@ -73,6 +75,8 @@ function set(node: MdNode, hName: string, props: Record<string, unknown>) {
   for (const [k, v] of Object.entries(props)) if (v !== undefined && v !== null && v !== "") p[k] = v;
   node.data = { ...(node.data ?? {}), hName, hProperties: p };
 }
+
+const JIRA_KEY = /^[A-Z][A-Z0-9_]{0,19}-[1-9][0-9]{0,8}$/;
 
 const attr = (n: MdNode, k: string) => {
   const v = n.attributes?.[k];
@@ -202,6 +206,14 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
           } else if (node.name === "embed") {
             set(node, "div", { dataPb: "webembed", dataUrl: attr(node, "src"), dataTitle: attr(node, "title") });
             node.children = [];
+          } else if (node.name === "jira" && JIRA_KEY.test((attr(node, "key") ?? textOf(node)).trim().toUpperCase())) {
+            set(node, "div", { dataPb: "jira-card", dataLabel: (attr(node, "key") ?? textOf(node)).trim().toUpperCase(), dataSite: attr(node, "site") });
+            node.children = [];
+          } else if (node.name === "jira-list") {
+            const q: Record<string, string> = {};
+            for (const k of ["jql", "project", "filter", "site", "cols", "limit", "title"]) if (attr(node, k)) q[k] = attr(node, k)!;
+            set(node, "div", { dataPb: "jira-list", dataQuery: JSON.stringify(q) });
+            node.children = [];
           } else if (parent) {
             parent.children![index] = { type: "paragraph", children: [{ type: "text", value: sourceOf(node) }] };
             return;
@@ -213,6 +225,10 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
           if (node.name === "markdrop") {
             const slug = embedSlug(attr(node, "src"));
             set(node, "span", { dataPb: "mention", dataSrc: slug ?? "", dataLabel: textOf(node).trim() });
+            node.children = [];
+          } else if (node.name === "jira" && JIRA_KEY.test(textOf(node).trim().toUpperCase())) {
+            // A Jira issue's chip (components/jira/pages): "KEY · title", live through the reader's own Jira.
+            set(node, "span", { dataPb: "jira", dataLabel: textOf(node).trim().toUpperCase(), dataSite: attr(node, "site") });
             node.children = [];
           } else if (node.name === "date" && /^\d{4}-\d{2}-\d{2}$/.test(textOf(node).trim())) {
             set(node, "span", { dataPb: "date", dataLabel: textOf(node).trim() });

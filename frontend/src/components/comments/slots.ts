@@ -11,6 +11,8 @@ import type { Message, Thread } from "@/lib/comments";
 import type { CommentsCtx } from "./context";
 import { register as registerReview } from "./review";
 import { register as registerInsights } from "./insights";
+// Track D (Jira in pages): "Create Jira issue" / "Link a Jira issue" on a thread, and the linked issue under it.
+import { register as registerJira } from "@/components/jira/pages/ThreadJira";
 
 export interface Draft {
   body: string;
@@ -69,5 +71,6 @@ export function slots(): CommentSlots {
   registry = { threadActions: [], threadSections: [], messageExtras: [], composerTools: [], beforePost: [], panelActions: [] };
   registerReview(registry);
   registerInsights(registry);
+  registerJira(registry);
   return registry;
 }

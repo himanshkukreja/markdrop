@@ -16,6 +16,7 @@ import { PageLeafView } from "./pageLeaves";
 import { ImageLightbox, downloadImage } from "./Lightbox";
 import { cleanAttrs } from "../core/attrs.mjs";
 import { suggestedAlts } from "../menus/aiAlt";
+import { JiraLeafNode } from "@/components/jira/pages/editor";
 
 /** "✦ Alt text suggested": AI described the image; shown until someone edits the description. */
 function AltSuggested({ onReview }: { onReview: () => void }) {
@@ -385,6 +386,8 @@ const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 export function LeafView(props: ReactNodeViewProps) {
   // ::markdrop{src=…}: a Markdrop file, with its own picker and preview (views/markdrop.tsx).
   if ((props.node.attrs.name as string) === "markdrop") return <MarkdropLeaf {...props} />;
+  // ::jira{key site} and ::jira-list{…}: Jira cards and live lists (components/jira/pages/editor.tsx).
+  if (["jira", "jira-list"].includes(props.node.attrs.name as string)) return <JiraLeafNode {...props} />;
   return <PageOrGuideLeaf {...props} />;
 }
 

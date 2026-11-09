@@ -1978,6 +1978,91 @@
       "description": "For Jira issue links pasted in pages: the issues your own Atlassian connection can open (key, summary, status, assignee). Links it can't open are left out.",
       "guide": {"label": "Jira", "href": "/integrations/jira"}
     },
+    "GET /api/v1/jira/pages/{slug}/items": {
+      "title": "Jira chips and cards on a page",
+      "description": "The page's Jira chips and cards, keyed `<site>/<KEY>`: the key, title and link for everyone who can read the page, and `issue` (status, assignee, priority, due date, sprint…) only when your own Atlassian connection can open it. Works signed out (key and title only; Markdrop never asks Jira for anyone who isn't signed in). `X-Read-Password` for a password-protected page.",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "POST /api/v1/jira/pages/{slug}/list": {
+      "title": "One page of a Jira list",
+      "description": "Runs a list block's query (`jql`, `project` or `filter`) as you, through your own Jira: nobody sees an issue their Jira hides. Readers can run only the lists saved on the page; editors can preview a new one. `page_token` (the previous answer's `next`) for the next page.",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "POST /api/v1/jira/pages/{slug}/remember": {
+      "title": "Remember an issue put on a page",
+      "description": "For people who can edit the page: saves the issue's title as the page's snapshot, the \"KEY · title\" every reader sees. Answers the issue as your Jira shows it.",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "GET /api/v1/jira/pages/{slug}/threads": {
+      "title": "Comment threads linked to Jira issues",
+      "description": "The page's comment threads that have a Jira issue: key, title and link for everyone who can see the comments, live details only through your own Jira; and whether you can create issues from threads (`can_create`).",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "POST /api/v1/jira/pages/{slug}/threads/{thread_id}/draft": {
+      "title": "Draft a Jira issue from a comment thread",
+      "description": "Markdrop AI's draft of an issue from the discussion (summary, description, project, type, priority, assignee, due date) for you to review. Creates nothing.",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "POST /api/v1/jira/pages/{slug}/threads/{thread_id}/issue": {
+      "title": "Create a Jira issue from a comment thread",
+      "description": "Creates the issue as you from the reviewed `fields` and links the thread to it. The issue's description links back to the thread.",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "POST /api/v1/jira/pages/{slug}/threads/{thread_id}/link": {
+      "title": "Link a comment thread to a Jira issue",
+      "description": "Links the thread to an existing issue (a key or its link) that your own Jira can open.",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "DELETE /api/v1/jira/pages/{slug}/threads/{thread_id}/link": {
+      "title": "Unlink a comment thread's Jira issue",
+      "description": "Removes the link between the thread and its issue. Nothing changes in Jira.",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "GET /api/v1/jira/search": {
+      "title": "Find Jira issues",
+      "description": "The editor's issue picker: a key or link, words of a title, or (with nothing typed) issues assigned to you or reported by you, as your Jira finds them.",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "GET /api/v1/jira/priorities": {
+      "title": "A Jira site's priorities",
+      "description": "The priorities you can choose on the site, for editing an issue.",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "GET /api/v1/jira/issue/{key}": {
+      "title": "A Jira issue",
+      "description": "The issue as your own Jira shows it now (status, assignee, priority, type, due date, sprint, updated).",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "PATCH /api/v1/jira/issue/{key}": {
+      "title": "Edit a Jira issue",
+      "description": "Changes the title (`summary`), `priority` or `due` date (`null` clears it), as you. Pass `slug` to update the page it's on for its readers at once.",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "GET /api/v1/jira/issue/{key}/transitions": {
+      "title": "A Jira issue's workflow steps",
+      "description": "Every step you can take on the issue now (name, the status it leads to), each with the fields its screen needs: required ones first, with their allowed values.",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "POST /api/v1/jira/issue/{key}/transition": {
+      "title": "Move a Jira issue",
+      "description": "Takes a workflow step as you: `transition` is the step's id, its name or the status it leads to; `fields` gives what the step needs (a resolution…). Jira's refusal comes back as it is.",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "GET /api/v1/jira/issue/{key}/assignable": {
+      "title": "People a Jira issue can be assigned to",
+      "description": "The people Jira lets you assign the issue to, matching `q`.",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "PUT /api/v1/jira/issue/{key}/assignee": {
+      "title": "Assign a Jira issue",
+      "description": "Assigns the issue to a person (`account_id`, from the assignable list) or unassigns it (`null`), as you.",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
+    "POST /api/v1/jira/issue/{key}/comment": {
+      "title": "Comment on a Jira issue",
+      "description": "Adds your comment to the issue in Jira, as you.",
+      "guide": {"label": "Jira in pages", "href": "/pages/jira-in-pages"}
+    },
     "GET /api/v1/jira/team/{workspace_id}": {
       "title": "Jira on the Team board",
       "description": "Each member's Jira issues in the projects on Team (updated in the last 30 days): with your connection, the issues your Jira can open (`mode: \"details\"`); without it, counts only (`mode: \"counts\"`). `no_projects` when an admin hasn't picked any. Cached for 5 minutes (`refresh=true` asks Jira now).",

@@ -70,6 +70,8 @@ PEOPLE = "jira_people"
 ISSUES = "jira_issues"
 SEEN = "jira_seen"
 
+# Jira Cloud's Sprint field (the id every Jira Software Cloud site gives it); missing on other sites: no sprint.
+SPRINT_FIELD = "customfield_10020"
 # Classic scopes (developer.atlassian.com › Jira platform REST API scopes). offline_access: a refresh token.
 SCOPES = ("read:jira-work", "write:jira-work", "read:jira-user", "manage:jira-webhook", "offline_access")
 STATE_TTL = 15 * 60
@@ -79,7 +81,7 @@ WEBHOOK_EVENTS = ("jira:issue_created", "jira:issue_updated", "jira:issue_delete
 WEBHOOK_REFRESH_BEFORE = timedelta(days=10)     # webhooks live 30 days; refresh well before
 MAX_PROJECTS = 20
 ISSUE_FIELDS = ("summary", "status", "assignee", "duedate", "priority", "project", "issuetype", "updated",
-                "resolutiondate", "labels", "created", "reporter")
+                "resolutiondate", "labels", "created", "reporter", SPRINT_FIELD)
 KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,19}-[1-9][0-9]{0,8}$")
 
 
@@ -167,6 +169,28 @@ async def remember(db: AsyncIOMotorDatabase, key: str, ttl: timedelta) -> bool:
             await db[SEEN].update_one({"_id": key[:200]}, {"$set": {"expires_at": now_utc() + ttl}})
             return True
         return False
+
+
+# ── Jira's rate limits ────────────────────────────────────────────────────────
+
+
+async def busy(db: AsyncIOMotorDatabase, cloud_id: str | None) -> bool:
+    """Jira asked us to slow down on this site (a 429) and the wait isn't over: read from the cache only."""
+    if not cloud_id:
+        return False
+    row = await db[SEEN].find_one({"_id": f"backoff:{cloud_id}"[:200]}, {"expires_at": 1})
+    exp = _aware((row or {}).get("expires_at"))
+    return exp is not None and exp > now_utc()
+
+
+async def backoff(db: AsyncIOMotorDatabase, cloud_id: str | None, seconds: float | None = None) -> None:
+    """Hold off this site for its Retry-After (30 s when it gave none; 5 s … 5 min)."""
+    if not cloud_id:
+        return
+    wait = max(5.0, min(300.0, float(seconds or 30)))
+    await db[SEEN].update_one({"_id": f"backoff:{cloud_id}"[:200]}, {"$set": {"expires_at": now_utc() + timedelta(seconds=wait)}},
+                              upsert=True)
+    log.info("jira: %s is rate limiting us; waiting %.0fs", cloud_id, wait)
 
 
 # ── Signed state ──────────────────────────────────────────────────────────────
@@ -775,10 +799,20 @@ def shape_issue(cloud_id: str, site_url: str | None, raw: dict) -> dict:
         "project": {"key": (f.get("project") or {}).get("key"), "name": (f.get("project") or {}).get("name")},
         "type": ((f.get("issuetype") or {}).get("name") or None),
         "labels": labels,
+        "sprint": _sprint(f.get(SPRINT_FIELD)),
         "updated": f.get("updated"), "resolved": f.get("resolutiondate"),
         "url": browse_url(site_url, key),
         "fetched_at": now_utc(),
     }
+
+
+def _sprint(value: Any) -> str | None:
+    """The sprint an issue is in: the active one, else the last one listed (Jira lists past sprints too)."""
+    rows = [v for v in (value or []) if isinstance(v, dict) and v.get("name")] if isinstance(value, list) else []
+    if not rows:
+        return None
+    active = [v for v in rows if str(v.get("state") or "").lower() == "active"]
+    return str((active or rows)[-1]["name"])[:80]
 
 
 async def store_issues(db: AsyncIOMotorDatabase, shaped: list[dict]) -> None:
@@ -791,7 +825,7 @@ def public_issue(it: dict) -> dict:
     return {"key": it["key"], "summary": it.get("summary"), "status": it.get("status"), "assignee": it.get("assignee"),
             "due": it.get("due"), "priority": it.get("priority"), "project": it.get("project"), "type": it.get("type"),
             "url": it.get("url"), "blocked": bool(it.get("blocked")), "updated": it.get("updated"),
-            "resolved": it.get("resolved"), "labels": it.get("labels") or []}
+            "resolved": it.get("resolved"), "labels": it.get("labels") or [], "sprint": it.get("sprint")}
 
 
 async def search_as(db: AsyncIOMotorDatabase, user_id: str, site: dict, jql: str, *, limit: int = 200) -> list[dict]:

@@ -442,6 +442,16 @@ jobs:
           PB_FAKE_JIRA=1 PB_FAKE_MEETINGS_AI=1 zsh up.sh restart-api
           node jira.mjs
 
+      # Jira in pages (chip, card and live list under each viewer's own Jira; anonymous and no-access
+      # readers see "KEY · title" only; status/assignee/comment/edit actions; the editor's /jira, paste,
+      # @KEY and selection → issue; a comment thread → issue; phones), ~2 min, on the bughunt job.
+      - name: jira-pages.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'bughunt' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: |
+          PB_FAKE_JIRA=1 PB_FAKE_MEETINGS_AI=1 zsh up.sh restart-api
+          node jira-pages.mjs
+
       # The one-tap "turn on notifications" prompts (Home card, bell nudge), ~40 s, on the bughunt job:
       # the API restarts with throwaway push keys and the fake push service (PB_PUSH).
       - name: push-prompts.mjs on ${{ matrix.browser }}

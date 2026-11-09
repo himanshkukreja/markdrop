@@ -30,8 +30,12 @@ function needsConnect(e: unknown): string | null {
  * then it's created as them (their own Atlassian connection) and linked to the item. Not connected yet:
  * a Connect step first. Restricted pages say who the link back works for.
  */
-export function CreateIssueDialog({ open, item, workspaceId, onClose, onCreated }: {
+export function CreateIssueDialog({ open, item, workspaceId, onClose, onCreated, loadDraft, submit, title = "Create Jira issue" }: {
   open: boolean; item: JiraItemRef | null; workspaceId: string | null; onClose: () => void; onCreated?: (c: JiraCreated) => void;
+  /** Another source than an item (a comment thread, components/jira/pages): its draft, and how to create from it. */
+  loadDraft?: (() => Promise<JiraDraft>) | null;
+  submit?: ((fields: JiraCreateFields) => Promise<JiraCreated>) | null;
+  title?: string;
 }) {
   const toast = useToast();
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
@@ -45,7 +49,7 @@ export function CreateIssueDialog({ open, item, workspaceId, onClose, onCreated 
     let gone = false;
     setPhase({ kind: "loading" });
     setDraft(null);
-    jiraDraft(item).then((d) => {
+    (loadDraft ? loadDraft() : jiraDraft(item)).then((d) => {
       if (gone) return;
       setDraft(d);
       setF(fieldsOf(d.draft));
@@ -57,7 +61,7 @@ export function CreateIssueDialog({ open, item, workspaceId, onClose, onCreated 
       setPhase(c ? { kind: "connect", message: c } : { kind: "error", message: e instanceof Error ? e.message : "Couldn't draft the issue." });
     });
     return () => { gone = true; };
-  }, [open, item]);
+  }, [open, item]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function changeProject(p: string) {
     if (!f) return;
@@ -74,7 +78,8 @@ export function CreateIssueDialog({ open, item, workspaceId, onClose, onCreated 
     if (!item || !f) return;
     setBusy(true);
     try {
-      const out = await jiraCreate(item, { ...f, labels: (f.labels ?? []).filter(Boolean) });
+      const fields = { ...f, labels: (f.labels ?? []).filter(Boolean) };
+      const out = submit ? await submit(fields) : await jiraCreate(item, fields);
       toast.success(<>Created <a href={out.url} target="_blank" rel="noreferrer" className="font-semibold underline">{out.key}</a> in Jira.</>);
       onCreated?.(out);
       onClose();
@@ -86,7 +91,7 @@ export function CreateIssueDialog({ open, item, workspaceId, onClose, onCreated 
   const ready = phase.kind === "ready" && draft && f;
   return (
     <Dialog open={open} onClose={onClose} size="lg" glyph={<JiraMark />} dismissible={!busy}
-      title="Create Jira issue"
+      title={title}
       description={ready ? <>From {draft.source.kind_label.toLowerCase()} · {draft.meta.site.name}</> : undefined}
       footer={ready ? (
         <>
