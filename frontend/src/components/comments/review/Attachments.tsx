@@ -17,6 +17,26 @@ function opts(ctx: CommentsCtx) {
   return { readPassword: ctx.readPassword ?? null };
 }
 
+type Up = { id: string; name: string; mime: string; size: number };
+type Pending = { promise: Promise<Up | null>; consumed: boolean };
+/** Uploads still on their way, per composer (thread id, or "" for a new thread). */
+const pending = new Map<string, Set<Pending>>();
+
+/** Before a post: wait for this composer's uploads still on their way, and carry them in the draft. */
+export async function filesBeforePost(draft: Draft, _ctx: CommentsCtx, threadId: string | null): Promise<Draft> {
+  const set = pending.get(threadId ?? "");
+  if (!set?.size) return draft;
+  const items = [...set];
+  const got = await Promise.all(items.map((x) => x.promise));
+  items.forEach((x) => {
+    x.consumed = true;
+    set.delete(x);
+  });
+  const have = new Set(draft.attachments.map((a) => a.id));
+  const add = got.filter((g): g is Up => !!g && !have.has(g.id));
+  return add.length ? { ...draft, attachments: [...draft.attachments, ...add] } : draft;
+}
+
 type Att = { id: string; name: string; mime: string; size: number; url?: string | null };
 
 function FileItem({ a, ctx }: { a: Att; ctx: CommentsCtx }) {
@@ -62,7 +82,7 @@ export function MessageFiles({ message, ctx }: { message: Message; thread: Threa
   );
 }
 
-export function AttachTool({ draft, setDraft, ctx }: { draft: Draft; setDraft(d: Draft): void; ctx: CommentsCtx; threadId: string | null }) {
+export function AttachTool({ draft, setDraft, ctx, threadId }: { draft: Draft; setDraft(d: Draft): void; ctx: CommentsCtx; threadId: string | null }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(0);
   const toast = useToast();
@@ -80,15 +100,28 @@ export function AttachTool({ draft, setDraft, ctx }: { draft: Draft; setDraft(d:
         continue;
       }
       setBusy((n) => n + 1);
-      try {
-        const up = await uploadFile(ctx.slug, f, opts(ctx));
-        if (up.url) links.put(ctx.slug, { ...up, url: up.url, expires_at: null });
+      const key = threadId ?? "";
+      const job: Pending = { consumed: false, promise: Promise.resolve(null) };
+      job.promise = uploadFile(ctx.slug, f, opts(ctx)).then(
+        (up) => {
+          if (up.url) links.put(ctx.slug, { ...up, url: up.url, expires_at: null });
+          return { id: up.id, name: up.name, mime: up.mime, size: up.size };
+        },
+        (e) => {
+          toast.error(e instanceof Error ? e.message : "That file couldn't be added.");
+          return null;
+        },
+      );
+      const set = pending.get(key) ?? new Set<Pending>();
+      set.add(job);
+      pending.set(key, set);
+      const up = await job.promise;
+      set.delete(job);
+      setBusy((n) => n - 1);
+      // Posted meanwhile (the post waited for it and carried it): nothing more to do here.
+      if (up && !job.consumed) {
         const cur = latest.current;
-        setDraft({ ...cur, attachments: [...cur.attachments, { id: up.id, name: up.name, mime: up.mime, size: up.size }] });
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "That file couldn't be added.");
-      } finally {
-        setBusy((n) => n - 1);
+        setDraft({ ...cur, attachments: [...cur.attachments, up] });
       }
     }
   }

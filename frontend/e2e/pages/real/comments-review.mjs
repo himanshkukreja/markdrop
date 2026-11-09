@@ -93,10 +93,10 @@ await step("propose", async () => {
   await ed.getByRole("button", { name: "Suggest" }).click();
   const c = card(p, t.id).locator('[data-testid="suggestion-card"]');
   await c.waitFor();
-  if (!(await c.innerText()).includes("AI draft")) fail("the AI badge is missing");
+  await until(async () => (await c.innerText()).includes("AI draft"), "the AI badge shows");
   if ((await c.locator("ins").innerText()) !== "the faster editor") fail("not proposed");
   // A viewer-level member can't accept; the member (an editor) can, but it's theirs: Withdraw is offered.
-  if (!(await c.getByRole("button", { name: "Withdraw" }).count())) fail("no Withdraw for its author");
+  await c.getByRole("button", { name: "Withdraw" }).waitFor({ timeout: 10000 });
   await p.context().close();
 });
 
@@ -136,7 +136,7 @@ await step("files", async () => {
   const file = path.join(STACK, `cr-${run}.png`);
   fs.writeFileSync(file, Buffer.from(await pngBytes(browser, "Comment screenshot")));
   await card(p, t.id).locator('[data-testid="comment-file-input"]').setInputFiles(file);
-  await card(p, t.id).locator(".cr-draft-file").first().waitFor();
+  await card(p, t.id).locator(".cr-draft-file:not(.cr-draft-file--busy)").first().waitFor();
   await ta.fill("Here it is");
   await card(p, t.id).getByRole("button", { name: "Reply", exact: true }).last().click();
   const files = card(p, t.id).locator('[data-testid="comment-files"] img');

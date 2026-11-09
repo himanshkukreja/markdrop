@@ -11,7 +11,7 @@
 import type { Thread } from "@/lib/comments";
 import type { CommentsCtx } from "../context";
 import type { CommentSlots } from "../slots";
-import { AttachTool, MessageFiles } from "./Attachments";
+import { AttachTool, MessageFiles, filesBeforePost } from "./Attachments";
 import { SuggestTool, ToneTool, toneBeforePost } from "./Composer";
 import { SuggestionSection } from "./SuggestionSection";
 import { openSummary } from "./Summary";
@@ -55,6 +55,8 @@ export function register(slots: CommentSlots): void {
     { id: "review.suggest", Component: SuggestTool },
     { id: "review.tone", Component: ToneTool },
   );
+  // Uploads still on their way go with the post; then the tone check.
+  slots.beforePost.push((draft, ctx, threadId) => filesBeforePost(draft, ctx, threadId));
   slots.beforePost.push((draft, ctx) => toneBeforePost(draft, ctx));
   slots.panelActions.push({
     id: "review.summary",
