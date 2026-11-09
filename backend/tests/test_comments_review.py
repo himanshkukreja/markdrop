@@ -226,7 +226,8 @@ class Locate(ReviewWorld):
         self.assertEqual(md[s - 4:e + 4], "The cat ran")
         self.assertEqual(suggestions.locate(md, {"quote": {"exact": "dog"}}), "stale")
         self.assertEqual(suggestions.apply_text("x **a b** y", {"quote": {"exact": "a b"}}, "c"), "x **c** y")
-        self.assertEqual(suggestions.apply_text("x [a](u) y", {"quote": {"exact": "x a"}}, "c"), "unappliable")
+        self.assertEqual(suggestions.apply_text("x [a](u) y", {"quote": {"exact": "x a"}}, "c"), "stale")
+        self.assertEqual(suggestions.apply_text("x **a b** y", {"quote": {"exact": "x a"}}, "c"), "unappliable")
         # Front matter is never matched.
         fm = "---\ntitle: cat\n---\n\ncat here\n"
         s, _e = suggestions.locate(fm, {"quote": {"exact": "cat"}})
@@ -313,9 +314,18 @@ class CommentsAI(ReviewWorld):
 
     async def test_at_ai_sends_only_what_every_reader_may_read(self):
         # A workspace page (members only, no grants): workspace-level items may be sent; a private one never.
-        page = await self.item("W", title="Launch plan")
-        member = await self.mkdoc("W", owner="wm", slug="rollout-notes", content="# Rollout\n\nRollout uses canary waves.")
-        secret = await self.mkdoc("P", owner="wm", slug="rollout-secret", content="# Rollout\n\nRollout secret salary bands.")
+        from app.services import search_index
+
+        await search_index.ensure_indexes(self.db)
+        page = await self.item("W", title="Launch plan", grants=False)
+        member = await self.mkdoc("W", owner="wm", slug="rollout-notes", title="Rollout notes",
+                                  content="# Rollout\n\nRollout uses canary waves.")
+        secret = await self.mkdoc("P", owner="wm", slug="rollout-secret", title="Rollout secret",
+                                  content="# Rollout\n\nRollout secret salary bands.")
+        await search_index.drain()
+        for _ in range(100):
+            if (await search_index.backfill_tick(self.db))["done"]:
+                break
         self.fake.reply = "Canary waves [2]."
         r = await self.http.post(self.url(page), json={"anchor": {"type": "page"}, "body": "@AI how does the rollout work?"},
                                  headers=self.session("wm"))
@@ -564,8 +574,9 @@ class Tools(ReviewWorld):
         tid = res["structuredContent"]["thread_id"]
         self.assertEqual(res["structuredContent"]["suggestion"]["text"], "the fresh editor")
         # A read-only token can't suggest.
-        res = await self.mcp("wv", "suggest_edit", {"document": d["slug"], "thread": tid, "text": "x"}, write=False)
-        self.assertTrue(res["isError"])
+        status, _res = await self.mcp_call(await self.mcp_token("wv", write=False), "suggest_edit",
+                                           {"document": d["slug"], "thread": tid, "text": "x"})
+        self.assertEqual(status, 403)
         # A viewer can't accept.
         res = await self.mcp("wv", "accept_suggestion", {"document": d["slug"], "thread": tid})
         self.assertTrue(res["isError"])
