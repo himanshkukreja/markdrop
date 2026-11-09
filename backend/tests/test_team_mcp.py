@@ -137,6 +137,9 @@ class TeamMcp(TeamWorld):
             sc = self.ok(await self.call("wa", "send_weekly_summary_now", {}))
         self.assertEqual(sc["week"], "2026-W45")
         self.assertGreater(sc["highlights"] + sc["due"], 0)
+        # Send now (W45) covers last week's highlights and this week's due items, and says so.
+        self.assertEqual((sc["highlights_from"], sc["highlights_to"]), ("2026-10-26", "2026-11-01"))
+        self.assertTrue(sc["subject"].startswith("Week of Nov 2:"), sc["subject"])
         self.assertIsNone(sc["slack"])
         self.assertEqual(sc["emails"], len(sent))
         self.assertIn(self.email["wa"], sent)
