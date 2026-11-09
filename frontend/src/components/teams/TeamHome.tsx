@@ -96,7 +96,7 @@ export default function TeamHome({ ws, team: teamRef }: { ws: string; team: stri
           </div>
         </div>
         <div className="tz-actions">
-          {!locked && <Button variant="secondary" iconLeft="sparkle" href={teamAskHref(ws, t)}>Ask {t.name}</Button>}
+          {!locked && <Button variant="secondary" iconLeft="sparkle" href={teamAskHref(ws, t)} aria-label={`Ask ${t.name}`}>Ask this team</Button>}
           {!locked && (t.my_role || t.can_admin) && <Button iconLeft="plus" href={`/pages/new?workspace=${encodeURIComponent(ws)}&team=${encodeURIComponent(t.id)}`}>New page</Button>}
           {!t.my_role && t.visibility === "open" && <JoinButton ws={ws} teamId={t.id} onJoined={load} />}
           {t.can_manage && <IconButton icon="settings" label="Team settings" variant="secondary" href={teamSettingsHref(ws, t)} />}

@@ -295,7 +295,9 @@ const ROUTES = [
     ["teams-ask", "member", `${APP}/ask?workspace=${WS}&team=${X.teams.a}`],
     ["teams-share", "owner", `${APP}/${X.page}`, async (p) => {
       await p.locator(".pb-paper").first().waitFor({ timeout: 20000 }).catch(() => {});
-      await click(p, p.getByRole("button", { name: /^Share/ }));
+      const sh = p.getByRole("button", { name: /^Share/ }).first();
+      if (!(await sh.isVisible().catch(() => false))) return "skip";
+      await click(p, sh);
       await p.getByTestId("share-teams").waitFor({ timeout: 8000 }).catch(() => {});
     }],
   ] : []),

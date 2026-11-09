@@ -230,7 +230,7 @@ function Danger({ ws, team }: { ws: string; team: TeamFull }) {
     <section className="tz-card" aria-labelledby="ts-danger">
       <h2 className="tz-h2 mb-1" id="ts-danger">Delete team</h2>
       <p className="tz-muted mb-3">Its pages, meetings and memory stay. They become company-wide, or stay in their other teams.</p>
-      <Button variant="danger" onClick={() => setOpen(true)}>Delete {team.name}</Button>
+      <Button variant="danger" onClick={() => setOpen(true)}>Delete team</Button>
       <ConfirmDialog open={open} onClose={() => setOpen(false)} tone="danger" title={`Delete ${team.name}?`} confirmLabel="Delete team"
         description="Nothing inside is deleted: its content becomes company-wide (or stays in its other teams). This can't be undone."
         onConfirm={async () => {
