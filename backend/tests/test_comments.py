@@ -15,7 +15,7 @@ from tests._access_env import PASSWORD, now  # noqa: F401  (pins settings first)
 from bson import ObjectId
 
 from app.routers import live as live_router
-from app.services import live, tickets, viewers
+from app.services import access, live, tickets, viewers
 from app.services.comments import events, model, service
 from tests.test_page_history import HistoryWorld
 from tests.test_viewers import FakeSocket, settle
@@ -369,6 +369,33 @@ class Threads(CommentsWorld):
         r = await self.http.put(self.url(d, f"/{t2['id']}/assignee"), json={"user_id": None},
                                 headers=self.session("owner"))
         self.assertIsNone(r.json()["assignee"])
+
+    async def test_assignee_resolves_and_team_lists(self):
+        d = await self.item("W")
+        t = await self.create(d, "owner", assignee=self.uid["gv"])
+        # A viewer grant can't resolve others' threads, but the assignee can (the task is done).
+        got = (await self.http.get(self.url(d, f"/{t['id']}"), headers=self.session("gv"))).json()
+        self.assertTrue(got["can"]["resolve"])
+        self.assertFalse((await self.http.get(self.url(d, f"/{t['id']}"), headers=self.session("wv"))).json()["can"]["resolve"])
+        # Team: the board and the person's page list it for viewers who can open the item.
+        await self.db["workspaces"].update_one({"_id": ObjectId(self.ws["W1"])}, {"$set": {"settings.team_memory": True}})
+        from app.services.comments import tasks
+
+        seen = await tasks.team_for_viewer(self.db, access.Actor.of(await self._user("wm")), access.Ctx(self.db),
+                                           self.ws["W1"])
+        self.assertEqual([x["thread_id"] for x in seen.get(self.uid["gv"], [])], [t["id"]])
+        none = await tasks.team_for_viewer(self.db, access.Actor.of(await self._user("stranger")), access.Ctx(self.db),
+                                           self.ws["W1"])
+        self.assertEqual(none, {})
+        r = await self.http.post(self.url(d, f"/{t['id']}/resolve"), headers=self.session("gv"))
+        self.assertEqual(r.status_code, 200, r.text)
+        r = await self.http.post(self.url(d, f"/{t['id']}/reopen"), headers=self.session("wv"))
+        self.assertEqual(r.status_code, 403)
+
+    async def _user(self, who):
+        from app.services import user as user_service
+
+        return await user_service.get_user_by_id(self.db, self.uid[who])
 
     async def test_waiting_reply_and_access_loss(self):
         d = await self.item("W")
