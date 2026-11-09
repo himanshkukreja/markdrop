@@ -75,12 +75,16 @@ class CommentDMs(ReachWorld, SlackWorld):
         self.assertEqual(slack.read_value(TEAM, b["md_cm_reply"]["value"]), ["cm", str(self.doc["_id"]), str(th["_id"]), "r"])
         self.assertIsNone(slack.read_value("T0OTHER", b["md_cm_reply"]["value"]))   # bound to this team
 
-    async def test_a_viewer_gets_reply_but_no_resolve_and_assignment_dm(self):
+    async def test_a_viewer_gets_reply_but_no_resolve_unless_assigned(self):
+        await self.dm_for("wv")
+        await self.later()
+        dm = self.sk.of("chat.postMessage")[-1]
+        self.assertEqual(set(buttons(dm)), {"md_cm_reply", "md_open"})     # someone else's thread
         await self.dm_for("wv", "comment_assigned")
         await self.later()
         dm = self.sk.of("chat.postMessage")[-1]
         self.assertIn("assigned you a comment on", json.dumps(dm))
-        self.assertEqual(set(buttons(dm)), {"md_cm_reply", "md_open"})
+        self.assertEqual(set(buttons(dm)), {"md_cm_reply", "md_cm_resolve", "md_open"})   # the assignee may resolve
 
     async def test_prefs_off_edited_out_or_no_access_send_nothing(self):
         r = await self.http.patch("/api/v1/slack/me/prefs", json={"comment_mention": False}, headers=self.session("wm"))
