@@ -79,6 +79,7 @@ class SourceIn(BaseModel):
 
 class PreviewBody(BaseModel):
     sources: list[SourceIn] = Field(..., min_length=1, max_length=meetings.MAX_SOURCES)
+    workspace: str | None = Field(None, max_length=40, description="Teams: with it, each meeting's team_suggestions")
 
 
 class ImportBody(BaseModel):
@@ -89,6 +90,9 @@ class ImportBody(BaseModel):
     type: str | None = Field(None, max_length=20)
     restricted: bool | None = None   # None: by the call (a 1:1 or two-person call is restricted)
     wait: bool = False
+    # Teams (services/team_routing.py): the teams it goes to; left out, they're suggested from the attendees.
+    team_ids: list[str] | None = Field(None, max_length=20)
+    project_ids: list[str] | None = Field(None, max_length=20)
 
 
 class ConnectBody(BaseModel):
@@ -235,7 +239,14 @@ async def status(request: Request, workspace: str = Query(..., max_length=40),
 async def preview(request: Request, body: PreviewBody, db: AsyncIOMotorDatabase = Depends(get_db),
                   user: User = Depends(require_user)):
     incoming = await _incoming(db, user, body.sources, allow_google=False)
-    return {"meetings": meetings.preview(incoming)}
+    got = meetings.preview(incoming)
+    if body.workspace:
+        from app.services import team_routing
+
+        ws = _ws(body.workspace)
+        await meetings.require_member(db, ws, user.id, write=False)
+        await team_routing.annotate_preview(db, ws, got)
+    return {"meetings": got}
 
 
 @router.post("/import")
@@ -245,12 +256,24 @@ async def import_meeting(request: Request, body: ImportBody, db: AsyncIOMotorDat
     ws = _ws(body.workspace)
     await meetings.require_member(db, ws, user.id)
     incoming = await _incoming(db, user, body.sources, allow_google=True)
-    # A Google Doc already imported into this workspace (by hand or by the Google Meet script) opens
-    # that meeting instead of making a second one.
-    rows = await meetings.import_meetings(db, user, ws, incoming, title=body.title, date_=body.date,
-                                          type_=body.type, restricted=body.restricted, wait=body.wait,
-                                          dedupe="file")
+    from app.services import team_routing
+
     actor, ctx = _ac(request, db, user)
+    chosen = None
+    if body.team_ids is not None or body.project_ids is not None:
+        try:
+            chosen = await team_routing.check_chosen(actor, ctx, ws, body.team_ids or [], body.project_ids or [])
+        except team_routing.T.Refused as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail)
+    token = team_routing.chosen.set(chosen)
+    try:
+        # A Google Doc already imported into this workspace (by hand or by the Google Meet script) opens
+        # that meeting instead of making a second one.
+        rows = await meetings.import_meetings(db, user, ws, incoming, title=body.title, date_=body.date,
+                                              type_=body.type, restricted=body.restricted, wait=body.wait,
+                                              dedupe="file")
+    finally:
+        team_routing.chosen.reset(token)
     out = []
     for row in rows:
         raw = await meetings.readable(db, row, actor, ctx)

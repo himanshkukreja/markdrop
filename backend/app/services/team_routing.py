@@ -77,6 +77,30 @@ async def route_new(db: AsyncIOMotorDatabase, row: dict) -> dict | None:
     return routing
 
 
+async def check_chosen(actor, ctx, workspace_id: str, team_ids: list[str], project_ids: list[str]) -> tuple[list[str], list[str]]:
+    """Teams an importer picked: ones they're in (workspace admins: any)."""
+    view = await ctx.team_view(workspace_id, actor.user_id)
+    tids, pids = T._norm_sets(view, team_ids, project_ids)
+    T.check_change(view, [], [], tids, pids)
+    return tids, pids
+
+
+async def annotate_preview(db: AsyncIOMotorDatabase, workspace_id: str, previews: list[dict]) -> None:
+    """``team_suggestions`` on each previewed meeting, from its attendees' names (CONTRACT §4.6)."""
+    from app.services import meetings
+    from app.services import workspace_memory as wm
+
+    people = meetings.People(await wm.members_of(db, workspace_id))
+    teams = await db[T.TEAMS].find({"workspace_id": workspace_id}).to_list(length=T.MAX_TEAMS + 10)
+    for p in previews:
+        att = []
+        for name in p.get("attendees") or []:
+            m = people.match(name)
+            if m:
+                att.append({"user_id": m.get("id"), "name": name})
+        p["team_suggestions"] = await suggest(db, workspace_id, {"attendees": att, "series": p.get("series")}, teams) if teams else []
+
+
 async def meeting_teams(db: AsyncIOMotorDatabase, actor, ctx, row: dict) -> dict:
     ws = row["workspace_id"]
     view = await ctx.team_view(ws, actor.user_id)
@@ -101,10 +125,6 @@ async def set_meeting_teams(db: AsyncIOMotorDatabase, actor, ctx, row: dict, tea
                                                                     "routing.at": T.now_utc()}})
     row = await db["meetings"].find_one({"_id": row["_id"]}, {"segments": 0})
     return await meeting_teams(db, actor, ctx, row)
-
-
-async def preview_suggestions(db: AsyncIOMotorDatabase, workspace_id: str, attendees: list[dict], series: str | None) -> list[dict]:
-    return await suggest(db, workspace_id, {"attendees": attendees, "series": series})
 
 
 # ── Guided review (admins) ───────────────────────────────────────────────────
