@@ -190,6 +190,8 @@ async def copy(db: AsyncIOMotorDatabase, source: dict, asset_id: str, target: di
     caller has checked can(read) on the source and can(edit_content) on the
     target). 404 when ``asset_id`` isn't one of the source's images."""
     row = await db[COLL].find_one({"_id": asset_id, "doc_id": str(source["_id"])})
+    if row is not None and row.get("comment"):
+        row = None  # a file in a comment is the comment's, not the page's
     if row is None:
         raise HTTPException(status_code=404, detail=f"asset:{asset_id} isn't an image of {source['slug']}.")
     await check_room(db, target, int(row.get("size") or 0) or 1, user_id=user_id, max_bytes=FILE_MAX_BYTES)
@@ -230,7 +232,7 @@ async def urls_for(db: AsyncIOMotorDatabase, page: dict, ids: list[str] | None =
         return {}
     if not r2.is_configured():
         return {}
-    q: dict = {"doc_id": str(page["_id"])}
+    q: dict = {"doc_id": str(page["_id"]), "comment": {"$ne": True}}
     if ids is not None:
         q["_id"] = {"$in": list(ids)[:MAX_PER_PAGE]}
     rows = await db[COLL].find(q, {"key": 1, "mime": 1, "width": 1, "height": 1}).to_list(length=MAX_PER_PAGE)
@@ -254,11 +256,15 @@ async def urls_for(db: AsyncIOMotorDatabase, page: dict, ids: list[str] | None =
 async def _set(db: AsyncIOMotorDatabase, page: dict, public: bool, epoch: int) -> bool:
     if not r2.is_configured():
         return True
-    rows = await db[COLL].find({"doc_id": str(page["_id"])}, {"key": 1, "mime": 1}).to_list(length=MAX_PER_PAGE)
+    rows = await db[COLL].find({"doc_id": str(page["_id"])}, {"key": 1, "mime": 1, "comment": 1}).to_list(
+        length=MAX_PER_PAGE)
     ok = True
     for r in rows:
         try:
-            ok = bool(await run_in_threadpool(r2.set_public, r["key"], public, r.get("mime"), epoch)) and ok
+            # Files in comments (services/comments/attachments.py) are never public: every link is signed
+            # for someone who can see the comments, under the page's epoch.
+            ok = bool(await run_in_threadpool(r2.set_public, r["key"], public and not r.get("comment"), r.get("mime"),
+                                              epoch)) and ok
         except Exception:
             log.warning("page image publicity change failed for %s", r["key"], exc_info=True)
             ok = False
