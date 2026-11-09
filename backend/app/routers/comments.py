@@ -111,7 +111,7 @@ async def list_comments(request: Request, slug: str,
 
 
 @router.post("/api/v1/documents/{slug}/comments", status_code=201)
-@limiter.limit("30/minute")
+@limiter.limit("30/minute;300/day")
 async def create_comment(request: Request, slug: str, data: ThreadCreate,
                          db: AsyncIOMotorDatabase = Depends(get_db),
                          x_read_password: str | None = Header(None),
@@ -155,7 +155,7 @@ async def get_comment_thread(request: Request, slug: str, thread_id: str = Path(
 
 
 @router.post("/api/v1/documents/{slug}/comments/{thread_id}/replies", status_code=201)
-@limiter.limit("60/minute")
+@limiter.limit("60/minute;1000/day")
 async def reply_comment(request: Request, slug: str, data: ReplyCreate, thread_id: str = Path(pattern=_TID),
                         db: AsyncIOMotorDatabase = Depends(get_db),
                         x_read_password: str | None = Header(None),
