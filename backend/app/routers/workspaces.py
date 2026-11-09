@@ -98,8 +98,13 @@ async def _domains(db: AsyncIOMotorDatabase, workspace_id: str) -> tuple[list[di
     """Every domain with its state, and the live primary host."""
     from app.services import urls
 
+    from app.services import domain as domain_service
+    from app.services.request_memo import prime
+
     rows = await db["domains"].find({"workspace_id": workspace_id}).to_list(length=200)
-    primary = await urls.live_primary_host(db, workspace_id)
+    # The primary from these same rows (domain.primary_host's rule), not a second query per workspace.
+    primary = domain_service.primary_of(rows)
+    prime(("primary_host", workspace_id), primary)
     out = []
     for r in sorted(rows, key=lambda r: r.get("created_at") or 0):
         out.append({

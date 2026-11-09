@@ -878,6 +878,12 @@ async def _primary_host(db: AsyncIOMotorDatabase, workspace_id: str) -> str | No
         .find({"workspace_id": workspace_id, **LIVE_APP})
         .to_list(length=25)
     )
+    return primary_of(rows)
+
+
+def primary_of(rows: list[dict]) -> str | None:
+    """primary_host's choice among a workspace's domain rows (only the live app ones count)."""
+    rows = [r for r in rows if is_live(r)]
     if not rows:
         return None
     # An explicit choice wins. Oldest-first is only the fallback, for the

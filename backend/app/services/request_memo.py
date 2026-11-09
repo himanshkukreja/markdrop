@@ -26,6 +26,10 @@ READ_METHODS = ("GET", "HEAD")
 # The editor's autosave (PUT /documents/{slug}), its lock (POST/DELETE …/lock, POST …/lock/keep, the
 # close beacon …/lock/release).
 EDITOR_WRITES = re.compile(r"^/api/v1/documents/[^/]+(?:/lock(?:/keep|/release)?)?$")
+# Reads sent as POST (their arguments are a body): the editor's meeting-memory panel, card previews,
+# a page's embeds resolved.
+READ_POSTS = re.compile(r"^/api/v1/(?:meeting-memory/(?:related|check)|me/previews"
+                        r"|documents/[^/]+/embeds|workspaces/[^/]+/items/previews)$")
 
 
 async def remember(key: tuple, factory: Callable[[], Awaitable[Any]]) -> Any:
@@ -66,7 +70,7 @@ def forget(*key_prefix: Any) -> None:
 
 
 def memo_applies(method: str, path: str) -> bool:
-    if method in READ_METHODS:
+    if method in READ_METHODS or (method == "POST" and READ_POSTS.match(path)):
         return True
     if not EDITOR_WRITES.match(path):
         return False
