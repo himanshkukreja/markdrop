@@ -210,16 +210,18 @@ async def capture(db: AsyncIOMotorDatabase, raw: dict, *, reason: str, seal: boo
 
 
 async def on_save(db: AsyncIOMotorDatabase, before: dict, after: dict, actor, *,
-                  kind: str | None = None, restored_from: int | None = None) -> None:
-    """After a write of ``after`` over ``before``. Never fails the write."""
+                  kind: str | None = None, restored_from: int | None = None, event: dict | None = None) -> None:
+    """After a write of ``after`` over ``before``. Never fails the write. ``kind`` "suggestion" (a
+    comment's suggested edit accepted: services/comments/suggestions.py) is its own sealed version
+    carrying ``event`` ({type: "suggestion", thread_id, text}), so the history links to the thread."""
     try:
-        await _on_save(db, before, after, actor, kind=kind, restored_from=restored_from)
+        await _on_save(db, before, after, actor, kind=kind, restored_from=restored_from, event=event)
     except Exception:
         log.warning("version history: snapshot failed", exc_info=True)
 
 
 async def _on_save(db: AsyncIOMotorDatabase, before: dict, after: dict, actor, *,
-                   kind: str | None, restored_from: int | None) -> None:
+                   kind: str | None, restored_from: int | None, event: dict | None = None) -> None:
     if not records(after) and kind != "restore":
         return
     if not has_history(after):
@@ -238,9 +240,10 @@ async def _on_save(db: AsyncIOMotorDatabase, before: dict, after: dict, actor, *
             and (_aware(top.get("started_at")) or now_utc()) > now_utc() - COALESCE:
         await db[COLL].update_one({"_id": top["_id"]}, {"$set": {**_state(after), "ts": now_utc()}})
         return
-    client = await _client_name(db, MCP_CLIENT.get()) if kind == "mcp" else None
+    client = await _client_name(db, MCP_CLIENT.get()) if kind == "mcp" or (kind == "suggestion" and via_mcp) else None
     await _insert(db, after, kind=kind, author_id=author_id, author_name=_author_name(actor), client=client,
-                  sealed=kind != "user", restored_from=restored_from, reason=kind)
+                  sealed=kind != "user", restored_from=restored_from, reason=kind,
+                  event=event if kind == "suggestion" else None)
 
 
 async def on_release(db: AsyncIOMotorDatabase, raw: dict, actor) -> None:
@@ -337,6 +340,9 @@ def _author(row: dict, people: dict[str, dict]) -> dict:
         label = "Earlier version"
     elif kind == "signoff":
         label = (row.get("event") or {}).get("text") or "Sign-off"
+    elif kind == "suggestion":
+        # A comment's suggested edit, accepted (services/comments/suggestions.py): links to its thread.
+        label = f"{name or 'Someone'} accepted a suggested edit"
     elif kind == "jira":
         # A to-do ticked (or reopened) because its linked issue moved in Jira (services/jira_links.py).
         label = f"{name or 'Someone'} via Jira"
@@ -352,7 +358,7 @@ def view(row: dict, people: dict[str, dict], current_sha: str | None = None) -> 
         "title": row.get("title"), "icon": row.get("icon"), "bytes": int(row.get("bytes") or 0),
         "restored_from": row.get("restored_from"), "current": bool(current_sha) and row.get("sha") == current_sha,
         **({"event": {k: v for k, v in row["event"].items() if k in ("type", "action", "block", "label", "option",
-                                                                     "was", "text")}} if row.get("event") else {}),
+                                                                     "was", "text", "thread_id")}} if row.get("event") else {}),
     }
 
 
@@ -515,7 +521,8 @@ async def cleanup_images(db: AsyncIOMotorDatabase, now: datetime | None = None, 
     for doc_id in doc_ids:
         stats["pages"] += 1
         rows = await db[page_assets.COLL].find(
-            {"doc_id": doc_id}, {"key": 1, "size": 1, "unreferenced_since": 1}).to_list(length=None)
+            {"doc_id": doc_id}, {"key": 1, "size": 1, "unreferenced_since": 1, "comment": 1,
+                                 "created_at": 1}).to_list(length=None)
         stats["assets"] += len(rows)
         page = await db["documents"].find_one({"_id": ObjectId(doc_id)}, {"content": 1, "encrypted": 1, "kind": 1}) \
             if ObjectId.is_valid(doc_id) else None
@@ -535,6 +542,12 @@ async def cleanup_images(db: AsyncIOMotorDatabase, now: datetime | None = None, 
         else:
             used = set(pages.asset_ids(page.get("content")))
             used |= {a for a in await db[COLL].distinct("assets", {"doc_id": doc_id}) if a}
+        if any(r.get("comment") for r in rows):
+            # Files in comments (services/comments/attachments.py): used while a live message holds
+            # them, or while a fresh upload waits for its message.
+            from app.services.comments import attachments as comment_attachments
+
+            used |= await comment_attachments.in_use(db, doc_id, rows, now) if page is not None else set()
         mark, clear, doomed = [], [], []
         for r in rows:
             since = _aware(r.get("unreferenced_since"))
