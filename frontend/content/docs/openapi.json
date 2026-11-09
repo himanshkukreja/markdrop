@@ -31207,6 +31207,36 @@
             "type": "boolean",
             "title": "Wait",
             "default": false
+          },
+          "team_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Ids"
+          },
+          "project_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Ids"
           }
         },
         "type": "object",
@@ -33356,6 +33386,19 @@
             "maxItems": 6,
             "minItems": 1,
             "title": "Sources"
+          },
+          "workspace": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace",
+            "description": "Teams: with it, each meeting's team_suggestions"
           }
         },
         "type": "object",
