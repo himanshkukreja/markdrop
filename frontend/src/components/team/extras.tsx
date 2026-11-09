@@ -201,7 +201,7 @@ export function ThisWeekCard({ week, ws, canSend, onSent }: { week: ThisWeek | n
     <section className="tm-week" aria-labelledby="tm-week-h" data-testid="team-this-week">
       <div className="tm-week__head">
         <h2 id="tm-week-h" className="tm-week__title"><Icon name="calendar" />This week so far{week && <span className="tm-week__range"> · {weekRange(week.from, week.to)}</span>}</h2>
-        <span className="tm-week__note">{week ? (week.live ? "From what everyone can open" : `Summary sent ${fmtDay(week.at)}`) : "Summary goes out Mondays at 9 am"}</span>
+        <span className="tm-week__note" data-testid="team-week-note">{week ? (week.live ? "From what everyone can open" : `Summary sent ${fmtDay(week.at)}`) : "Summary goes out Mondays at 9 am"}</span>
         {canSend && <Button size="sm" variant="secondary" iconLeft="send" loading={busy} onClick={send} data-testid="team-week-send" className="tm-week__send">Send now</Button>}
       </div>
       {week ? (
