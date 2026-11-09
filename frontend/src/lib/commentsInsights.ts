@@ -119,13 +119,25 @@ export function duration(s: number | null | undefined): string {
   return `${Number((s / 86400).toFixed(1))} days`;
 }
 
-// "Export with comments" from the comments panel: the page's Export dialog opens with comments on.
-export const EXPORT_EVENT = "markdrop:export";
+// "Export with comments" from the comments panel: the page's Export dialog opens with comments on. The page
+// (app/[slug]/DocumentView.tsx) registers what opens its dialog; a classic document registers nothing.
 let preset: { comments: boolean } | null = null;
+const handlers = new Set<() => void>();
+
+export function onExportRequest(open: () => void): () => void {
+  handlers.add(open);
+  return () => {
+    handlers.delete(open);
+  };
+}
+
+export function canRequestExport(): boolean {
+  return handlers.size > 0;
+}
 
 export function requestExportWithComments(): void {
   preset = { comments: true };
-  window.dispatchEvent(new CustomEvent(EXPORT_EVENT, { detail: { comments: true } }));
+  handlers.forEach((h) => h());
 }
 
 /** The preset the Export dialog starts from (read once). */

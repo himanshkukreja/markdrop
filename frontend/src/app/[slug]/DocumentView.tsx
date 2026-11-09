@@ -96,6 +96,7 @@ const MeetingLauncher = dynamic(() => import("@/components/meetings/MeetingPanel
 const MeetingHeader = dynamic(() => import("@/components/meetings/MeetingPanel").then((m) => m.MeetingHeader), { ssr: false, loading: () => null });
 import { usePageJira } from "@/components/jira/usePageJira";
 import { CommentsHost, CommentsButton, CommentsPanel, CommentLayer } from "@/components/comments";
+import { onExportRequest } from "@/lib/commentsInsights";
 // From meetings (components/pages/memory) in View mode: the bar's button and the same panel as in Edit.
 const MeetingMemory = dynamic(() => import("@/components/pages/memory/MeetingMemory").then((m) => m.MeetingMemory), { ssr: false, loading: () => null });
 const TranslateDialog = dynamic(() => import("@/components/pages/ai/TranslateDialog").then((m) => m.TranslateDialog), { ssr: false, loading: () => null });
@@ -402,6 +403,8 @@ export default function DocumentView(props: DocumentViewProps) {
   }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // The comments panel's "Export with comments…" (Track C, lib/commentsInsights) opens this page's Export dialog.
+  useEffect(() => (isPage ? onExportRequest(() => setExporting(true)) : undefined), [isPage]);
   const [changingLink, setChangingLink] = useState(false);
   // Move to / Duplicate (signed-in editors on markdrop.in, like Add a sub-page).
   const [pageAction, setPageAction] = useState<PageActionRequest | null>(null);
@@ -748,7 +751,7 @@ export default function DocumentView(props: DocumentViewProps) {
     ...(readable && !empty ? [{ label: showRaw ? "View rendered" : "View raw", icon: "code", onClick: () => setShowRaw(!showRaw) }] : []),
     ...(readable && !isPage ? [{ label: "Export PDF", icon: "printer", onClick: exportPdf }] : []),
     // A page: Markdown, HTML or PDF (components/pages/export); readers only when the page allows it.
-    ...(readable && isPage && !empty && (secretUnlocked || pageProps?.allowExport !== false) ? [{ label: "Export…", icon: "download", description: "Markdown, HTML or PDF", onClick: () => setExporting(true) }] : []),
+    ...(readable && isPage && !empty && (secretUnlocked || pageProps?.allowExport !== false) ? [{ label: "Export…", icon: "download", description: "Markdown, Word, HTML or PDF", onClick: () => setExporting(true) }] : []),
     // An encrypted document's Markdown is saved by this browser (the server can't read it).
     ...(encrypted && readable && !empty ? [{ label: "Download Markdown", icon: "download", onClick: () => void import("@/components/pages/export/exportApi").then((m) => m.downloadMarkdown(displayTitle, displayContent)) }] : []),
     // An encrypted document is copied by this browser (decrypted text, new key); the server
