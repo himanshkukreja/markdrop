@@ -110,6 +110,26 @@ class Rule(TeamsWorld):
         self.assertFalse(cards["Sales"]["can_read"])
         self.assertEqual(cards["Eng"]["my_role"], "lead")
 
+    async def test_mcp_team_tools(self):
+        out = await self.mcp_token("ownv", write=True)
+        _s, res = await self.mcp_call(out, "get_team", {"workspace": self.W, "team": "Sales"})
+        sc = res["structuredContent"]
+        self.assertFalse(sc["can_read"])
+        self.assertNotIn("members", sc)
+        _s, res = await self.mcp_call(out, "move_to_team", {"document": self.c_w["slug"], "team": "Sales"})
+        self.assertTrue(res.get("isError"))
+        lead = await self.mcp_token("owner", write=True)
+        _s, res = await self.mcp_call(lead, "move_to_team", {"document": self.c_w["slug"], "team": "Sales"})
+        self.assertFalse(res.get("isError"), res)
+        self.assertNotIn(self.c_w["slug"], await self.listed("ownv"))
+        _s, res = await self.mcp_call(lead, "share_to_team", {"document": self.c_w["slug"], "team": "Eng"})
+        self.assertTrue(res.get("isError"))            # the lead of Sales isn't in Eng
+        _s, res = await self.mcp_call(lead, "add_team_members", {"workspace": self.W, "team": "Sales", "people": [self.email["ownv"]]})
+        self.assertFalse(res.get("isError"), res)
+        self.assertIn(self.c_w["slug"], await self.listed("ownv"))
+        _s, res = await self.mcp_call(out, "create_team", {"workspace": self.W, "name": "X"})
+        self.assertTrue(res.get("isError"))
+
     async def test_move_and_share_rules(self):
         put = f"{self.base}/items/{self.c_w['_id']}/teams"
         # wv (not in Sales) can't move into Sales; wm (member) can; then wv loses it.
