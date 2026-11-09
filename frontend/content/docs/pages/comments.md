@@ -12,7 +12,7 @@ document can see the comments and add their own. The text of the page never chan
 ## Comment on something
 
 - **Text.** Select a few words, a sentence or a few paragraphs, then choose the **Comment** button that appears beside the selection, or press **⌘⌥M** (**Ctrl+Alt+M** on Windows and Linux). Write your comment and choose **Comment**, or press **⌘ Enter** (**Ctrl+Enter**).
-- **A whole block.** Point at a paragraph, list item, heading or table row and choose the comment button in the right margin.
+- **A whole block.** Point at a paragraph, list item, heading or table row and choose the comment button in the right margin. While you edit a page, the block's **⋮⋮** menu has **Comment** too.
 - **The page as a whole.** Open the comments panel and choose **Comment on the page**. Use it for feedback that isn't about one place, like a page's Discussion.
 
 The commented text is highlighted for everyone who can see comments. Select a highlight to open its thread. Editors see the highlights in the editor too.
