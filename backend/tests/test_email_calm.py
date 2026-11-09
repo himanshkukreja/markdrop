@@ -63,13 +63,13 @@ class Calm(NotifyWorld):
 class Settings(Calm):
     async def test_defaults_and_the_old_switch_migrated(self):
         me = (await self.http.get("/api/v1/auth/me", headers=self.session("wm"))).json()
-        self.assertEqual(me["email_notify"], {"mention": "hourly", "signoff_requested": "instant"})
+        self.assertEqual(me["email_notify"], {"mention": "hourly", "signoff_requested": "instant", "comment_mention": "instant", "comment_activity": "instant"})
         self.assertTrue(me["mention_emails"])
         # Someone who had turned "Email me when someone mentions me" off: both kinds off, rows born off.
         await self.db["users"].update_one({"_id": ObjectId(self.uid["wa"])}, {"$set": {"mention_emails": False}})
         me = (await self.http.get("/api/v1/auth/me", headers=self.session("wa"))).json()
         self.assertEqual((me["email_notify"], me["mention_emails"]),
-                         ({"mention": "off", "signoff_requested": "off"}, False))
+                         ({"mention": "off", "signoff_requested": "off", "comment_mention": "off", "comment_activity": "off"}, False))
         await self.mention("wa")
         await self.signoff("wa")
         self.assertEqual({r["email"] for r in await self.notes("wa")}, {"off"})
@@ -77,7 +77,7 @@ class Settings(Calm):
         r = await self.http.patch("/api/v1/me/preferences", json={"email_notify": {"signoff_requested": "daily"},
                                                                   "tz": "Asia/Kolkata"}, headers=self.session("wa"))
         self.assertEqual(r.status_code, 200, r.text)
-        self.assertEqual(r.json()["email_notify"], {"mention": "off", "signoff_requested": "daily"})
+        self.assertEqual(r.json()["email_notify"], {"mention": "off", "signoff_requested": "daily", "comment_mention": "off", "comment_activity": "off"})
         self.assertTrue(r.json()["mention_emails"])
         self.assertEqual((await self.user("wa"))["email_tz"], "Asia/Kolkata")
         r = await self.http.patch("/api/v1/me/preferences", json={"email_notify": {"mention": "weekly"}},
@@ -85,7 +85,7 @@ class Settings(Calm):
         self.assertEqual(r.status_code, 422)
         # The old switch back on: each kind that's off gets its default.
         r = await self.http.patch("/api/v1/me/preferences", json={"mention_emails": True}, headers=self.session("wa"))
-        self.assertEqual(r.json()["email_notify"], {"mention": "hourly", "signoff_requested": "daily"})
+        self.assertEqual(r.json()["email_notify"], {"mention": "hourly", "signoff_requested": "daily", "comment_mention": "instant", "comment_activity": "instant"})
         # A bad timezone is ignored.
         r = await self.http.patch("/api/v1/me/preferences", json={"tz": "Mars/Base"}, headers=self.session("wa"))
         self.assertEqual(r.status_code, 200)
@@ -317,7 +317,7 @@ class Less(Calm):
         r = await self.http.post(path)
         self.assertEqual(r.status_code, 200)
         self.assertIn("Done: fewer emails", r.text)
-        self.assertEqual((await self.user("wm"))["email_notify"], {"mention": "hourly", "signoff_requested": "instant"})
+        self.assertEqual((await self.user("wm"))["email_notify"], {"mention": "hourly", "signoff_requested": "instant", "comment_mention": "instant", "comment_activity": "instant"})
         r = await self.http.post(path)  # the same link again lowers nothing more
         self.assertIn("Already done", r.text)
         self.assertEqual((await self.user("wm"))["email_notify"]["mention"], "hourly")

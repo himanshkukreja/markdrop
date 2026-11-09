@@ -48,7 +48,7 @@ class McpAccessRequests(TenantWorld):
 
     async def test_catalogue(self):
         by = {t.name: t for t in mcp_tools.TOOLS}
-        self.assertEqual(len(mcp_tools.TOOLS), 123)  # + comments core (9), comments review (3), jira in pages (3), + viewers (2), analytics settings (2), jira (5), ask_suggestions, rename_folder, move_folder, delete_folder, import_meetings_bulk, organize_meetings, meeting_context, slack_status, post_meeting_to_slack, team (12), check_meetings_now
+        self.assertEqual(len(mcp_tools.TOOLS), 124)  # + comments core (9), comments review (3), comment_insights (1), jira in pages (3), + viewers (2), analytics settings (2), jira (5), ask_suggestions, rename_folder, move_folder, delete_folder, import_meetings_bulk, organize_meetings, meeting_context, slack_status, post_meeting_to_slack, team (12), check_meetings_now
         self.assertEqual((by["request_edit_access"].scope, by["request_edit_access"].writes), ("documents:write", True))
         self.assertEqual((by["list_access_requests"].scope, by["list_access_requests"].writes), ("documents:read", False))
         self.assertEqual((by["decide_access_request"].scope, by["decide_access_request"].writes),

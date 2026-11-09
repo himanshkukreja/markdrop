@@ -790,22 +790,34 @@ async def export_page(ctx: Context, args: dict) -> tuple[str, dict]:
         await page_export.check_allowed(actor, raw, actx)
     except page_export.ExportError as exc:
         raise ToolError(exc.message)
-    fmt = "html" if args.get("format") == "html" else "md"
+    fmt = {"html": "html", "word": "docx"}.get(args.get("format") or "", "md")
     sub = bool(args.get("include_subpages"))
     as_zip = sub or (bool(args.get("zip")) and fmt == "md")
     token_fmt = "zip" if as_zip and fmt == "md" else fmt
+    # Comment threads (services/comments/export.py): Markdown gets an appendix, Word margin comments or footnotes.
+    comments = args.get("comments") if args.get("comments") in page_export.COMMENT_STYLES else None
+    if comments and fmt == "html":
+        raise ToolError("Comments can be included in Markdown and Word exports, not HTML.")
+    cstatus = "open" if args.get("comment_status") == "open" else "all"
     try:
-        p = await page_export.plan(ctx.db, raw, actor, actor, actx, fmt=token_fmt, subpages=sub)
+        p = await page_export.plan(ctx.db, raw, actor, actor, actx, fmt=token_fmt, subpages=sub, comments=comments,
+                                   comment_status=cstatus)
     except page_export.ExportError as exc:
         raise ToolError(exc.message)
-    token, exp = page_export.sign(raw["slug"], ctx.user.id, token_fmt, sub)
+    token, exp = page_export.sign(raw["slug"], ctx.user.id, token_fmt, sub, comments=comments, comment_status=cstatus)
     url = page_export.download_url(raw["slug"], token)
     from datetime import datetime, timezone
 
     expires = datetime.fromtimestamp(exp, timezone.utc).isoformat().replace("+00:00", "Z")
-    out: dict[str, Any] = {"slug": raw["slug"], "format": "markdown" if fmt == "md" else "html",
+    out: dict[str, Any] = {"slug": raw["slug"], "format": {"md": "markdown", "docx": "word"}.get(fmt, fmt),
                            "filename": page_export.filename(p), "download_url": url, "expires_at": expires,
                            "pages": len(p.pages), "notes": list(p.notes)}
+    if comments:
+        out["comments"] = len(p.pages[0].comments) if p.pages[0].comments is not None else 0
+    if fmt == "docx":
+        what = f", {out['comments']} comment thread{'s' if out['comments'] != 1 else ''}" if comments else ""
+        return (f"Exported {raw['slug']} as {out['filename']} (Word{what}). Download it within 10 minutes (it needs "
+                f"no sign-in, so don't share the link): {url}"), out
     if p.zip:
         what = f"{len(p.pages)} page{'s' if len(p.pages) != 1 else ''}"
         return (f"Exported {raw['slug']} as {out['filename']} ({what}, images included). Download it within "
@@ -1462,15 +1474,24 @@ PAGE_TOOLS: list[Tool] = [
         description=("Export a page (or any Markdown document) for use outside Markdrop: format markdown gives "
                      "portable Markdown (callouts become labelled quotes, columns follow one another, people and "
                      "dates become text, embedded Markdrop items become links, and items the user can't open "
-                     "become 'Locked item'); format html gives one self-contained HTML file in the page's look. "
+                     "become 'Locked item'); format html gives one self-contained HTML file in the page's look; "
+                     "format word gives a .docx download link (comments can go in as Word margin comments or "
+                     "footnotes). "
                      "The text comes back in the result. include_subpages (or zip: true for Markdown with its "
                      "images) returns a .zip as a download link valid for 10 minutes instead, with a folder per "
                      "sub-page the user can open. Readers can export only when the page allows it."),
         scope=READ,
         input_schema={"type": "object", "properties": {
             "document": _DOC_REF,
-            "format": {"type": "string", "enum": ["markdown", "html"], "default": "markdown"},
+            "format": {"type": "string", "enum": ["markdown", "html", "word"], "default": "markdown",
+                       "description": "word: a .docx file (one page, as a download link)."},
             "include_subpages": {"type": "boolean", "default": False},
+            "comments": {"type": "string", "enum": ["none", "footnotes", "margin"], "default": "none",
+                         "description": "Include the page's comment threads (only if the user can see them): "
+                                        "Markdown puts them in a Comments appendix; Word as margin comments "
+                                        "(margin) or footnotes. Not for HTML."},
+            "comment_status": {"type": "string", "enum": ["open", "all"], "default": "all",
+                               "description": "With comments: only open threads, or all of them."},
             "zip": {"type": "boolean", "default": False,
                     "description": "Markdown only: a .zip with page.md and its images/ folder."},
         }, "required": ["document"]},
@@ -1478,6 +1499,7 @@ PAGE_TOOLS: list[Tool] = [
             "slug": {"type": "string"}, "format": {"type": "string"}, "filename": {"type": "string"},
             "download_url": {"type": "string"}, "expires_at": {"type": "string"}, "pages": {"type": "integer"},
             "notes": {"type": "array"}, "content": {"type": "string"}, "note": {"type": "string"},
+            "comments": {"type": "integer", "description": "How many comment threads were included."},
         }, ["slug", "format", "filename", "download_url", "expires_at", "pages", "notes"]),
         annotations=_ann(True, False, True),
         handler=export_page,

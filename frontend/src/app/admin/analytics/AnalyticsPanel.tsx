@@ -10,6 +10,7 @@ import { PageHead, LoadingBlock } from "../shared";
 import { C, Sparkline, TableToggle, TrendChart, bucketLabel, compact, heat } from "./charts";
 import { RangePicker, rangeParams, rangeVs, useAdminFetch, type RangeValue } from "./controls";
 import { GrowthCard, type Growth } from "./sections";
+import { AdminComments } from "@/components/comments/insights/AdminComments";
 import { Card, CardError, CardSkeleton, CardTitle, Eyebrow, deltaOf } from "./ui";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -355,6 +356,9 @@ export default function AnalyticsPanel({ token, range, onRange, filters, onFilte
       {cards.product.data ? <ProductSection product={cards.product.data} vs={vs} />
         : cards.product.error ? <CardError title="Product" onRetry={() => retry("product")} />
         : <CardSkeleton title="Product" height={110} />}
+
+      {/* Comments (Track C) */}
+      <AdminComments get={get} params={params} />
 
       {/* Growth loop */}
       {cards.growth.data ? <GrowthCard data={cards.growth.data} tz={tz} />

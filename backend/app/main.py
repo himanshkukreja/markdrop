@@ -264,10 +264,12 @@ app.include_router(pages_ai_router)
 app.include_router(pages_ai_guides_router)
 app.include_router(page_history_router)
 app.include_router(signoffs_router)
-# Comments: core first (its /{thread_id} matches 24-hex ids only), then review (B) and insights (C).
+# Comments: insights (C) first — its literal /comments/insights and /comments/export would otherwise reach
+# core's GET /comments/{thread_id}, whose 24-hex pattern is checked after matching (a 422, not a fall-through) —
+# then core and review (B).
+app.include_router(comments_insights_router)
 app.include_router(comments_router)
 app.include_router(comments_review_router)
-app.include_router(comments_insights_router)
 app.include_router(page_export_router)
 app.include_router(bookmarks_router)
 app.include_router(web_embeds_router)

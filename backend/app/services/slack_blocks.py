@@ -392,6 +392,60 @@ def dm_mention(actor: str, title: str, url: str, excerpt: str | None, *, where: 
     ], f"{actor} mentioned you in {cut(title, 80)}")
 
 
+# Comments (Track C): a mention or an assignment in a comment thread, with Reply (a modal) and Resolve.
+COMMENT_REPLY_CALLBACK = "md_cm_reply"
+_COMMENT_EYEBROW = {"comment_mention": "Mentioned in a comment", "comment_assigned": "Comment assigned to you"}
+_COMMENT_VERB = {"comment_mention": "mentioned you in a comment on", "comment_assigned": "assigned you a comment on"}
+
+
+def dm_comment(team_id: str, kind: str, actor: str, title: str, url: str, excerpt: str | None, quote_: str | None,
+               doc_id: str, thread_id: str, *, can_resolve: bool, done: str | None = None, resolved: bool = False,
+               where: str | None = None) -> dict:
+    """``url``: the thread's link (``/{slug}#c-{thread}``). ``done``: a line after a click ("You replied: …");
+    ``resolved``: the thread is resolved (no Resolve button; Reply stays, a reply can reopen nothing)."""
+    blocks: list[dict | None] = [
+        eyebrow(_COMMENT_EYEBROW.get(kind, "Comment"), where),
+        section(f"*{esc(actor)}* {_COMMENT_VERB.get(kind, 'commented on')} *{link(url, cut(title, 120))}*"
+                + _quote(excerpt, 300)),
+        context(f"On “{esc(cut(quote_, 140))}”") if quote_ else None,
+    ]
+    if done:
+        blocks.append(context(f"{DONE_MARK}  {esc(cut(done, 280))}"))
+    btns = [button("Reply", action_id="md_cm_reply", value=slack.sign_value(team_id, "cm", doc_id, thread_id, "r"),
+                   style="primary")]
+    if can_resolve and not resolved:
+        btns.append(button("Resolve", action_id="md_cm_resolve",
+                           value=slack.sign_value(team_id, "cm", doc_id, thread_id, "x")))
+    btns.append(open_button(url, "Open the thread"))
+    blocks.append(actions(*btns))
+    blocks.append(dm_footer())
+    verb = _COMMENT_VERB.get(kind, "commented on")
+    return message(blocks, f"{actor} {verb} {cut(title, 80)}")
+
+
+def comment_reply_modal(title: str, excerpt: str | None, quote_: str | None, metadata: str) -> dict:
+    """The Reply button's modal: what the thread says, one text box. ``metadata``: a signed value
+    (team-bound) naming the item, the thread and the message to update after."""
+    ctx = []
+    if quote_:
+        ctx.append(context(f"On “{esc(cut(quote_, 140))}”"))
+    if excerpt:
+        ctx.append(section(f">{esc(cut(excerpt, 600))}"))
+    return {
+        "type": "modal", "callback_id": COMMENT_REPLY_CALLBACK, "private_metadata": metadata[:3000],
+        "title": {"type": "plain_text", "text": "Reply", "emoji": False},
+        "submit": {"type": "plain_text", "text": "Reply", "emoji": False},
+        "close": {"type": "plain_text", "text": "Cancel", "emoji": False},
+        "blocks": [
+            context(f"*{esc(cut(title, 140))}*"),
+            *ctx,
+            {"type": "input", "block_id": "reply", "label": {"type": "plain_text", "text": "Your reply", "emoji": False},
+             "element": {"type": "plain_text_input", "action_id": "body", "multiline": True, "max_length": 5000,
+                         "focus_on_load": True}},
+        ],
+    }
+
+
 def dm_shared(actor: str, title: str, url: str, role: str | None, message_: str | None = None, *,
               where: str | None = None) -> dict:
     can = {"editor": "edit", "viewer": "view"}.get(role or "", "open")

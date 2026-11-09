@@ -89,6 +89,8 @@ class PrefsIn(BaseModel):
     shared: bool | None = None
     access_request: bool | None = None
     action_items: bool | None = None
+    comment_mention: bool | None = None
+    comment_assigned: bool | None = None
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────

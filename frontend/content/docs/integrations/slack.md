@@ -176,6 +176,7 @@ Markdrop can send you a direct message in Slack, from the Markdrop app, when:
 - someone **mentions** you on a page (**Mentions**), with the line you were mentioned in and **Open in Markdrop**. Mentions in [meeting notes](/workspaces/meetings#what-the-meeting-page-holds) don't send one;
 - someone asks for your **sign-off** (**Sign-off requests**). Choose an option from the message;
 - someone **shares** something with you (**Shared with you**), with what you can do with it and their note;
+- someone **mentions you in a comment** (**Mentions in comments**) or **assigns you a comment thread** (**Comments assigned to you**). Select **Reply** to answer in a box right in Slack (posted as you), or **Resolve** to resolve the thread if you started it, it's assigned to you, or you can edit the page. See [Comments](/pages/comments#push-and-slack);
 - someone asks to **open or edit** something you own (**Access requests**). Select **Approve** or **Decline**, or **Review in Markdrop**. When the item's owner can't approve it, the workspace's admins get the message, marked "You're getting this as a workspace admin".
 
 After you choose, the message changes to say what you did, like "Approved by you: they can edit it now." If someone else answered first, Slack tells you.
@@ -203,7 +204,7 @@ If you linked your Slack account before Slack notifications were opt-in (Novembe
 
 ### Choose which ones, or turn them off
 
-Once they're on, turn each kind on or off under **Message me when** on the same card. All four start on. To stop them all, turn off **Get notifications in Slack**, or select **Turn off** at the bottom of any message (it opens that card). Your Slack account stays linked for `/markdrop`.
+Once they're on, turn each kind on or off under **Message me when** on the same card. All of them start on. To stop them all, turn off **Get notifications in Slack**, or select **Turn off** at the bottom of any message (it opens that card). Your Slack account stays linked for `/markdrop`.
 
 The bell doesn't change. A Slack message counts like a push notification for [email](/pages/mentions-and-notifications#the-app-comes-first): what reached you in Slack isn't emailed. Mentions and sign-off requests wait a minute before they go, so a mention [removed within a minute](/pages/mentions-and-notifications#take-a-mention-back) never reaches you. If you lose access to something, or the mention is taken out, before the message goes out, it isn't sent, and [end-to-end encrypted](/sharing/end-to-end-encryption) items never get one.
 

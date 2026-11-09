@@ -61,24 +61,28 @@ log = logging.getLogger("markdrop.push")
 SUBS = "push_subscriptions"
 OUTBOX = "push_outbox"
 PUSH_LOG = "push_log"
-KINDS = ("mention", "signoff_requested", "shared", "access_request")
+KINDS = ("mention", "signoff_requested", "shared", "access_request", "comment_mention", "comment_assigned")
 LABELS = {
     "mention": "Mentions",
     "signoff_requested": "Sign-off requests",
     "shared": "Shared with you",
     "access_request": "Access requests",
+    "comment_mention": "Mentions in comments",
+    "comment_assigned": "Comments assigned to you",
 }
 HINTS = {
     "mention": "Someone mentions you on a page.",
     "signoff_requested": "Someone asks for your sign-off.",
     "shared": "Someone shares a page with you and ticks Notify people.",
     "access_request": "Someone asks to open or edit something you own or manage.",
+    "comment_mention": "Someone @mentions you in a comment.",
+    "comment_assigned": "Someone assigns a comment thread to you.",
 }
 GATHER = timedelta(seconds=10)
 # Mentions and sign-off requests wait a minute (owner, 2026-11-06): a mention taken out again within
 # it (notifications.withdraw) never rings a phone. Shares and access requests keep GATHER.
 SLOW_GATHER = timedelta(seconds=60)
-SLOW_KINDS = ("mention", "signoff_requested")
+SLOW_KINDS = ("mention", "signoff_requested", "comment_mention")
 GAP = timedelta(minutes=2)
 MAX_DEVICES = 20
 MAX_ATTEMPTS = 5

@@ -657,8 +657,14 @@ export interface MeUser {
 
 /** Instant, Hourly bundle, Daily digest (08:00 your time) or Off. */
 export type EmailMode = "instant" | "hourly" | "daily" | "off";
-export interface EmailNotify { mention: EmailMode; signoff_requested: EmailMode }
-export const DEFAULT_EMAIL_NOTIFY: EmailNotify = { mention: "hourly", signoff_requested: "instant" };
+export interface EmailNotify {
+  mention: EmailMode; signoff_requested: EmailMode;
+  /** Comments: @mentions and assignments; replies / new comments / resolved (Instant = gathered 15 minutes). */
+  comment_mention?: EmailMode; comment_activity?: EmailMode;
+}
+export const DEFAULT_EMAIL_NOTIFY: EmailNotify = {
+  mention: "hourly", signoff_requested: "instant", comment_mention: "instant", comment_activity: "instant",
+};
 
 export function googleLoginUrl(next?: string): string {
   const q = next ? `?next=${encodeURIComponent(next)}` : "";

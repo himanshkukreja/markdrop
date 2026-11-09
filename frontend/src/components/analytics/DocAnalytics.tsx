@@ -21,12 +21,13 @@ import MediaTab from "./MediaTab";
 import OverviewTab from "./OverviewTab";
 import PagesTab from "./PagesTab";
 import VersionsTab from "./VersionsTab";
+import { CommentsInsights } from "@/components/comments/insights/CommentsInsights";
 import ViewersTab from "./ViewersTab";
 import { ItemTrackDrawer, TrackingChip, trackSummary } from "./AnalyticsSettings";
 import { KIND_WORD, clock, day, num, pagesLabel, prettyHeadingId } from "./format";
 import { KpiGrid, LoadError, PanelSkeleton, RangePicker, useAnalyticsGate, useLoad, useParams } from "./parts";
 
-type Tab = "overview" | "video" | "listening" | "content" | "pages" | "audience" | "viewers" | "versions";
+type Tab = "overview" | "video" | "listening" | "content" | "comments" | "pages" | "audience" | "viewers" | "versions";
 
 export function tabsFor(kind: TrackKind, fileVersion: number): TabItem[] {
   const v: TabItem[] = fileVersion > 1 ? [{ value: "versions", label: "Versions", count: fileVersion }] : [];
@@ -35,7 +36,8 @@ export function tabsFor(kind: TrackKind, fileVersion: number): TabItem[] {
   // Every view, who and what they did (ViewersTab): every kind.
   const w: TabItem = { value: "viewers", label: "Viewers" };
   switch (kind) {
-    case "doc": return [o, { value: "content", label: "Content" }, a, w];
+    // Comments (Track C, components/comments/insights): open / resolved, reply times, most-discussed sections.
+    case "doc": return [o, { value: "content", label: "Content" }, { value: "comments", label: "Comments" }, a, w];
     case "pdf": return [o, { value: "pages", label: "Pages" }, a, w, ...v];
     case "video": return [o, { value: "video", label: "Video" }, a, w, ...v];
     case "audio": return [o, { value: "listening", label: "Listening" }, a, w, ...v];
@@ -212,6 +214,7 @@ export default function DocAnalytics({ slug }: { slug: string }) {
         {tab === "overview" && <OverviewTab slug={slug} ov={ov} range={range} internal={internal} onInsight={onInsight} rewrite={rewrite} />}
         {(tab === "video" || tab === "listening") && <MediaTab slug={slug} ov={ov} range={range} internal={internal} />}
         {tab === "content" && <ContentTab slug={slug} ov={ov} range={range} internal={internal} headings={headings} blocks={blocks} titleFor={titleFor} />}
+        {tab === "comments" && <CommentsInsights slug={slug} range={range} />}
         {tab === "pages" && <PagesTab slug={slug} ov={ov} range={range} internal={internal} />}
         {tab === "audience" && <AudienceTab slug={slug} ov={ov} range={range} internal={internal} onInternal={(v) => setParams({ internal: v ? "1" : null })} />}
         {tab === "viewers" && <ViewersTab slug={slug} range={range} workspaceName={doc.workspace?.name ?? null} version={trackVersion} />}

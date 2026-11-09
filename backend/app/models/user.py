@@ -21,4 +21,5 @@ class User:
     # An email when someone mentions you or asks for your sign-off (services/notifications.py).
     mention_emails: bool = True
     # How often those emails come, per kind: instant | hourly | daily | off (notifications.email_modes).
-    email_notify: dict = field(default_factory=lambda: {"mention": "hourly", "signoff_requested": "instant"})
+    email_notify: dict = field(default_factory=lambda: {"mention": "hourly", "signoff_requested": "instant",
+                                                        "comment_mention": "instant", "comment_activity": "instant"})

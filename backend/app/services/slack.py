@@ -74,12 +74,15 @@ EVENT_TTL = timedelta(days=1)
 STATE_TTL = 15 * 60             # an install / link round trip
 
 # Kinds of direct message a linked person can turn off (users.slack_notify.<kind>: false).
-NOTIFY_KINDS = ("mention", "signoff_requested", "shared", "access_request")
+NOTIFY_KINDS = ("mention", "signoff_requested", "shared", "access_request", "comment_mention", "comment_assigned")
 NOTIFY_LABELS = {
     "mention": "Mentions",
     "signoff_requested": "Sign-off requests",
     "shared": "Shared with you",
     "access_request": "Access requests",
+    # Comments (services/comments/slack.py): with Reply and Resolve buttons.
+    "comment_mention": "Mentions in comments",
+    "comment_assigned": "Comments assigned to you",
 }
 
 

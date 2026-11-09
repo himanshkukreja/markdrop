@@ -151,7 +151,13 @@ async def _ask(db: AsyncIOMotorDatabase, inst: dict, user, q: str, response_url:
 
 
 async def interaction(db: AsyncIOMotorDatabase, payload: dict) -> None:
-    """A block_actions payload (already verified as Slack's). Runs after the 200."""
+    """A block_actions payload (already verified as Slack's). Runs after the 200. A comment Reply modal's
+    view_submission goes to services/comments/slack.py (the empty 200 closes the modal)."""
+    if payload.get("type") == "view_submission":
+        from app.services.comments import slack as comment_slack
+
+        await comment_slack.submit(db, payload)
+        return
     if payload.get("type") != "block_actions":
         return
     team_id = ((payload.get("team") or {}).get("id")) or ""
@@ -197,6 +203,10 @@ async def interaction(db: AsyncIOMotorDatabase, payload: dict) -> None:
         await _decide(db, inst, user, parts[1], parts[2], payload)
     elif kind == "so" and len(parts) == 4 and action_id.startswith("md_so_"):
         await _sign(db, inst, user, parts[1], parts[2], parts[3], payload)
+    elif kind == "cm" and len(parts) == 4 and action_id in ("md_cm_reply", "md_cm_resolve"):
+        from app.services.comments import slack as comment_slack
+
+        await comment_slack.click(db, inst, user, parts, action_id, payload)
 
 
 async def _update_message(inst: dict, payload: dict, msg: dict) -> None:

@@ -78,6 +78,8 @@ Your time zone comes from your browser when you use Markdrop. Until Markdrop kno
 
 If you'd turned off the old **Email me when someone mentions me** switch, both choices start as **Off**.
 
+Comments have two more choices here, **Comment mentions and assignments** and **Replies and new comments**, and a **Daily comments digest**. See [Comments: notifications](/pages/comments#email-push-and-slack).
+
 ### The app comes first
 
 Markdrop doesn't email you about something you've already seen:

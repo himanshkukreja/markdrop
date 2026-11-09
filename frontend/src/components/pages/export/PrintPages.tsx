@@ -14,6 +14,8 @@ import { createPortal } from "react-dom";
 import { ThemeScope } from "@/components/ui";
 import { assetId } from "@/lib/pageAddress.mjs";
 import type { AssetUrl, Crumb } from "@/lib/pages";
+import type { ExportThreadDto } from "@/lib/commentsInsights";
+import { decoratePrint } from "@/components/comments/insights/printComments";
 import { PageFrame } from "../PageChrome";
 import { PageHead } from "../PageHead";
 import { PageRenderer } from "../PageRenderer";
@@ -26,6 +28,8 @@ export interface PrintPage {
   content: string;
   assets: Record<string, AssetUrl> | null;
   crumbs: Crumb[];
+  /** Comment threads to print with it (ExportDialog's "Include comments"). */
+  comments?: { threads: ExportThreadDto[]; style: "margin" | "footnotes" };
 }
 
 const BUSY = ".pb-embed--loading, .md-diagram__loading, [aria-busy='true']";
@@ -73,6 +77,14 @@ export function PrintPages({ pages, viewer = null, onReady }: { pages: PrintPage
       const waited = performance.now() - start;
       const settled = !!el && waited > 400 && !el.querySelector(BUSY) && imagesSettled(el);
       if (settled || waited > MAX_WAIT_MS) {
+        // Comments go in once the page is drawn (components/comments/insights/printComments.ts).
+        if (el && !el.dataset.commented) {
+          el.dataset.commented = "1";
+          el.querySelectorAll<HTMLElement>(".pbx-print__page").forEach((section, i) => {
+            const c = pages[i]?.comments;
+            if (c && c.threads.length) decoratePrint(section, c.threads, c.style);
+          });
+        }
         const fonts = (document as Document & { fonts?: { ready: Promise<unknown> } }).fonts?.ready ?? Promise.resolve();
         void fonts.then(() => requestAnimationFrame(() => requestAnimationFrame(() => {
           if (!done) {

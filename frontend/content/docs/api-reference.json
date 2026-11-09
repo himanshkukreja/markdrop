@@ -440,10 +440,10 @@
     "GET /api/v1/documents/{slug}/export": {
       "title": "Export a page",
       "group": "pages",
-      "description": "Downloads a page as portable Markdown (`md`), one self-contained HTML file (`html`), or a `.zip` with its images (`zip`). With `subpages=true` its sub-pages come too, in a `.zip`. Editors can always export; readers can unless the page turns exporting off.",
+      "description": "Downloads a page as portable Markdown (`md`), a Word document (`docx`, one page), one self-contained HTML file (`html`), or a `.zip` with its images (`zip`). With `subpages=true` its sub-pages come too, in a `.zip`. `comments` includes the comment threads for someone who can see them: a Comments section in Markdown, margin comments or footnotes in Word. Editors can always export; readers can unless the page turns exporting off.",
       "returns": "text/markdown",
       "mcp": "export_page",
-      "paramNotes": { "format": "`md` (the default), `html` or `zip`.", "subpages": "Include its sub-pages." },
+      "paramNotes": { "format": "`md` (the default), `docx`, `html` or `zip`.", "subpages": "Include its sub-pages (not with `docx`).", "comments": "`footnotes` or `margin` (Word); any of them gives Markdown its Comments section. Not for HTML.", "comment_status": "`open` or `all` (the default)." },
       "responses": {
         "413": "Too many pages to export at once.",
         "422": "The document is end-to-end encrypted: export it from the page in your browser."
@@ -740,6 +740,7 @@
     },
     "GET /api/v1/documents/{slug}/comments/{thread_id}/suggestion": {
       "title": "Get a suggested edit",
+      "group": "comments",
       "description": "A thread's suggested edit as you see it, with what accepting it would do now: `applies`, and `reason` when it wouldn't (`stale`: the text changed; `unappliable`: it crosses formatting; `locked`: someone else is editing, so it would wait for them), the line `before` and `after`, and what you may do (`can`).",
       "guide": { "label": "Comments", "href": "/pages/comments" }
     },
@@ -820,7 +821,32 @@
       "description": "Removes a file you uploaded before it's posted.",
       "guide": { "label": "Comments", "href": "/pages/comments" }
     },
-
+    "GET /api/v1/documents/{slug}/comments/insights": {
+      "title": "Comment insights",
+      "group": "comments",
+      "description": "How the discussion on an item is going: open and resolved threads, messages and people, the typical time to a first reply (`first_reply.median_s`, seconds) and how many open threads still wait for one, time to resolve, the most-discussed sections, a daily series for `range` and who comments most. Anyone who can see the item's comments.",
+      "mcp": "comment_insights",
+      "guide": { "label": "Comments", "href": "/pages/comments#insights" }
+    },
+    "GET /api/v1/documents/{slug}/comments/export": {
+      "title": "Threads for an export",
+      "group": "comments",
+      "description": "The item's threads in page order, numbered, with every message (author, date, text): what a printed export shows as notes. `status=open` leaves resolved ones out. Markdown and Word exports take `comments=footnotes|margin` on [Export a page](/api/pages/export-a-page) instead.",
+      "guide": { "label": "Export with comments", "href": "/pages/comments#export-with-comments" }
+    },
+    "GET /api/v1/comments/digest/settings": {
+      "title": "Daily comments digest",
+      "group": "comments",
+      "description": "Whether you get the daily comments digest (`on`): at 8:00 your time, threads waiting on you and open threads on your items, only on days with something new.",
+      "guide": { "label": "Comments", "href": "/pages/comments#daily-comments-digest" }
+    },
+    "PUT /api/v1/comments/digest/settings": {
+      "title": "Turn the comments digest on or off",
+      "group": "comments",
+      "description": "Turns your daily comments digest on or off. Not from a workspace's own domain.",
+      "example": { "on": false },
+      "guide": { "label": "Comments", "href": "/pages/comments#daily-comments-digest" }
+    },
     "GET /api/v1/documents/{slug}/signoffs": {
       "title": "List sign-offs",
       "group": "sign-off",

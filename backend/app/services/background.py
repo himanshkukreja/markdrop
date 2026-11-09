@@ -14,7 +14,8 @@ one API worker runs it (§5.1, §5.5, A6):
                              nothing references (services/page_history.py)
     trash        every 15 min  destroy what has been in the trash 30 days, or reached its own
                              expiry there (services/trash.py)
-    notifications  every 30 s  send the batched mention / sign-off emails (services/notifications.py)
+    notifications  every 30 s  send the batched mention / sign-off / comment emails (services/notifications.py),
+                             and the daily comments digest (services/comments/digest.py, a pass every 5 min)
     push            every 5 s  send push notifications to people's devices (services/push.py)
     page_covers     every 15 s  finish auto-cover picks a stopped process left pending, and run one
                              batch of the admin's cover backfill (services/page_covers.py)
@@ -183,6 +184,10 @@ async def _notifications(db: AsyncIOMotorDatabase) -> None:
     from app.services import notifications
 
     await notifications.flush_emails(db)
+    # The daily comments digest (08:00 each person's time; services/comments/digest.py throttles itself).
+    from app.services.comments import digest as comment_digest
+
+    await comment_digest.run_due(db)
 
 
 async def _slack(db: AsyncIOMotorDatabase) -> None:

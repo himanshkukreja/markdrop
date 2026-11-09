@@ -62,7 +62,8 @@ MAX_INLINE_ONE = 8 * 1024 * 1024
 MAX_IMAGES_PER_PAGE = page_assets.MAX_PER_PAGE
 TOKEN_TTL = 600
 TOKEN_PURPOSE = "page-export"
-FORMATS = ("md", "html", "zip")
+FORMATS = ("md", "html", "zip", "docx")
+COMMENT_STYLES = ("footnotes", "margin")   # services/comments/export.py (Track C)
 
 KATEX = "https://cdn.jsdelivr.net/npm/katex@0.16.22/dist"
 MERMAID = "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs"
@@ -385,7 +386,39 @@ _CELL_ATTR = re.compile(r"[ \t]*\{([^{}\n|]*)\}(?=[ \t]*\|)")
 _ATTR_LINE = re.compile(r"^[ \t]*\{([^{}\n]*)\}[ \t]*$")
 _IMAGE = re.compile(r"!\[((?:\\.|[^\]\\\n])*)\]\(\s*<?([^\s)>]+)>?(?:\s+\"((?:\\.|[^\"\\\n])*)\")?\s*\)(\{[^{}\n]*\})?")
 _CODE_SPAN = re.compile(r"(`+)(?!`)(.+?)(?<!`)\1(?!`)")
-_INLINE_NAMES = ("markdrop", "person", "date", "kbd", "span", "u")
+_INLINE_NAMES = ("markdrop", "person", "date", "kbd", "span", "u", "jira")
+
+# Jira in pages (Track D, services/jira_pages.py): ``:jira[KEY]{site=…}`` chips, ``::jira{key=… site=…}`` cards and
+# ``::jira-list{jql=…|project=…|filter=… site=…}`` live lists leave an export as plain links to Jira (never an
+# issue's title or status: those are the viewer's own Jira data). Without a site, just the key.
+_JIRA_KEY = re.compile(r"^[A-Z][A-Z0-9_]{0,30}-\d{1,9}$")
+_JIRA_HOST = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$")
+
+
+def jira_issue_url(key: str | None, site: str | None) -> str | None:
+    key, site = (key or "").strip(), (site or "").strip().lower()
+    if not _JIRA_KEY.match(key) or not _JIRA_HOST.match(site):
+        return None
+    return f"https://{site}/browse/{key}"
+
+
+def jira_list_link(a: dict) -> tuple[str, str | None]:
+    """(label, link) for a ``::jira-list``."""
+    from urllib.parse import quote
+
+    site = (a.get("site") or "").strip().lower()
+    title = (a.get("title") or "").strip()
+    jql, project, flt = (a.get("jql") or "").strip(), (a.get("project") or "").strip(), (a.get("filter") or "").strip()
+    if flt and flt.isdigit():
+        what, q = f"Jira filter {flt}", f"filter={flt}"
+    elif project and re.match(r"^[A-Z][A-Z0-9_]{0,30}$", project):
+        what, q = f"Jira issues in {project}", "jql=" + quote(f"project = {project}")
+    elif jql:
+        what, q = f"Jira issues: {jql[:200]}", "jql=" + quote(jql[:2000])
+    else:
+        what, q = "Jira issues", None
+    link = f"https://{site}/issues/?{q}" if q and _JIRA_HOST.match(site) else None
+    return title or what, link
 
 
 # ── The context an export is made in ─────────────────────────────────────────
@@ -560,6 +593,13 @@ class Inline:
             if attrs:
                 return None
             return self.directives(label) if self.out == "md" else self.slot(f"<u>{self.label_html(label)}</u>")
+        if name == "jira":
+            key = re.sub(r"\\(.)", r"\1", label).strip()
+            href = jira_issue_url(key, attrs.get("site"))
+            if self.out == "md":
+                return f"[{md_text(key)}]({md_url(href)})" if href else md_text(key)
+            return self.slot(f'<a class="chip" href="{esc(href)}">{esc(key)}</a>' if href
+                             else f'<span class="chip">{esc(key)}</span>')
         return None
 
     def directives(self, text: str) -> str:
@@ -799,6 +839,13 @@ def _leaf_md(b: Block, pc: PageCtx, headings: list[tuple[int, str]]) -> str:
         w = web_embeds.resolve(url)
         label = f"{w['name']}: {url}" if w else url
         return f"[{md_text(label)}]({md_url(url)})"
+    if b.name == "jira":
+        key = (a.get("key") or "").strip()
+        href = jira_issue_url(key, a.get("site"))
+        return f"[{md_text(key)}]({md_url(href)})" if href else md_text(key)
+    if b.name == "jira-list":
+        label, href = jira_list_link(a)
+        return f"[{md_text(label)}]({md_url(href)})" if href else md_text(label)
     if b.name == "toc":
         return _toc_md(headings)
     if b.name == "breadcrumb":
@@ -980,6 +1027,13 @@ def _leaf_html(b: Block, pc: PageCtx, md) -> str:
 
         w = web_embeds.resolve(url)
         return _card("▶️", esc(a.get("title") or (w["name"] if w else _host_of(url))), esc(url), url, cls="webembed")
+    if b.name == "jira":
+        key = (a.get("key") or "").strip()
+        href = jira_issue_url(key, a.get("site"))
+        return _card("🎫", esc(key), "Jira issue" + (f" · {esc(_host_of(href))}" if href else ""), href, cls="jira")
+    if b.name == "jira-list":
+        label, href = jira_list_link(a)
+        return _card("🎫", esc(label), "Jira" + (f" · {esc(_host_of(href))}" if href else ""), href, cls="jira")
     if b.name == "toc":
         return "\ue000TOC\ue001"
     if b.name == "breadcrumb":
@@ -1231,6 +1285,7 @@ class PagePlan:
     pc: PageCtx
     folder: str               # inside the zip ("" for the single-file formats)
     images: list[Image]
+    comments: list | None = None   # comment threads to include (services/comments/export.ExportThread), in order
 
 
 @dataclass
@@ -1241,6 +1296,7 @@ class ExportPlan:
     pages: list[PagePlan]
     notes: list[str]
     image_bytes: int = 0
+    comment_style: str | None = None   # footnotes | margin (Word); Markdown always gets an appendix
 
 
 async def _resolve(db, person: access.Actor, ctx: access.Ctx, content: str) -> dict[str, dict]:
@@ -1301,11 +1357,17 @@ def _unique(name: str, taken: set[str]) -> str:
 
 
 async def plan(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, person: access.Actor,
-               ctx: access.Ctx, *, fmt: str, subpages: bool) -> ExportPlan:
+               ctx: access.Ctx, *, fmt: str, subpages: bool, comments: str | None = None,
+               comment_status: str = "all") -> ExportPlan:
     """What the export holds. ``actor`` reads the page (with its password / edit
-    secret); ``person`` is who is asking, for embedded items and sub-pages."""
+    secret); ``person`` is who is asking, for embedded items and sub-pages.
+    ``comments``: footnotes | margin to include the comment threads (Markdown: an
+    appendix; Word: footnotes or margin comments; HTML: none), ``comment_status``:
+    open | all."""
     if fmt not in FORMATS:
-        raise ExportError(422, "format must be md, html or zip.", "bad_format")
+        raise ExportError(422, "format must be md, html, zip or docx.", "bad_format")
+    if fmt == "docx" and subpages:
+        raise ExportError(422, "Word export is one page at a time: export it without its sub-pages.", "bad_format")
     as_zip = subpages or fmt == "zip"
     mode = "zip" if as_zip else "single"
     notes: list[str] = []
@@ -1343,7 +1405,17 @@ async def plan(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, person:
         if skipped:
             notes.append(f"{skipped} sub-page{'s' if skipped != 1 else ''} couldn't be exported (encrypted, "
                          f"or exporting turned off) and {'were' if skipped != 1 else 'was'} left out.")
-    p = ExportPlan(fmt="html" if fmt == "html" else "md", zip=as_zip, root_name=root_name, pages=plans, notes=notes)
+    if comments in COMMENT_STYLES and fmt != "html":
+        from app.services.comments import export as comment_export
+
+        for pp in plans:
+            pp.comments = await comment_export.collect(db, actor, pp.raw, ctx,
+                                                       status="open" if comment_status == "open" else "all")
+        if plans[0].comments is None:
+            notes.append(comment_export.NOT_ALLOWED_NOTE)
+    p = ExportPlan(fmt="html" if fmt == "html" else "docx" if fmt == "docx" else "md", zip=as_zip,
+                   root_name=root_name, pages=plans, notes=notes,
+                   comment_style=comments if comments in COMMENT_STYLES else None)
     _link(p)
     _name_images(p)
     return p
@@ -1408,7 +1480,20 @@ async def inline_images(pp: PagePlan) -> None:
 def render(pp: PagePlan, fmt: str) -> str:
     if fmt == "html":
         return html_document(to_html_body(pp.content, pp.pc), pp.pc)
-    return to_markdown(pp.content, pp.pc)
+    out = to_markdown(pp.content, pp.pc)
+    if pp.comments:
+        from app.services.comments import export as comment_export
+
+        out = out.rstrip("\n") + "\n\n" + comment_export.markdown_appendix(pp.comments)
+    return out
+
+
+def render_docx(pp: PagePlan, style: str | None = None) -> bytes:
+    """The page as a Word document (with its comments as margin comments or footnotes)."""
+    from app.services.comments import export as comment_export
+
+    return comment_export.to_docx(to_markdown(pp.content, pp.pc), title=pp.pc.title, url=pp.pc.url,
+                                  threads=pp.comments, style=style or "margin")
 
 
 # ── The zip ───────────────────────────────────────────────────────────────────
@@ -1478,7 +1563,7 @@ def zip_texts(p: ExportPlan) -> dict[str, str]:
 def filename(p: ExportPlan) -> str:
     if p.zip:
         return f"{p.root_name}.zip"
-    return f"{p.root_name}.{'html' if p.fmt == 'html' else 'md'}"
+    return f"{p.root_name}.{'html' if p.fmt == 'html' else 'docx' if p.fmt == 'docx' else 'md'}"
 
 
 # ── Links for AI apps (MCP): a short-lived signed download ───────────────────
@@ -1488,12 +1573,15 @@ def _key() -> str:
     return "page-export|" + get_settings().auth_secret
 
 
-def sign(slug: str, user_id: str, fmt: str, subpages: bool) -> tuple[str, int]:
+def sign(slug: str, user_id: str, fmt: str, subpages: bool, *, comments: str | None = None,
+         comment_status: str = "all") -> tuple[str, int]:
     from app.services import docs_site_access
 
     exp = int(time.time()) + TOKEN_TTL
-    return docs_site_access.sign(TOKEN_PURPOSE, {"s": slug, "u": user_id, "f": fmt, "sp": int(bool(subpages)),
-                                                 "exp": exp}, _key()), exp
+    data = {"s": slug, "u": user_id, "f": fmt, "sp": int(bool(subpages)), "exp": exp}
+    if comments in COMMENT_STYLES:
+        data.update(c=comments, cs="open" if comment_status == "open" else "all")
+    return docs_site_access.sign(TOKEN_PURPOSE, data, _key()), exp
 
 
 def redeem(slug: str, token: str) -> dict | None:

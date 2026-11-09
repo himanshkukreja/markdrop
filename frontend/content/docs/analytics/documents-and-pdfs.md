@@ -22,6 +22,10 @@ For documents and PDFs, analytics answers one question above all: did people rea
 
 How far someone read is measured by scrolling: the furthest point of the document that reached the bottom of their screen.
 
+### Comments tab
+
+Pages and Markdown documents also have a **Comments** tab: open and resolved threads, the typical time to a first reply and how many still wait for one, time to resolve, the most-discussed sections, comment activity per day and who comments most. See [Comments: insights](/pages/comments#insights).
+
 ### Content tab
 
 The **Content** tab breaks the document down by its headings.

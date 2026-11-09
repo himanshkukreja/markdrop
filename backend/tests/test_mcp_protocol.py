@@ -142,6 +142,8 @@ class Transport(McpTestCase):
             "list_comments", "get_thread", "add_comment", "reply_comment", "resolve_comment", "reopen_comment",
             "assign_thread", "react_comment", "set_comment_settings",
             "suggest_edit", "accept_suggestion", "summarize_discussion",
+            # Comment analytics (app/mcp/comment_insights_tools.py, Track C).
+            "comment_insights",
             # Sign-off blocks in pages.
             "list_signoffs", "sign_off",
             # Typed page properties and folder table/board views.
@@ -217,7 +219,8 @@ class Transport(McpTestCase):
     async def test_modern_tools_list_and_call(self):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
-        self.assertEqual(len(r.json()["result"]["tools"]), 123)
+        self.assertEqual(len(r.json()["result"]["tools"]), 124)
+        self.assertEqual(len(r.json()["result"]["tools"]), 118)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")

@@ -18,12 +18,16 @@ class UserResponse(BaseModel):
     # "Email me when someone mentions me" (and asks for my sign-off): any kind's email on.
     mention_emails: bool = True
     # How often, per kind (services/notifications.py email_modes).
-    email_notify: dict[str, EmailMode] = Field(default_factory=lambda: {"mention": "hourly", "signoff_requested": "instant"})
+    email_notify: dict[str, EmailMode] = Field(default_factory=lambda: {
+        "mention": "hourly", "signoff_requested": "instant", "comment_mention": "instant", "comment_activity": "instant"})
 
 
 class EmailNotifyUpdate(BaseModel):
     mention: EmailMode | None = None
     signoff_requested: EmailMode | None = None
+    # Comments (services/comments/notify_email.py): mentions + assignments, and replies / new comments.
+    comment_mention: EmailMode | None = None
+    comment_activity: EmailMode | None = None
 
 
 class PreferencesUpdate(BaseModel):
