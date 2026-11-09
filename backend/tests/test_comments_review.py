@@ -114,6 +114,21 @@ class Suggestions(ReviewWorld):
         self.assertEqual(r.status_code, 409)
         self.assertEqual(r.json()["code"], "no_suggestion")
 
+    async def test_tenant_token_on_the_workspace_domain(self):
+        d = await self.item("W")
+        t = await self.thread(d, "wv", suggestion="the tenant editor")
+        r = await self.http.get(self.url(d, f"/{t['id']}/suggestion"), headers=self.tenant("wm", "W1"))
+        self.assertEqual(r.status_code, 200, r.text)
+        r = await self.http.post(self.url(d, f"/{t['id']}/suggestion/accept"), headers=self.tenant("wm", "W1"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertIn("the tenant editor", await self.content(d))
+        r = await self.http.post(self.url(d, "/attachments"), files={"file": ("a.png", io.BytesIO(png()), "image/png")},
+                                 headers=self.tenant("wv", "W1"))
+        self.assertEqual(r.status_code, 201, r.text)
+        # Another workspace's token learns nothing.
+        r = await self.http.get(self.url(d, f"/{t['id']}/suggestion"), headers=self.tenant("wm2", "W2"))
+        self.assertEqual(r.status_code, 404)
+
     async def test_propose_rules(self):
         d = await self.item("W")
         t = await self.thread(d, "wv")

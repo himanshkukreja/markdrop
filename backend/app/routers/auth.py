@@ -200,6 +200,18 @@ _TENANT_ALLOWED = (
     ("PATCH", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/messages/[0-9a-f]{24}$")),
     ("DELETE", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/messages/[0-9a-f]{24}$")),
     ("POST", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/messages/[0-9a-f]{24}/reactions$")),
+    # Review power on comments (routers/comments_review.py, Track B): suggested edits (accepting one is an
+    # edit through document.update_document, which tenant tokens may do), comment AI, files in comments.
+    # Each asks services/comments/perms.require first, as above.
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/suggestion$")),
+    ("PUT", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/suggestion$")),
+    ("DELETE", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/suggestion$")),
+    ("POST", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/suggestion/accept$")),
+    ("POST", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/ai/(apply|ask)$")),
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/comments/ai/status$")),
+    ("POST", re.compile(r"^/api/v1/documents/[^/]+/comments/ai/(summary|tone)$")),
+    ("POST", re.compile(r"^/api/v1/documents/[^/]+/comments/attachments(/urls)?$")),
+    ("DELETE", re.compile(r"^/api/v1/documents/[^/]+/comments/attachments/[0-9a-f]{24}$")),
 )
 
 
