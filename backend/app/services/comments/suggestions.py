@@ -122,8 +122,8 @@ def _balanced(segment: str) -> bool:
     return True
 
 
-def _block_range(md: str, anchor: dict) -> tuple[int, int] | None:
-    """The anchored block's [start, end) in the Markdown (services/comments/anchoring.blocks), or None."""
+def _block(md: str, anchor: dict):
+    """The anchored block (services/comments/anchoring.blocks), or None."""
     try:
         from app.services.comments import anchoring
 
@@ -141,9 +141,23 @@ def _block_range(md: str, anchor: dict) -> tuple[int, int] | None:
             hit = None
     if hit is None and isinstance(idx, int) and 0 <= idx < len(bs):
         hit = bs[idx]
+    return hit
+
+
+def _block_range(md: str, anchor: dict) -> tuple[int, int] | None:
+    """The anchored block's [start, end) in the Markdown, or None."""
+    hit = _block(md, anchor)
     if hit is None or not isinstance(hit.start, int) or not isinstance(hit.end, int) or hit.end <= hit.start:
         return None
     return hit.start, hit.end
+
+
+def _in_rendered_block(md: str, anchor: dict, exact: str) -> bool:
+    """The quote is still in the block as readers see it, though not in its Markdown as plain text: it spans
+    something rendered from markup (a Jira chip, a mention), so a plain replacement can't be made."""
+    hit = _block(md, anchor)
+    q = _plain(exact)
+    return bool(q) and hit is not None and q in _plain(getattr(hit, "text", "") or "")
 
 
 def locate(md: str, anchor: dict) -> tuple[int, int] | str:
@@ -162,7 +176,7 @@ def locate(md: str, anchor: dict) -> tuple[int, int] | str:
         if inside:
             found = inside
     if not found:
-        return "stale"
+        return "unappliable" if _in_rendered_block(md, anchor, exact) else "stale"
     prefix = _plain(str(quote.get("prefix") or ""))
     suffix = _plain(str(quote.get("suffix") or ""))
 
