@@ -38,17 +38,19 @@ import { ANCHOR_RE, attrText, attrLine, cleanAttrs, spanColor, trailingAttrs } f
 
 export const CALLOUT_KINDS = ["note", "tip", "warning", "danger"];
 /** Leaf directives the editor renders as blocks (`api` is the OpenAPI operation placeholder). */
-export const LEAF_NAMES = ["video", "clip", "embed", "markdrop", "api", "bookmark", "toc", "breadcrumb", "page"];
+export const LEAF_NAMES = ["video", "clip", "embed", "markdrop", "api", "bookmark", "toc", "breadcrumb", "page", "jira", "jira-list"];
 /**
  * Inline chips (pages), each on one line (anything else stays raw):
  *   :markdrop[Title]{src=<slug>}   a Markdrop item
  *   :person[Name]{id=<user id>}    a workspace member
  *   :date[2026-11-03]              a date
+ *   :jira[PAY-12]{site=…}          a Jira issue (components/jira/pages)
  */
 const MENTION_SRC = {
   markdrop: /^:markdrop\[[^\n]*\]\{[^\n]*\}$/,
   person: /^:person\[[^\n]*\]\{[^\n]*\}$/,
   date: /^:date\[\d{4}-\d{2}-\d{2}\](?:\{[^\n]*\})?$/,
+  jira: /^:jira\[[A-Za-z][A-Za-z0-9_]{0,19}-[1-9][0-9]{0,8}\](?:\{[^\n]*\})?$/,
 };
 const MENTION_KEY = { markdrop: "src", person: "id" };
 
@@ -1170,6 +1172,7 @@ export function mentionSource(attrs) {
 export function mentionComplete(attrs) {
   const name = MENTION_SRC[attrs?.name] ? attrs.name : "markdrop";
   if (name === "date") return /^\d{4}-\d{2}-\d{2}$/.test(String(attrs?.label ?? ""));
+  if (name === "jira") return /^[A-Z][A-Z0-9_]{0,19}-[1-9][0-9]{0,8}$/.test(String(attrs?.label ?? ""));
   return !!attrs?.attributes?.[MENTION_KEY[name]];
 }
 

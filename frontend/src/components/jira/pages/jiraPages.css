@@ -1,0 +1,95 @@
+/* Jira inside pages (components/jira/pages): the inline chip, the issue card, the live list. Tokens only:
+   light and dark follow the theme; neutral visuals (no Atlassian marks). */
+
+.jp-chip {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; vertical-align: baseline;
+  margin: 0 1px; padding: 0 7px 0 4px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text); font: inherit; font-size: 0.9em; line-height: 1.55;
+  text-decoration: none; white-space: nowrap; cursor: pointer; transition: border-color 120ms var(--ease-out), background 120ms var(--ease-out);
+}
+.jp-chip:hover { border-color: var(--border-strong); background: var(--surface-hover); }
+.jp-chip__glyph { display: inline-flex; color: var(--accent-text); flex: none; }
+.jp-chip__key { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent-text); text-decoration: none; flex: none; }
+.jp-chip__title { min-width: 0; max-width: 28em; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.jp-chip .jr-status { flex: none; font-size: 10px; line-height: 15px; }
+@media (max-width: 640px) { .jp-chip__title { max-width: 14em; } }
+
+.jp-card, .jp-list {
+  margin: 10px 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+  color: var(--text); font-size: 14px; overflow: hidden;
+}
+.jp-card__body { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; }
+.jp-card__body--pop { padding: 4px 2px; }
+.jp-card__head { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; }
+.jp-card__glyph { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-text); flex: none; }
+.jp-card__key { font-weight: 600; color: var(--accent-text); text-decoration: none; font-variant-numeric: tabular-nums; }
+.jp-card__key:hover { text-decoration: underline; }
+.jp-card__type { color: var(--text-muted); font-size: 12px; }
+.jp-card__open { margin-inline-start: auto; display: inline-flex; padding: 4px; border-radius: 6px; color: var(--text-muted); }
+.jp-card__open:hover { color: var(--text); background: var(--surface-hover); }
+.jp-card__title { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.jp-card__fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 16px; margin: 0; }
+.jp-card__fields > div { min-width: 0; }
+.jp-card__fields dt { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); margin-bottom: 2px; }
+.jp-card__fields dd { margin: 0; min-width: 0; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.jp-card__actions { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 -6px -4px; }
+.jp-card__note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0; font-size: 13px; color: var(--text-secondary); }
+
+.jp-statusbtn { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 2px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--text-muted); cursor: pointer; font: inherit; }
+.jp-statusbtn:hover { border-color: var(--border); background: var(--surface-hover); }
+.jp-statusbtn--xs { padding: 0 2px 0 0; }
+.jp-fieldbtn { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 2px 6px 2px 2px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--text); cursor: pointer; font: inherit; font-size: 13px; }
+.jp-fieldbtn:hover { border-color: var(--border); background: var(--surface-hover); }
+.jp-step { display: inline-flex; align-items: center; gap: 8px; }
+.jp-step__to { color: var(--text-muted); }
+.jp-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex: none; }
+.jp-dot--indeterminate { background: var(--accent); }
+.jp-dot--done { background: var(--success); }
+.jp-menu-wait { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; color: var(--text-muted); font-size: 13px; }
+
+.jp-people { display: flex; flex-direction: column; gap: 8px; }
+.jp-people ul { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; }
+.jp-person { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: 6px; background: none; color: var(--text); font: inherit; font-size: 13px; text-align: start; cursor: pointer; }
+.jp-person:hover, .jp-person:focus-visible { background: var(--surface-hover); }
+.jp-who { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 14em; }
+.jp-ellipsis { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jp-muted { color: var(--text-muted); }
+.jp-late { color: var(--danger); }
+.jp-err { margin: 0; color: var(--danger); font-size: 13px; }
+.jp-form { display: flex; flex-direction: column; gap: 12px; }
+.jp-form__end { display: flex; justify-content: flex-end; }
+
+.jp-list__head { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.jp-list__title { margin: 0; font-size: 14px; font-weight: 600; flex: none; }
+.jp-list__jql { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-muted); background: none; padding: 0; }
+.jp-list__note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding: 14px; font-size: 13px; color: var(--text-secondary); }
+.jp-list__scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.jp-list__more { display: flex; justify-content: center; padding: 10px; border-top: 1px solid var(--border); }
+.jp-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.jp-table th, .jp-table td { padding: 6px 10px; text-align: start; vertical-align: middle; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.jp-table thead th { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); background: var(--surface-raised); }
+.jp-table tbody tr:last-child td { border-bottom: 0; }
+.jp-table tbody tr:hover td { background: var(--surface-hover); }
+.jp-table__summary { white-space: normal !important; min-width: 220px; overflow-wrap: anywhere; }
+.jp-table .jp-chip__key { font-size: 13px; }
+
+/* The editor's own pieces (editor.tsx): the block's toolbar and the list's form. */
+.jp-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--border); background: var(--surface-raised); font-size: 12px; color: var(--text-muted); }
+.jp-edit__spacer { flex: 1 1 auto; }
+.jp-listform { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.jp-listform__row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.jp-cols { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.jp-pick { display: flex; flex-direction: column; gap: 10px; }
+.jp-pick ul { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.jp-pick__row { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; padding: 8px; border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; font-size: 14px; text-align: start; cursor: pointer; }
+.jp-pick__row:hover, .jp-pick__row[aria-selected="true"] { background: var(--surface-hover); }
+.jp-pick__row .jp-chip__key { flex: none; }
+.jp-pick__row .jp-ellipsis { flex: 1 1 auto; }
+.jp-pending { display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; border: 1px dashed var(--border-strong); border-radius: 6px; background: none; color: var(--text-secondary); font: inherit; font-size: 0.9em; cursor: pointer; }
+.jp-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px; color: var(--text-secondary); font-size: 13px; }
+
+/* Comment threads (ThreadJira.tsx). */
+.jp-thread { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); font-size: 13px; }
+.jp-thread__row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.jp-thread__offer { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--text-secondary); }
+@media (prefers-reduced-motion: reduce) { .jp-chip { transition: none; } }

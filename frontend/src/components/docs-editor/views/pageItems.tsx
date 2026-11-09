@@ -18,6 +18,7 @@ import { useHost } from "../host";
 import { services } from "../menus/mediaUpload";
 import type { PagePickItem, PageResolvedItem, PagesEditorHost } from "../types";
 import { cx } from "./shared";
+import { JiraMentionNode } from "@/components/jira/pages/editor";
 
 type Mode = "live" | "preview" | "card";
 const MODES: Array<{ value: Mode; label: string }> = [
@@ -293,6 +294,8 @@ export function MentionView(props: ReactNodeViewProps) {
   const name = String(props.node.attrs.name ?? "markdrop");
   if (name === "date") return <DateChip {...props} />;
   if (name === "person") return <PersonChip {...props} />;
+  // :jira[KEY]{site}: a Jira issue (components/jira/pages/editor.tsx).
+  if (name === "jira") return <JiraMentionNode {...props} />;
   return <ItemMention {...props} />;
 }
 

@@ -234,7 +234,9 @@ export interface PagesEditorHost {
   createSubPage?(title: string): Promise<{ slug: string; title: string }>;
   /** "Create Jira issue" (the block menu and the selection toolbar), when the page's workspace has Jira
    *  (components/jira). `block`: the block's anchor (added if it had none); `selection`: selected text. */
-  jira?: ((ref: { block: string | null; selection: string | null; text: string }) => void) | null;
+  jira?: ((ref: { block: string | null; selection: string | null; text: string; replace?: ((key: string, site: string | null) => void) | null }) => void) | null;
+  /** Jira inside the page (components/jira/pages/editor.tsx): chips, cards, lists — their store and "Create issue". */
+  jiraPages?: import("@/components/jira/pages/editor").JiraEditorHost | null;
   /** This page's ancestors and title, for the breadcrumb block. */
   crumbs?: Array<{ slug: string; title: string | null }>;
   pageTitle?: string | null;

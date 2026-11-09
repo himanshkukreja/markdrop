@@ -20,9 +20,9 @@ test("a page's menu comes in sections, in the spec's order", () => {
   ]);
   assert.deepEqual(labels(shown.filter((x) => x.group === "media")), ["Image", "Video", "Audio", "File", "Bookmark", "Web embed"]);
   // "From meetings…" is in the list; the menu offers it only while the page's meeting panel is there (available).
-  assert.deepEqual(labels(shown.filter((x) => x.group === "markdrop")), ["Embed an item", "Mention an item", "Sub-page", "Sign-off", "From meetings…"]);
+  assert.deepEqual(labels(shown.filter((x) => x.group === "markdrop")), ["Embed an item", "Mention an item", "Sub-page", "Sign-off", "From meetings…", "Jira card", "Jira list", "New Jira issue"]);
   assert.deepEqual(labels(shown.filter((x) => x.group === "advanced")), ["Table", "Columns", "Code", "Equation", "Mermaid diagram", "Table of contents", "Breadcrumb", "Button"]);
-  assert.deepEqual(labels(shown.filter((x) => x.group === "inline")), ["Mention a person", "Date", "Emoji"]);
+  assert.deepEqual(labels(shown.filter((x) => x.group === "inline")), ["Mention a person", "Date", "Emoji", "Jira issue"]);
   // An empty query is the sectioned list.
   assert.deepEqual(ids(filterItems("", page)), ids(shown));
 });
