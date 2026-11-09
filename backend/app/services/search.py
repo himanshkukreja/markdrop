@@ -49,6 +49,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo.errors import OperationFailure
 from rapidfuzz import fuzz, process
 
+from app.services import teams as teams_service
 from app.services import access, publicity, search_chunks, search_index, urls
 from app.services import search_text as st
 
@@ -103,6 +104,7 @@ class Query:
     limit: int = 20
     trash: bool = True
     snippets: bool = True
+    space: str | None = None            # Teams (CONTRACT §3): all | company | team:<id> | project:<id>
 
     @property
     def text(self) -> str:
@@ -406,9 +408,27 @@ async def doc_filter(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.
     ors: list[dict] = [{"owner_id": uid}]
     if granted or descendants:
         ors.append({"_id": {"$in": granted + descendants}})
-    if member_ws:
-        ors.append({"workspace_id": {"$in": member_ws}, "access_level": {"$ne": "private"}})
+    views = [await ctx.team_view(w, uid) for w in member_ws]
+    admin_ws = [v.workspace_id for v in views if v.admin]
+    other = [v for v in views if not v.admin]
+    if admin_ws:
+        ors.append({"workspace_id": {"$in": admin_ws}, "access_level": {"$ne": "private"}})
+    if other:
+        # Teams (CONTRACT §2): the membership reaches company-wide items and readable teams / projects.
+        ors.append({"$and": [{"workspace_id": {"$in": [v.workspace_id for v in other]}, "access_level": {"$ne": "private"}},
+                             teams_service.multi_clause(other)]})
     clauses: list[dict] = [{"$or": ors}, access.not_expired_clause(ctx.now), access.NOT_TEMPLATE]
+    if q.space:
+        sp = teams_service.parse_space(q.space)
+        if sp.kind != "all":
+            view = next((v for v in views if (sp.kind == "team" and sp.id in v.teams)
+                         or (sp.kind == "project" and sp.id in v.projects)
+                         or (sp.kind == "company" and v.workspace_id == (actor.tenant_ws or q.scope))), None)
+            if view is None and sp.kind == "company" and views:
+                view = views[0]
+            if view is None or not teams_service.space_ok(view, sp):
+                return {"_id": {"$in": []}}
+            clauses.append(teams_service.space_clause(view, sp))
     scope = actor.tenant_ws or q.scope
     if scope:
         clauses.append({"workspace_id": scope})
@@ -634,7 +654,13 @@ async def _folder_cands(db: AsyncIOMotorDatabase, w: World, q: Query) -> list[Ca
             continue
         flist = await folder_service.list_folders(db, ws.id)
         by_id = {f.id: f for f in flist}
+        tview = await w.ctx.team_view(ws.id, w.actor.user_id)
+        tfold = {str(r["_id"]): r for r in await db["folders"].find(
+            {"workspace_id": ws.id, "$or": [{"team_ids": {"$exists": True}}, {"project_ids": {"$exists": True}}]},
+            {"team_ids": 1, "project_ids": 1}).to_list(length=5000)}
         for f in flist:
+            if f.id in tfold and not teams_service.item_ok(tview, tfold[f.id]):
+                continue
             names = [f.name]
             p = by_id.get(f.parent_id) if f.parent_id else None
             guard = 0
@@ -878,7 +904,7 @@ async def _owner_page(db: AsyncIOMotorDatabase, c: Cand, seen: set) -> Cand | No
 
 async def _allowed(db: AsyncIOMotorDatabase, w: World, c: Cand) -> bool:
     if c.kind in DOC_KINDS:
-        return (await access.can(w.actor, c.raw, "read", w.ctx)).allowed
+        return await access.discoverable(w.actor, c.raw, w.ctx)
     if c.kind in ("folder", "workspace"):
         return c.ws_id in w.member_ws
     if c.kind == "guide":
