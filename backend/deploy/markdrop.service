@@ -1,0 +1,14 @@
+[Unit]
+Description=Markdrop API
+After=network.target redis-server.service
+
+[Service]
+User=ubuntu
+WorkingDirectory=/opt/markdrop/backend
+EnvironmentFile=/opt/markdrop/backend/.env
+ExecStart=/opt/markdrop/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8080
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
