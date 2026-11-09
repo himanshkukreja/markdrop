@@ -71,6 +71,16 @@ class Insights(ReachWorld):
         r = await self.http.get(f"/api/v1/documents/{art['slug']}/comments/insights", headers=self.session("owner"))
         self.assertEqual((r.status_code, r.json().get("code")), (404, "comments_unavailable"))
 
+    async def test_on_the_workspace_domain(self):
+        w = await self.discussed()
+        base = f"/api/v1/documents/{w['doc']['slug']}/comments"
+        for path in ("/insights", "/export"):
+            r = await self.http.get(base + path, headers=self.tenant("wv", "W1"))
+            self.assertEqual(r.status_code, 200, (path, r.text))
+        # Another workspace's domain session can't read them.
+        r = await self.http.get(base + "/insights", headers=self.tenant("wm2", "W2"))
+        self.assertIn(r.status_code, (401, 403, 404))
+
     async def test_admin_totals(self):
         from tests._admin_session import admin_headers
 

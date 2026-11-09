@@ -200,6 +200,10 @@ _TENANT_ALLOWED = (
     ("PATCH", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/messages/[0-9a-f]{24}$")),
     ("DELETE", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/messages/[0-9a-f]{24}$")),
     ("POST", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/messages/[0-9a-f]{24}/reactions$")),
+    # Comment insights and the threads for a PDF with comments (routers/comments_insights.py):
+    # read-only, perms.require(view) on the pinned actor like the routes above. The page export
+    # with comments is GET …/export, allowed above (comments only for readers who can see them).
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/comments/(insights|export)$")),
 )
 
 

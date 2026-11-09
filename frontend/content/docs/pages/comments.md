@@ -78,19 +78,6 @@ Markdrop tells you, under the bell, when:
 
 Several replies to the same thread while you haven't looked yet gather into one notification. Nobody is told about comments on a page they can't open.
 
-## Turn comments off, or show them publicly
-
-Comments are on for every page and markdown document with an owner. To change that, open **Share**:
-
-- **Comments** turns them off for that item. The threads are kept, hidden, and come back when you turn them on again.
-- **Show comments publicly** lets readers who aren't signed in see the comments (they still can't write). Off by default.
-
-A workspace admin can turn comments off for the whole workspace in **Workspace settings › Advanced › Comments**.
-
-## From an AI app
-
-Your AI assistant can read and write comments through [MCP](/ai/tools#comments): `list_comments`, `get_thread`, `add_comment` (on quoted text, a block, or the page), `reply_comment`, `resolve_comment`, `reopen_comment`, `assign_thread`, `react_comment` and `set_comment_settings`. It acts as you, with your access.
-
 ## Email, push and Slack
 
 The same [notifications](#notifications) can also reach you by email, on your devices and in Slack. Each one opens the page with that thread selected, and people who can't see a page's comments any more are never told about them.
@@ -146,3 +133,16 @@ When you [export a page](/pages/export), turn on **Include comments** to take it
 Turn on **Open threads only** to leave resolved ones out. A thread whose text changed since it was written is listed at the end, with the words it was first about. HTML exports never include comments.
 
 Only people who can see a page's comments can export them: a reader who can't see them gets the page without comments. Deleted messages and threads never leave. An AI app can do the same with [`export_page`](/ai/tools#pages) (`comments`: `footnotes` or `margin`; `format`: `word` for a `.docx`).
+
+## Turn comments off, or show them publicly
+
+Comments are on for every page and markdown document with an owner. To change that, open **Share**:
+
+- **Comments** turns them off for that item. The threads are kept, hidden, and come back when you turn them on again.
+- **Show comments publicly** lets readers who aren't signed in see the comments (they still can't write). Off by default.
+
+A workspace admin can turn comments off for the whole workspace in **Workspace settings › Advanced › Comments**.
+
+## From an AI app
+
+Your AI assistant can read and write comments through [MCP](/ai/tools#comments): `list_comments`, `get_thread`, `add_comment` (on quoted text, a block, or the page), `reply_comment`, `resolve_comment`, `reopen_comment`, `assign_thread`, `react_comment` and `set_comment_settings`. It acts as you, with your access.
