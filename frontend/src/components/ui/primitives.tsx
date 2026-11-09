@@ -70,9 +70,12 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
   { variant = "primary", size = "md", loading, block, iconLeft, iconRight, href, target, rel, download, className, children, disabled, type = "button", ...rest }, ref) {
   const L = useLinkComponent();
   const cls = cx("md-btn", `md-btn--${variant}`, `md-btn--${size}`, block && "md-btn--block", loading && "md-btn--loading", className);
+  // A text label ends in "…" when the button can't fit it (a long workspace name in "{Team} team"),
+  // instead of running out of the button and its row.
+  const label = typeof children === "string" || typeof children === "number" ? <span className="md-btn__label">{children}</span> : children;
   const inner = <>
     {iconLeft && <Icon name={iconLeft} />}
-    {children}
+    {label}
     {iconRight && <Icon name={iconRight} />}
     {loading && <span className="md-btn__spinner"><Spinner /></span>}
   </>;

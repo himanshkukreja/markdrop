@@ -198,14 +198,15 @@ export function DocRow({
               iconLeft={access.icon}
               onClick={onAccess}
               aria-label={`Who can open this: ${access.aria}. Change in Share`}
-              className="text-text-secondary"
+              title={access.label}
+              className="max-w-48 text-text-secondary"
             >
               {access.label}
             </Button>
           ) : (
-            <span className="inline-flex items-center gap-1 px-2 text-caption text-text-muted" title={access.aria}>
-              <Icon name={access.icon} size={14} />
-              {access.label}
+            <span className="inline-flex max-w-48 items-center gap-1 px-2 text-caption text-text-muted" title={access.aria}>
+              <Icon name={access.icon} size={14} className="shrink-0" />
+              <span className="min-w-0 truncate">{access.label}</span>
             </span>
           )
         )}

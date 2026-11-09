@@ -60,7 +60,11 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 .md-btn:disabled, .md-btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; pointer-events: none; }
 .md-btn--block { width: 100%; }
 .md-btn__spinner { position: absolute; inset: 0; display: grid; place-items: center; }
-.md-btn--loading > :not(.md-btn__spinner) { visibility: hidden; }
+.md-btn--loading > :not(.md-btn__spinner):not(.md-btn__label) { visibility: hidden; }
+/* Never wider than its box: a long text label ends in "…" (the icons keep their size). */
+.md-btn { max-width: 100%; }
+.md-btn__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.md-btn > .md-icon, .md-btn > svg { flex: none; }
 .md-btn .md-icon { font-size: 16px; }
 .md-btn--sm .md-icon { font-size: 14px; }
 .md-iconbtn { padding: 0; width: 36px; }

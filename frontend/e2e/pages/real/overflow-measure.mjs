@@ -2,7 +2,8 @@
  * overflow.mjs's measurement, run in the page with page.evaluate(measureOverflow, opts). Self-contained
  * (it is serialized into the page). Returns [{rule, who, box, text, rect, boxRect, by}]:
  *
- *   hscroll  the page itself scrolls sideways (scrollWidth > innerWidth + 1); `who` is the widest culprit
+ *   hscroll  the page is wider than the layout viewport (scrollWidth > clientWidth + 1: a phone zooms out
+ *            or the page scrolls sideways); `who` is what reaches furthest right
  *   spill    text (a text node's line boxes) or a box (a chip, a button, a card: anything with a border, a
  *            background or a shadow) runs past the edge of the nearest bordered / backgrounded block around
  *            it by more than 1 px, with nothing in between that scrolls (overflow auto/scroll: scrolling
@@ -99,7 +100,8 @@ export function measureOverflow({ tol = 1.5, max = 60 } = {}) {
     return { box: de, clipper };
   }
   const inner = (el) => {
-    if (el === de || el === document.body) return { left: 0, right: Math.max(window.innerWidth, de.clientWidth), top: 0, bottom: 0 };
+    // The layout viewport (a phone zooms out to fit a page that's too wide: innerWidth grows with it).
+    if (el === de || el === document.body) return { left: 0, right: de.clientWidth, top: -1e9, bottom: 1e9 };
     const r = el.getBoundingClientRect();
     const s = cs(el);
     return { left: r.left + parseFloat(s.borderLeftWidth), right: r.right - parseFloat(s.borderRightWidth), top: r.top, bottom: r.bottom };
@@ -114,19 +116,21 @@ export function measureOverflow({ tol = 1.5, max = 60 } = {}) {
 
   // 1. The page scrolls sideways.
   const sw = Math.max(de.scrollWidth, document.body.scrollWidth);
-  if (sw > window.innerWidth + 1) {
-    const vw = de.clientWidth;
+  const vw = de.clientWidth;
+  // When the whole page is too wide, everything at its right edge sticks out of the viewport: report the
+  // cause (hscroll) and not each of those.
+  const pageWide = sw > vw + 1 || window.innerWidth > vw + 1;
+  const atPage = (box) => pageWide && (box === de || box === document.body);
+  if (pageWide) {
+    // The element that reaches furthest right (the deepest one when several end there): what pushes the page.
     let worst = null;
     for (const el of document.body.querySelectorAll("*")) {
       if (!visible(el)) continue;
       const r = el.getBoundingClientRect();
       if (r.width <= 0 || r.right <= vw + 1) continue;
-      // The deepest element that sticks out whose parent doesn't (the root cause), widest first.
-      const pr = el.parentElement?.getBoundingClientRect();
-      if (pr && pr.right > vw + 1 && el.parentElement !== document.body) continue;
-      if (!worst || r.right > worst.r.right) worst = { el, r };
+      if (!worst || r.right >= worst.r.right - 0.5) worst = { el, r };
     }
-    push("hscroll", worst ? worst.el : de, null, worst?.r, null, sw - window.innerWidth, `scrollWidth ${sw} > ${window.innerWidth}${worst ? ` · ${sample(worst.el)}` : ""}`);
+    push("hscroll", worst ? worst.el : de, null, worst?.r, null, sw - vw, `scrollWidth ${sw} > ${vw}${worst ? ` · ${sample(worst.el)}` : ""}`);
   }
 
   // 2. Text past its box, or cut.
@@ -145,7 +149,7 @@ export function measureOverflow({ tol = 1.5, max = 60 } = {}) {
     const left = Math.min(...rects.map((r) => r.left)), right = Math.max(...rects.map((r) => r.right));
     const top = Math.min(...rects.map((r) => r.top)), bottom = Math.max(...rects.map((r) => r.bottom));
     const tr = { left, right, top, bottom };
-    if (c.clipper && !ellipsisOn(el, c.clipper)) {
+    if (c.clipper && !ellipsisOn(el, c.clipper) && !atPage(c.clipper)) {
       const k = inner(c.clipper);
       // Only the lines that show (a line-clamped paragraph hides the rest).
       const shown = rects.filter((r) => r.bottom > k.top + 1 && r.top < k.bottom - 1);
@@ -160,7 +164,7 @@ export function measureOverflow({ tol = 1.5, max = 60 } = {}) {
     if (c.clipper) continue; // clipped (with an ellipsis, or inside the box): nothing spills
     const b = inner(c.box);
     const by = Math.max(right - b.right, b.left - left);
-    if (by > tol) push("spill", el, c.box, tr, b, by, t.nodeValue.trim().replace(/\s+/g, " "));
+    if (by > tol && !atPage(c.box)) push("spill", el, c.box, tr, b, by, t.nodeValue.trim().replace(/\s+/g, " "));
   }
 
   // 3. Boxes (chips, buttons, cards) past their box.
@@ -187,7 +191,7 @@ export function measureOverflow({ tol = 1.5, max = 60 } = {}) {
     // Bleeding into the box's border (a full-width divider) is fine; past its outer edge is not.
     const bs = c.box === de || c.box === document.body ? { l: 0, r: 0 } : { l: parseFloat(cs(c.box).borderLeftWidth), r: parseFloat(cs(c.box).borderRightWidth) };
     const by = Math.max(right - (b.right + bs.r), b.left - bs.l - left);
-    if (by > tol) push("spill", el, c.box, { left, right, top: rects[0].top, bottom: rects[rects.length - 1].bottom }, b, by);
+    if (by > tol && !atPage(c.box)) push("spill", el, c.box, { left, right, top: rects[0].top, bottom: rects[rects.length - 1].bottom }, b, by);
   }
   range.detach?.();
   return out;

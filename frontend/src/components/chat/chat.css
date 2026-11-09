@@ -45,6 +45,7 @@
 .ch-starter:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
 .ch-starter__icon { flex: none; width: 16px; height: 16px; margin-top: 1px; color: var(--accent-text); }
 .ch-starter__text { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.ch-starter > span { min-width: 0; overflow-wrap: anywhere; }
 .ch-starter__label { font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.01em; color: var(--text-muted); }
 
 /* ── thread ────────────────────────────────────────────────────────────── */

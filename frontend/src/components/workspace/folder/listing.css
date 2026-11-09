@@ -200,7 +200,7 @@
 .wl-pv__box--on { background: var(--accent); border-color: var(--accent); }
 .wl-pv__done > .min-w-0 { text-decoration: line-through; color: var(--text-muted); }
 .wl-pv__code {
-  display: block; white-space: pre; overflow: hidden; padding: 4px 6px; border-radius: 4px;
+  display: block; white-space: pre; overflow: hidden; text-overflow: ellipsis; padding: 4px 6px; border-radius: 4px;
   font-family: var(--font-mono); font-size: 7.5px; line-height: 1.5;
   background: var(--pv-soft, var(--surface-inset)); color: var(--pv-strong, var(--text-secondary));
 }

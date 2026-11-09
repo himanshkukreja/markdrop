@@ -71,6 +71,7 @@
   overflow: hidden;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
   font-size: 13px;
   line-height: 19px;
   color: var(--text-secondary);

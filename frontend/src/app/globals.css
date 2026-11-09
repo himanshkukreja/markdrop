@@ -47,6 +47,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
   /* clip, not hidden: hidden would make body a scroll container and break position: sticky. */
   overflow-x: clip;
+  /* A word longer than its line (a URL, an email, a Jira key, a pasted hash) breaks instead of running out
+     of its card. break-word leaves min-content sizes alone (tables and flex rows lay out as before);
+     flex / grid children that hold user text add min-width: 0 or overflow-wrap: anywhere where needed. */
+  overflow-wrap: break-word;
 }
 
 /* One frame without transitions when the theme switches (lib/theme.ts), so nothing smears. */

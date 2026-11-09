@@ -346,7 +346,9 @@ async function record(p, name, width, theme) {
         const el = document.querySelector(`[data-ovf="${n}"]`);
         const box = document.querySelector(`[data-ovf-box="${n}"]`);
         if (!el) return;
-        el.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
+        // Only the window scrolls (scrollIntoView would also scroll overflow: hidden ancestors sideways and
+        // shift everything measured after it).
+        window.scrollBy({ top: el.getBoundingClientRect().top - window.innerHeight / 3, behavior: "instant" });
         el.style.outline = "2px solid #ff00ff";
         el.style.outlineOffset = "-1px";
         if (box) { box.style.outline = "2px dashed #00bcd4"; box.style.outlineOffset = "1px"; }
@@ -354,6 +356,7 @@ async function record(p, name, width, theme) {
       await p.screenshot({ path: file });
       await p.evaluate((n) => {
         for (const e of document.querySelectorAll(`[data-ovf="${n}"], [data-ovf-box="${n}"]`)) { e.style.outline = ""; e.style.outlineOffset = ""; }
+        window.scrollTo({ top: 0, left: 0, behavior: "instant" });
       }, f.n);
     } catch (e) {
       log(`(shot ${name}: ${e.message.slice(0, 120)})`);
