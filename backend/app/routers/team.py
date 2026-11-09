@@ -21,7 +21,7 @@ off for the workspace, ``GET`` answers ``{enabled: false}`` and everything else 
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.encoders import jsonable_encoder
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
@@ -59,6 +59,21 @@ async def _member(db, workspace_id: str, user: User, *, need_on: bool = True) ->
     return ws, role
 
 
+async def _space(ctx: access.Ctx, workspace_id: str, user: User, space: Optional[str]) -> None:
+    """Teams (CONTRACT §3): lines only from that space; 404 for a team / project you can't read."""
+    if not space:
+        return
+    from app.services import teams as teams_service
+
+    try:
+        sp = teams_service.parse_space(space)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    if sp.kind != "all" and not teams_service.space_ok(await ctx.team_view(workspace_id, user.id), sp):
+        raise HTTPException(status_code=404, detail="Team not found")
+    ctx.space = None if sp.kind == "all" else space
+
+
 def _refused(exc: wm.Refused) -> HTTPException:
     return HTTPException(status_code=exc.status, detail=exc.detail)
 
@@ -85,7 +100,7 @@ class CorrectBody(BaseModel):
 
 @router.get("/{workspace_id}")
 @limiter.limit("120/minute")
-async def board(request: Request, workspace_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+async def board(request: Request, workspace_id: str, space: Optional[str] = Query(None, max_length=40, description="Teams: all | company | team:<id> | project:<id>"), db: AsyncIOMotorDatabase = Depends(get_db),
                 user: User = Depends(require_user)):
     """The Team board for you: each member's status, focus, targets, open items and recent activity;
     blockers; projects × people; groups; the "This week" summary. ``{enabled: false, can_enable}`` when
@@ -97,6 +112,7 @@ async def board(request: Request, workspace_id: str, db: AsyncIOMotorDatabase = 
         return {"enabled": False, "can_enable": role_allows(role, "admin"), "role": role,
                 "workspace": {"id": ws.id, "name": ws.name}}
     actor, ctx = _ac(request, db, user)
+    await _space(ctx, workspace_id, user, space)
     got = await wm.team(db, actor, ctx, ws, role)
     groups = await team_extras.list_groups(db, ws.id)
     for c in got["people"]:
@@ -115,10 +131,11 @@ async def board(request: Request, workspace_id: str, db: AsyncIOMotorDatabase = 
 
 @router.get("/{workspace_id}/people/{user_id}")
 @limiter.limit("120/minute")
-async def person(request: Request, workspace_id: str, user_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+async def person(request: Request, workspace_id: str, user_id: str, space: Optional[str] = Query(None, max_length=40, description="Teams: all | company | team:<id> | project:<id>"), db: AsyncIOMotorDatabase = Depends(get_db),
                  user: User = Depends(require_user)):
     ws, role = await _member(db, workspace_id, user)
     actor, ctx = _ac(request, db, user)
+    await _space(ctx, workspace_id, user, space)
     got = await wm.person_profile(db, actor, ctx, ws, user_id, role=role)
     if got is None:
         raise HTTPException(status_code=404, detail="Person not found")
@@ -130,10 +147,11 @@ async def person(request: Request, workspace_id: str, user_id: str, db: AsyncIOM
 
 @router.get("/{workspace_id}/projects/{key}")
 @limiter.limit("120/minute")
-async def project(request: Request, workspace_id: str, key: str, db: AsyncIOMotorDatabase = Depends(get_db),
+async def project(request: Request, workspace_id: str, key: str, space: Optional[str] = Query(None, max_length=40, description="Teams: all | company | team:<id> | project:<id>"), db: AsyncIOMotorDatabase = Depends(get_db),
                   user: User = Depends(require_user)):
     ws, role = await _member(db, workspace_id, user)
     actor, ctx = _ac(request, db, user)
+    await _space(ctx, workspace_id, user, space)
     got = await wm.project_profile(db, actor, ctx, ws, key[:80], role=role)
     if got is None:
         raise HTTPException(status_code=404, detail="Project not found")

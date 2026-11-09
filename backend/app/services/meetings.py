@@ -1254,6 +1254,11 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
     if restricted:
         await set_restricted(db, row, True, actor, ctx)
         row = await db[COLL].find_one({"_id": row["_id"]})
+    # Teams (services/team_routing.py): into its team(s) before anything is summarised or posted.
+    from app.services import team_routing
+
+    if await team_routing.route_new(db, row) is not None:
+        row = await db[COLL].find_one({"_id": row["_id"]})
     if sname and series_from == "auto":
         # The earlier one-off of this name is the same series now.
         await meeting_series.adopt(db, user, workspace_id, skey, sname, skip_id=row["_id"])
