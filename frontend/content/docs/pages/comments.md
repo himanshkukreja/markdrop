@@ -90,16 +90,12 @@ A workspace admin can turn comments off for the whole workspace in **Workspace s
 ## From an AI app
 
 Your AI assistant can read and write comments through [MCP](/ai/tools#comments): `list_comments`, `get_thread`, `add_comment` (on quoted text, a block, or the page), `reply_comment`, `resolve_comment`, `reopen_comment`, `assign_thread`, `react_comment` and `set_comment_settings`. It acts as you, with your access.
-<!-- B:suggestions -->
 <!-- /B:suggestions -->
 
-<!-- B:ai -->
 <!-- /B:ai -->
 
-<!-- B:attachments -->
 <!-- /B:attachments -->
 
-<!-- C:notifications -->
 ## Email, push and Slack
 
 The same [notifications](#notifications) can also reach you by email, on your devices and in Slack. Each one opens the page with that thread selected, and people who can't see a page's comments any more are never told about them.
@@ -129,9 +125,7 @@ With [push notifications](/pages/mentions-and-notifications#push-notifications) 
 - **Resolve** resolves the thread, if you can (you started it, it's assigned to you, or you can edit the page).
 
 When a thread is resolved anywhere, the Slack messages about it say who resolved it. Choose which of these you get under Settings › Account, in the push and Slack sections (**Mentions in comments**, **Comments assigned to you**).
-<!-- /C:notifications -->
 
-<!-- C:analytics -->
 ## Insights
 
 See how the discussion on a page is going: choose **Comment insights** from the **⋯** menu of the comments panel, or open the page's [analytics](/analytics/documents-and-pdfs) and its **Comments** tab.
@@ -143,9 +137,7 @@ See how the discussion on a page is going: choose **Comment insights** from the 
 - **Activity** per day and the people who comment most (on the analytics page).
 
 Everyone who can see a page's comments can see its insights. An AI app can read them with [`comment_insights`](/ai/tools#analytics), and `get_document_analytics` includes the counts.
-<!-- /C:analytics -->
 
-<!-- C:exports -->
 ## Export with comments
 
 When you [export a page](/pages/export), turn on **Include comments** to take its threads with it. You can also choose **Export with comments…** in the comments panel's **⋯** menu.
@@ -159,4 +151,3 @@ When you [export a page](/pages/export), turn on **Include comments** to take it
 Turn on **Open threads only** to leave resolved ones out. A thread whose text changed since it was written is listed at the end, with the words it was first about. HTML exports never include comments.
 
 Only people who can see a page's comments can export them: a reader who can't see them gets the page without comments. Deleted messages and threads never leave. An AI app can do the same with [`export_page`](/ai/tools#pages) (`comments`: `footnotes` or `margin`; `format`: `word` for a `.docx`).
-<!-- /C:exports -->
