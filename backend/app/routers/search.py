@@ -71,6 +71,7 @@ async def search_everything(
     limit: int = Query(20, ge=1, le=search.MAX_LIMIT),
     trash: bool = Query(True),
     sid: str | None = Query(None, max_length=40),
+    space: str | None = Query(None, max_length=40, description="all | company | team:<id> | project:<id> (Teams)"),
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
@@ -78,7 +79,11 @@ async def search_everything(
     try:
         query = search.Query(q=q, scope=_scope(scope), kinds=search.parse_kinds(kind), owner=owner,
                              updated=updated, current=_ws_id(current), offset=search.decode_cursor(cursor),
-                             limit=limit, trash=trash)
+                             limit=limit, trash=trash, space=space)
+        if space:
+            from app.services import teams as teams_service
+
+            teams_service.parse_space(space)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     out = await search.run(db, actor, ctx, query)

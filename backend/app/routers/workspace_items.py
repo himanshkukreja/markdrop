@@ -15,7 +15,7 @@
 Every document decision goes through access.can (services/access.py).
 """
 
-from typing import Literal
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.encoders import jsonable_encoder
@@ -91,16 +91,18 @@ class OwnershipTransfer(BaseModel):
 @router.get("/{workspace_id}/tree")
 @limiter.limit("120/minute")
 async def workspace_tree(request: Request, workspace_id: str,
+                         space: Optional[str] = Query(None, max_length=40, description="all | company | team:<id> | project:<id>"),
                          db: AsyncIOMotorDatabase = Depends(get_db),
                          user: User = Depends(require_user)):
     role = await ws_service.require_role(db, workspace_id, user.id, "viewer")
     actor, ctx = _ac(request, db, user)
-    return jsonable_encoder(await items_service.tree(db, actor, ctx, workspace_id, role))
+    return jsonable_encoder(await items_service.tree(db, actor, ctx, workspace_id, role, space=space))
 
 
 @router.get("/{workspace_id}/nav")
 @limiter.limit("120/minute")
 async def workspace_nav(request: Request, workspace_id: str,
+                        space: Optional[str] = Query(None, max_length=40, description="all | company | team:<id> | project:<id>"),
                         db: AsyncIOMotorDatabase = Depends(get_db),
                         user: User = Depends(require_user)):
     """The app rail's outline: every readable top-level item, compact, grouped by folder
@@ -108,7 +110,7 @@ async def workspace_nav(request: Request, workspace_id: str,
     icon_url, renderer, mime, filename}], more: {<folder id>|root: n}}``). Viewer+."""
     await ws_service.require_role(db, workspace_id, user.id, "viewer")
     actor, ctx = _ac(request, db, user)
-    return jsonable_encoder(await items_service.nav(db, actor, ctx, workspace_id))
+    return jsonable_encoder(await items_service.nav(db, actor, ctx, workspace_id, space=space))
 
 
 @router.get("/{workspace_id}/items")
@@ -122,6 +124,7 @@ async def workspace_items(
     file_type: str | None = Query(None, alias="type", pattern=file_types.TYPE_PATTERN),
     cursor: str | None = Query(None, max_length=200),
     limit: int = Query(50, ge=1, le=100),
+    space: Optional[str] = Query(None, max_length=40, description="all (default) | company | team:<id> | project:<id> (Teams)"),
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
@@ -129,7 +132,7 @@ async def workspace_items(
     actor, ctx = _ac(request, db, user)
     return jsonable_encoder(await items_service.items(
         db, actor, ctx, workspace_id, folder=folder, q=q, kind=kind, cursor=cursor, limit=limit,
-        file_type=file_type))
+        file_type=file_type, space=space))
 
 
 @router.post("/{workspace_id}/items/previews")

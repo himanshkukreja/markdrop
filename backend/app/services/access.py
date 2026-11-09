@@ -194,6 +194,8 @@ class Ctx:
     ip: str | None = None
     now: datetime = field(default_factory=now_utc)
     target_workspace: str | None = None
+    # Teams (CONTRACT §3): narrows memory / Ask retrieval to "team:<id>" | "project:<id>" | "company".
+    space: str | None = None
     _ws: dict = field(default_factory=dict, repr=False)
     _roles: dict = field(default_factory=dict, repr=False)
     _grants: dict = field(default_factory=dict, repr=False)

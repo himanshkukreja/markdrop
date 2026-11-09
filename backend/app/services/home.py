@@ -103,7 +103,7 @@ async def actions(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx
     for raw, tasks in zip(rows, all_tasks):
         if not tasks or search_index.title_only(raw):
             continue
-        if not (await access.can(actor, raw, "read", ctx)).allowed:
+        if not await access.discoverable(actor, raw, ctx):
             continue
         can_tick = (await access.can(actor, raw, "edit_content", ctx)).allowed
         if lines is not None and not (raw.get("title") or "").strip():

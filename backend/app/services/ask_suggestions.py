@@ -134,8 +134,11 @@ async def open_to_all_members(db: AsyncIOMotorDatabase, raw: dict | None, ws_id:
         eff = await access.effective_doc(db, raw, ctx)
     except Exception:
         return False
+    from app.services import teams as teams_service
+
+    # A team's item is not every member's (Teams, CONTRACT §2): company-wide items only.
     return (eff.get("workspace_id") == ws_id and (eff.get("access_level") or "link") in VISIBLE
-            and not eff.get("read_password_hash"))
+            and not eff.get("read_password_hash") and teams_service.company_wide(raw))
 
 
 def _line(text: Any, limit: int) -> str:

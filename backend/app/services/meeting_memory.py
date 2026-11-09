@@ -308,7 +308,7 @@ class Readable:
             ok = False
             if row.get("transcript_doc_id") and row.get("transcript_slug"):
                 t = await db["documents"].find_one({"_id": meetings.oid(row["transcript_doc_id"])}, {"content": 0})
-                ok = t is not None and (await access.can(actor, t, "read", ctx)).allowed
+                ok = t is not None and await access.discoverable(actor, t, ctx)
             self._transcripts[mid] = ok
         return self._transcripts[mid]
 
@@ -323,9 +323,15 @@ async def readable_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: 
     dids = [r["doc_id"] for r in rows if isinstance(r.get("doc_id"), ObjectId)]
     docs = {d["_id"]: d for d in await db["documents"].find({"_id": {"$in": dids}}, {"content": 0}).to_list(length=len(dids))}
     ok_rows, ok_pages = {}, {}
+    from app.services import teams as teams_service
+
+    space = teams_service.parse_space(ctx.space) if ctx.space else teams_service.Space()
+    view = await ctx.team_view(workspace_id, actor.user_id) if space.kind != "all" else None
     for r in rows:
         d = docs.get(r.get("doc_id"))
-        if d is None or not (await access.can(actor, d, "read", ctx)).allowed:
+        if d is None or not await access.discoverable(actor, d, ctx):
+            continue
+        if view is not None and not teams_service.in_space(view, space, d):
             continue
         ok_rows[str(r["_id"])] = r
         ok_pages[str(r["_id"])] = d

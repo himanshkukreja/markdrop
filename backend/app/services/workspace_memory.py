@@ -1395,6 +1395,7 @@ class Visible:
     docs: dict[ObjectId, dict]                # doc id → readable doc (no content)
     members: list[dict]
     meetings: dict[str, dict] = field(default_factory=dict)   # meeting id → row (no segments)
+    team_view: Any = None                     # services/teams.TeamView (labels: a line's source team)
 
     def by_subject(self, uid: str) -> list[dict]:
         return [f for f in self.facts if f["subject"] == uid]
@@ -1411,11 +1412,17 @@ async def visible(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx
         for d in await db["documents"].find({"_id": {"$in": dids}}, {"content": 0}).to_list(length=len(dids)):
             if d.get("deleted_at") or d.get("encrypted") or d.get("read_password_hash"):
                 continue
-            if (await access.can(actor, d, "read", ctx)).allowed:
+            # Discovery (Teams, CONTRACT §2): lines from a private team's items only for people who may read it.
+            if await access.discoverable(actor, d, ctx):
                 readable[d["_id"]] = d
+    from app.services import teams as teams_service
+
+    view = await ctx.team_view(workspace_id, actor.user_id)
+    space = teams_service.parse_space(ctx.space) if ctx.space else teams_service.Space()
 
     def ok(f: dict) -> bool:
         return any(s.get("doc_id") in readable and all(a in readable for a in s.get("also") or [])
+                   and teams_service.in_space(view, space, readable[s.get("doc_id")])
                    for s in f.get("sources") or [])
 
     uid = actor.user_id
@@ -1443,7 +1450,9 @@ async def visible(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx
         mrows = {str(r["_id"]): r for r in await db[meetings.COLL].find(
             {"_id": {"$in": [_oid(m) for m in mids if _oid(m)]}},
             {"segments": 0, "notes": 0, "generated": 0}).to_list(length=len(mids))}
-    return Visible(workspace_id, out, hidden_own, readable, members if members is not None else await members_of(db, workspace_id), mrows)
+    vis = Visible(workspace_id, out, hidden_own, readable, members if members is not None else await members_of(db, workspace_id), mrows)
+    vis.team_view = view
+    return vis
 
 
 def _source_view(v: Visible, s: dict) -> dict | None:
@@ -1483,10 +1492,25 @@ def line(v: Visible, f: dict, *, viewer: str | None, projects: dict[str, str] | 
            "project": ({"key": f["project"], "name": (projects or {}).get(f["project"]) or f["project"]}
                        if f.get("project") else None),
            "sources": srcs, "hidden": bool(f.get("hidden")),
+           "teams": _line_teams(v, f),
            "can_correct": own or (admin and f.get("subject_type") == "project"),
            "subject": f["subject"]}
     if own and corr:
         out["original"] = f["text"]
+    return out
+
+
+def _line_teams(v: Visible, f: dict) -> list[dict]:
+    """The teams / projects the line's sources belong to, that the viewer may read (empty: company)."""
+    from app.services import teams as teams_service
+
+    out, seen = [], set()
+    for s in f.get("sources") or []:
+        d = v.docs.get(s.get("doc_id"))
+        for lab in teams_service.labels(v.team_view, d):
+            if lab["id"] not in seen:
+                seen.add(lab["id"])
+                out.append({k: lab[k] for k in ("id", "kind", "name", "color")})
     return out
 
 

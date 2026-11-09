@@ -1254,6 +1254,11 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
     if restricted:
         await set_restricted(db, row, True, actor, ctx)
         row = await db[COLL].find_one({"_id": row["_id"]})
+    # Teams (services/team_routing.py): into its team(s) before anything is summarised or posted.
+    from app.services import team_routing
+
+    if await team_routing.route_new(db, row) is not None:
+        row = await db[COLL].find_one({"_id": row["_id"]})
     if sname and series_from == "auto":
         # The earlier one-off of this name is the same series now.
         await meeting_series.adopt(db, user, workspace_id, skey, sname, skip_id=row["_id"])
@@ -2111,7 +2116,7 @@ async def list_meetings(db: AsyncIOMotorDatabase, workspace_id: str, actor: acce
                         limit: int = 30, q: str | None = None, source: str | None = None,
                         since: str | None = None, until: str | None = None, series: str | None = None,
                         cursor: str | None = None, sort: str = "date_desc", overview: bool = True,
-                        attendees_max: int | None = 5) -> dict:
+                        attendees_max: int | None = 5, space: str | None = None) -> dict:
     """The meetings of a workspace the caller can open, a page at a time (services/meetings_list.py):
     {meetings (cards), next_cursor, total (first page), hidden, folder_id (first page)}. A workspace
     admin also sees restricted meetings they can't open, without their title (so they can delete them).
@@ -2119,12 +2124,14 @@ async def list_meetings(db: AsyncIOMotorDatabase, workspace_id: str, actor: acce
     ``q``: titles, series or attendee names containing it; ``source``: only those that came in that way
     (:data:`SOURCES`); ``since`` / ``until``: only meetings on or after / on or before that date
     (YYYY-MM-DD); ``series``: only that series (any case; "none": meetings without one)."""
-    from app.services import meetings_list
+    from app.services import meetings_list, workspace_items
 
+    sx = await workspace_items.space_extra(actor, ctx, workspace_id, space) if space else None
     return await meetings_list.list_page(
         db, workspace_id, actor, ctx, limit=limit, cursor=cursor, sort=sort, overview=overview,
         attendees_max=attendees_max,
-        filters=meetings_list.Filters(q=q, source=source, since=since, until=until, series=series))
+        filters=meetings_list.Filters(q=q, source=source, since=since, until=until, series=series,
+                                      extra=[sx] if sx else []))
 
 
 # ── Changes ───────────────────────────────────────────────────────────────────

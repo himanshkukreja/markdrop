@@ -394,7 +394,7 @@ async def _transcript_lines(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: 
         return [], None, row
     if not is_transcript:
         t = await db["documents"].find_one({"_id": meetings.oid(row["transcript_doc_id"])}, {"content": 0})
-        if t is None or not (await access.can(actor, t, "read", ctx)).allowed:
+        if t is None or not await access.discoverable(actor, t, ctx):
             return [], None, row
     segs = row.get("segments") or []
     if not segs:
@@ -608,7 +608,7 @@ async def _passages(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.C
 
     async def gate_ok(page_id) -> bool:
         raw = await db["documents"].find_one({"_id": page_id, "deleted_at": None})
-        return raw is not None and (await access.can(actor, raw, "read", ctx)).allowed
+        return raw is not None and await access.discoverable(actor, raw, ctx)
 
     got = await search_chunks.best(db, list(want), terms, per=PASSAGES_PER_ITEM, gate_ok=gate_ok)
     return {want[p]: wins for p, wins in got.items() if p in want}
@@ -745,7 +745,7 @@ async def still_readable(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
     dids = [ObjectId(k[2:]) for k in keys if k.startswith("d:") and ObjectId.is_valid(k[2:])]
     if dids:
         for raw in await db["documents"].find({"_id": {"$in": dids}}, {"content": 0}).to_list(length=len(dids)):
-            if not raw.get("deleted_at") and (await access.can(actor, raw, "read", ctx)).allowed:
+            if not raw.get("deleted_at") and await access.discoverable(actor, raw, ctx):
                 ok.add(f"d:{raw['_id']}")
     # Jira issues (``j:<cloud>:<KEY>``): while the asker's own Atlassian connection still reaches the site.
     clouds = {k.split(":")[1] for k in keys if k.startswith("j:") and k.count(":") == 2}
@@ -1007,7 +1007,7 @@ async def _action_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: ac
         if not tasks:
             continue
         c = search._doc_cand({k: v for k, v in raw.items() if k != "content"}, uid)
-        if not (await access.can(actor, c.raw, "read", ctx)).allowed:
+        if not await access.discoverable(actor, c.raw, ctx):
             continue
         cands.append((c, tasks))
     kept, withheld = await _ai_off(db, [c for c, _ in cands])
@@ -1202,7 +1202,7 @@ async def _page_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
                 {"meeting_id": {"$in": order}, "meeting_role": "page"}, search._DOC_PROJECTION | {"meeting_id": 1}).to_list(length=len(order) * 2)}
             for mid in order:
                 d = rows.get(mid)
-                if d is not None and (await access.can(actor, d, "read", ctx)).allowed:
+                if d is not None and await access.discoverable(actor, d, ctx):
                     c = search._doc_cand(d, uid)
                     mem_cands.append(c)
                     mid_of[c.key] = mid

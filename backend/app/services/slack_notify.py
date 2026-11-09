@@ -98,7 +98,9 @@ async def channel_may_see(db: AsyncIOMotorDatabase, inst: dict, raw: dict | None
     eff = await access.effective_doc(db, raw, ctx)
     from app.services import publicity
 
-    return ((eff.get("access_level") or "link") == "workspace"
+    from app.services import teams as teams_service
+
+    return ((eff.get("access_level") or "link") == "workspace" and teams_service.company_wide(raw)
             and bool(eff.get("workspace_id")) and eff.get("workspace_id") == inst.get("workspace_id")
             and not eff.get("read_password_hash")
             and not publicity.is_expired(raw, ctx.now))

@@ -467,7 +467,7 @@ async def _load(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
     traw = None
     if full.get("transcript_doc_id"):
         t = await db["documents"].find_one({"_id": meetings.oid(full["transcript_doc_id"])}, {"content": 0})
-        if t is not None and not t.get("deleted_at") and (await access.can(actor, t, "read", ctx)).allowed:
+        if t is not None and not t.get("deleted_at") and await access.discoverable(actor, t, ctx):
             traw = t
     segs = full.get("segments") or [] if traw is not None else []
     spoke, lines = _my_lines(segs, ws, you, terms) if segs else (0, [])
@@ -537,7 +537,7 @@ async def recent_work(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
             continue
         if raw.get("meeting_id"):
             continue    # meetings are covered by personal_meetings (an import would flood this list)
-        if not (await access.can(actor, raw, "read", ctx)).allowed:
+        if not await access.discoverable(actor, raw, ctx):
             continue
         acts: dict[str, datetime] = {}
         for t, what in sorted(did[k], key=lambda x: -x[0].timestamp()):

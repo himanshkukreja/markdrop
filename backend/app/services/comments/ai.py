@@ -250,8 +250,12 @@ async def _floor(db, raw: dict) -> str | None:
         return "public"
     eff = await access.effective_doc(db, raw)
     ws = raw.get("workspace_id")
+    from app.services import teams as teams_service
+
     if not ws or eff.get("access_level") not in ("workspace",) or eff.get("read_password_hash"):
         return None
+    if not teams_service.company_wide(raw):
+        return None     # a team's page: a narrower circle than the workspace (Teams)
     if await db["document_grants"].count_documents({"document_id": str(eff.get("_id") or raw["_id"])}, limit=1):
         return None
     return "workspace"
@@ -266,8 +270,10 @@ async def _as_open(db, floor: str | None, page: dict, row: dict) -> bool:
     if floor == "public":
         return await access.anonymous_can_read(db, row)
     eff = await access.effective_doc(db, row)
+    from app.services import teams as teams_service
+
     return (row.get("workspace_id") == page.get("workspace_id") and eff.get("access_level") in ("workspace", "link")
-            and not eff.get("read_password_hash") and not row.get("expires_at"))
+            and not eff.get("read_password_hash") and not row.get("expires_at") and teams_service.company_wide(row))
 
 
 async def page_text(db, raw: dict, floor: str | None, chars: int = PAGE_CHARS) -> str:
