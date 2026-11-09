@@ -6,7 +6,8 @@
 #
 # - Official tarball, no package repo: works on Ubuntu 22.04+/Debian 12+, x86_64 or arm64.
 # - Listens on 127.0.0.1 only, auth on, single-node replica set "rs0" (consistent backups via the oplog).
-# - WiredTiger cache 256 MB (MONGO_CACHE_GB) — the box also runs the API.
+# - WiredTiger cache (MONGO_CACHE_GB): 0.25 GB on a box under ~3.5 GB RAM (today's 2 GB t3.small), 1 GB on
+#   4 GB+ — the box also runs the API. mongod's MemoryHigh/MemoryMax follow the cache (MONGO_MEMORY_HIGH/MAX).
 # - Users: "admin" (root, for backups/restores) and "markdrop" (the app). Passwords are generated once
 #   and kept in /etc/markdrop/mongo.env (root, 600); MARKDROP_MONGODB_URI there is what the app's .env uses.
 # Idempotent: re-running keeps data, keyfile and passwords.
@@ -14,7 +15,12 @@ set -euo pipefail
 
 MONGO_VERSION="${MONGO_VERSION:-8.0.34}"
 TOOLS_VERSION="${TOOLS_VERSION:-100.20.1}"
-CACHE_GB="${MONGO_CACHE_GB:-0.25}"
+MEM_MB=$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo)
+if [ "$MEM_MB" -ge 3500 ]; then CACHE_GB="${MONGO_CACHE_GB:-1}"; else CACHE_GB="${MONGO_CACHE_GB:-0.25}"; fi
+CACHE_MB=$(awk -v g="$CACHE_GB" 'BEGIN{print int(g*1024)}')
+if [ "$CACHE_MB" -le 256 ]; then HIGH=600; MAX=900; else HIGH=$((CACHE_MB + 600)); MAX=$((CACHE_MB + 1000)); fi
+MEM_HIGH="${MONGO_MEMORY_HIGH:-${HIGH}M}"
+MEM_MAX="${MONGO_MEMORY_MAX:-${MAX}M}"
 PY="${MONGO_PY:-/opt/markdrop/backend/.venv/bin/python}"   # pymongo, for rs.initiate/createUser
 CREDS=/etc/markdrop/mongo.env
 
@@ -29,7 +35,9 @@ case "$ID:${VERSION_ID%%.*}" in
 esac
 case "$(uname -m)" in
   x86_64)        SARCH=x86_64;  TARCH=x86_64 ;;
-  aarch64|arm64) SARCH=aarch64; TARCH=arm64 ;;
+  aarch64|arm64) SARCH=aarch64; TARCH=arm64
+                 # MongoDB publishes no Debian arm64 build: the Ubuntu 22.04 one (glibc 2.35, OpenSSL 3) runs there.
+                 [ "$TARGET" = debian12 ] && TARGET=ubuntu2204 ;;
   *) echo "unsupported arch: $(uname -m)"; exit 1 ;;
 esac
 
@@ -92,7 +100,7 @@ operationProfiling:
   slowOpThresholdMs: 200
 EOF
 
-cat > /etc/systemd/system/mongod.service <<'EOF'
+cat > /etc/systemd/system/mongod.service <<EOF
 # Managed by backend/deploy/install-mongo.sh
 [Unit]
 Description=MongoDB (Markdrop)
@@ -106,8 +114,8 @@ Group=mongodb
 ExecStart=/usr/local/bin/mongod --config /etc/mongod.conf
 LimitNOFILE=64000
 LimitNPROC=64000
-MemoryHigh=600M
-MemoryMax=900M
+MemoryHigh=$MEM_HIGH
+MemoryMax=$MEM_MAX
 Restart=always
 RestartSec=3
 TimeoutStopSec=90
@@ -175,4 +183,4 @@ grep -q '^MARKDROP_MONGODB_URI=' "$CREDS" || \
 grep -q '^MONGO_ADMIN_URI=' "$CREDS" || \
   echo "MONGO_ADMIN_URI='mongodb://admin:${MONGO_ADMIN_PASSWORD}@127.0.0.1:27017/?authSource=admin&directConnection=true'" >> "$CREDS"
 chmod 600 "$CREDS"
-echo "✓ mongod $(/usr/local/bin/mongod --version | sed -n 's/^db version //p') on 127.0.0.1:27017 (cache ${CACHE_GB} GB); app URI in $CREDS"
+echo "✓ mongod $(/usr/local/bin/mongod --version | sed -n 's/^db version //p') on 127.0.0.1:27017 (cache ${CACHE_GB} GB, MemoryHigh $MEM_HIGH, MemoryMax $MEM_MAX); app URI in $CREDS"

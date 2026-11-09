@@ -125,19 +125,24 @@ cmd_install() {
   apt-get update -q >/dev/null
   apt-get install -y -q --no-install-recommends \
     nginx redis-server certbot python3-certbot-nginx git curl ca-certificates openssl \
-    ffmpeg python3 python3-venv python3-pip python3-dev build-essential >/dev/null
+    ffmpeg python3 python3-venv python3-pip >/dev/null
   if ! command -v geoipupdate >/dev/null; then
     apt-get install -y -q geoipupdate >/dev/null 2>&1 || warn "geoipupdate not in this distro's repos (Debian: enable contrib) — GeoIP data won't auto-update"
   fi
   ok "nginx $(nginx -v 2>&1 | sed 's/.*\///'), redis $(redis-server --version | sed -n 's/.*v=\([^ ]*\).*/\1/p'), certbot $(certbot --version 2>&1 | awk '{print $2}')"
 
   step "swap + sysctl"
-  local mem_kb; mem_kb=$(awk '/MemTotal/{print $2}' /proc/meminfo)
-  if [ "$mem_kb" -lt 4000000 ] && [ "$(swapon --noheadings | wc -l)" = 0 ]; then
-    fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
+  # Swap by RAM: under 7.5 GB (today's 2 GB box, a 4 GB t4g.medium) 2 GB; up to 16 GB 1 GB; above, none.
+  # It is a cushion for spikes (the API, worker and mongod each have a MemoryMax), not working memory.
+  local mem_mb swap_mb=0; mem_mb=$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo)
+  if [ "$mem_mb" -lt 7500 ]; then swap_mb=2048; elif [ "$mem_mb" -lt 16000 ]; then swap_mb=1024; fi
+  if [ "$swap_mb" -gt 0 ] && [ "$(swapon --noheadings | wc -l)" = 0 ]; then
+    fallocate -l "${swap_mb}M" /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count="$swap_mb" status=none
     chmod 600 /swapfile; mkswap /swapfile >/dev/null; swapon /swapfile
     grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
-    ok "2 GB /swapfile (RAM < 4 GB)"
+    ok "$((swap_mb / 1024)) GB /swapfile for ${mem_mb} MB RAM"
+  else
+    ok "swap: $(swapon --noheadings --show=NAME,SIZE | tr '\n' ' ' | tr -s ' ')(${mem_mb} MB RAM)"
   fi
   install_file "$KIT/99-markdrop-swap.conf" /etc/sysctl.d/99-markdrop-swap.conf
   sysctl -q --system >/dev/null 2>&1 || true
@@ -204,7 +209,13 @@ cmd_install() {
   fi
   [ -x "$VENV/bin/python" ] || sudo -u "$APP_USER" "$py" -m venv "$VENV"
   sudo -u "$APP_USER" "$VENV/bin/pip" install -q --disable-pip-version-check --upgrade pip
-  sudo -u "$APP_USER" "$VENV/bin/pip" install -q --disable-pip-version-check -r "$APP/requirements.txt"
+  # Every pin has a binary wheel for cp312/cp314 on x86_64 and aarch64 (checked 2026-11-09), so no compiler is
+  # needed; should a future pin lack one, install the build tools and retry.
+  if ! sudo -u "$APP_USER" "$VENV/bin/pip" install -q --disable-pip-version-check -r "$APP/requirements.txt"; then
+    warn "pip needs to compile something: installing build-essential + python3-dev and retrying"
+    apt-get install -y -q build-essential python3-dev pkg-config libffi-dev libssl-dev >/dev/null
+    sudo -u "$APP_USER" "$VENV/bin/pip" install -q --disable-pip-version-check -r "$APP/requirements.txt"
+  fi
   ok "Python $("$VENV/bin/python" -V | cut -d' ' -f2) at $VENV"
 
   step "MongoDB"
@@ -241,6 +252,11 @@ EOF
   # (the old server's weekly update has failed since it moved there).
   install_file "$KIT/geoipupdate-markdrop.conf" /etc/systemd/system/geoipupdate.service.d/markdrop.conf
   install -d -m 755 /opt/markdrop/geoip
+  if command -v geoipupdate >/dev/null && ! systemctl cat geoipupdate.timer >/dev/null 2>&1; then
+    # Older packages (Ubuntu 24.04) only ship a cron job that skips itself under systemd.
+    printf '# provision.sh: weekly GeoIP update (this geoipupdate package has no systemd timer)\n47 6 * * 3 root /usr/bin/geoipupdate\n' \
+      > /etc/cron.d/markdrop-geoipupdate
+  fi
   systemctl daemon-reload
   if [ "$(role)" != live ]; then
     systemctl disable -q --now markdrop-worker markdrop markdrop-backup.timer 2>/dev/null || true
@@ -258,6 +274,13 @@ EOF
   systemctl enable -q --now certbot.timer 2>/dev/null || true
   ok "nginx up"
   echo "✓ install done — role $(role)"
+}
+
+nginx_compat() {  # nginx_compat <file> — `http2 on;` needs nginx ≥ 1.25.1 (Ubuntu 24.04 ships 1.24): older → `listen … http2`
+  local v; v=$(nginx -v 2>&1 | sed -n 's#.*nginx/\([0-9.]*\).*#\1#p')
+  if [ "$(printf '%s\n1.25.1\n' "$v" | sort -V | head -1)" != 1.25.1 ]; then
+    sed -i -e '/^\s*http2 on;\s*$/d' -e 's/^\(\s*listen 443 ssl\);/\1 http2;/' "$1"
+  fi
 }
 
 install_nginx() {  # the site + rate-limit confs; a self-signed placeholder while there is no real cert
@@ -278,6 +301,7 @@ install_nginx() {  # the site + rate-limit confs; a self-signed placeholder whil
         "$KIT/nginx/markdrop-api.conf" > "$tmp"
     warn "no Let's Encrypt certificate for $DOMAIN yet: self-signed placeholder (run issue-cert once DNS points here)"
   fi
+  nginx_compat "$tmp"
   install_file "$tmp" "$site"; rm -f "$tmp"
   rm -f /etc/nginx/sites-enabled/default
   if [ ! -L /etc/nginx/sites-enabled/markdrop-api-bridge ]; then
@@ -339,6 +363,7 @@ cmd_bridge() {  # serve every request by forwarding it to <IP> (that server's ng
   fi
   [[ $ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "bridge needs an IPv4 address"
   sed -e "s/__TARGET__/$ip/g" -e "s/__DOMAIN__/$DOMAIN/g" "$KIT/nginx/markdrop-api-bridge.conf" > "$site"
+  nginx_compat "$site"
   ln -sfn "$site" /etc/nginx/sites-enabled/markdrop-api-bridge
   rm -f /etc/nginx/sites-enabled/markdrop-api
   if ! nginx -t -q; then
