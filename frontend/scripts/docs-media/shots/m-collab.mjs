@@ -13,7 +13,22 @@
  * Markdrop's own screens only: no Atlassian logo, colours or interface (Jira shows as Markdrop's chips,
  * cards and lists). Shots that change something make their own page (capture.mjs deletes it next shot).
  */
+import { execFileSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { api, ok } from "./_demo.mjs";
+
+const PY = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../backend/.venv/bin/python");
+/** Notifications about pages earlier shots made (and capture.mjs deleted) leave the bell. */
+function dropOrphanNotes() {
+  const db = Number(process.env.STACK_ID || 0) ? `markdrop_docs_demo_${process.env.STACK_ID}` : "markdrop_docs_demo";
+  execFileSync(PY, ["-c", `import pymongo
+from bson import ObjectId
+c = pymongo.MongoClient("mongodb://127.0.0.1:27019")["${db}"]
+live = {str(d["_id"]) for d in c["documents"].find({}, {"_id": 1})}
+r = c["notifications"].delete_many({"doc_id": {"$nin": list(live)}})
+c["comment_threads"].delete_many({"doc_id": {"$nin": list(live)}})`]);
+}
 
 const OVERVIEW = "/collaboration/overview";
 const COMMENTS = "/collaboration/comments";
@@ -447,6 +462,8 @@ export default [
     url: "/dashboard",
     viewport: { width: 1440, height: 900 },
     prepare: async (h) => {
+      dropOrphanNotes();
+      await h.goto("/dashboard");
       await h.settle(800);
       const bell = h.page.locator('button[title="Notifications"]:visible, [data-testid="rail-inbox"]:visible').first();
       await bell.click();
@@ -471,12 +488,11 @@ export default [
     },
     keepScroll: true,
     crop: async (h) => {
-      const a = await h.page.locator("#email-comment-mentions").boundingBox();
-      const b = await h.page.locator("#comment-digest").boundingBox();
-      const col = await h.page.locator("#email-comment-mentions").locator("xpath=ancestor::div[contains(@class,'rounded')][1]").boundingBox().catch(() => null);
-      const x = col ? col.x : a.x - 24;
-      const w = col ? col.width : 760;
-      return { box: { x, y: a.y - 70, width: w, height: b.y + b.height - a.y + 100 } };
+      const a = await h.page.locator("#email-comment-mentions-label").boundingBox();
+      const sel = await h.page.locator("#email-comment-activity").boundingBox();
+      const b = await h.page.getByText("Daily comments digest", { exact: true }).first().boundingBox();
+      const x = a.x - 24;
+      return { box: { x, y: a.y - 20, width: Math.min(1440 - x, sel.x + sel.width - x + 24), height: b.y + 70 - (a.y - 20) } };
     },
   },
 
@@ -488,8 +504,10 @@ export default [
     kind: "screenshot",
     auth: "owner",
     url: "/dashboard",
-    viewport: { width: 1440, height: 1200 },
+    viewport: { width: 980, height: 1200 },
     prepare: async (h) => {
+      dropOrphanNotes();
+      await h.goto("/dashboard");
       await h.loc('[data-testid="home-comment-waiting"]').first().waitFor({ timeout: 30000 });
       await still(h);
     },
@@ -588,7 +606,7 @@ export default [
       await still(h);
     },
     keepScroll: true,
-    crop: { union: [{ css: 'label:has-text("Signed-in people who can open it")' }, { css: 'label:has-text("Show comments publicly")' }], pad: 18 },
+    crop: { union: [{ css: 'label:has-text("Signed-in people who can open it")' }, { css: 'label:has-text("Show comments publicly")' }], pad: 10 },
   },
   {
     id: "collab-anon-signin",
@@ -605,13 +623,16 @@ export default [
       await h.loc(".pb-paper").waitFor({ timeout: 30000 });
       await h.settle(800);
       await selectText(h, "three waves: our own team first");
-      await h.loc(".mdc-selbtn").waitFor({ timeout: 10000 });
+      await h.page.locator(".mdc-selbtn:visible").first().waitFor({ timeout: 10000 });
       await h.settle(300);
     },
+    keepScroll: true,
     crop: async (h) => {
-      const b = await h.page.locator(".mdc-selbtn").boundingBox();
+      const b = await h.page.locator(".mdc-selbtn:visible").first().boundingBox();
       const p = await h.page.locator(".pb-paper p", { hasText: "three waves" }).first().boundingBox();
-      return { box: { x: p.x - 24, y: Math.min(b.y, p.y) - 30, width: p.width + 48, height: Math.max(b.y + b.height, p.y + p.height) - Math.min(b.y, p.y) + 60 } };
+      const y1 = Math.min(b.y, p.y) - 40, y2 = Math.max(b.y + b.height, p.y + p.height) + 40;
+      const x1 = Math.min(b.x, p.x) - 24, x2 = Math.max(b.x + b.width, p.x + p.width) + 24;
+      return { box: { x: x1, y: y1, width: x2 - x1, height: y2 - y1 } };
     },
   },
 
@@ -658,6 +679,8 @@ export default [
     viewport: { width: 1440, height: 1100 },
     prepare: async (h) => {
       S.slug = await freshPage(h, { title: "Checkout launch plan", content: "Card retries ship with :jira[PAY-1] before the first wave.\n\n::jira{key=PAY-2}\n" });
+      // What an editor's page remembers when they add an issue: its key and title, for readers without Jira.
+      for (const key of ["PAY-1", "PAY-2"]) await ok(h, "POST", `/api/v1/jira/pages/${S.slug}/remember`, { site: "acme.atlassian.net", key });
       await ok(h, "PUT", `/api/v1/documents/${S.slug}/access/level`, { level: "link" });
       await h.goto(`/${S.slug}`);
       await h.loc('[data-testid="jira-card"]').waitFor({ timeout: 30000 });

@@ -90,6 +90,7 @@ async function page(title, content, who = "owner") {
 }
 const plan = await page("Checkout redesign: launch plan", PLAN);
 const pricing = await page("Pricing page refresh", NOTES);
+for (const key of ["PAY-1", "PAY-2"]) ok(await api("POST", `/api/v1/jira/pages/${plan}/remember`, T.owner, { site: "acme.atlassian.net", key }), `remember ${key}`);
 
 const C = (slug) => `/api/v1/documents/${slug}/comments`;
 const text = (exact) => ({ type: "text", quote: { exact } });
@@ -124,6 +125,35 @@ await threadId(plan, "owner", { type: "page" }, "Reads well overall. Let's lock 
 // 5. On the pricing page: Riya asks Alex, assigned to Riya (her Home's action items).
 await threadId(pricing, "member", text("with the annual price first"), "Should monthly come first for new visitors?", { assignee: ID.owner });
 await threadId(pricing, "admin", text("without footnotes"), "Legal asked for one footnote about taxes. @Riya Sharma okay with that?", { mentions: [ID.owner] });
+
+// 6. A settled thread: Sam asked about the help article, Riya answered, Sam resolved it.
+const t6 = await threadId(plan, "admin", text("with screenshots of every step"), "Do we need screenshots for the mobile checkout too?");
+await reply(plan, t6, "owner", "Yes, phone and desktop. Maya has them from the design review.");
+ok(await api("POST", `${C(plan)}/${t6}/resolve`, T.admin), "resolve");
+
+// Spread the discussion over the last few days, as a real one is (insights' first reply and time to resolve).
+mongo(`from datetime import datetime, timedelta, timezone
+now = datetime.now(timezone.utc)
+docs = [d["_id"] for d in c["documents"].find({"slug": {"$in": ["${plan}", "${pricing}"]}}, {"_id": 1})]
+ts = list(c["comment_threads"].find({"doc_id": {"$in": [str(d) for d in docs]}}).sort("created_at", 1))
+starts = [52, 46, 30, 26, 20, 7, 75]
+gaps = [timedelta(hours=3, minutes=10), timedelta(hours=5, minutes=40), timedelta(minutes=50)]
+for i, t in enumerate(ts):
+    start = now - timedelta(hours=starts[i % len(starts)])
+    ms = list(c["comment_messages"].find({"thread_id": t["_id"]}).sort("created_at", 1))
+    at = start
+    for j, m in enumerate(ms):
+        if j:
+            at = at + gaps[(i + j) % len(gaps)]
+        c["comment_messages"].update_one({"_id": m["_id"]}, {"$set": {"created_at": at}})
+    sets = {"created_at": start, "updated_at": at, "last_message_at": at}
+    if t.get("status") == "resolved":
+        sets["resolved_at"] = at + timedelta(minutes=25)
+        sets["updated_at"] = sets["resolved_at"]
+    c["comment_threads"].update_one({"_id": t["_id"]}, {"$set": sets})
+for t in c["comment_threads"].find({"doc_id": {"$in": [str(d) for d in docs]}}):
+    c["notifications"].update_many({"thread_id": str(t["_id"])}, {"$set": {"created_at": t["updated_at"], "first_at": t["created_at"], "email": "sent"}})
+print(len(ts), "threads spread")`);
 
 // Keep everything through capture.mjs's per-shot cleanup.
 mongo(`print(c["documents"].update_many({}, {"$set": {"demo_seed": True}}).modified_count, "documents kept")`);
