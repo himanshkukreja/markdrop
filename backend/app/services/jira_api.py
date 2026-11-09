@@ -27,11 +27,12 @@ TIMEOUT = 12.0
 
 
 class JiraError(Exception):
-    def __init__(self, status: int, reason: str = "", body: Any = None):
+    def __init__(self, status: int, reason: str = "", body: Any = None, retry_after: float | None = None):
         super().__init__(f"{status} {reason}".strip())
         self.status = status
         self.reason = reason
         self.body = body
+        self.retry_after = retry_after     # seconds Jira asked us to wait (a 429's Retry-After)
 
     @property
     def auth(self) -> bool:
@@ -97,7 +98,13 @@ async def _send(method: str, url: str, *, token: str | None = None, body: Any = 
         raise JiraError(0, "network_error") from exc
     if r.status_code >= 400:
         reason, parsed = _reason(r)
-        raise JiraError(r.status_code, reason, parsed)
+        wait = None
+        if r.status_code == 429:
+            try:
+                wait = float(r.headers.get("retry-after") or 0) or None
+            except ValueError:
+                wait = None
+        raise JiraError(r.status_code, reason, parsed, retry_after=wait)
     if r.status_code == 204 or not r.content:
         return None
     try:

@@ -85,6 +85,9 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[LINKS].create_index("fact_id", sparse=True)
     await db[LINKS].create_index("workspace_id")
     await db[VIEWS].create_index("at", expireAfterSeconds=3600)
+    from app.services import jira_pages
+
+    await jira_pages.ensure_indexes(db)
 
 
 # ── Reading an item ───────────────────────────────────────────────────────────
@@ -483,8 +486,9 @@ async def _ensure_block(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
 
 async def create(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, *, slug: str | None = None,
                  block: str | None = None, offset: int | None = None, selection: str | None = None,
-                 fact_id: str | None = None, fields: dict) -> dict:
-    """Create the issue as the person, from the reviewed fields, and link it to the item."""
+                 fact_id: str | None = None, fields: dict, back_url: str | None = None) -> dict:
+    """Create the issue as the person, from the reviewed fields, and link it to the item.
+    ``back_url``: where the issue's "From …" line links (default: the item; a comment thread's own link)."""
     src = await source(db, actor, ctx, slug=slug, block=block, offset=offset, selection=selection, fact_id=fact_id)
     site = await _site_or_409(db, src["workspace_id"])
     await _need_me(db, actor.user_id, site)
@@ -500,7 +504,7 @@ async def create(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
         raise HTTPException(status_code=422, detail="Pick a Jira project.")
     issue_type = str(fields.get("issue_type") or site.get("default_issue_type") or "Task").strip()[:60]
     quote = src["text"] if src["kind"] != "selection" else src["text"][:1500]
-    back_url = (src.get("moment") or {}).get("url") or src.get("url")
+    back_url = back_url or (src.get("moment") or {}).get("url") or src.get("url")
     jf: dict[str, Any] = {
         "project": {"key": project}, "summary": summary, "issuetype": {"name": issue_type},
         "description": adf(str(fields.get("description") or "")[:jira_ai.DESC_MAX], quote, backlink_text(src), back_url),
@@ -643,24 +647,32 @@ async def _seen(db: AsyncIOMotorDatabase, user_id: str, cloud_id: str, asked: li
         await db[VIEWS].update_one({"_id": f"{user_id}:{cloud_id}:{k}"}, {"$set": {"ok": k in visible, "at": now}}, upsert=True)
 
 
-async def viewer_issues(db: AsyncIOMotorDatabase, user_id: str | None, site: dict, keys: list[str]) -> dict[str, dict]:
+async def viewer_issues(db: AsyncIOMotorDatabase, user_id: str | None, site: dict, keys: list[str], *,
+                        ttl: timedelta = VIEW_TTL) -> dict[str, dict]:
     """{key: cached issue} for the keys this viewer's own connection can open (asked of Jira at most
-    every VIEW_TTL per key; details from the cache that webhooks keep fresh). {} when not connected."""
+    every ``ttl`` per key, all stale keys in one search; details from the cache that webhooks keep
+    fresh). {} when not connected."""
     keys = [k for k in dict.fromkeys(keys) if jira.KEY_RE.match(k or "")]
     if not keys or not await jira.can_use(db, user_id, site["cloud_id"]):
         return {}
     cloud = site["cloud_id"]
-    fresh = now_utc() - VIEW_TTL
+    fresh = now_utc() - ttl
     known = {r["_id"].rsplit(":", 1)[1]: r async for r in db[VIEWS].find(
         {"_id": {"$in": [f"{user_id}:{cloud}:{k}" for k in keys]}})}
     stale = [k for k in keys if k not in known or (jira._aware(known[k].get("at")) or fresh) <= fresh]
     ok = {k for k in keys if k in known and known[k].get("ok") and k not in stale}
+    if stale and await jira.busy(db, cloud):
+        # Jira asked us to wait: what this viewer could open last time, from the cache.
+        ok |= {k for k in stale if k in known and known[k].get("ok")}
+        stale = []
     if stale:
         try:
             got = await jira.visible_keys(db, user_id, site, stale)
             await _seen(db, user_id, cloud, stale, set(got))
             ok |= set(got)
-        except (jira_api.JiraError, jira.NotConnected):
+        except (jira_api.JiraError, jira.NotConnected) as exc:
+            if getattr(exc, "status", 0) == 429:
+                await jira.backoff(db, cloud, getattr(exc, "retry_after", None))
             ok |= {k for k in stale if k in known and known[k].get("ok")}
     if not ok:
         return {}
@@ -750,6 +762,10 @@ async def on_page_saved(db: AsyncIOMotorDatabase, before: dict, after: dict, act
     try:
         if not jira.configured() or after.get("encrypted"):
             return
+        # Jira chips, cards and lists in the page (services/jira_pages.py): their snapshots follow the save.
+        from app.services import jira_pages
+
+        await jira_pages.on_page_saved(db, before, after, actor)
         links = await db[LINKS].find({"doc_id": str(after["_id"]), "block": {"$type": "string"}}).to_list(length=500)
         if not links:
             return
@@ -861,11 +877,18 @@ async def handle_webhook(db: AsyncIOMotorDatabase, workspace_id: str, payload: d
     cloud = site["cloud_id"]
     if event == "jira:issue_deleted":
         await db[jira.ISSUES].delete_one({"_id": f"{cloud}:{key}"})
+        from app.services import jira_pages
+
+        await jira_pages.on_issue_changed(db, site.get("url"), key, None)
         await db[LINKS].update_many({"cloud_id": cloud, "key": key}, {"$set": {"sync": {
             "state": "error", "message": f"{key} was deleted in Jira.", "at": now_utc()}}})
         return {"ok": True, "deleted": key}
     shaped = jira.shape_issue(cloud, site.get("url"), issue)
     await jira.store_issues(db, [shaped])
+    # Pages showing it (services/jira_pages.py): the snapshot's title, and a live nudge to re-read.
+    from app.services import jira_pages
+
+    await jira_pages.on_issue_changed(db, site.get("url"), key, shaped)
     done = shaped["status"]["category"] == "done"
     actor_acc = (payload.get("user") or {}).get("accountId")
     moved = 0
