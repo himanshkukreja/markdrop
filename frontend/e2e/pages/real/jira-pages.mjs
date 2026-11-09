@@ -233,12 +233,14 @@ await step("editor", async () => {
   await p.locator('.pb-live [data-testid="jira-inline"][data-key="WEB-2"]').waitFor({ timeout: 10000 });
   // @PAY-3 → its chip.
   await p.keyboard.type(" @PAY-3");
-  await p.locator(".dxe-people [role=option]", { hasText: "PAY-3" }).first().click();
+  await p.locator(".dxe-people [role=option]", { hasText: "PAY-3" }).first().waitFor({ state: "attached", timeout: 8000 });
+  await p.keyboard.press("Enter");
   await p.locator('.pb-live [data-testid="jira-inline"][data-key="PAY-3"]').waitFor({ timeout: 10000 });
   // /Jira list → a project → the live preview.
   await p.keyboard.press("Enter");
-  await p.keyboard.type("/jira list");
-  await p.locator(".dxe-slash [role=option]", { hasText: "Jira list" }).first().click();
+  await p.keyboard.type("/jql");
+  await p.locator(".dxe-slash [role=option]", { hasText: "Jira list" }).first().waitFor({ state: "attached", timeout: 8000 });
+  await p.keyboard.press("Enter");
   const form = p.getByTestId("jira-list-form");
   await form.waitFor({ timeout: 10000 });
   await form.getByTestId("jira-list-value").fill("WEB");
