@@ -43,6 +43,13 @@ async function open(p, slug, tid) {
   await p.goto(`${APP}/${slug}${tid ? `#c-${tid}` : ""}`, { waitUntil: "networkidle" });
   if (tid) await card(p, tid).waitFor({ timeout: 20000 });
 }
+/** The thread's reply composer (open already when the thread is the active one). */
+async function replyBox(p, tid) {
+  const ta = card(p, tid).locator(".mdc-composer textarea").first();
+  if (!(await ta.isVisible().catch(() => false))) await card(p, tid).locator(".mdc-replybtn").click();
+  await ta.waitFor();
+  return ta;
+}
 async function until(fn, what, timeout = 15000) {
   const t0 = Date.now();
   for (;;) {
@@ -125,12 +132,12 @@ await step("files", async () => {
   const t = await thread(slug, "owner", "Screenshot?");
   const { p } = await ctx(browser, { token: T.member });
   await open(p, slug, t.id);
-  await card(p, t.id).getByRole("button", { name: "Reply" }).click();
+  const ta = await replyBox(p, t.id);
   const file = path.join(STACK, `cr-${run}.png`);
   fs.writeFileSync(file, Buffer.from(await pngBytes(browser, "Comment screenshot")));
   await card(p, t.id).locator('[data-testid="comment-file-input"]').setInputFiles(file);
   await card(p, t.id).locator(".cr-draft-file").first().waitFor();
-  await card(p, t.id).locator("textarea").first().fill("Here it is");
+  await ta.fill("Here it is");
   await card(p, t.id).getByRole("button", { name: "Reply", exact: true }).last().click();
   const files = card(p, t.id).locator('[data-testid="comment-files"] img');
   await files.first().waitFor({ timeout: 15000 });
@@ -168,8 +175,7 @@ await step("tone", async () => {
   const t = await thread(slug, "owner", "Thoughts?");
   const { p } = await ctx(browser, { token: T.member });
   await open(p, slug, t.id);
-  await card(p, t.id).getByRole("button", { name: "Reply" }).click();
-  await card(p, t.id).locator("textarea").first().fill("This is STUPID and lazy!!!");
+  await (await replyBox(p, t.id)).fill("This is STUPID and lazy!!!");
   await card(p, t.id).getByRole("button", { name: "Reply", exact: true }).last().click();
   const dlg = p.getByRole("dialog", { name: "Before you post" });
   await dlg.waitFor({ timeout: 15000 });
@@ -208,7 +214,7 @@ await step("signoff", async () => {
   const { p } = await ctx(browser, { token: T.member });
   await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
   const so = p.locator(".pb-signoff").first();
-  await so.getByRole("button", { name: "Approved" }).click();
+  await so.getByRole("button", { name: "Approved", exact: true }).click();
   const confirm = so.locator(".pb-signoff__confirm");
   await confirm.waitFor();
   if (!(await confirm.innerText()).includes("1 comment thread is still open")) fail(`no warning: ${await confirm.innerText()}`);
