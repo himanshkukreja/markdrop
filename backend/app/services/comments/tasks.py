@@ -33,10 +33,16 @@ async def _visible(db, actor, ctx, rows: list[dict]) -> tuple[dict[str, dict], d
     ok: dict[str, dict] = {}
     perms: dict[str, object] = {}
     for i, d in docs.items():
-        p = await perms_mod.perms_for(db, actor, d, ctx)
-        if p.view and p.comment:
-            ok[i] = d
-            perms[i] = p
+        # The cheap part of perms.perms_for (no edit / settings checks): eligible, switched on, readable.
+        if not actor.user_id or not perms_mod.eligible(d) or d.get("comments_off") is True:
+            continue
+        if not (await access.can(actor, d, "read", ctx)).allowed:
+            continue
+        f = await access.facts(actor, d, ctx)
+        if f.ws is not None and getattr(f.ws.settings, "comments_enabled", True) is False:
+            continue
+        ok[i] = d
+        perms[i] = True
     return ok, perms
 
 
@@ -165,8 +171,8 @@ async def team_for_viewer(db, actor, ctx, workspace_id: str) -> dict[str, list[d
     for uid, ts in by_user.items():
         for t in ts:
             d = docs.get(t["doc_id"])
-            if d is None:
-                continue
+            if d is None or d.get("workspace_id") != workspace_id:
+                continue  # unreadable, or moved to another workspace since
             a = t.get("anchor") or {}
             out.setdefault(uid, []).append({
                 "thread_id": str(t["_id"]), "slug": d["slug"], "title": md_outline.display_title(d),

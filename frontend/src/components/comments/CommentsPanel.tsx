@@ -225,28 +225,3 @@ export function CommentsPanel() {
     </aside>
   );
 }
-
-/** The top bar's button: the open count, opens / closes the panel. */
-export function CommentsButton({ className }: { className?: string }) {
-  const c = useComments();
-  if (!c || !c.enabled || (!c.perms.view && !c.user && !c.isPublic)) {
-    // Anonymous readers of private comments get a quiet "sign in" entry only when comments are on.
-    if (c && c.enabled && !c.user) {
-      return (
-        <a className={`mdc-topbtn ${className ?? ""}`} href={c.signInHref} title="Sign in to comment" aria-label="Sign in to comment">
-          <Icon name="message" />
-        </a>
-      );
-    }
-    return null;
-  }
-  const n = c.counts.open;
-  return (
-    <button type="button" className={`mdc-topbtn${c.panelOpen ? " is-on" : ""} ${className ?? ""}`}
-      aria-pressed={c.panelOpen} aria-label={`Comments${n ? `, ${n} open` : ""}`} title="Comments"
-      onClick={() => (c.panelOpen ? c.closePanel() : c.openPanel())}>
-      <Icon name="message" />
-      {n > 0 && <span className="mdc-topbtn__n">{n}</span>}
-    </button>
-  );
-}

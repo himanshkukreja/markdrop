@@ -85,8 +85,20 @@ async function openPage(p, slug) {
   await p.waitForTimeout(600);
 }
 
+/** Selects `text` and waits for the "Comment" button (it shows once the page knows this reader may comment). */
+async function selectForComment(p, text) {
+  for (let i = 0; i < 3; i++) {
+    await selectText(p, text);
+    try {
+      await p.locator(".mdc-selbtn").waitFor({ state: "visible", timeout: 5000 });
+      return;
+    } catch { /* select again: the first selection can land before the page is ready */ }
+  }
+  await p.locator(".mdc-selbtn").waitFor({ state: "visible", timeout: 5000 });
+}
+
 async function comment(p, text, body, { mention = null } = {}) {
-  await selectText(p, text);
+  await selectForComment(p, text);
   await p.locator(".mdc-selbtn").click();
   const box = panel(p).locator(".mdc-draft textarea");
   await box.waitFor({ timeout: 8000 });
@@ -242,6 +254,16 @@ await step("editor", async () => {
     return document.querySelectorAll(".mdc-box").length > 0;
   }, null, { timeout: 15000 });
   await shot(p, "comments-editor-highlight");
+  // The block menu's "Comment".
+  await p.locator(".pb-live .ProseMirror p", { hasText: "Rollout happens" }).first().hover();
+  await p.locator(".dxe-handle__grip").first().click({ timeout: 8000 });
+  await p.locator(".dxe-blockmenu").getByText("Comment", { exact: true }).click({ timeout: 8000 });
+  const box = panel(p).locator(".mdc-draft textarea");
+  await box.waitFor({ timeout: 8000 });
+  await box.type("From the block menu");
+  await panel(p).locator(".mdc-draft button:has-text('Comment')").click();
+  await p.locator("article.mdc-thread", { hasText: "From the block menu" }).waitFor({ timeout: 8000 });
+  if (!(await p.locator("article.mdc-thread", { hasText: "From the block menu" }).innerText()).includes("Rollout happens")) fail("block menu comment not on its block");
 });
 
 await step("mobile", async () => {
@@ -265,11 +287,30 @@ await step("markdown", async () => {
   await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
   await p.waitForTimeout(800);
   await selectText(p, "a sentence to discuss", "main");
+  await p.locator(".mdc-selbtn").waitFor({ state: "visible", timeout: 10000 });
   await p.locator(".mdc-selbtn").click();
   await panel(p).locator(".mdc-draft textarea").fill("Which sentence?");
   await panel(p).locator(".mdc-draft button:has-text('Comment')").click();
   await threads(p).first().waitFor({ timeout: 8000 });
   await shot(p, "comments-markdown-doc");
+});
+
+await step("shots", async () => {
+  const slug = await newPage(`Shots ${run}`);
+  const { p } = await ctx(browser, { token: T.member });
+  await openPage(p, slug);
+  await selectForComment(p, "final review with the design team");
+  await shot(p, "comments-selection-button");
+  await p.evaluate(() => window.getSelection()?.removeAllRanges());
+  await p.locator(".pb-paper p", { hasText: "Rollout happens" }).first().hover();
+  await p.locator(".mdc-blockbtn").waitFor({ timeout: 8000 });
+  await shot(p, "comments-block-button");
+  // The owner's switches in Share.
+  const { p: o } = await ctx(browser, { token: T.owner });
+  await openPage(o, slug);
+  await o.getByRole("button", { name: /^Share/ }).first().click();
+  await o.getByText("Show comments publicly").waitFor({ timeout: 10000 });
+  await shot(o, "comments-share-switches");
 });
 
 await step("dark", async () => {

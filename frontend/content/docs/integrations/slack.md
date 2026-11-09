@@ -176,7 +176,7 @@ Markdrop can send you a direct message in Slack, from the Markdrop app, when:
 - someone **mentions** you on a page (**Mentions**), with the line you were mentioned in and **Open in Markdrop**. Mentions in [meeting notes](/workspaces/meetings#what-the-meeting-page-holds) don't send one;
 - someone asks for your **sign-off** (**Sign-off requests**). Choose an option from the message;
 - someone **shares** something with you (**Shared with you**), with what you can do with it and their note;
-- someone **mentions you in a comment** (**Mentions in comments**) or **assigns you a comment thread** (**Comments assigned to you**). Select **Reply** to answer in a box right in Slack (posted as you), or **Resolve** to resolve the thread if you started it or can edit the page. See [Comments](/pages/comments#push-and-slack);
+- someone **mentions you in a comment** (**Mentions in comments**) or **assigns you a comment thread** (**Comments assigned to you**). Select **Reply** to answer in a box right in Slack (posted as you), or **Resolve** to resolve the thread if you started it, it's assigned to you, or you can edit the page. See [Comments](/pages/comments#push-and-slack);
 - someone asks to **open or edit** something you own (**Access requests**). Select **Approve** or **Decline**, or **Review in Markdrop**. When the item's owner can't approve it, the workspace's admins get the message, marked "You're getting this as a workspace admin".
 
 After you choose, the message changes to say what you did, like "Approved by you: they can edit it now." If someone else answered first, Slack tells you.

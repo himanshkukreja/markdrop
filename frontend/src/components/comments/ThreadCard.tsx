@@ -117,7 +117,7 @@ function MessageView({ ctx, thread, m, first }: { ctx: CommentsCtx; thread: Thre
         )}
       </div>
       {editing ? (
-        <Composer ctx={ctx} threadId={thread.id} autoFocus compact submitLabel="Save" initial={{ body: m.body, mentions: m.mentions.map((p) => p.id!).filter(Boolean) }}
+        <Composer ctx={ctx} threadId={thread.id} autoFocus compact editing submitLabel="Save" initial={{ body: m.body, mentions: m.mentions.map((p) => p.id!).filter(Boolean) }}
           onCancel={() => setEditing(false)}
           onSubmit={async (d) => { await ctx.edit(thread.id, m.id, d.body, d.mentions); setEditing(false); }} />
       ) : m.deleted ? (
