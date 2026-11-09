@@ -62,7 +62,8 @@ MAX_INLINE_ONE = 8 * 1024 * 1024
 MAX_IMAGES_PER_PAGE = page_assets.MAX_PER_PAGE
 TOKEN_TTL = 600
 TOKEN_PURPOSE = "page-export"
-FORMATS = ("md", "html", "zip")
+FORMATS = ("md", "html", "zip", "docx")
+COMMENT_STYLES = ("footnotes", "margin")   # services/comments/export.py (Track C)
 
 KATEX = "https://cdn.jsdelivr.net/npm/katex@0.16.22/dist"
 MERMAID = "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs"
@@ -1231,6 +1232,7 @@ class PagePlan:
     pc: PageCtx
     folder: str               # inside the zip ("" for the single-file formats)
     images: list[Image]
+    comments: list | None = None   # comment threads to include (services/comments/export.ExportThread), in order
 
 
 @dataclass
@@ -1241,6 +1243,7 @@ class ExportPlan:
     pages: list[PagePlan]
     notes: list[str]
     image_bytes: int = 0
+    comment_style: str | None = None   # footnotes | margin (Word); Markdown always gets an appendix
 
 
 async def _resolve(db, person: access.Actor, ctx: access.Ctx, content: str) -> dict[str, dict]:
@@ -1301,11 +1304,17 @@ def _unique(name: str, taken: set[str]) -> str:
 
 
 async def plan(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, person: access.Actor,
-               ctx: access.Ctx, *, fmt: str, subpages: bool) -> ExportPlan:
+               ctx: access.Ctx, *, fmt: str, subpages: bool, comments: str | None = None,
+               comment_status: str = "all") -> ExportPlan:
     """What the export holds. ``actor`` reads the page (with its password / edit
-    secret); ``person`` is who is asking, for embedded items and sub-pages."""
+    secret); ``person`` is who is asking, for embedded items and sub-pages.
+    ``comments``: footnotes | margin to include the comment threads (Markdown: an
+    appendix; Word: footnotes or margin comments; HTML: none), ``comment_status``:
+    open | all."""
     if fmt not in FORMATS:
-        raise ExportError(422, "format must be md, html or zip.", "bad_format")
+        raise ExportError(422, "format must be md, html, zip or docx.", "bad_format")
+    if fmt == "docx" and subpages:
+        raise ExportError(422, "Word export is one page at a time: export it without its sub-pages.", "bad_format")
     as_zip = subpages or fmt == "zip"
     mode = "zip" if as_zip else "single"
     notes: list[str] = []
@@ -1343,7 +1352,17 @@ async def plan(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, person:
         if skipped:
             notes.append(f"{skipped} sub-page{'s' if skipped != 1 else ''} couldn't be exported (encrypted, "
                          f"or exporting turned off) and {'were' if skipped != 1 else 'was'} left out.")
-    p = ExportPlan(fmt="html" if fmt == "html" else "md", zip=as_zip, root_name=root_name, pages=plans, notes=notes)
+    if comments in COMMENT_STYLES and fmt != "html":
+        from app.services.comments import export as comment_export
+
+        for pp in plans:
+            pp.comments = await comment_export.collect(db, actor, pp.raw, ctx,
+                                                       status="open" if comment_status == "open" else "all")
+        if plans[0].comments is None:
+            notes.append(comment_export.NOT_ALLOWED_NOTE)
+    p = ExportPlan(fmt="html" if fmt == "html" else "docx" if fmt == "docx" else "md", zip=as_zip,
+                   root_name=root_name, pages=plans, notes=notes,
+                   comment_style=comments if comments in COMMENT_STYLES else None)
     _link(p)
     _name_images(p)
     return p
@@ -1408,7 +1427,20 @@ async def inline_images(pp: PagePlan) -> None:
 def render(pp: PagePlan, fmt: str) -> str:
     if fmt == "html":
         return html_document(to_html_body(pp.content, pp.pc), pp.pc)
-    return to_markdown(pp.content, pp.pc)
+    out = to_markdown(pp.content, pp.pc)
+    if pp.comments:
+        from app.services.comments import export as comment_export
+
+        out = out.rstrip("\n") + "\n\n" + comment_export.markdown_appendix(pp.comments)
+    return out
+
+
+def render_docx(pp: PagePlan, style: str | None = None) -> bytes:
+    """The page as a Word document (with its comments as margin comments or footnotes)."""
+    from app.services.comments import export as comment_export
+
+    return comment_export.to_docx(to_markdown(pp.content, pp.pc), title=pp.pc.title, url=pp.pc.url,
+                                  threads=pp.comments, style=style or "margin")
 
 
 # ── The zip ───────────────────────────────────────────────────────────────────
@@ -1478,7 +1510,7 @@ def zip_texts(p: ExportPlan) -> dict[str, str]:
 def filename(p: ExportPlan) -> str:
     if p.zip:
         return f"{p.root_name}.zip"
-    return f"{p.root_name}.{'html' if p.fmt == 'html' else 'md'}"
+    return f"{p.root_name}.{'html' if p.fmt == 'html' else 'docx' if p.fmt == 'docx' else 'md'}"
 
 
 # ── Links for AI apps (MCP): a short-lived signed download ───────────────────
@@ -1488,12 +1520,15 @@ def _key() -> str:
     return "page-export|" + get_settings().auth_secret
 
 
-def sign(slug: str, user_id: str, fmt: str, subpages: bool) -> tuple[str, int]:
+def sign(slug: str, user_id: str, fmt: str, subpages: bool, *, comments: str | None = None,
+         comment_status: str = "all") -> tuple[str, int]:
     from app.services import docs_site_access
 
     exp = int(time.time()) + TOKEN_TTL
-    return docs_site_access.sign(TOKEN_PURPOSE, {"s": slug, "u": user_id, "f": fmt, "sp": int(bool(subpages)),
-                                                 "exp": exp}, _key()), exp
+    data = {"s": slug, "u": user_id, "f": fmt, "sp": int(bool(subpages)), "exp": exp}
+    if comments in COMMENT_STYLES:
+        data.update(c=comments, cs="open" if comment_status == "open" else "all")
+    return docs_site_access.sign(TOKEN_PURPOSE, data, _key()), exp
 
 
 def redeem(slug: str, token: str) -> dict | None:

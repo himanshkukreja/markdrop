@@ -1563,6 +1563,14 @@ async def get_document_analytics(ctx: Context, args: dict) -> tuple[str, dict]:
         lines.append(f"Most views came from {top['channel']} ({_n(top['views'])}).")
     # The kind-specific sentences above already say where people leave.
     said = {"media_drop", "section_drop", "page_drop"}
+    # Comments (services/comments/analytics.py): counts for an item that can have them, else None.
+    from app.services.comments import analytics as comment_analytics
+
+    out["comments"] = await comment_analytics.mcp_summary(db, raw)
+    if out["comments"] and (out["comments"]["open"] or out["comments"]["resolved"]):
+        c = out["comments"]
+        lines.append(f"Comments: {c['open']} open and {c['resolved']} resolved thread"
+                     f"{'s' if c['open'] + c['resolved'] != 1 else ''}.")
     for i, plain in zip(ov["insights"][:4], out["insights"]):
         if len(lines) >= 6:
             break
@@ -2851,6 +2859,13 @@ TOOLS: list[Tool] = [
                 "reach": {"type": "array", "items": _out({"page": {"type": "integer"}, "pct": {"type": "number"}})},
                 "biggest_drop": {"type": ["object", "null"], "properties": {
                     "after_page": {"type": "integer"}, "delta": {"type": "number"}}},
+            }},
+            "comments": {"type": ["object", "null"], "description": (
+                "Pages and Markdown documents: comment threads (comment_insights has more)."), "properties": {
+                "open": {"type": "integer"}, "resolved": {"type": "integer"}, "messages": {"type": "integer"},
+                "median_first_reply_s": {"type": ["number", "null"]}, "waiting_for_reply": {"type": "integer"},
+                "top_sections": {"type": "array", "items": _out({"title": {"type": "string"},
+                                                                  "threads": {"type": "integer"}})},
             }},
         }),
         annotations=_ann(True, False, True),

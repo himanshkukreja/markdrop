@@ -1,6 +1,6 @@
 """Export a page (services/page_export.py).
 
-    GET /api/v1/documents/{slug}/export?format=md|html|zip&subpages=0|1
+    GET /api/v1/documents/{slug}/export?format=md|html|zip|docx&subpages=0|1&comments=footnotes|margin&comment_status=open|all
         The page as portable Markdown (.md), one self-contained HTML file (.html), or a .zip
         (page.md + images/, and a folder per sub-page with ``subpages=1``; ``format=html`` with
         ``subpages=1`` zips HTML pages). can(read), then editors always, readers unless the page
@@ -30,7 +30,8 @@ _HEADERS = {
     # An exported HTML page never runs as part of the API's origin.
     "Content-Security-Policy": "sandbox; default-src 'none'",
 }
-_TYPES = {"md": "text/markdown; charset=utf-8", "html": "text/html; charset=utf-8"}
+_TYPES = {"md": "text/markdown; charset=utf-8", "html": "text/html; charset=utf-8",
+          "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
 
 
 def get_db() -> AsyncIOMotorDatabase:
@@ -38,12 +39,19 @@ def get_db() -> AsyncIOMotorDatabase:
 
 
 async def respond(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, person: access.Actor,
-                  ctx: access.Ctx, fmt: str, subpages: bool):
-    p = await export.plan(db, raw, actor, person, ctx, fmt=fmt, subpages=subpages)
+                  ctx: access.Ctx, fmt: str, subpages: bool, comments: str | None = None,
+                  comment_status: str = "all"):
+    p = await export.plan(db, raw, actor, person, ctx, fmt=fmt, subpages=subpages, comments=comments,
+                          comment_status=comment_status)
     name = export.filename(p)
     headers = {**_HEADERS, "Content-Disposition": export.content_disposition(name)}
     if p.notes:
         headers["X-Markdrop-Export-Notes"] = str(len(p.notes))
+    if p.comment_style or comments:
+        root = p.pages[0]
+        headers["X-Markdrop-Export-Comments"] = str(len(root.comments)) if root.comments is not None else "none"
+    if p.fmt == "docx":
+        return Response(export.render_docx(p.pages[0], p.comment_style), media_type=_TYPES["docx"], headers=headers)
     if not p.zip:
         root = p.pages[0]
         if p.fmt == "html":
@@ -59,8 +67,12 @@ async def respond(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, pers
 async def export_page(
     request: Request,
     slug: str,
-    format: str = Query("md", pattern="^(md|html|zip)$"),
+    format: str = Query("md", pattern="^(md|html|zip|docx)$"),
     subpages: bool = Query(False),
+    comments: str | None = Query(None, pattern="^(none|footnotes|margin)$",
+                                 description="Include the comment threads: footnotes or margin (Word), "
+                                             "an appendix in Markdown. Only for people who can see them."),
+    comment_status: str = Query("all", pattern="^(open|all)$"),
     db: AsyncIOMotorDatabase = Depends(get_db),
     x_read_password: str | None = Header(None),
     x_edit_secret: str | None = Header(None),
@@ -77,7 +89,8 @@ async def export_page(
     await export.check_allowed(actor, raw, ctx)
     # Embedded items are resolved for the person (not with this page's password or secret).
     person = access.actor_from_request(request, user)
-    return await respond(db, raw, actor, person, ctx, format, subpages)
+    return await respond(db, raw, actor, person, ctx, format, subpages,
+                         comments=None if comments in (None, "none") else comments, comment_status=comment_status)
 
 
 def _wants_page(request: Request) -> bool:
@@ -142,4 +155,5 @@ async def _export_download(slug: str, token: str, db: AsyncIOMotorDatabase):
     if not (await access.can(actor, raw, "read", ctx)).allowed:
         raise gone
     await export.check_allowed(actor, raw, ctx)
-    return await respond(db, raw, actor, actor, ctx, data["f"], bool(data.get("sp")))
+    return await respond(db, raw, actor, actor, ctx, data["f"], bool(data.get("sp")), comments=data.get("c"),
+                         comment_status=data.get("cs") or "all")
