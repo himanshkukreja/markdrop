@@ -312,6 +312,10 @@ async function settle(p, max = 6000) {
     function fin() { mo.disconnect(); clearTimeout(hard); done(); }
     mo.observe(document.body, { subtree: true, childList: true, characterData: true });
   }), max).catch(() => {});
+  // …and done loading: no loader, skeleton or busy region left on screen (WebKit paints them longer).
+  await p.waitForFunction(() => ![...document.querySelectorAll('.md-loader, .md-skeleton, [aria-busy="true"]')]
+    .some((e) => e.getClientRects().length && getComputedStyle(e).visibility !== "hidden"), null, { timeout: 15000 }).catch(() => {});
+  await p.waitForTimeout(200);
 }
 
 async function flipTheme(p, theme) {

@@ -183,6 +183,8 @@ export function measureOverflow({ tol = 1.5, max = 60 } = {}) {
     if (!rects.length) continue;
     const left = Math.min(...rects.map((r) => r.left)), right = Math.max(...rects.map((r) => r.right));
     if (c.clipper) {
+      // A moving part (a loading bar sliding through its track, a marquee) is cut on purpose.
+      if (el.getAnimations?.().some((a) => a.playState === "running")) continue;
       // Sliced off by a clipping block: part of the chip / button shows, the rest is gone.
       const k = inner(c.clipper);
       const shown = rects.filter((r) => r.bottom > k.top + 1 && r.top < k.bottom - 1);
