@@ -88,6 +88,16 @@ class Rule(TeamsWorld):
         self.assertNotIn(self.c_w["slug"], got)
         self.assertFalse(await self.searched("wv", space=f"team:{self.sales}") - {None})
 
+    async def test_comments_follow_the_team(self):
+        url = f"/api/v1/documents/{self.s_w['slug']}/comments"
+        r = await self.http.post(url, headers=self.session("wm"), json={"anchor": {"type": "page"}, "body": "Sales only"})
+        self.assertEqual(r.status_code, 201, r.text)
+        for who in ("wv", "ownv"):
+            self.assertIn((await self.http.get(url, headers=self.session(who))).status_code, (401, 403, 404), who)
+            r = await self.http.post(url, headers=self.session(who), json={"anchor": {"type": "page"}, "body": "x"})
+            self.assertIn(r.status_code, (401, 403, 404), who)
+        self.assertEqual((await self.http.get(url, headers=self.session("wa"))).status_code, 200)
+
     async def test_mcp_search_and_items(self):
         token = await self.mcp_token("wv", write=False)
         _s, res = await self.mcp_call(token, "search", {"query": "Title"})
