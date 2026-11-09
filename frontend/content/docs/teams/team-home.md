@@ -1,6 +1,6 @@
 ---
 title: A team's home
-description: A team's home: its weekly brief, recent pages, meetings, who's doing what, Jira projects and members. Leads edit or hide any line of the brief.
+description: "A team's home: its weekly brief, recent pages, meetings, who's doing what, Jira projects and members. Leads edit or hide any line of the brief."
 updated: 2026-11-10
 nav: Team home
 keywords: [team home, weekly brief, team brief, edit brief, hide line, recent pages, team meetings, team memory, members, jira projects, private team, brief only]

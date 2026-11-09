@@ -65,7 +65,7 @@ export default [
     crop: async (h) => {
       const b = await h.page.locator(`aside[data-rail="full"] [data-rail-key="ws:${h.fx.workspace.id}:root"]`).first().boundingBox();
       const end = await h.page.locator(`aside[data-rail="full"] [data-rail-key="ws:${h.fx.workspace.id}:browse"]`).first().boundingBox();
-      return { box: { x: 0, y: b.y - 12, width: 248, height: end.y + end.height - b.y + 24 } };
+      return { box: { x: 0, y: b.y - 4, width: 248, height: end.y + end.height - b.y + 16 } };
     },
   },
 
@@ -96,10 +96,10 @@ export default [
       await h.hover(line);
       await h.sleep(500);
       await h.click(line.getByRole("button", { name: "Edit line" }));
-      const box = line.getByRole("textbox", { name: "Line text" });
+      const box = h.page.getByRole("textbox", { name: "Line text" });
       await box.fill("");
       await h.type(box, "The enterprise demo workspace needs SSO: Engineering ships it Thursday.", { speed: 2.4 });
-      await h.click(line.getByRole("button", { name: "Save" }));
+      await h.click(h.page.locator(".tz-brief__line form").getByRole("button", { name: "Save" }));
       await h.sleep(900);
       const other = h.page.locator(".tz-brief__line", { hasText: "Brief the top 20" }).first();
       await h.hover(other);

@@ -1,6 +1,6 @@
 ---
 title: Teams
-description: Give Sales, Marketing and Engineering their own space in one workspace: their own pages, meetings, memory and Ask, connected by briefs and projects.
+description: "Give Sales, Marketing and Engineering their own space in one workspace: their own pages, meetings, memory and Ask, connected by briefs and projects."
 updated: 2026-11-10
 nav: Overview
 keywords: [teams, team spaces, teamspaces, departments, sales team, marketing team, engineering team, private team, open team, separate spaces, same workspace, team pages, team meetings, team memory, ask team, weekly brief, cross-team projects, sidebar]
@@ -40,7 +40,7 @@ Open a workspace in the sidebar and you see two parts:
 - **Company**: **Home** (your teams' briefs, company pages and meetings), **Pages** (company-wide pages and folders), **Meetings** and **People**.
 - **Your teams**: each team you're in opens to its **Home**, **Pages**, **Meetings**, **Memory** and **Ask** *team*, with its projects under it. **Browse teams** lists every team in the workspace.
 
-![The sidebar of the Acme workspace: Company with Home, Pages, Meetings and People, then Your teams with Sales open (Home, Pages, Meetings, Memory, Ask Sales, Q4 launch), Marketing and Engineering, and Browse teams.](/docs-assets/teams/overview/sidebar.webp)
+![The sidebar of the Acme workspace: Company with Home, Pages, Meetings and People, then Your teams with Marketing and Sales open (Home, Pages, Meetings, Memory, Ask Sales, Q4 launch), and Browse teams.](/docs-assets/teams/overview/sidebar.webp)
 
 On a phone the same tree is in the menu.
 

@@ -3219,6 +3219,26 @@
     "bytes": 37396,
     "kind": "image"
   },
+  "/docs-assets/teams/ask-and-search/ask-toggle.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 8.1,
+    "bytes": 94945,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/ask-and-search/ask-toggle.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 8.1,
+    "bytes": 140106,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/ask-and-search/ask-toggle.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 50848,
+    "kind": "poster"
+  },
   "/docs-assets/teams/ask-and-search/search-filter.dark.webp": {
     "w": 2384,
     "h": 1200,
@@ -3228,7 +3248,7 @@
   "/docs-assets/teams/ask-and-search/search-filter.webp": {
     "w": 2384,
     "h": 1200,
-    "bytes": 72816,
+    "bytes": 72866,
     "kind": "image"
   },
   "/docs-assets/teams/create-and-manage/browse.dark.webp": {
@@ -3242,6 +3262,26 @@
     "h": 1240,
     "bytes": 45754,
     "kind": "image"
+  },
+  "/docs-assets/teams/create-and-manage/create-flow.mp4": {
+    "w": 1440,
+    "h": 968,
+    "duration": 13.23,
+    "bytes": 316576,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/create-and-manage/create-flow.webm": {
+    "w": 1440,
+    "h": 968,
+    "duration": 13.23,
+    "bytes": 368759,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/create-and-manage/create-flow.webp": {
+    "w": 1440,
+    "h": 968,
+    "bytes": 54214,
+    "kind": "poster"
   },
   "/docs-assets/teams/create-and-manage/private-settings.dark.webp": {
     "w": 1568,
@@ -3257,38 +3297,110 @@
   },
   "/docs-assets/teams/meetings-and-memory/import-teams.dark.webp": {
     "w": 1280,
-    "h": 1908,
-    "bytes": 85088,
+    "h": 1936,
+    "bytes": 85440,
     "kind": "image"
   },
   "/docs-assets/teams/meetings-and-memory/import-teams.webp": {
     "w": 1280,
-    "h": 1908,
-    "bytes": 89226,
+    "h": 1936,
+    "bytes": 89650,
     "kind": "image"
   },
   "/docs-assets/teams/meetings-and-memory/team-meetings.dark.webp": {
     "w": 2384,
     "h": 1120,
-    "bytes": 64640,
+    "bytes": 64382,
     "kind": "image"
   },
   "/docs-assets/teams/meetings-and-memory/team-meetings.webp": {
     "w": 2384,
     "h": 1120,
-    "bytes": 66594,
+    "bytes": 66818,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/cover-ask.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 23650,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/cover-ask.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 23360,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/cover-home.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 27904,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/cover-home.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 28132,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/cover-manage.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 24700,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/cover-manage.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 25416,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/cover-meetings.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 21240,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/cover-meetings.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 21528,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/cover-setup.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 26480,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/cover-setup.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 26378,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/cover-share.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 16058,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/cover-share.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 15886,
     "kind": "image"
   },
   "/docs-assets/teams/overview/hero.dark.webp": {
     "w": 2880,
     "h": 1560,
-    "bytes": 149406,
+    "bytes": 138046,
     "kind": "image"
   },
   "/docs-assets/teams/overview/hero.webp": {
     "w": 2880,
     "h": 1560,
-    "bytes": 149146,
+    "bytes": 139416,
     "kind": "image"
   },
   "/docs-assets/teams/overview/phone.dark.webp": {
@@ -3305,26 +3417,26 @@
   },
   "/docs-assets/teams/overview/sidebar.dark.webp": {
     "w": 496,
-    "h": 1196,
-    "bytes": 21366,
+    "h": 1120,
+    "bytes": 19118,
     "kind": "image"
   },
   "/docs-assets/teams/overview/sidebar.webp": {
     "w": 496,
-    "h": 1196,
-    "bytes": 21328,
+    "h": 1120,
+    "bytes": 19128,
     "kind": "image"
   },
   "/docs-assets/teams/set-up/review.dark.webp": {
     "w": 2000,
     "h": 1280,
-    "bytes": 39782,
+    "bytes": 65222,
     "kind": "image"
   },
   "/docs-assets/teams/set-up/review.webp": {
     "w": 2000,
     "h": 1280,
-    "bytes": 39312,
+    "bytes": 65566,
     "kind": "image"
   },
   "/docs-assets/teams/share-and-projects/project.dark.webp": {
@@ -3339,28 +3451,68 @@
     "bytes": 64422,
     "kind": "image"
   },
+  "/docs-assets/teams/share-and-projects/share-flow.mp4": {
+    "w": 1440,
+    "h": 968,
+    "duration": 7.87,
+    "bytes": 168146,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/share-and-projects/share-flow.webm": {
+    "w": 1440,
+    "h": 968,
+    "duration": 7.87,
+    "bytes": 178561,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/share-and-projects/share-flow.webp": {
+    "w": 1440,
+    "h": 968,
+    "bytes": 47848,
+    "kind": "poster"
+  },
+  "/docs-assets/teams/team-home/brief-edit.mp4": {
+    "w": 1440,
+    "h": 864,
+    "duration": 14.63,
+    "bytes": 254400,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/team-home/brief-edit.webm": {
+    "w": 1440,
+    "h": 864,
+    "duration": 14.63,
+    "bytes": 386756,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/team-home/brief-edit.webp": {
+    "w": 1440,
+    "h": 864,
+    "bytes": 72598,
+    "kind": "poster"
+  },
   "/docs-assets/teams/team-home/brief.dark.webp": {
     "w": 1210,
-    "h": 1274,
-    "bytes": 67740,
+    "h": 954,
+    "bytes": 44082,
     "kind": "image"
   },
   "/docs-assets/teams/team-home/brief.webp": {
     "w": 1210,
-    "h": 1274,
-    "bytes": 68338,
+    "h": 954,
+    "bytes": 44258,
     "kind": "image"
   },
   "/docs-assets/teams/team-home/private-outsider.dark.webp": {
     "w": 2000,
     "h": 1120,
-    "bytes": 63866,
+    "bytes": 59792,
     "kind": "image"
   },
   "/docs-assets/teams/team-home/private-outsider.webp": {
     "w": 2000,
     "h": 1120,
-    "bytes": 63722,
+    "bytes": 59322,
     "kind": "image"
   },
   "/docs-assets/videos/analytics-tour.mp4": {
