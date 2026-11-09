@@ -21,6 +21,7 @@ from app.config import get_settings
 from app.services import ai_usage, page_assets, page_history, signoffs
 from app.services.comments import ai, attachments, model, suggestions
 from tests.test_comments import CONTENT, CommentsWorld
+from tests._no_ai_internals import assert_clean
 from tests.test_pages_ai import AIEnv, png, prompt_of
 
 settings = get_settings()
@@ -353,6 +354,24 @@ class CommentsAI(ReviewWorld):
         p = prompt_of(self.fake.calls[-1])
         self.assertNotIn("canary waves", p)
         self.assertNotIn("Secret Name", p)
+
+    async def test_no_ai_internals_in_answers(self):
+        d = await self.item("W")
+        t = await self.thread(d, "wv")
+        self.fake.reply = json.dumps({"replacement": "x", "note": "n"})
+        assert_clean(self, (await self.http.post(self.url(d, f"/{t['id']}/ai/apply"), json={},
+                                                 headers=self.session("wv"))).json())
+        self.fake.reply = json.dumps({"decided": [], "open": [], "waiting": []})
+        assert_clean(self, (await self.http.post(self.url(d, "/ai/summary"), json={}, headers=self.session("wv"))).json())
+        self.fake.reply = json.dumps({"ok": True, "issues": [], "rewrite": ""})
+        assert_clean(self, (await self.http.post(self.url(d, "/ai/tone"), json={"body": "hi", "force": True},
+                                                 headers=self.session("wv"))).json())
+        assert_clean(self, (await self.http.get(self.url(d, "/ai/status"), headers=self.session("wv"))).json())
+        self.fake.reply = "An answer."
+        assert_clean(self, (await self.http.post(self.url(d, f"/{t['id']}/ai/ask"), json={"question": "why?"},
+                                                 headers=self.session("wv"))).json())
+        res = await self.mcp("wv", "summarize_discussion", {"document": d["slug"], "refresh": True}, write=False)
+        assert_clean(self, res)
 
     async def test_tone_check(self):
         d = await self.item("W")
