@@ -21,12 +21,12 @@ while [ $# -gt 0 ]; do
     --region) REGION=$2; shift 2 ;;
     --aws-env) AWS_ENV=$2; shift 2 ;;
     --dry-run) DRY=1; shift ;;
-    -h|--help) sed -n '3,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '3,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "unknown option $1"; exit 1 ;;
     *) TARGET=$1; shift ;;
   esac
 done
-[ -n "$TARGET" ] || { sed -n '3,16p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+[ -n "$TARGET" ] || { sed -n '3,15p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 
 PY="${MOVE_PY:-}"
 for c in "$PY" "$HERE/../backend/.venv/bin/python" python3; do
