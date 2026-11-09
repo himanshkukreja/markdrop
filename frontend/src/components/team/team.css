@@ -307,7 +307,8 @@
 .tm-wk__body { flex: 1; min-width: 0; }
 .tm-wk__text { display: flex; gap: 6px; width: 100%; min-width: 0; margin: 0; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; font-size: 15px; line-height: 22px; color: var(--text); }
 .tm-wk__text:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; border-radius: 4px; }
-.tm-wk__who { flex: 0 1 auto; min-width: 0; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+/* The first name keeps its width (a very long one ends in "…" at 40%); the line beside it takes the rest. */
+.tm-wk__who { flex: 0 0 auto; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
 .tm-wk__line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tm-wk__row.is-open .tm-wk__line { white-space: normal; overflow-wrap: anywhere; }
 .tm-wk__meta { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; margin-top: 2px; min-width: 0; font-size: 13px; line-height: 18px; color: var(--text-secondary); }
