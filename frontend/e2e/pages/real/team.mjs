@@ -14,7 +14,7 @@
  *   project   Projects tab: the swimlane; the project page lists people and decisions
  *   groups    the admin makes a group from the meeting-series suggestion; the group filter and its tiles; a member
  *             can't make one
- *   week      "This week" shows the week so far; the admin's Send now keeps it (team-visible lines only: never the 1:1)
+ *   week      "This week so far" shows the week so far (last week's highlights, labelled, before any); the admin's Send now keeps it (team-visible lines only: never the 1:1)
  *   off       the admin turns it off in Settings › Advanced: Team says it's off; the facts are gone
  *   devices   phones (360, 390, 412, landscape) and tablets (744, 820, 1024) on the board and a person page: no sideways
  *             scroll, nothing outside the viewport, touch targets ≥ 44 px, inputs ≥ 16 px; screenshots light + dark
@@ -327,7 +327,7 @@ await step("week", async () => {
   await card.waitFor({ timeout: 20000 });
   for (const id of ["highlights", "due", "overdue"]) await card.getByTestId(`team-week-${id}`).waitFor();
   const head = (await card.locator("h2").textContent()).replace(/\s+/g, " ");
-  if (!/This week · \w{3} \d+/.test(head)) fail(`header: ${head}`);
+  if (!/This week so far · \w{3} \d+/.test(head)) fail(`header: ${head}`);
   // Desktop: three equal-height columns side by side.
   const boxes = await card.locator(".tm-wk__col").evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [r.top, r.height]; }));
   if (new Set(boxes.map((b) => Math.round(b[0]))).size !== 1 || new Set(boxes.map((b) => Math.round(b[1]))).size !== 1) fail(`columns: ${JSON.stringify(boxes)}`);
