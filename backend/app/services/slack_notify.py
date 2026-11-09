@@ -42,7 +42,7 @@ OUTBOX = "slack_outbox"
 MAX_ATTEMPTS = 5
 STUCK = timedelta(minutes=5)
 SLOW_WAIT = timedelta(seconds=60)          # mentions and sign-off requests (push.SLOW_GATHER)
-SLOW_KINDS = ("mention", "signoff_requested")
+SLOW_KINDS = ("mention", "signoff_requested", "comment_mention")
 
 
 def _now() -> datetime:
@@ -486,6 +486,10 @@ async def _notification_message(db: AsyncIOMotorDatabase, inst: dict, row: dict,
     extra = n.get("extra") or {}
     actor = n.get("actor_name") or "Someone"
     where = await _workspace_name(db, raw)
+    if n["kind"] in ("comment_mention", "comment_assigned"):
+        from app.services.comments import slack as comment_slack
+
+        return await comment_slack.dm_message(db, inst, n, urow, raw, where=where)
     if n["kind"] == "mention":
         return kit.dm_mention(actor, title, url + (f"#{n['block_id']}" if n.get("block_id") else ""), extra.get("excerpt"),
                               where=where)

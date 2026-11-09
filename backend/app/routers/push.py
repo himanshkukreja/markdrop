@@ -64,6 +64,8 @@ class Prefs(BaseModel):
     signoff_requested: bool | None = None
     shared: bool | None = None
     access_request: bool | None = None
+    comment_mention: bool | None = None
+    comment_assigned: bool | None = None
 
 
 class TestPush(BaseModel):
