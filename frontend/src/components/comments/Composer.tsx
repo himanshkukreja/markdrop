@@ -58,25 +58,36 @@ export function Composer({ ctx, threadId, placeholder = "Add a comment…", subm
     return () => { live = false; window.clearTimeout(t); };
   }, [query, ctx.slug, ctx.readPassword]);
 
+  // The text box is uncontrolled (its DOM value is the truth; the draft follows it). A controlled one lost
+  // keystrokes in WebKit when a re-render landed between two fast key presses.
+  const setText = (body: string) => {
+    if (ta.current && ta.current.value !== body) ta.current.value = body;
+  };
+
   const onText = (value: string) => {
     const caret = ta.current?.selectionStart ?? value.length;
     const m = MENTION.exec(value.slice(0, caret));
     setQuery(m ? m[2]! : null);
     // Drop mentions whose @Name is gone from the text.
-    const kept = draft.mentions.filter((id) => {
-      const n = names.current.get(id);
-      return !n || value.includes(`@${n}`);
-    });
-    setDraft({ ...draft, body: value, mentions: kept });
+    setDraft((d) => ({
+      ...d,
+      body: value,
+      mentions: d.mentions.filter((id) => {
+        const n = names.current.get(id);
+        return !n || value.includes(`@${n}`);
+      }),
+    }));
   };
 
   const insertMention = (p: MentionCandidate) => {
     const el = ta.current;
-    const caret = el?.selectionStart ?? draft.body.length;
-    const before = draft.body.slice(0, caret).replace(MENTION, (_m, lead) => `${lead}@${p.name} `);
-    const body = before + draft.body.slice(caret);
+    const text = el?.value ?? draft.body;
+    const caret = el?.selectionStart ?? text.length;
+    const before = text.slice(0, caret).replace(MENTION, (_m, lead) => `${lead}@${p.name} `);
+    const body = before + text.slice(caret);
     names.current.set(p.id, p.name);
-    setDraft({ ...draft, body, mentions: draft.mentions.includes(p.id) ? draft.mentions : [...draft.mentions, p.id] });
+    setText(body);
+    setDraft((d) => ({ ...d, body, mentions: d.mentions.includes(p.id) ? d.mentions : [...d.mentions, p.id] }));
     setQuery(null);
     requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(before.length, before.length); });
   };
@@ -98,15 +109,17 @@ export function Composer({ ctx, threadId, placeholder = "Add a comment…", subm
 
   const options = people?.people ?? [];
   const submit = async () => {
-    if (!draft.body.trim() || busy) return;
+    const body = ta.current?.value ?? draft.body;
+    if (!body.trim() || busy) return;
     setBusy(true);
     try {
-      let d: Draft | null = draft;
+      let d: Draft | null = { ...draft, body };
       for (const check of slots().beforePost) {
         d = await check(d, ctx, threadId);
         if (!d) return;
       }
       await onSubmit(d);
+      setText("");
       setDraft({ body: "", mentions: [], attachments: [], suggestion: null });
       names.current.clear();
     } catch {
@@ -133,7 +146,7 @@ export function Composer({ ctx, threadId, placeholder = "Add a comment…", subm
         <textarea
           ref={ta}
           className="mdc-composer__input"
-          value={draft.body}
+          defaultValue={initial?.body ?? ""}
           placeholder={placeholder}
           rows={compact ? 1 : 2}
           maxLength={5000}
@@ -169,12 +182,14 @@ export function Composer({ ctx, threadId, placeholder = "Add a comment…", subm
       <div className="mdc-composer__bar">
         <IconButton icon="at" label="Mention someone" size="sm" onClick={() => {
           const el = ta.current;
-          const body = draft.body + (draft.body && !/\s$/.test(draft.body) ? " @" : "@");
-          setDraft({ ...draft, body });
+          const cur = el?.value ?? draft.body;
+          const body = cur + (cur && !/\s$/.test(cur) ? " @" : "@");
+          setText(body);
+          setDraft((d) => ({ ...d, body }));
           setQuery("");
           requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(body.length, body.length); });
         }} />
-        {tools.map((t) => <t.Component key={t.id} draft={draft} setDraft={setDraft} ctx={ctx} threadId={threadId} />)}
+        {tools.map((t) => <t.Component key={t.id} draft={draft} setDraft={(d) => { setText(d.body); setDraft(d); }} ctx={ctx} threadId={threadId} />)}
         <span className="mdc-composer__spacer" />
         {onCancel && <Button size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>}
         <Button size="sm" onClick={() => void submit()} loading={busy} disabled={!draft.body.trim()}>{submitLabel}</Button>
