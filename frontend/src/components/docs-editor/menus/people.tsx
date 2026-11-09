@@ -118,6 +118,18 @@ export function insertPerson(editor: Editor, range: Range, p: MentionPerson) {
   }
 }
 
+/**
+ * `@PAY-12` (or `@jira`): a Jira issue's chip (components/jira/pages), offered after the people when the
+ * page's host has Jira. "jira:" alone inserts an empty chip, whose issue picker opens.
+ */
+function jiraOptions(editor: Editor, query: string): MentionPerson[] {
+  if (!(editor.storage as unknown as { dxeServices?: { pages?: { jiraPages?: unknown } } }).dxeServices?.pages?.jiraPages) return [];
+  const q = query.trim();
+  if (/^[A-Za-z][A-Za-z0-9_]{0,19}-[1-9][0-9]{0,8}$/.test(q)) return [{ id: `jira:${q.toUpperCase()}`, name: `${q.toUpperCase()} · Jira issue` }];
+  if (q.length >= 2 && "jira".startsWith(q.toLowerCase())) return [{ id: "jira:", name: "Jira issue…" }];
+  return [];
+}
+
 /** "/person" (and an empty person chip): an `@` that opens the picker. */
 export function openPeopleAt(editor: Editor, store: PeopleStore, range: Range) {
   store.force = true;
@@ -163,11 +175,14 @@ export function PeopleMention(store: PeopleStore, listboxId: string) {
           // Our own rule (peopleMatch.opensAfter): after whitespace or punctuation, never "a@b".
           allowedPrefixes: null,
           allow: ({ state, range, isActive }) => mayOpen(state, range, store.people(), store.force, !!isActive && store.openAt === range.from),
-          items: ({ query }) => {
+          items: ({ query, editor: e }) => {
             const people = store.people();
-            return people ? filterPeople(people, query) : [];
+            return [...(people ? filterPeople(people, query) : []), ...jiraOptions(e, query)];
           },
-          command: ({ editor: e, range, props }) => insertPerson(e, range, props),
+          command: ({ editor: e, range, props }) =>
+            props.id.startsWith("jira:")
+              ? void e.chain().focus().insertContentAt(range, [{ type: "mention", attrs: { name: "jira", label: props.id.slice(5), attributes: {} } }, { type: "text", text: " " }]).run()
+              : insertPerson(e, range, props),
           render: () => ({
             onStart: show,
             onUpdate: show,
