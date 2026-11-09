@@ -499,7 +499,11 @@ async def create(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
     summary = re.sub(r"\s+", " ", str(fields.get("summary") or "")).strip()[:jira_ai.SUMMARY_MAX]
     if not summary:
         raise HTTPException(status_code=422, detail="Give the issue a summary.")
-    project = str(fields.get("project") or site.get("default_project") or "").strip().upper()
+    from app.services import teams as teams_service
+
+    # Teams: an item of a team with Jira projects files into the team's first one by default.
+    team_default = await teams_service.jira_default(db, src.get("slug")) if not fields.get("project") else None
+    project = str(fields.get("project") or team_default or site.get("default_project") or "").strip().upper()
     if not re.match(r"^[A-Z][A-Z0-9_]{0,19}$", project):
         raise HTTPException(status_code=422, detail="Pick a Jira project.")
     issue_type = str(fields.get("issue_type") or site.get("default_issue_type") or "Task").strip()[:60]
