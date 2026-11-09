@@ -1,20 +1,26 @@
 "use client";
 
 /**
- * Export a page: Markdown, HTML or PDF.
+ * Export a page: Markdown, Word, HTML or PDF.
  *
  *   Markdown  portable .md (callouts as labelled quotes, columns one after another, chips as text,
  *             embeds as links); with images or sub-pages, a .zip (page.md + images/, a folder per
  *             sub-page). Made by the server, which checks who may export and what they can open.
  *   HTML      one self-contained file in the page's look, images inside it (server-made too).
+ *   Word      a .docx made by the server (one page; images as their alt text).
  *   PDF       this browser prints the page (PrintPages), light, without the app around it.
+ *
+ * Comments (Track C): someone who can see the page's comments may include them — Markdown as a Comments
+ * appendix, Word as margin comments or footnotes, PDF as numbered notes in the margin or at the end
+ * (PrintPages + components/comments/insights/printComments.ts). Not in HTML.
  *
  * Sub-pages: only the ones this reader can open. Readers export only when the page allows it
  * (`allow_export`, set by its editors in the page's ⋯ menu); DocumentView hides Export otherwise.
  */
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import dynamic from "next/dynamic";
-import { Alert, Button, Dialog, Icon, Progress, Switch, useToast } from "@/components/ui";
+import { Alert, Button, Dialog, Icon, Progress, SegmentedControl, Switch, useToast } from "@/components/ui";
+import { getExportThreads, takeExportPreset, type ExportThreadDto } from "@/lib/commentsInsights";
 import { track } from "@/lib/track";
 import type { AssetUrl, Crumb } from "@/lib/pages";
 import { readPageProps } from "../pageProps";
@@ -24,10 +30,12 @@ import "./export.css";
 
 const PrintPages = dynamic(() => import("./PrintPages").then((m) => m.PrintPages), { ssr: false, loading: () => null });
 
-export type ExportFormat = "markdown" | "html" | "pdf";
+export type ExportFormat = "markdown" | "word" | "html" | "pdf";
+export type CommentStyle = "margin" | "footnotes";
 
 const FORMATS: Array<{ id: ExportFormat; name: string; ext: string; icon: string; blurb: string }> = [
   { id: "markdown", name: "Markdown", ext: ".md", icon: "doc", blurb: "Any Markdown app, Git or wiki" },
+  { id: "word", name: "Word", ext: ".docx", icon: "lines", blurb: "Word, Pages or Google Docs" },
   { id: "html", name: "HTML", ext: ".html", icon: "globe", blurb: "One file for any browser" },
   { id: "pdf", name: "PDF", ext: ".pdf", icon: "printer", blurb: "Print-ready, from your browser" },
 ];
@@ -80,8 +88,14 @@ async function collectSubpages(root: PrintPage, limit: number, onCount: (n: numb
 
 export function ExportDialog({ open, onClose, slug, title, content, assets, crumbs, childrenCount, canEdit, secret, viewer }: ExportDialogProps) {
   const toast = useToast();
+  const [preset] = useState(() => takeExportPreset());
   const [format, setFormat] = useState<ExportFormat>("markdown");
   const [subpages, setSubpages] = useState(false);
+  // Comments: offered when this reader can see the page's comments and there are some.
+  const [threads, setThreads] = useState<ExportThreadDto[] | null>(null);
+  const [withComments, setWithComments] = useState(!!preset?.comments);
+  const [commentStyle, setCommentStyle] = useState<CommentStyle>("margin");
+  const [openOnly, setOpenOnly] = useState(false);
   const images = useMemo(() => hasPageImages(content), [content]);
   const [withImages, setWithImages] = useState(true);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -97,9 +111,21 @@ export function ExportDialog({ open, onClose, slug, title, content, assets, crum
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    getExportThreads(slug, "all").then((t) => { if (live) setThreads(t); }).catch(() => { if (live) setThreads([]); });
+    return () => { live = false; };
+  }, [open, slug]);
+
+  const commentCount = threads?.length ?? 0;
+  const openCount = threads?.filter((t) => t.status === "open").length ?? 0;
+  const commentsOffered = commentCount > 0 && format !== "html";
+  const comments = commentsOffered && withComments && (!openOnly || openCount > 0);
   const zip = format === "markdown" && (subpages || (images && withImages));
   const busy = phase.kind === "working" || phase.kind === "printing";
-  const fileName = format === "pdf" ? null : exportFileName(title, zip || (format === "html" && subpages) ? "zip" : format === "html" ? "html" : "md");
+  const fileName = format === "pdf" ? null : format === "word" ? exportFileName(title, "docx")
+    : exportFileName(title, zip || (format === "html" && subpages) ? "zip" : format === "html" ? "html" : "md");
 
   const what =
     format === "markdown"
@@ -110,6 +136,12 @@ export function ExportDialog({ open, onClose, slug, title, content, assets, crum
         : images
           ? "One .md file. Its images stay links on Markdrop; turn on images to get a .zip."
           : "One .md file, ready for GitHub, Obsidian, VS Code or another wiki."
+      : format === "word"
+        ? comments
+          ? commentStyle === "margin"
+            ? "A Word document, with the comments in the margin next to the words they're about."
+            : "A Word document, with each comment as a footnote after the words it's about."
+          : "A Word document of this page. Images show as their descriptions."
       : format === "html"
         ? subpages
           ? "A .zip with an HTML file for each page, linked to each other."
@@ -117,6 +149,10 @@ export function ExportDialog({ open, onClose, slug, title, content, assets, crum
         : subpages
           ? "Your browser's print dialog with this page and its sub-pages, each from a new sheet. Choose Save as PDF."
           : "Your browser's print dialog, with the page laid out for paper. Choose Save as PDF.";
+  const commentsWhat = !comments ? null
+    : format === "markdown" ? "The comments go in a Comments section at the end."
+      : format === "pdf" ? (commentStyle === "margin" ? "Comments print as numbered notes in the margin." : "Comments print as numbered notes at the end.")
+        : null;
 
   function onCardKey(e: KeyboardEvent<HTMLButtonElement>, i: number) {
     const delta = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
@@ -128,9 +164,18 @@ export function ExportDialog({ open, onClose, slug, title, content, assets, crum
   }
 
   async function run() {
-    track("page_export", { format, subpages });
+    track("page_export", { format, subpages, comments });
     if (format === "pdf") {
-      const root: PrintPage = { slug, title, content, assets, crumbs };
+      let printThreads: ExportThreadDto[] | undefined;
+      if (comments) {
+        try {
+          printThreads = await getExportThreads(slug, openOnly ? "open" : "all");
+        } catch {
+          setPhase({ kind: "error", message: "Couldn't read the comments. Try again, or print without them." });
+          return;
+        }
+      }
+      const root: PrintPage = { slug, title, content, assets, crumbs, comments: printThreads ? { threads: printThreads, style: commentStyle } : undefined };
       let pages = [root];
       if (subpages && childrenCount > 0) {
         setPhase({ kind: "working", received: 0, total: null, label: "Gathering sub-pages…" });
@@ -145,14 +190,16 @@ export function ExportDialog({ open, onClose, slug, title, content, assets, crum
       setPhase({ kind: "printing", pages });
       return;
     }
-    const kind = format === "html" ? "html" : zip ? "zip" : "md";
+    const kind = format === "html" ? "html" : format === "word" ? "docx" : zip ? "zip" : "md";
     const ctrl = new AbortController();
     abort.current = ctrl;
     setPhase({ kind: "working", received: 0, total: null, label: "Preparing your export…" });
     try {
       const blob = await fetchExport(slug, {
         kind,
-        subpages,
+        subpages: format === "word" ? false : subpages,
+        comments: comments ? (format === "markdown" ? "footnotes" : commentStyle) : null,
+        commentStatus: openOnly ? "open" : "all",
         secret,
         signal: ctrl.signal,
         onProgress: (received, total) => setPhase({ kind: "working", received, total, label: "Downloading…" }),
@@ -183,7 +230,8 @@ export function ExportDialog({ open, onClose, slug, title, content, assets, crum
     window.print();
   };
 
-  const primary = format === "pdf" ? "Print to PDF…" : `Download ${zip || (format === "html" && subpages) ? ".zip" : format === "html" ? ".html" : ".md"}`;
+  const primary = format === "pdf" ? "Print to PDF…" : format === "word" ? "Download .docx"
+    : `Download ${zip || (format === "html" && subpages) ? ".zip" : format === "html" ? ".html" : ".md"}`;
 
   return (
     <>
@@ -246,7 +294,7 @@ export function ExportDialog({ open, onClose, slug, title, content, assets, crum
           </div>
 
           <div className="pbx-options">
-            {childrenCount > 0 && (
+            {childrenCount > 0 && format !== "word" && (
               <div className="pbx-option">
                 <Switch label="Include sub-pages" checked={subpages} disabled={busy} onChange={() => setSubpages(!subpages)} />
                 <span className="pbx-option__hint">
@@ -260,10 +308,37 @@ export function ExportDialog({ open, onClose, slug, title, content, assets, crum
                 <span className="pbx-option__hint">Saves a .zip with the page&apos;s images next to it.</span>
               </div>
             )}
+            {commentsOffered && (
+              <div className="pbx-option" data-testid="export-comments">
+                <Switch label="Include comments" checked={withComments} disabled={busy} onChange={() => setWithComments(!withComments)} />
+                <span className="pbx-option__hint">
+                  {commentCount === 1 ? "1 thread" : `${commentCount} threads`}{openCount !== commentCount ? `, ${openCount} open` : ""}
+                  {subpages && format !== "word" ? ". This page's comments only." : "."}
+                </span>
+                {withComments && (
+                  <div className="pbx-option__more">
+                    {format !== "markdown" && (
+                      <SegmentedControl<CommentStyle>
+                        size="sm"
+                        aria-label="Where the comments go"
+                        value={commentStyle}
+                        onChange={setCommentStyle}
+                        disabled={busy}
+                        options={[
+                          { value: "margin", label: format === "word" ? "Margin comments" : "Margin notes" },
+                          { value: "footnotes", label: format === "word" ? "Footnotes" : "Notes at the end" },
+                        ]}
+                      />
+                    )}
+                    <Switch label="Open threads only" checked={openOnly} disabled={busy || openCount === 0} onChange={() => setOpenOnly(!openOnly)} />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <p className="pbx-what" aria-live="polite">
-            <Icon name="info" size={14} aria-hidden /> <span>{what}</span>
+            <Icon name="info" size={14} aria-hidden /> <span>{what}{commentsWhat ? ` ${commentsWhat}` : ""}</span>
           </p>
 
           {phase.kind === "working" && (

@@ -1,14 +1,14 @@
 /**
- * Export a page: `GET /api/v1/documents/{slug}/export?format=md|html|zip&subpages=1` (the server
+ * Export a page: `GET /api/v1/documents/{slug}/export?format=md|html|zip|docx&subpages=1&comments=…` (the server
  * checks who may export and what goes in), saved with a download; and Markdown an encrypted
  * document's own browser saves (the server can't read it).
  */
 import { API_BASE, getToken } from "@/lib/api";
 
-export type ExportKind = "md" | "html" | "zip";
+export type ExportKind = "md" | "html" | "zip" | "docx";
 
 /** A name every OS accepts, from a page's title (the server names its files the same way). */
-export function exportFileName(title: string | null | undefined, ext: "md" | "html" | "zip"): string {
+export function exportFileName(title: string | null | undefined, ext: "md" | "html" | "zip" | "docx"): string {
   let t = String(title ?? "").normalize("NFC").replace(/[\\/:*?"<>|\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().replace(/^[ .]+|[ .]+$/g, "");
   if (!t) t = "page";
   return `${t.slice(0, 80).replace(/[ .]+$/, "") || "page"}.${ext}`;
@@ -36,9 +36,18 @@ function readPassword(slug: string): string | null {
 /** Fetches the export; `onProgress(received, total|null)` as it arrives. */
 export async function fetchExport(
   slug: string,
-  opts: { kind: ExportKind; subpages: boolean; secret?: string | null; signal?: AbortSignal; onProgress?: (received: number, total: number | null) => void },
+  opts: {
+    kind: ExportKind; subpages: boolean; secret?: string | null; signal?: AbortSignal;
+    onProgress?: (received: number, total: number | null) => void;
+    /** Include the comment threads (Markdown: an appendix; Word: margin comments or footnotes). */
+    comments?: "margin" | "footnotes" | null; commentStatus?: "open" | "all";
+  },
 ): Promise<Blob> {
   const q = new URLSearchParams({ format: opts.kind, subpages: opts.subpages ? "true" : "false" });
+  if (opts.comments) {
+    q.set("comments", opts.comments);
+    q.set("comment_status", opts.commentStatus ?? "all");
+  }
   const headers: Record<string, string> = {};
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;

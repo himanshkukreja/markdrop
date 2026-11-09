@@ -54,9 +54,11 @@ class ExportThread:
     messages: list[ExportMessage] = field(default_factory=list)
     suggestion: str | None = None
     resolved_by: str | None = None
+    block_id: str | None = None
 
     def as_dict(self) -> dict:
         return {"n": self.n, "id": self.id, "anchor_type": self.anchor_type, "quote": self.quote,
+                "block_id": self.block_id,
                 "status": self.status, "changed": self.changed, "section": self.section,
                 "suggestion": self.suggestion, "resolved_by": self.resolved_by,
                 "messages": [{"author": m.author, "at": _iso(m.at), "body": m.body, "ai": m.ai} for m in self.messages]}
@@ -132,7 +134,8 @@ async def collect(db, actor, raw: dict, ctx, *, status: str = "all") -> list[Exp
             status=t.get("status") or "open", changed=t.get("anchor_status") == "changed",
             section=None if typ == "page" else secs.of(t)[1],
             messages=ms, suggestion=sug.get("text") if sug.get("state") == "open" else None,
-            resolved_by=names.get(str(t.get("resolved_by"))) if t.get("status") == "resolved" else None))
+            resolved_by=names.get(str(t.get("resolved_by"))) if t.get("status") == "resolved" else None,
+            block_id=a.get("block_id") if typ != "page" else None))
     return out
 
 
