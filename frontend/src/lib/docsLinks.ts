@@ -9,7 +9,7 @@ export const DOCS_PAGES = {
   installApp: "/get-started/install-app",
   pushNotifications: "/pages/mentions-and-notifications#push-notifications",
   notificationEmail: "/pages/mentions-and-notifications#email",
-  commentEmails: "/pages/comments#notifications",
+  commentEmails: "/pages/comments#email-push-and-slack",
   commentInsights: "/pages/comments#insights",
   exportWithComments: "/pages/comments#export-with-comments",
   slackNotifications: "/integrations/slack#slack-notifications",

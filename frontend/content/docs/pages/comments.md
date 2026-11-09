@@ -103,9 +103,9 @@ Your AI assistant can read and write comments through [MCP](/ai/tools#comments):
 <!-- /B:attachments -->
 
 <!-- C:notifications -->
-## Notifications
+## Email, push and Slack
 
-When someone mentions you in a comment, assigns a thread to you, replies in a thread you're part of, comments on a page you own or resolves your comment, it shows under the bell. Each notification opens the page with that thread selected. The same updates can also reach you by email, on your devices and in Slack, and the people who can't see a page's comments any more are never told about them.
+The same [notifications](#notifications) can also reach you by email, on your devices and in Slack. Each one opens the page with that thread selected, and people who can't see a page's comments any more are never told about them.
 
 ### Email
 
