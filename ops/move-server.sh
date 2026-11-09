@@ -490,11 +490,11 @@ mode_prepare() {
     s=$(on_new 'sudo cat /var/log/markdrop-move-sync.log')
     printf '%s\n' "$s" | grep -vxF -f <(printf '%s\n' "$seen") | grep . | sed 's/^/    /' || true
     seen=$s
-    if printf '%s\n' "$s" | grep -q 'LIVE'; then break; fi
-    if printf '%s\n' "$s" | grep -q '^EXIT'; then die "the copy stopped (log above); re-run this command"; fi
+    if grep -q 'LIVE' <<<"$s"; then break; fi
+    if grep -q '^EXIT' <<<"$s"; then die "the copy stopped (log above); re-run this command"; fi
     sleep 5
   done
-  printf '%s\n' "$seen" | grep -q LIVE || die "the copy did not reach LIVE in 45 min"
+  grep -q LIVE <<<"$seen" || die "the copy did not reach LIVE in 45 min"
   ok "NEW follows OLD's writes live"
   echo
   echo "✓ ready ($(( $(date +%s) - T_START )) s). OLD still serves everything; NEW mirrors its database."
@@ -508,7 +508,7 @@ mode_cutover() {
   step "checks"
   tunnel_check sync || die "the database tunnel is down (Mac slept or lost network?): re-run the prepare step"
   local s; s=$(sync_state)
-  printf '%s\n' "$s" | grep -q 'UNIT active' && printf '%s\n' "$s" | grep -q LIVE || { printf '%s\n' "$s" | sed 's/^/    /'; die "the copy on NEW is not live: re-run the prepare step"; }
+  grep -q 'UNIT active' <<<"$s" && grep -q LIVE <<<"$s" || { printf '%s\n' "$s" | sed 's/^/    /'; die "the copy on NEW is not live: re-run the prepare step"; }
   ok "copy live: $(printf '%s\n' "$s" | grep LIVE | tail -1 | cut -c1-80)"
   [ "$(on_new 'cat /etc/markdrop/role')" = standby ] || die "NEW is not on standby"
   [ "$(on_old "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8080/health")" = 200 ] || die "OLD's API is not healthy"
@@ -532,11 +532,11 @@ mode_cutover() {
   local i
   for i in $(seq 90); do
     s=$(on_new 'sudo tail -n 6 /var/log/markdrop-move-sync.log')
-    printf '%s\n' "$s" | grep -q '^EXIT' && break
+    grep -q '^EXIT' <<<"$s" && break
     sleep 2
   done
   printf '%s\n' "$s" | sed 's/^/    /'
-  if ! printf '%s\n' "$s" | grep -q '^EXIT 0'; then
+  if ! grep -q '^EXIT 0' <<<"$s"; then
     on_old 'sudo systemctl start markdrop markdrop-worker'
     die "the final copy did not finish cleanly — OLD restarted, nothing else changed ($(( $(date +%s) - T0 )) s down)"
   fi

@@ -99,7 +99,7 @@ exp_b=$(echo | openssl s_client -connect "$NEW_IP:443" -servername "$DOMAIN" 2>/
 
 # live copy: progress + counts
 s=$(on_new 'sudo tail -n 2 /var/log/markdrop-move-sync.log; systemctl is-active markdrop-move-sync')
-printf '%s\n' "$s" | grep -q '^active$' && ok "copy running: $(printf '%s\n' "$s" | grep LIVE | tail -1 | cut -c1-70)" || bad "the copy is not running"
+grep -q '^active$' <<<"$s" && ok "copy running: $(printf '%s\n' "$s" | grep LIVE | tail -1 | cut -c1-70)" || bad "the copy is not running"
 COUNTS_PY='
 import os, pymongo
 admin = [l.split("=", 1)[1].strip().strip("\x27\"") for l in open("/etc/markdrop/mongo.env") if l.startswith("MONGO_ADMIN_URI=")][0]
@@ -130,13 +130,13 @@ t=$(date +%s)
 on_new 'sudo touch /var/lib/markdrop-move/sync.stop'
 for _ in $(seq 90); do
   s=$(on_new 'sudo tail -n 8 /var/log/markdrop-move-sync.log')
-  printf '%s\n' "$s" | grep -q '^EXIT' && break
+  grep -q '^EXIT' <<<"$s" && break
   sleep 1
 done
 DRAIN_S=$(( $(date +%s) - t ))
 printf '%s\n' "$s" | grep -E 'drained|match|✗|EXIT' | sed 's/^/    /'
-if printf '%s\n' "$s" | grep -q '^EXIT 0'; then ok "drain + count check: ${DRAIN_S} s, every count matched"
-elif printf '%s\n' "$s" | grep -q '^EXIT 1'; then warn "drain: ${DRAIN_S} s; counts differ by OLD's writes during the drain (expected while OLD serves; at the cut-over OLD is stopped first)"
+if grep -q '^EXIT 0' <<<"$s"; then ok "drain + count check: ${DRAIN_S} s, every count matched"
+elif grep -q '^EXIT 1' <<<"$s"; then warn "drain: ${DRAIN_S} s; counts differ by OLD's writes during the drain (expected while OLD serves; at the cut-over OLD is stopped first)"
 else bad "the copy did not exit cleanly after ${DRAIN_S} s"; fi
 on_new 'sudo systemctl stop markdrop-move-sync 2>/dev/null; true'
 ssh -S "$STATE/sync-a.sock" -O exit x >/dev/null 2>&1 || true

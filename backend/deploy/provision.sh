@@ -76,7 +76,7 @@ install_file() {  # install_file <src> <dest> [mode] — copy only when differen
 
 # ─────────────────────────────────────────────────────────────────────────────────────────── install
 cmd_install() {
-  local ref="" bundle="" python=auto constraints=""
+  local ref="" bundle="" python=auto constraints="" bundle_list=""
   while [ $# -gt 0 ]; do
     case $1 in
       --ref) ref=$2; shift 2 ;;
@@ -126,7 +126,7 @@ cmd_install() {
   fi
 
   step "packages"
-  export DEBIAN_FRONTEND=noninteractive
+  export DEBIAN_FRONTEND=noninteractive NEEDRESTART_SUSPEND=1
   apt-get update -q >/dev/null
   apt-get install -y -q --no-install-recommends \
     nginx redis-server certbot python3-certbot-nginx git curl ca-certificates openssl \
@@ -156,13 +156,15 @@ cmd_install() {
   if [ -n "$bundle" ]; then
     step "secrets bundle (system part)"
     [ -f "$bundle" ] || die "no bundle at $bundle"
-    if tar -tf "$bundle" | grep -q '^etc/'; then
+    # (the listing goes into a variable: `tar | grep -q` would SIGPIPE tar and fail under pipefail)
+    bundle_list=$(tar -tf "$bundle")
+    if grep -q '^etc/' <<<"$bundle_list"; then
       tar -xpf "$bundle" -C / --wildcards 'etc/*'
     fi
     install -d -m 700 /etc/markdrop
     chmod 600 /etc/markdrop/*.env 2>/dev/null || true
     [ -f /etc/GeoIP.conf ] && chmod 600 /etc/GeoIP.conf
-    ok "$(tar -tf "$bundle" | grep -v '/$' | sed 's#^etc/letsencrypt/.*#etc/letsencrypt/…#' | sort -u | tr '\n' ' ')"
+    ok "$(printf '%s\n' "$bundle_list" | grep -v '/$' | sed 's#^etc/letsencrypt/.*#etc/letsencrypt/…#' | sort -u | tr '\n' ' ')"
   fi
   [ -f "$ROLE_FILE" ] || { install -d -m 700 /etc/markdrop; echo standby > "$ROLE_FILE"; }
 
@@ -182,7 +184,7 @@ cmd_install() {
   fi
   ok "at $(git -C "$REPO" log -1 --format='%h %s' | cut -c1-90)"
 
-  if [ -n "$bundle" ] && tar -tf "$bundle" | grep -qx 'opt/markdrop/backend/.env'; then
+  if [ -n "$bundle" ] && grep -qx 'opt/markdrop/backend/.env' <<<"$bundle_list"; then
     tar -xpf "$bundle" -C / opt/markdrop/backend/.env
   fi
   [ -f "$APP/.env" ] || die "no $APP/.env — pass the bundle (move-server.sh does) or copy it in"
