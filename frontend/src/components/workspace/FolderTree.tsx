@@ -270,7 +270,7 @@ export function TreeView({
         v.skeleton ? (
           <SkeletonRow key={v.node.key} level={v.level} width={v.node.label} />
         ) : v.node.note ? (
-          <li key={v.node.key} role="none" className="md-tree__row md-tree__note" style={rowVars(v.level)}>
+          <li key={v.node.key} role="none" className={cx("md-tree__row md-tree__note", v.node.className)} style={rowVars(v.level)}>
             <span className="md-tree__note-text">{v.node.label}</span>
           </li>
         ) : (

@@ -16,7 +16,8 @@ import { teamName } from "@/components/workspace/folder/items";
 import { UserAvatar } from "./AccountMenu";
 import CommandPalette, { type PaletteAction } from "./CommandPalette";
 import { sendFolderCommand, usePaletteRequests, useBrowseRequests } from "./commands";
-import { SideNav, railKeyFor, workspaceOfKey, wsFolderKey, wsRootKey, type RailData } from "./SideNav";
+import { SideNav, railKeyFor, resolveRailKey, workspaceOfKey, wsFolderKey, wsRootKey, type RailData } from "./SideNav";
+import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
 import { useLocationSearch } from "./useLocation";
 
 
@@ -124,8 +125,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
   const search = useLocationSearch();
   const { user, signOut } = useAuth();
-  const active = railKeyFor(pathname, search);
-  const activeWs = workspaceOfKey(active);
+  const rawActive = railKeyFor(pathname, search);
+  const activeWs = workspaceOfKey(rawActive);
+  // Teams: a team's slug / a project → its row in the rail (and the rows to open), once the teams are known.
+  useTeamsSidebar(activeWs ? [activeWs] : [], `${pathname}?${search}`);
+  const resolved = resolveRailKey(rawActive, activeWs ? teamsSlot(activeWs) : undefined);
+  const active = resolved.key;
+  const openTeam = resolved.open.join(",");
 
   const { expanded, setOpen, openAll } = useExpanded();
   const activeTree = useWorkspaceTree(activeWs).tree;
@@ -133,12 +139,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // The workspace you are in opens itself, and so does every folder above the one you're in.
   useEffect(() => {
     if (!activeWs) return;
-    const keys = [wsRootKey(activeWs)];
+    const keys = [wsRootKey(activeWs), ...(openTeam ? openTeam.split(",") : [])];
     if (activeTree && activeFolderId) {
       for (const f of ancestry(activeTree.folders, activeFolderId).slice(0, -1)) keys.push(wsFolderKey(activeWs, f.id));
     }
     openAll(keys);
-  }, [activeWs, activeTree, activeFolderId, openAll]);
+  }, [activeWs, activeTree, activeFolderId, openAll, openTeam]);
 
   const data = useRailData(user?.id ?? null);
   const [collapsed, setCollapsed] = useCollapsed();

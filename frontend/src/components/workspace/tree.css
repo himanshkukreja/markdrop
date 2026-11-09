@@ -104,3 +104,7 @@
 }
 .md-tree__note-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text-muted); }
 @media (max-width: 1023.98px) { .md-tree--nav .md-tree__note, .md-tree--nav .md-tree__skeleton { height: 44px; } }
+/* A section heading inside a workspace (Teams: COMPANY, YOUR TEAMS): an eyebrow, never a tree item. */
+.md-tree__note.md-tree__heading { height: 26px; margin-top: 6px; }
+.md-tree__heading .md-tree__note-text { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+@media (max-width: 1023.98px) { .md-tree--nav .md-tree__note.md-tree__heading { height: 32px; } }

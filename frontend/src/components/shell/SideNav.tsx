@@ -12,6 +12,12 @@ import { can, type NavItem, type TreeFolder, type Workspace, type WorkspaceNav }
 import { childrenMap, descendants, refreshTree, useWorkspaceTrees, type TreeSlot } from "@/lib/workspaceStore";
 import { childrenSlot, navSlot, useNavRetain, type NavSlot } from "@/lib/navStore";
 import { useAuth } from "@/contexts/AuthContext";
+import { TeamTile } from "@/components/teams/parts";
+import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
+import {
+  browseHref, projectHref as teamProjectHref, reviewHref, teamAskHref, teamHref as teamHomeHref, teamMeetingsHref, teamMemoryHref,
+  teamPagesHref, teamSettingsHref, type TeamsSidebar,
+} from "@/lib/teams";
 import type { FileRenderer } from "@/components/ui/markdrop";
 
 /** A page's rail key (also its expand key). */
@@ -36,6 +42,15 @@ export const wsMeetingsKey = (id: string) => `ws:${id}:meetings`;
 /** The workspace's Team board (/team/<id>). */
 export const wsTeamKey = (id: string) => `ws:${id}:team`;
 const teamHref = (id: string) => `/team/${encodeURIComponent(id)}`;
+/** Teams (lib/teams): the workspace's company Home, its Pages, Browse teams, the guided review, and each team's rows. */
+export const wsHomeKey = (id: string) => `ws:${id}:home`;
+export const wsPagesKey = (id: string) => `ws:${id}:pages`;
+export const wsBrowseKey = (id: string) => `ws:${id}:browse`;
+export const wsReviewKey = (id: string) => `ws:${id}:review`;
+/** A team's row (its expand key), or one of its rows: home | pages | meetings | memory | ask | project:<id>. */
+export const wsTeamRowKey = (id: string, teamId: string, sub?: string) => `ws:${id}:team:${teamId}${sub ? `:${sub}` : ""}`;
+/** Company › Pages is open unless closed (it holds the tree everyone used to see at the top). */
+const closedKey = (k: string) => `${k}!closed`;
 /** lib/meetings' meetingsHref, without loading the meetings client into the shell. */
 const meetingsHref = (id: string) => `/meetings/${encodeURIComponent(id)}`;
 
@@ -45,6 +60,18 @@ const meetingsHref = (id: string) => `/meetings/${encodeURIComponent(id)}`;
  */
 export function railKeyFor(pathname: string, search: string): string | null {
   const q = new URLSearchParams(search);
+  // Teams: raw keys by slug / space; resolveRailKey turns them into the rows' keys once the teams are known.
+  const tw = pathname.match(/^\/w\/([^/]+)\/(home|teams|teams-review|teams\/([^/]+)(?:\/(pages|settings))?|projects\/([^/]+))\/?$/);
+  if (tw) {
+    const id = decodeURIComponent(tw[1]!);
+    if (tw[2] === "home") return wsHomeKey(id);
+    if (tw[2] === "teams") return wsBrowseKey(id);
+    if (tw[2] === "teams-review") return wsReviewKey(id);
+    if (tw[3]) return `ws:${id}:tslug:${decodeURIComponent(tw[3])}:${tw[4] === "pages" ? "pages" : "home"}`;
+    if (tw[5]) return `ws:${id}:pslug:${decodeURIComponent(tw[5])}`;
+  }
+  const space = q.get("space") || "";
+  const spaceTeam = space.startsWith("team:") ? space.slice(5) : null;
   const w = pathname.match(/^\/w\/([^/]+)(?:\/f\/([^/]+))?\/?$/);
   if (w) {
     const id = decodeURIComponent(w[1]!);
@@ -61,11 +88,14 @@ export function railKeyFor(pathname: string, search: string): string | null {
     return "files";
   }
   const mt = pathname.match(/^\/meetings\/(?!start\/?$)([^/]+)\/?$/);
-  if (mt) return wsMeetingsKey(decodeURIComponent(mt[1]!));
+  if (mt) return spaceTeam ? wsTeamRowKey(decodeURIComponent(mt[1]!), spaceTeam, "meetings") : wsMeetingsKey(decodeURIComponent(mt[1]!));
   const tm = pathname.match(/^\/team\/([^/]+)(?:\/.*)?$/);
-  if (tm) return wsTeamKey(decodeURIComponent(tm[1]!));
+  if (tm) return spaceTeam ? wsTeamRowKey(decodeURIComponent(tm[1]!), spaceTeam, "memory") : wsTeamKey(decodeURIComponent(tm[1]!));
   if (pathname === "/search") return "search";
-  if (pathname === "/ask") return "ask";
+  if (pathname === "/ask") {
+    const ws = q.get("workspace"), team = q.get("team");
+    return ws && team ? wsTeamRowKey(ws, team, "ask") : "ask";
+  }
   if (pathname === "/shared" || pathname.startsWith("/requests")) return "shared";
   if (pathname === "/recent") return "recent";
   if (pathname === "/trash") return "trash";
@@ -82,7 +112,34 @@ export function railKeyFor(pathname: string, search: string): string | null {
 /** The Ask page for where you are: in a workspace, Ask <Workspace> (?workspace=); else Ask. */
 export function askLinkFor(active: string | null): string {
   const ws = workspaceOfKey(active);
+  const team = active?.match(/^ws:[^:]+:team:([^:]+)/)?.[1];
+  if (ws && team) return `/ask?workspace=${encodeURIComponent(ws)}&team=${encodeURIComponent(team)}`;
   return ws ? `/ask?workspace=${encodeURIComponent(ws)}` : "/ask";
+}
+
+/**
+ * The row a raw rail key (railKeyFor) lands on once the workspace's teams are known (lib/teamsStore), and the
+ * rows to open so it shows: team slugs → ids, a project → its first team's row, the workspace's top level →
+ * Company › Pages. Without teams (not loaded, failed, or none) keys stay as they are.
+ */
+export function resolveRailKey(active: string | null, teams: TeamsSidebar | null | false | undefined): { key: string | null; open: string[] } {
+  const ws = workspaceOfKey(active);
+  if (!active || !ws || !teams) return { key: active, open: [] };
+  const ts = active.match(/^ws:[^:]+:tslug:(.+):(home|pages)$/);
+  if (ts) {
+    const t = teams.teams.find((x) => x.slug === ts[1]);
+    return t ? { key: wsTeamRowKey(ws, t.id, ts[2]), open: [wsTeamRowKey(ws, t.id)] } : { key: wsBrowseKey(ws), open: [] };
+  }
+  const ps = active.match(/^ws:[^:]+:pslug:(.+)$/);
+  if (ps) {
+    const p = teams.projects.find((x) => x.slug === ps[1]);
+    const t = p && teams.teams.find((x) => p.team_ids.includes(x.id));
+    return p && t ? { key: wsTeamRowKey(ws, t.id, `project:${p.id}`), open: [wsTeamRowKey(ws, t.id)] } : { key: null, open: [] };
+  }
+  const tr = active.match(/^ws:[^:]+:team:([^:]+):/);
+  if (tr) return teams.teams.some((x) => x.id === tr[1]) ? { key: active, open: [wsTeamRowKey(ws, tr[1]!)] } : { key: null, open: [] };
+  if (active === wsRootKey(ws)) return { key: wsPagesKey(ws), open: [] };
+  return { key: active, open: [] };
 }
 
 /** The workspace an item key belongs to, if any. */
@@ -211,6 +268,8 @@ interface Ctx {
   /** Open pages whose sub-pages the tree needs (collected while building). */
   want: string[];
   copy: (href: string, label: string) => void;
+  /** The workspace's teams (lib/teamsStore) once loaded; absent: the rail as before teams. */
+  teams?: TeamsSidebar | null;
 }
 
 /** A node's `sig` (see shareNodes): the values its row shows and its handlers use. */
@@ -379,9 +438,90 @@ function workspaceNode(
         leaf: true,
       });
     }
-    children = [...meetingsRow, ...(kids.get(null) ?? []).filter((f) => !(hub && f.meetings)).map((f) => build(f, open)), ...(outline ? placeNodes(c, outline, null, wsHref, open) : [])];
-    if (children.length === meetingsRow.length) {
-      children = [...meetingsRow, { key: `ws:${ws.id}:empty`, sig: sig("e", member), label: member ? "No pages yet. Use + to add one." : "Nothing here yet", note: true }];
+    const teams = c.teams;
+    if (teams) {
+      // Teams (owner 2026-11-09): COMPANY (Home · Pages · Meetings · People), then YOUR TEAMS (each: Home, Pages,
+      // Meetings, Memory, Ask <team>, its projects), Browse teams, and the admins' guided review.
+      const pagesOpen = open && c.expanded.has(wsPagesKey(ws.id));
+      const teamFolder = (f: TreeFolder) => !!(f as TreeFolder & { team_ids?: string[] }).team_ids?.length;
+      const pageKids = [
+        ...(kids.get(null) ?? []).filter((f) => !(hub && f.meetings) && !teamFolder(f)).map((f) => build(f, pagesOpen)),
+        ...(outline ? placeNodes(c, outline, null, wsHref, pagesOpen) : []),
+      ];
+      const company: TreeNode[] = [
+        { key: `ws:${ws.id}:h:company`, sig: sig("h", "c"), label: "Company", note: true, className: "md-tree__heading" },
+        { key: wsHomeKey(ws.id), sig: sig("ch", ws.id), label: "Home", icon: <Icon name="home" size={16} />, href: `${wsHref}/home`, leaf: true },
+        {
+          key: wsPagesKey(ws.id),
+          sig: sig("cp", ws.id, member, admin, !pageKids.length),
+          label: "Pages",
+          icon: <Icon name="doc" size={16} />,
+          href: wsHref,
+          children: pageKids.length ? pageKids : [{ key: `ws:${ws.id}:empty`, sig: sig("e", member), label: member ? "No pages yet. Use + to add one." : "Nothing here yet", note: true }],
+          drop: member ? { workspaceId: ws.id, folderId: null, label: `the top of ${ws.name}`, acceptsFolders: admin } : null,
+          onFiles: filesTo(null, ws.name),
+          actions: member ? { add: { href: `/pages/new?workspace=${encodeURIComponent(ws.id)}`, label: `New company page in ${ws.name}` } } : null,
+        },
+        ...meetingsRow.map((r) => (r.key === wsTeamKey(ws.id) ? { ...r, label: "People", sig: `${r.sig}p` } : r)),
+      ];
+      const mine: TreeNode[] = teams.teams.filter((t) => t.my_role || t.can_admin).map((t) => {
+        const k = (sub?: string) => wsTeamRowKey(ws.id, t.id, sub);
+        const projects = teams.projects.filter((pr) => pr.team_ids.includes(t.id) && pr.status !== "archived");
+        return {
+          key: k(),
+          sig: sig("t", t.name, t.icon, t.color, t.visibility, t.slug, t.can_manage, projects.map((pr) => [pr.id, pr.name, pr.slug, pr.icon, pr.color])),
+          label: t.name,
+          icon: <TeamTile team={t} size={18} />,
+          href: teamHomeHref(ws.id, t),
+          marker: t.visibility === "private" ? (
+            <span className="inline-flex shrink-0 text-text-muted" title="Private team"><Icon name="lock" size={12} /><span className="md-visually-hidden">, private</span></span>
+          ) : undefined,
+          children: [
+            { key: k("home"), sig: sig("th", t.slug), label: "Home", icon: <Icon name="home" size={16} />, href: teamHomeHref(ws.id, t), leaf: true },
+            { key: k("pages"), sig: sig("tp", t.slug), label: "Pages", icon: <Icon name="doc" size={16} />, href: teamPagesHref(ws.id, t), leaf: true,
+              actions: t.my_role || t.can_admin ? { add: { href: `/pages/new?workspace=${encodeURIComponent(ws.id)}&team=${encodeURIComponent(t.id)}`, label: `New page in ${t.name}` } } : null },
+            { key: k("meetings"), sig: sig("tm", t.id), label: "Meetings", icon: <Icon name="mic" size={16} />, href: teamMeetingsHref(ws.id, t), leaf: true },
+            { key: k("memory"), sig: sig("tmem", t.id), label: "Memory", icon: <Icon name="users" size={16} />, href: teamMemoryHref(ws.id, t), leaf: true },
+            { key: k("ask"), sig: sig("ta", t.id, t.name), label: `Ask ${t.name}`, icon: <Icon name="sparkle" size={16} className="text-accent-text" />, href: teamAskHref(ws.id, t), leaf: true },
+            ...projects.map((pr): TreeNode => ({
+              key: k(`project:${pr.id}`), sig: sig("pr", pr.name, pr.icon, pr.color, pr.slug), label: pr.name,
+              icon: <TeamTile team={pr} size={16} />, href: teamProjectHref(ws.id, pr), leaf: true,
+            })),
+          ],
+          actions: {
+            add: t.my_role || t.can_admin ? { href: `/pages/new?workspace=${encodeURIComponent(ws.id)}&team=${encodeURIComponent(t.id)}`, label: `New page in ${t.name}` } : null,
+            menu: [
+              ...(t.my_role || t.can_admin ? [{ label: "New page", icon: "plus", href: `/pages/new?workspace=${encodeURIComponent(ws.id)}&team=${encodeURIComponent(t.id)}` }] : []),
+              ...(t.can_manage ? [{ label: "Team settings", icon: "settings", href: teamSettingsHref(ws.id, t) }] : []),
+              { label: "Copy link", icon: "link", onClick: () => c.copy(teamHomeHref(ws.id, t), t.name) },
+            ],
+          },
+        };
+      });
+      const extra = teams.browse.open + teams.browse.private;
+      const tail: TreeNode[] = [];
+      if (mine.length || extra || teams.can_create) {
+        tail.push({ key: `ws:${ws.id}:h:teams`, sig: sig("h", "t"), label: "Your teams", note: true, className: "md-tree__heading" });
+        if (!mine.length) tail.push({ key: `ws:${ws.id}:noteams`, sig: sig("nt"), label: "You're not in a team yet", note: true });
+        tail.push(...mine);
+        tail.push({
+          key: wsBrowseKey(ws.id), sig: sig("b", extra, teams.can_create), label: teams.can_create && !extra && !mine.length ? "Create a team" : "Browse teams",
+          icon: <Icon name={teams.can_create && !extra && !mine.length ? "plus" : "grid"} size={16} />, href: browseHref(ws.id), leaf: true, className: "text-text-muted",
+        });
+      }
+      if (teams.review?.pending) {
+        tail.push({
+          key: wsReviewKey(ws.id), sig: sig("rv", teams.review.pending), label: "Sort content into teams", icon: <Icon name="listTree" size={16} />,
+          href: reviewHref(ws.id), leaf: true,
+          marker: <span className="ml-auto shrink-0 rounded-full bg-accent-soft px-1.5 text-micro font-semibold text-accent-text" title={`${teams.review.pending} suggestions`}>{teams.review.pending}</span>,
+        });
+      }
+      children = [...company, ...tail];
+    } else {
+      children = [...meetingsRow, ...(kids.get(null) ?? []).filter((f) => !(hub && f.meetings)).map((f) => build(f, open)), ...(outline ? placeNodes(c, outline, null, wsHref, open) : [])];
+      if (children.length === meetingsRow.length) {
+        children = [...meetingsRow, { key: `ws:${ws.id}:empty`, sig: sig("e", member), label: member ? "No pages yet. Use + to add one." : "Nothing here yet", note: true }];
+      }
     }
   }
   const lazy = slot === null || (!!tree && nav === null);
@@ -390,7 +530,7 @@ function workspaceNode(
     sig: sig("w", ws.name, ws.branding?.logo_url, ws.branding?.site_name, active, lazy, slot === false, member, admin),
     label: ws.name,
     icon: <WorkspaceTile ws={ws} active={active} />,
-    href: wsHref,
+    href: c.teams ? `${wsHref}/home` : wsHref,
     children,
     // Not loaded yet: expandable, with placeholders when opened. Failed: a leaf (the folder view
     // explains the error).
@@ -443,7 +583,18 @@ export interface SideNavProps {
  * and whenever `workspaceChanged` / a page change says so), so moving around the app never
  * blanks or refetches the tree.
  */
-export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedback, footer, className, collapsed, onExpand, onCollapse }: SideNavProps) {
+export function SideNav({ data, active, expanded: expandedRaw, onToggle: onToggleRaw, onNavigate, onFeedback, footer, className, collapsed, onExpand, onCollapse }: SideNavProps) {
+  // Company › Pages starts open (it holds the tree that used to sit at the top of a workspace): it is open
+  // unless "<key>!closed" is in the saved set.
+  const expanded = useMemo(() => {
+    const out = new Set(expandedRaw);
+    for (const w of data.workspaces ?? []) if (!expandedRaw.has(closedKey(wsPagesKey(w.id)))) out.add(wsPagesKey(w.id));
+    return out;
+  }, [expandedRaw, data.workspaces]);
+  const onToggle = useCallback((key: string, open: boolean) => {
+    if (/^ws:[^:]+:pages$/.test(key)) onToggleRaw(closedKey(key), !open);
+    else onToggleRaw(key, open);
+  }, [onToggleRaw]);
   const container = useRef<HTMLElement>(null);
   const pill = useRef<HTMLSpanElement>(null);
   const uid = useId();
@@ -462,6 +613,7 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
     [data.workspaces, expanded],
   );
   const trees = useWorkspaceTrees(openWs);
+  const teamsVersion = useTeamsSidebar(openWs, active ?? "");
   // Coming back to the app (from a page, another tab) refreshes the open trees in the background.
   const openSig = openWs.join(",");
   useEffect(() => {
@@ -499,7 +651,8 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
     const fresh = (data.workspaces ?? []).map((ws) => {
       const slot = trees[ws.id] ?? null;
       const open = expanded.has(wsRootKey(ws.id));
-      const c: Ctx = { ws, member: can((slot || null)?.workspace.role ?? ws.role, "member"), expanded, want, copy };
+      const ts = open ? teamsSlot(ws.id) : undefined;
+      const c: Ctx = { ws, member: can((slot || null)?.workspace.role ?? ws.role, "member"), expanded, want, copy, teams: ts || null };
       return workspaceNode(c, slot, open ? navSlot(ws.id) : undefined, ws.id === activeWs, onFiles);
     });
     const deps = [onFiles, copy];
@@ -508,7 +661,7 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
     prevNodes.current = { byKey, deps };
     return { nodes, want: [...new Set(want)].sort() };
     // navVersion: the outlines and sub-page lists (read through navSlot / childrenSlot) changed.
-  }, [data.workspaces, trees, expanded, activeWs, onFiles, viewer, copy, navVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data.workspaces, trees, expanded, activeWs, onFiles, viewer, copy, navVersion, teamsVersion]); // eslint-disable-line react-hooks/exhaustive-deps
   const nodes = built.nodes;
   const wantSig = built.want.join(",");
   useEffect(() => {
@@ -521,6 +674,7 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
     [...expanded].join(","),
     Object.entries(trees).map(([k, v]) => `${k}:${v ? v.folders.length : String(v)}`).join(","),
     navVersion,
+    teamsVersion,
     data.sharedNew ?? -1,
     data.tokens ?? -1,
   ].join("|");

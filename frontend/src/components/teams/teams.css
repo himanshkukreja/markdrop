@@ -1,0 +1,128 @@
+/* Teams (components/teams): team home, Browse teams, team settings, team pages, project spaces, the guided review.
+   Tokens follow the theme (dark on :root / [data-theme="dark"], light under [data-theme="light"]). Team colours are
+   the palette's 400s on dark and 700s on light (text-safe on both surfaces). Targets are 44px on touch screens;
+   inputs 16px on phones (no zoom on iOS). Long names break inside their card (overflow-wrap: anywhere). */
+
+:root, [data-theme="dark"] {
+  --team-blue: var(--blue-400); --team-green: var(--emerald-400); --team-amber: var(--amber-400); --team-red: var(--red-400);
+  --team-violet: var(--violet-400); --team-pink: var(--pink-400); --team-teal: var(--teal-400); --team-gray: var(--gray-400);
+}
+[data-theme="light"] {
+  --team-blue: var(--blue-700); --team-green: var(--emerald-700); --team-amber: var(--amber-700); --team-red: var(--red-700);
+  --team-violet: var(--violet-700); --team-pink: var(--pink-700); --team-teal: var(--teal-700); --team-gray: var(--gray-700);
+}
+
+.tz-page { width: 100%; min-width: 0; padding: 0 0 96px; color: var(--text); overflow-wrap: anywhere; }
+.tz-dialog { overflow-wrap: anywhere; }
+.tz-muted { color: var(--text-secondary); font-size: 13.5px; line-height: 20px; }
+.tz-crumbs { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 13px; color: var(--text-muted); min-width: 0; }
+.tz-crumbs svg { width: 12px; height: 12px; flex: none; }
+.tz-crumbs a { color: var(--text-secondary); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.tz-crumbs a:hover { color: var(--text); text-decoration: underline; }
+.tz-crumbs span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.tz-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.tz-head__main { display: flex; gap: 14px; align-items: flex-start; min-width: 0; flex: 1 1 320px; }
+.tz-head__titles { min-width: 0; }
+.tz-title { margin: 0; font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -0.02em; }
+.tz-sub { margin: 4px 0 0; max-width: 72ch; font-size: 15px; line-height: 22px; color: var(--text-secondary); }
+.tz-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 8px; font-size: 13px; color: var(--text-muted); }
+.tz-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.tz-h2 { margin: 0; font-size: 16px; line-height: 22px; font-weight: 650; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.tz-sec__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; min-width: 0; }
+.tz-sec__head a { font-size: 13px; color: var(--text-secondary); text-decoration: none; white-space: nowrap; }
+.tz-sec__head a:hover { color: var(--text); text-decoration: underline; }
+
+/* The team's tile: its emoji on its colour's wash, else its initial. */
+.tz-tile { display: inline-grid; place-items: center; flex: none; border-radius: 6px; font-weight: 700; line-height: 1;
+  color: var(--tz-c, var(--team-gray)); background: color-mix(in srgb, var(--tz-c, var(--team-gray)) 16%, transparent); }
+.tz-tile--emoji { background: color-mix(in srgb, var(--tz-c, var(--team-gray)) 12%, transparent); }
+.tz-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--tz-c, var(--team-gray)); }
+.tz-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0; height: 24px; padding: 0 8px; border-radius: var(--radius-full);
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-secondary); font-size: 12.5px; font-weight: 550; }
+.tz-chip > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+/* ── layout: team home ── */
+.tz-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.tz-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.tz-card { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 16px; min-width: 0; }
+.tz-card--flush { padding: 6px; }
+.tz-empty { padding: 14px 10px; font-size: 13.5px; line-height: 20px; color: var(--text-muted); }
+@media (max-width: 1023px) { .tz-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* the brief */
+.tz-brief__lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.tz-brief__line { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: 7px 6px; border-radius: 8px; }
+.tz-brief__line:hover { background: var(--surface-hover); }
+.tz-brief__line[data-hidden="true"] { opacity: 0.55; }
+.tz-brief__line[data-hidden="true"] .tz-brief__text { text-decoration: line-through; }
+.tz-brief__icon { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--surface-active); color: var(--text-secondary); }
+.tz-brief__icon svg { width: 13px; height: 13px; }
+.tz-brief__icon[data-kind="blocker"] { color: var(--danger); }
+.tz-brief__icon[data-kind="shipped"] { color: var(--success); }
+.tz-brief__icon[data-kind="decision"] { color: var(--accent-text); }
+.tz-brief__text { font-size: 14px; line-height: 21px; color: var(--text); min-width: 0; }
+.tz-brief__src { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 2px; font-size: 12.5px; }
+.tz-brief__src a { color: var(--text-muted); text-decoration: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tz-brief__src a:hover { color: var(--text); text-decoration: underline; }
+.tz-brief__tools { display: flex; gap: 2px; opacity: 0; transition: opacity var(--duration-fast); }
+.tz-brief__line:hover .tz-brief__tools, .tz-brief__line:focus-within .tz-brief__tools { opacity: 1; }
+@media (pointer: coarse), (max-width: 1023px) { .tz-brief__tools { opacity: 1; } }
+
+/* rows: recent pages, meetings, people, projects */
+.tz-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.tz-row { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 6px 8px; border-radius: 8px; color: var(--text); text-decoration: none; min-width: 0; }
+a.tz-row:hover { background: var(--surface-hover); }
+.tz-row__icon { display: grid; place-items: center; width: 20px; flex: none; color: var(--text-muted); }
+.tz-row__main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.tz-row__title { font-size: 14px; line-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tz-row__sub { font-size: 12.5px; line-height: 17px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tz-row__end { flex: none; font-size: 12.5px; color: var(--text-muted); white-space: nowrap; }
+@media (pointer: coarse) { .tz-row { min-height: 44px; } }
+
+/* ── Browse teams: cards ── */
+.tz-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.tz-tcard { display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); min-width: 0; }
+.tz-tcard__top { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
+.tz-tcard__name { margin: 0; font-size: 15.5px; line-height: 22px; font-weight: 650; min-width: 0; }
+.tz-tcard__name a { color: var(--text); text-decoration: none; }
+.tz-tcard__name a:hover { text-decoration: underline; }
+.tz-tcard__desc { margin: 0; font-size: 13.5px; line-height: 20px; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tz-tcard__foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; flex-wrap: wrap; }
+.tz-group { margin-top: 24px; }
+.tz-group:first-of-type { margin-top: 0; }
+.tz-group > h2 { margin: 0 0 10px; font-size: 13px; line-height: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+
+/* ── settings ── */
+.tz-settings { display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
+.tz-field-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.tz-field-row > * { min-width: 0; }
+.tz-note { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: var(--surface-active); color: var(--text-secondary); font-size: 13.5px; line-height: 20px; }
+.tz-note svg { flex: none; margin-top: 2px; width: 16px; height: 16px; color: var(--text-muted); }
+.tz-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.tz-swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; background: var(--tz-c); cursor: pointer; padding: 0; }
+.tz-swatch[aria-checked="true"] { border-color: var(--text); box-shadow: inset 0 0 0 2px var(--surface); }
+.tz-emoji { width: 72px; text-align: center; }
+@media (pointer: coarse) { .tz-swatch { width: 36px; height: 36px; } }
+.tz-members { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.tz-member { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-top: 1px solid var(--border); min-width: 0; }
+.tz-member:first-child { border-top: 0; }
+.tz-member__who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.tz-member__who b { font-size: 14px; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tz-member__who span { font-size: 12.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tz-picklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 280px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+.tz-picklist li { border-top: 1px solid var(--border); }
+.tz-picklist li:first-child { border-top: 0; }
+.tz-picklist label { display: flex; align-items: center; gap: 10px; padding: 8px 10px; min-height: 40px; cursor: pointer; min-width: 0; }
+.tz-picklist label > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (pointer: coarse) { .tz-picklist label { min-height: 44px; } }
+
+/* ── guided review ── */
+.tz-review { display: flex; flex-direction: column; gap: 20px; }
+.tz-rv { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(160px, 220px); gap: 10px; align-items: center; padding: 10px 8px; border-top: 1px solid var(--border); }
+.tz-rv:first-child { border-top: 0; }
+@media (max-width: 639px) { .tz-rv { grid-template-columns: auto minmax(0, 1fr); } .tz-rv > :last-child { grid-column: 2; } }
+.tz-bar { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-raised, var(--surface)); box-shadow: var(--shadow-md); }
+
+/* ── Ask: the whole-company toggle; share dialog's team section ── */
+.tz-scope { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+.tz-share { display: flex; flex-direction: column; gap: 8px; }
