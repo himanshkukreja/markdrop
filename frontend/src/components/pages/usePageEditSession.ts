@@ -600,6 +600,8 @@ export function usePageEditSession({
   useEffect(() => {
     if (lock.kind !== "theirs") return;
     const id = window.setInterval(async () => {
+      // A hidden tab doesn't ask (the page catches up when it's shown again).
+      if (document.visibilityState === "hidden") return;
       // Asking never takes it: a tab left open on someone else's edit never grabs the page.
       try {
         const st = await lockStatus(slugRef.current, secret);
