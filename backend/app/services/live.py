@@ -121,7 +121,8 @@ _sends: set[asyncio.Task] = set()
 def _bus_on() -> bool:
     from app.config import get_settings
 
-    return get_settings().role != "all"
+    s = get_settings()
+    return s.role != "all" and s.redis_url.startswith(("redis://", "rediss://", "unix://"))
 
 
 def _client():
@@ -196,7 +197,7 @@ async def _listen() -> None:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            log.warning("live bus: %s; retrying in %.0fs", type(exc).__name__, wait)
+            log.warning("live bus: %s: %s; retrying in %.0fs", type(exc).__name__, exc, wait)
         finally:
             if client is not None:
                 try:
@@ -209,6 +210,11 @@ async def _listen() -> None:
 
 def start_bus() -> None:
     global _bus_task
+    from app.config import get_settings
+
+    if get_settings().role != "all" and not _bus_on():
+        log.warning("live bus: off (MARKDROP_REDIS_URL is not a Redis URL): a change made in another process "
+                    "won't reach this one's open pages until they reload")
     if not _bus_on() or (_bus_task is not None and not _bus_task.done()):
         return
     _bus_task = asyncio.get_running_loop().create_task(_listen())
