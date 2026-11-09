@@ -33,10 +33,16 @@ async def _visible(db, actor, ctx, rows: list[dict]) -> tuple[dict[str, dict], d
     ok: dict[str, dict] = {}
     perms: dict[str, object] = {}
     for i, d in docs.items():
-        p = await perms_mod.perms_for(db, actor, d, ctx)
-        if p.view and p.comment:
-            ok[i] = d
-            perms[i] = p
+        # The cheap part of perms.perms_for (no edit / settings checks): eligible, switched on, readable.
+        if not actor.user_id or not perms_mod.eligible(d) or d.get("comments_off") is True:
+            continue
+        if not (await access.can(actor, d, "read", ctx)).allowed:
+            continue
+        f = await access.facts(actor, d, ctx)
+        if f.ws is not None and getattr(f.ws.settings, "comments_enabled", True) is False:
+            continue
+        ok[i] = d
+        perms[i] = True
     return ok, perms
 
 

@@ -67,11 +67,16 @@ async def mentionable(db, actor, raw: dict, ctx, q: str | None = None, limit: in
     out = []
     from app.services.comments.service import _display_name
 
+    matched = []
     for u in rows:
         name = _display_name(u)
         email = (u.get("email") or "").lower()
         if needle and not (needle in name.lower() or (show_email and email.startswith(needle))):
             continue
+        matched.append((name, u))
+    # Access is decided per person, so only for the few the picker can show (a big workspace has hundreds).
+    matched.sort(key=lambda x: (str(x[1]["_id"]) == actor.user_id, x[0].casefold()))
+    for name, u in matched[: limit * 2]:
         pic = u.get("picture")
         out.append({"id": str(u["_id"]), "name": name,
                     "picture": pic if isinstance(pic, str) and pic.startswith("https://") else None,
