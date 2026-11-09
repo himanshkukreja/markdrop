@@ -568,6 +568,13 @@ export default function DocumentView(props: DocumentViewProps) {
     meeting: !!page?.meeting && page.meeting.role !== "transcript", workspaceId: page?.workspace_id ?? null, rev: v.docRev,
   });
 
+  // Comments' "settings" link opens the Share dialog. Above the artifact return: hooks run on every render.
+  useEffect(() => {
+    const on = () => setShowShare(true);
+    window.addEventListener("md:comments-settings", on);
+    return () => window.removeEventListener("md:comments-settings", on);
+  }, [setShowShare]);
+
   // ── Artifact discovered behind the password gate ───────────────────────────
   if (artifactDoc) {
     // Its code was fetched before the read was adopted (doc/preload): render it directly.
@@ -603,11 +610,6 @@ export default function DocumentView(props: DocumentViewProps) {
   const gated = pwdLocked || pwdFetching;
   // Comments: on for this reader when the read says so and the item is open in front of them.
   const commentsSummary = readable && !encrypted && !gated && !artifactDoc ? v.docComments : null;
-  useEffect(() => {
-    const on = () => setShowShare(true);
-    window.addEventListener("md:comments-settings", on);
-    return () => window.removeEventListener("md:comments-settings", on);
-  }, [setShowShare]);
   const gateMode: "password" | "signin" | "denied" = accessDenied ? "denied" : gate === "signin" ? "signin" : "password";
   // A classic document's one bar (the framed view, a gate, the editor); a page has its own (below).
   const docPresence = readable ? <>{<DocPresence presence={presence} signedIn={!!user} />}{commentsSummary && !showRaw && <CommentsButton />}</> : null;
