@@ -395,6 +395,13 @@ _JIRA_KEY = re.compile(r"^[A-Z][A-Z0-9_]{0,30}-\d{1,9}$")
 _JIRA_HOST = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$")
 
 
+def jira_text(pc: "PageCtx", key: str, site: str | None) -> str:
+    """A chip's or card's words: "KEY · title" from the page's snapshot (what every reader of the page
+    sees: services/jira_pages.py), else the key."""
+    title = (pc.jira.get(f"{(site or pc.jira_site or '').strip().lower()}/{key}") or {}).get("title")
+    return f"{key} · {title}" if title else key
+
+
 def jira_issue_url(key: str | None, site: str | None) -> str | None:
     key, site = (key or "").strip(), (site or "").strip().lower()
     if not _JIRA_KEY.match(key) or not _JIRA_HOST.match(site):
@@ -452,6 +459,8 @@ class PageCtx:
     children: list[dict] = field(default_factory=list)      # included sub-pages: {title, path}
     mode: str = "single"            # "single" | "zip"
     notes: list[str] = field(default_factory=list)
+    jira: dict = field(default_factory=dict)                # "<host>/<KEY>" → snapshot (services/jira_pages.py)
+    jira_site: str | None = None                            # the workspace's Jira host, for chips without one
 
 
 def _item_icon(e: dict) -> str:
@@ -595,11 +604,13 @@ class Inline:
             return self.directives(label) if self.out == "md" else self.slot(f"<u>{self.label_html(label)}</u>")
         if name == "jira":
             key = re.sub(r"\\(.)", r"\1", label).strip()
-            href = jira_issue_url(key, attrs.get("site"))
+            site = attrs.get("site") or pc.jira_site
+            href = jira_issue_url(key, site)
+            text = jira_text(pc, key, site)
             if self.out == "md":
-                return f"[{md_text(key)}]({md_url(href)})" if href else md_text(key)
-            return self.slot(f'<a class="chip" href="{esc(href)}">{esc(key)}</a>' if href
-                             else f'<span class="chip">{esc(key)}</span>')
+                return f"[{md_text(text)}]({md_url(href)})" if href else md_text(text)
+            return self.slot(f'<a class="chip" href="{esc(href)}">{esc(text)}</a>' if href
+                             else f'<span class="chip">{esc(text)}</span>')
         return None
 
     def directives(self, text: str) -> str:
@@ -841,10 +852,12 @@ def _leaf_md(b: Block, pc: PageCtx, headings: list[tuple[int, str]]) -> str:
         return f"[{md_text(label)}]({md_url(url)})"
     if b.name == "jira":
         key = (a.get("key") or "").strip()
-        href = jira_issue_url(key, a.get("site"))
-        return f"[{md_text(key)}]({md_url(href)})" if href else md_text(key)
+        site = a.get("site") or pc.jira_site
+        href = jira_issue_url(key, site)
+        text = jira_text(pc, key, site)
+        return f"[{md_text(text)}]({md_url(href)})" if href else md_text(text)
     if b.name == "jira-list":
-        label, href = jira_list_link(a)
+        label, href = jira_list_link({**a, "site": a.get("site") or pc.jira_site})
         return f"[{md_text(label)}]({md_url(href)})" if href else md_text(label)
     if b.name == "toc":
         return _toc_md(headings)
@@ -1029,10 +1042,11 @@ def _leaf_html(b: Block, pc: PageCtx, md) -> str:
         return _card("▶️", esc(a.get("title") or (w["name"] if w else _host_of(url))), esc(url), url, cls="webembed")
     if b.name == "jira":
         key = (a.get("key") or "").strip()
-        href = jira_issue_url(key, a.get("site"))
-        return _card("🎫", esc(key), "Jira issue" + (f" · {esc(_host_of(href))}" if href else ""), href, cls="jira")
+        site = a.get("site") or pc.jira_site
+        href = jira_issue_url(key, site)
+        return _card("🎫", esc(jira_text(pc, key, site)), "Jira issue" + (f" · {esc(_host_of(href))}" if href else ""), href, cls="jira")
     if b.name == "jira-list":
-        label, href = jira_list_link(a)
+        label, href = jira_list_link({**a, "site": a.get("site") or pc.jira_site})
         return _card("🎫", esc(label), "Jira" + (f" · {esc(_host_of(href))}" if href else ""), href, cls="jira")
     if b.name == "toc":
         return "\ue000TOC\ue001"
@@ -1343,6 +1357,11 @@ async def _page_plan(db, raw: dict, actor: access.Actor, person: access.Actor, c
     url = await urls.workspace_url(db, raw) or urls.markdrop_url(raw["slug"])
     pc = PageCtx(slug=raw["slug"], title=title, url=url, props=props, embeds=embeds, images=images,
                  public=public, public_urls=public_urls, crumbs=crumbs, mode=mode)
+    if "jira" in content:
+        # Jira chips and cards: "KEY · title" from the page's snapshots (services/jira_pages.py).
+        from app.services import jira_pages
+
+        pc.jira, pc.jira_site = await jira_pages.snapshots(db, raw)
     return PagePlan(raw=raw, content=content, pc=pc, folder=folder, images=list(images.values()))
 
 

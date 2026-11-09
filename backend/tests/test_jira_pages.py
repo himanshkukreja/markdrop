@@ -355,8 +355,16 @@ class Exports(PagesWorld):
     async def test_get_page_renders_plain_links(self):
         await self.connect("wa")
         await self.save("wa", "launch", page_body(self.k1, self.k2))
-        # Exports (services/page_export.py, Track C's plain links): see .work/comments/D-export-titles.patch for
-        # "KEY · title" from the snapshots once C and D are merged.
+        r = await self.http.get("/api/v1/documents/launch/export", params={"format": "md"}, headers=self.session("wo"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertIn(f"[{self.k1} · Billing webhooks v2](https://{HOST}/browse/{self.k1})", r.text)
+        self.assertIn(f"[{self.k2} · Runbook for the launch](https://{HOST}/browse/{self.k2})", r.text)
+        self.assertIn("[Payments](https://acme.atlassian.net/issues/?jql=project%20%3D%20PAY)", r.text)
+        self.assertNotIn("::jira", r.text)
+        r = await self.http.get("/api/v1/documents/launch/export", params={"format": "html"}, headers=self.session("wo"))
+        self.assertIn(f'href="https://{HOST}/browse/{self.k1}"', r.text)
+        self.assertIn("Billing webhooks v2", r.text)
+        self.assertNotIn("In Progress", r.text)                          # snapshots only, never live details
         status, res = await self.mcp_call(await self.mcp_token("wo", write=False), "get_page", {"document": "launch"})
         self.assertFalse(res["isError"], res)
         items = res["structuredContent"]["jira"]
