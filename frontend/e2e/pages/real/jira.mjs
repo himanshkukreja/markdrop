@@ -198,6 +198,9 @@ await step("create", async () => {
   const li = p.locator(TODO, { hasText: "billing webhooks" }).first();
   await li.waitFor({ timeout: 30000 });
   // Offered on the decision, the two action items and the open question; not on the summary, topics or sources.
+  // The page's Jira (usePageJira) loads after the list renders: wait for it before counting.
+  await p.getByTestId("jira-add").first().waitFor({ timeout: 30000 });
+  await p.waitForFunction(() => document.querySelectorAll('[data-testid="jira-add"]').length >= 4, null, { timeout: 15000 }).catch(() => {});
   const adds = await p.getByTestId("jira-add").count();
   if (adds !== 4) fail(`"+ Jira" on ${adds} items (expected 4)`);
   await li.getByTestId("jira-add").click();

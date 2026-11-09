@@ -232,7 +232,10 @@ await step("editor", async () => {
   });
   await p.locator('.pb-live [data-testid="jira-inline"][data-key="WEB-2"]').waitFor({ timeout: 10000 });
   // @PAY-3 → its chip.
-  await p.keyboard.type(" @PAY-3");
+  // The pasted chip's title arrives a moment later: let it settle before typing, then type the mention.
+  await p.locator('.pb-live [data-testid="jira-inline"][data-key="WEB-2"][aria-label*="WEB-2:"]').first().waitFor({ timeout: 10000 }).catch(() => {});
+  await p.waitForTimeout(400);
+  await p.keyboard.type(" @PAY-3", { delay: 30 });
   await p.locator(".dxe-people [role=option]", { hasText: "PAY-3" }).first().waitFor({ state: "attached", timeout: 8000 });
   await p.keyboard.press("Enter");
   await p.locator('.pb-live [data-testid="jira-inline"][data-key="PAY-3"]').waitFor({ timeout: 10000 });
