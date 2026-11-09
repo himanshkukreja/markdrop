@@ -111,7 +111,7 @@ export function JiraIssuePicker({ open, onClose, onPick, jira, title = "Add a Ji
       description={startCreate ? "Say what it's about: Markdrop drafts the issue for you to review, then it's created as you."
         : state.connected ? "Search your Jira, or paste an issue's key or link." : "Paste an issue's key or link."}>
       <div className="jp-pick" data-testid="jira-picker">
-        <Input autoFocus iconLeft="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="PAY-123, a link, or words from the title"
+        <Input autoFocus prefix="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="PAY-123, a link, or words from the title"
           aria-label="Find a Jira issue" aria-controls={listId} aria-autocomplete="list"
           onKeyDown={(e) => {
             if (e.key === "ArrowDown") { e.preventDefault(); setIndex((i) => Math.min(i + 1, Math.max(0, options.length - 1))); }

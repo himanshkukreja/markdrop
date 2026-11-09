@@ -25,6 +25,7 @@ import { parseBlocks } from "../core/markdown.mjs";
 import { cx } from "../views/shared";
 import type { PageResolvedItem, PagesEditorHost, UploadImage } from "../types";
 import { markdownSlice } from "./markdownSlice";
+import { parseJiraUrl } from "@/lib/jiraPages";
 import { bareUrl, MATH_LANG, normalizePastedHTML, pasteMarkdown, pasteTargets, pickSource, type PasteTarget, type PasteTargetId } from "./paste";
 import { watchPastedImages } from "./pasteImages";
 
@@ -178,6 +179,14 @@ export class PasteController {
     // A link on its own (a page): a link now, and the menu.
     const url = this.pages ? bareUrl(text, html) : null;
     const link = state.schema.marks.link;
+    // A Jira issue's link: its chip at once (components/jira/pages; the chip offers "Show as a card").
+    const jira = url ? parseJiraUrl(url) : null;
+    const mention = state.schema.nodes.mention;
+    if (jira && mention && selection.empty && $from.parent.isTextblock && $from.parent.type.contentMatch.matchType(mention)) {
+      const node = mention.create({ name: "jira", label: jira.key, attributes: { site: jira.site } });
+      view.dispatch(state.tr.replaceSelectionWith(node, false).insertText(" ").scrollIntoView().setMeta("paste", true).setMeta("uiEvent", "paste"));
+      return true;
+    }
     if (url && link && selection.empty && $from.parent.isTextblock && $from.parent.type.allowsMarkType(link)) {
       this.insertLink(view, url);
       return true;

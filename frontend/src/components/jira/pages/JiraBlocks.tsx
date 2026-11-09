@@ -190,7 +190,7 @@ function AssigneeButton({ issue, ctx }: { issue: Issue; ctx: ActCtx }) {
       }>
       {({ close }) => (
         <div className="jp-people">
-          <Input autoFocus size="sm" placeholder="Search people" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search people" iconLeft="search" />
+          <Input autoFocus size="sm" placeholder="Search people" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search people" prefix="search" />
           <ul role="listbox" aria-label="People">
             {issue.assignee && <li><button type="button" className="jp-person" onClick={() => pick(null, close)}><Icon name="userX" size={16} /> Unassign</button></li>}
             {people === null ? <li className="jp-muted"><Spinner size={14} /> Searching…</li>
