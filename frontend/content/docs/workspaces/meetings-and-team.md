@@ -49,7 +49,7 @@ Each call becomes one page in **Meetings › its series** (or **Other meetings**
 [Team](/workspaces/team) is **off until a workspace admin turns it on**. Then it reads each meeting once its summary is written, and pages 10 minutes after their last save, and keeps short, dated lines about each member: what they're working on, what they finished, targets with due dates, blockers. The board shows a card per person, a **This week** card, and projects.
 
 - People set their own **status** and **focus**, and fix lines about themselves: **Mark done**, **Hide**, **This is wrong**.
-- Every Monday at 9 am in the workspace's timezone, the **weekly summary** goes to the Slack meetings channel and the admins' email, and becomes the This week card.
+- Every Monday at 9 am in the workspace's timezone, the **weekly summary** (last week's highlights and what's due this week) goes to the Slack meetings channel and the admins' email. Team's **This week so far** card follows the current week.
 
 ## 5. Ask and Slack use it
 

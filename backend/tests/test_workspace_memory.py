@@ -636,6 +636,12 @@ class Extras(TeamWorld):
             self.assertEqual(await team_extras.background(self.db, [ws], monday), 0)     # once a week
         row = await self.db[team_extras.WEEKLY].find_one({})
         self.assertEqual(row["week"], "2026-W46")
+        # Monday's summary: last week's highlights (Nov 2 – 8), this week's due items, labelled so.
+        self.assertEqual((row["window"], row["highlights_from"], row["highlights_to"]), ("last_week", "2026-11-02", "2026-11-08"))
+        self.assertTrue(row["highlights"])
+        self.assertEqual(sent[0][0]["subject"].split(":")[0], "Week of Nov 9")
+        self.assertIn("Weekly summary · Monday Nov 9".upper(), sent[0][0]["text"])
+        self.assertEqual(posted[0][1]["blocks"][0]["text"]["text"], f"Week of Nov 9 in {ws.name}")
         everything = json.dumps({k: row[k] for k in ("highlights", "blockers", "due", "overdue")}, default=str)
         self.assertIn("sourcing filters", everything.lower())                 # from standup 2 (team-visible)
         # Nothing sourced from the restricted standup (its lines also said in standup 2 cite standup 2).
@@ -652,6 +658,10 @@ class Extras(TeamWorld):
         self.assertEqual(b["this_week"]["week"], "2026-W46")
         self.assertEqual((b["this_week"]["from"], b["this_week"]["to"]), ("2026-11-09", "2026-11-15"))
         self.assertFalse(b["this_week"]["live"])
+        # Nothing this week yet: the card carries the sent summary's highlights, labelled as last week's.
+        self.assertEqual((b["this_week"]["window"], b["this_week"]["highlights_from"], b["this_week"]["highlights_to"]),
+                         ("last_week", "2026-11-02", "2026-11-08"))
+        self.assertEqual(b["this_week"]["highlights"], row["highlights"])
         self.assertNotIn(self.m["transcript_slug"], json.dumps(b["this_week"]))
 
 
@@ -778,6 +788,8 @@ class ThisWeek(TeamWorld):
         self.assertNotIn(fid, [x["id"] for x in s["due"]])
 
     async def test_highlights_this_week_spread_and_capped(self):
+        from app.services import team_extras
+
         old = datetime(2026, 10, 20, 9, tzinfo=timezone.utc)
         await self.fact("wa", "update", "Old July launch note from last month", when=old)
         for i, t in enumerate(["Shipped the talent pool import", "Finished the talent pool filters",
@@ -797,10 +809,98 @@ class ThisWeek(TeamWorld):
         self.assertGreaterEqual(len(per), 2)                                   # spread across people
         self.assertEqual(sum(1 for t in texts if t.startswith("Shipped the talent pool import")), 1)   # no near-duplicates
         self.assertIn("We use Stripe Checkout", texts)
-        # Nothing this week yet (a Monday morning): the last 7 days instead.
+        # Nothing this week yet (a Monday morning): the card shows last week's (Mon–Sun), labelled so.
         s = await self.compose(now=datetime(2026, 11, 9, 0, 30, tzinfo=timezone.utc))
-        self.assertEqual(s["window"], "last7")
+        self.assertEqual(s["window"], "last_week")
+        self.assertEqual((s["highlights_from"], s["highlights_to"]), ("2026-11-02", "2026-11-08"))
         self.assertTrue(s["highlights"])
+        self.assertEqual(team_extras.labels(s)["highlights"], "Last week (Nov 2 – 8)")
+        # Midweek with lines: this week so far.
+        s = await self.compose()
+        self.assertEqual((s["highlights_from"], s["highlights_to"]), ("2026-11-02", "2026-11-04"))
+        self.assertEqual(team_extras.labels(s)["highlights"], "This week so far (Nov 2 – 4)")
+
+    async def test_monday_summary_is_last_week_explicitly(self):
+        from app.services import team_extras
+
+        await self.db[wm.FACTS].delete_many({})
+        await self.fact("wa", "decision", "Before last week: a decision on Sunday Nov 1", when=datetime(2026, 11, 1, 23, tzinfo=timezone.utc))
+        await self.fact("wa", "update", "Shipped the export early on Monday Nov 2", when=datetime(2026, 11, 2, 8, tzinfo=timezone.utc))
+        await self.fact("wm", "decision", "We price annual plans per seat", when=datetime(2026, 11, 6, 15, tzinfo=timezone.utc))
+        await self.fact("owner", "update", "Shipped the Monday morning hotfix", when=datetime(2026, 11, 9, 8, tzinfo=timezone.utc))
+        await self.fact("wm", "target", "Send the pricing FAQ", due="2026-11-11")
+        await self.fact("wa", "action_item", "Review the onboarding copy", due="2026-11-05")
+        ws = await wm.ws_info(self.db, self.W)
+        monday = datetime(2026, 11, 9, 9, tzinfo=timezone.utc)
+        s = await team_extras.compose(self.db, ws, team_extras.tz_of("UTC"), monday, ai=False, summary=True)
+        self.assertEqual((s["window"], s["highlights_from"], s["highlights_to"]), ("last_week", "2026-11-02", "2026-11-08"))
+        self.assertEqual((s["from"], s["to"], s["week"]), ("2026-11-09", "2026-11-15", "2026-W46"))
+        said = [h["text"] for h in s["highlights"]] + [d["text"] for d in s["decisions"]]
+        # Mon–Sun, not a rolling 7 days: Monday 08:00 of last week is in, Sunday before it and this Monday are out.
+        self.assertIn("Shipped the export early on Monday Nov 2", said)
+        self.assertIn("We price annual plans per seat", said)
+        self.assertNotIn("Before last week: a decision on Sunday Nov 1", said)
+        self.assertNotIn("Shipped the Monday morning hotfix", said)
+        self.assertEqual([x["text"] for x in s["due"]], ["Send the pricing FAQ"])
+        self.assertEqual([x["text"] for x in s["overdue"]], ["Review the onboarding copy"])
+        self.assertEqual((s["meetings_from"], s["meetings_to"]), ("2026-11-02", "2026-11-08"))
+        self.assertTrue(s["meetings"])                                   # the Nov 4 standups
+        L = team_extras.labels(s)
+        self.assertEqual((L["highlights"], L["due"], L["sent_on"], L["header"]),
+                         ("Last week (Nov 2 – 8)", "Due this week (Nov 9 – 15)", "Monday Nov 9", "Week of Nov 9"))
+        m = team_extras.compose_email(ws, s)
+        self.assertEqual(m["subject"], "Week of Nov 9: last week's highlights and what's due")
+        for part in ("WEEKLY SUMMARY · MONDAY NOV 9", "LAST WEEK (NOV 2 – 8)", "DUE THIS WEEK (NOV 9 – 15)", "OVERDUE",
+                     "MEETINGS LAST WEEK"):
+            self.assertIn(part, m["text"])
+        blocks, _text = team_extras.slack_blocks(ws, s)
+        body = json.dumps(blocks, ensure_ascii=False)
+        self.assertIn("*Last week (Nov 2 – 8)*", body)
+        self.assertIn("*Due this week (Nov 9 – 15)*", body)
+        # The card the same Monday morning is about this week so far: its highlights are this week's.
+        card = await team_extras.compose(self.db, ws, team_extras.tz_of("UTC"), monday, ai=False)
+        self.assertEqual(card["window"], "week")
+        self.assertEqual([h["text"] for h in card["highlights"]], ["Shipped the Monday morning hotfix"])
+
+    async def test_last_week_across_a_month_boundary(self):
+        from app.services import team_extras
+
+        await self.db[wm.FACTS].delete_many({})
+        await self.fact("wa", "update", "Shipped the October import", when=datetime(2026, 10, 28, 9, tzinfo=timezone.utc))
+        ws = await wm.ws_info(self.db, self.W)
+        s = await team_extras.compose(self.db, ws, team_extras.tz_of("UTC"), datetime(2026, 11, 2, 9, tzinfo=timezone.utc),
+                                      ai=False, summary=True)
+        self.assertEqual((s["highlights_from"], s["highlights_to"]), ("2026-10-26", "2026-11-01"))
+        self.assertEqual([h["text"] for h in s["highlights"]], ["Shipped the October import"])
+        L = team_extras.labels(s)
+        self.assertEqual((L["highlights"], L["due"], L["header"]), ("Last week (Oct 26 – Nov 1)", "Due this week (Nov 2 – 8)",
+                                                                    "Week of Nov 2"))
+        self.assertEqual(team_extras.weekly_subject(ws.name, team_extras.plain_summary(s)), "Week of Nov 2: last week's highlights")
+        # A week ending in the next month, and one in the same month.
+        self.assertEqual(team_extras.span("2026-11-30", "2026-12-06"), "Nov 30 – Dec 6")
+        self.assertEqual(team_extras.span("2026-11-02", "2026-11-08"), "Nov 2 – 8")
+        self.assertEqual(team_extras.span("2026-11-09", "2026-11-09"), "Nov 9")
+
+    def test_subject_variants(self):
+        from app.services import team_extras
+
+        base = {"from": "2026-11-09", "to": "2026-11-15", "today": "2026-11-09", "window": "last_week",
+                "highlights_from": "2026-11-02", "highlights_to": "2026-11-08"}
+        h = [{"person": {"name": "Bo"}, "text": "x"}]
+        it = [{"person": {"name": "Bo"}, "text": "y", "due": "2026-11-11", "days": 2}]
+        b = [{"person": {"name": "Bo"}, "text": "z"}]
+
+        def subj(**kw):
+            return team_extras.weekly_subject("Acme", team_extras.plain_summary({**base, **kw}))
+        self.assertEqual(subj(highlights=h, due=it), "Week of Nov 9: last week's highlights and what's due")
+        self.assertEqual(subj(highlights=h), "Week of Nov 9: last week's highlights")
+        self.assertEqual(subj(due=it), "Week of Nov 9: what's due")
+        self.assertEqual(subj(overdue=it), "Week of Nov 9: what's overdue")
+        self.assertEqual(subj(highlights=h, overdue=it), "Week of Nov 9: last week's highlights and what's overdue")
+        self.assertEqual(subj(blockers=b), "Week of Nov 9: who's blocked")
+        self.assertEqual(subj(), "Week of Nov 9: a quiet week")
+        # Sent on another day (Send now): the eyebrow says that day, the week stays the same.
+        self.assertEqual(team_extras.labels({**base, "today": "2026-11-11"})["sent_on"], "Wednesday Nov 11")
 
     async def test_card_access_team_visible_only(self):
         # A restricted meeting's lines never reach the card, for anyone.

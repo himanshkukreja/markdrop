@@ -9,7 +9,7 @@ Markdrop for Slack connects one Slack workspace to one Markdrop workspace. It do
 
 - **Meeting notes in a channel.** When a meeting's summary is ready, its decisions and action items are posted to the channel you choose. Each action item has a **Done** button that ticks it on the Markdrop page.
 - **Your action items, to you.** After each meeting, everyone in it with an action item (attendees, people on the invite and the organizer) gets a direct message with only their own, whether or not they're in Markdrop.
-- **Team's weekly summary.** When your workspace uses [Team](/workspaces/team), its summary of the week is posted to the meetings channel every Monday at 9 am.
+- **Team's weekly summary.** When your workspace uses [Team](/workspaces/team), last week's highlights and this week's due items are posted to the meetings channel every Monday at 9 am.
 - **`/markdrop search` and `/markdrop ask`.** Find documents, pages and files, or get an answer with sources. Only you see the reply, and it uses only what you can open in Markdrop.
 - **Link previews.** Markdrop links show a preview when everyone in the channel may open them.
 - **Slack notifications**: direct messages for mentions, sign-off requests, shares and access requests, for people who turn them on. You can approve or decline an access request, or sign off, right in Slack.
@@ -90,9 +90,9 @@ Which meetings are posted:
 
 ### Team's weekly summary
 
-When the workspace has [Team memory](/workspaces/team) on, Team's summary of the week is posted to the same meetings channel every Monday at 9 am in the workspace's timezone: a line with the week and its counts, highlights (one person's together, each with a link to its meeting or page), decisions, what's overdue (with how late) and due this week (with the day), who's blocked and on whom, and the week's meetings. It only uses meetings and pages everyone in the workspace can open, so a restricted meeting never shows. A week with nothing in it isn't posted. Admins can send it right away with **Send now** on Team's **This week** card. See [The weekly summary](/workspaces/team#the-weekly-summary).
+When the workspace has [Team memory](/workspaces/team) on, Team's weekly summary is posted to the same meetings channel every Monday at 9 am in the workspace's timezone, as "Week of Nov 9 in Acme": a line with the day and its counts; **Last week (Nov 2 – 8)** with last week's highlights (one person's together, each with a link to its meeting or page), its decisions and meetings; then **Due this week (Nov 9 – 15)** with the day, **Overdue** with how late, and **Blocked right now** with whom they wait on. It only uses meetings and pages everyone in the workspace can open, so a restricted meeting never shows. A week with nothing in it isn't posted. Admins can send it right away with **Send now** on Team's **This week** card. See [The weekly summary](/workspaces/team#the-weekly-summary).
 
-![Illustration of Team's weekly summary in the #meetings channel: This week in Acme with the week and its counts, Highlights with each person's name and a link to the meeting, Overdue with how late each item is, Due this week with the day, Blocked with who they wait on, Meetings this week, and Open Team.](/docs-assets/integrations/slack/illustration-team-weekly.webp)
+![Illustration of Team's weekly summary in the #meetings channel: Week of Nov 9 in Acme with the day and its counts, Last week (Nov 2 – 8) with each person's highlight and a link to the meeting, Meetings last week, then Due this week (Nov 9 – 15) with the day, Overdue with how late, Blocked right now with who they wait on, and Open Team.](/docs-assets/integrations/slack/illustration-team-weekly.webp)
 
 ### Post a meeting by hand
 

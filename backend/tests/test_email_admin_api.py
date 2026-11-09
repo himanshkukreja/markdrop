@@ -46,7 +46,7 @@ class AdminApi(unittest.IsolatedAsyncioTestCase):
         self.assertIn("slack-meeting-post", [e["id"] for e in entries])
         self.assertIn("email-team-weekly", [e["id"] for e in entries])
         m = (await self.http.get("/api/v1/admin/email/gallery/email-team-weekly")).json()
-        self.assertTrue(m["subject"].startswith("This week in Senseloaf"))
+        self.assertEqual(m["subject"], "Week of Nov 9: last week's highlights and what's due")
         self.assertIn("<!DOCTYPE html>", m["html"])
         self.assertTrue(m["text"])
         s = (await self.http.get("/api/v1/admin/email/gallery/slack-meeting-post")).json()

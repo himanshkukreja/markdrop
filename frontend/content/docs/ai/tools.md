@@ -249,7 +249,7 @@ The write tools follow the website's rules: you change only your own status, foc
 | `correct_team_line` | write | "This is wrong" on a line about you, with the right version (optional); `clear: true` removes the correction. | `workspace`, `line_id`, `text`, `clear` |
 | `save_team_group` | write | Admins: creates a group, or renames one or changes its members (`group_id`). Members by name, email or id. | `workspace`, `group_id`, `name`, `members` |
 | `delete_team_group` | write | Admins: deletes a group; its members stay in the workspace. | `workspace`, `group_id` |
-| `send_weekly_summary_now` | write | Admins: sends this week's summary now (highlights, due, overdue, blockers, from what the whole team can open) to the Slack meetings channel and the admins' email, and keeps it as the This week card. A few times an hour at most. | `workspace` |
+| `send_weekly_summary_now` | write | Admins: sends the weekly summary now ("Week of Nov 9: last week's highlights and what's due": last week's highlights, decisions and meetings, this week's due items, overdue, blocked right now; only from what the whole team can open) to the Slack meetings channel and the admins' email. A few times an hour at most. | `workspace` |
 
 ### Slack
 

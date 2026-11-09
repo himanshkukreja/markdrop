@@ -107,7 +107,9 @@ from app.services import workspace_memory as _wm  # noqa: E402
 
 _src = lambda title, slug: [{"title": title, "href": f"{BASE}/{slug}"}]  # noqa: E731
 weekly_blocks, _weekly_text = team_extras.slack_blocks(_wm.WsInfo("6aecc9488c77e564c2be27c0", "Acme", True, True), {
-    "from": "2026-11-03", "to": "2026-11-09",
+    # Sent Monday Nov 9: last week's highlights and meetings (Nov 2 – 8), this week's due items (Nov 9 – 15).
+    "from": "2026-11-09", "to": "2026-11-15", "today": "2026-11-09", "window": "last_week",
+    "highlights_from": "2026-11-02", "highlights_to": "2026-11-08",
     "meetings": [{"title": "Weekly product sync", "date": "2026-11-04", "time": "10:00", "href": "/weekly-product-sync-nov-4"},
                  {"title": "Pricing review", "date": "2026-11-05", "time": "15:30", "href": "/pricing-review-nov-5"}],
     "highlights": [
@@ -121,7 +123,7 @@ weekly_blocks, _weekly_text = team_extras.slack_blocks(_wm.WsInfo("6aecc9488c77e
                   "waiting_on": "Alex Chen"}],
     "due": [{"person": {"name": "Maya Patel"}, "text": "Update the onboarding docs", "due": "2026-11-11"},
             {"person": {"name": "Sam Lee"}, "text": "Send the release notes to customers", "due": "2026-11-12"}],
-    "overdue": [{"person": {"name": "Alex Chen"}, "text": "Triage the crash reports", "due": "2026-11-06", "days": -3}],
+    "overdue": [{"person": {"name": "Alex Chen"}, "text": "Triage the crash reports", "due": "2026-11-05", "days": -4}],
 })
 weekly = {"blocks": weekly_blocks, "text": _weekly_text}
 

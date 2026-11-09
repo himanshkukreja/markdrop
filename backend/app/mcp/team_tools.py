@@ -96,6 +96,7 @@ async def list_team(ctx: Context, args: dict) -> tuple[str, dict]:
     week = await team_extras.this_week(ctx.db, ws)
     out = {"workspace": ws.name, "people": people, "projects": projects, "groups": [g["name"] for g in groups],
            "this_week": ({"from": week["from"], "to": week["to"],
+                          "highlights_label": team_extras.labels(week)["highlights"],
                           "highlights": [team_extras.highlight_line(h) for h in week["highlights"]],
                           "due": [f"{team_extras.pname(x)}: {x['text']} (due {x['due']})" for x in week["due"]],
                           "overdue": [f"{team_extras.pname(x)}: {x['text']} (due {x['due']})" for x in week["overdue"]]} if week else None),
@@ -382,20 +383,24 @@ async def send_weekly_summary_now(ctx: Context, args: dict) -> tuple[str, dict]:
         raise ToolError("This week's summary was sent several times in the last hour; try again later.")
     got = await team_extras.send_weekly(ctx.db, ws, force=True)
     d = got["delivery"]
-    out = {"week": got["week"], "from": got.get("from"), "to": got.get("to"), "highlights": len(got["highlights"]),
+    L = team_extras.labels(got)
+    out = {"week": got["week"], "subject": team_extras.weekly_subject(ws.name, team_extras.plain_summary(got)),
+           "from": got.get("from"), "to": got.get("to"), "highlights_from": got.get("highlights_from"),
+           "highlights_to": got.get("highlights_to"), "highlights": len(got["highlights"]),
            "due": len(got["due"]), "overdue": len(got["overdue"]), "blockers": len(got["blockers"]),
            "slack": d.get("slack"), "emails": d.get("emails", 0), "url": _abs(f"/team/{ws.id}")}
     if not (got["highlights"] or got["blockers"] or got["due"] or got["overdue"]):
-        return f"Nothing to summarise in {ws.name} this week ({got['week']}), so nothing was sent.", out
+        return (f"Nothing to summarise in {ws.name} ({L['highlights']}: no highlights; {L['due']}: nothing due, "
+                "nothing overdue or blocked), so nothing was sent.", out)
     where = []
     if d.get("slack") == "posted":
         where.append("posted to the Slack meetings channel")
     elif d.get("slack"):
         where.append(f"Slack post failed ({d['slack']})")
     where.append(f"emailed to {d.get('emails', 0)} admin(s)")
-    return (f"This week's summary for {ws.name} ({got['week']}: {out['highlights']} highlights, {out['due']} due, "
-            f"{out['overdue']} overdue, {out['blockers']} blockers): " + "; ".join(where)
-            + ". It's also Team's This week card."), out
+    return (f"Sent \"{out['subject']}\" for {ws.name} ({L['highlights']}: {out['highlights']} highlights; "
+            f"{L['due']}: {out['due']} due; {out['overdue']} overdue; {out['blockers']} blocked right now): "
+            + "; ".join(where) + "."), out
 
 
 _LINE = _out({"kind": _STR, "text": _STR, "date": _NSTR, "due": _NSTR, "project": _NSTR, "person": _NSTR,
@@ -613,16 +618,18 @@ TEAM_TOOLS += [
     ),
     Tool(
         name="send_weekly_summary_now",
-        title="Send this week's Team summary now",
-        description=("Send this week's Team summary now (it goes out on its own on Mondays at 9 am, workspace "
-                     "time): highlights, what's due this week, overdue items and blockers — only from meetings and "
-                     "pages the whole team can open — posted to the Slack meetings channel when Slack is connected, "
-                     "emailed to the workspace's admins, and kept as Team's This week card. Nothing is sent when "
-                     "there's nothing to say. Workspace admins only; a few times an hour at most."),
+        title="Send the weekly Team summary now",
+        description=("Send the weekly Team summary now (it goes out on its own on Mondays at 9 am, workspace "
+                     "time, as \"Week of Nov 9: last week's highlights and what's due\"): last week's highlights, "
+                     "decisions and meetings (the previous Monday to Sunday), what's due this week, overdue items "
+                     "and who's blocked right now — only from meetings and pages the whole team can open — posted "
+                     "to the Slack meetings channel when Slack is connected and emailed to the workspace's admins. "
+                     "Nothing is sent when there's nothing to say. Workspace admins only; a few times an hour at most."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {"workspace": _WS}, "required": ["workspace"]},
-        output_schema=_out({"week": _STR, "from": _NSTR, "to": _NSTR, "highlights": {"type": "integer"},
+        output_schema=_out({"week": _STR, "subject": _STR, "from": _NSTR, "to": _NSTR, "highlights_from": _NSTR,
+                            "highlights_to": _NSTR, "highlights": {"type": "integer"},
                             "due": {"type": "integer"}, "overdue": {"type": "integer"}, "blockers": {"type": "integer"},
                             "slack": _NSTR, "emails": {"type": "integer"}, "url": _STR}),
         annotations=_ann(False, False, False),

@@ -555,48 +555,56 @@ def action_items_stopped(start_value: str) -> dict:
 # ── Team's weekly summary (services/team_extras.py) ───────────────────────────
 
 
-def team_weekly(*, workspace: str, team_url: str, span: str | None, highlights: list[dict], decisions: list[dict],
-                blockers: list[dict], due: list[dict], overdue: list[dict], meetings: list[dict]) -> dict:
-    """"This week in <Workspace>" in the meetings channel (Monday, or Send now).
+def team_weekly(*, workspace: str, team_url: str, labels: dict, highlights: list[dict], decisions: list[dict],
+                blockers: list[dict], due: list[dict], overdue: list[dict], meetings: list[dict],
+                subject: str | None = None) -> dict:
+    """"Week of Nov 9 in <Workspace>" in the meetings channel (Monday, or Send now): last week (highlights,
+    decisions, meetings), then this week (due), overdue and who's blocked right now.
 
-    Each list holds dicts already reduced to plain values: highlights {who, text, src: (title, url) | None},
-    decisions {text, src}, blockers {who, text, waiting_on}, due / overdue {who, text, when, late},
-    meetings {title, url, when}."""
+    ``labels`` is team_extras.labels (each part's name with its dates: "Last week (Nov 2 – 8)", "Due this
+    week (Nov 9 – 15)"…); ``subject`` the email's subject, reused as the notification text. Each list holds
+    dicts already reduced to plain values: highlights {who, text, src: (title, url) | None}, decisions
+    {text, src}, blockers {who, text, waiting_on}, due / overdue {who, text, when, late}, meetings {title, url, when}."""
     def src(s) -> str:
         return f"{SEP}{link(s[1], cut(s[0], 60))}" if s else ""
 
-    counts = [plural(len(highlights), "highlight") if highlights else None,
-              plural(len(decisions), "decision") if decisions else None,
-              f"{len(due)} due" if due else None, f"{len(overdue)} overdue" if overdue else None,
-              plural(len(blockers), "blocker") if blockers else None,
-              plural(len(meetings), "meeting") if meetings else None]
-    blocks: list[dict | None] = [header(f"This week in {workspace}"), meta(esc(span) if span else None, *counts)]
+    last = labels.get("last", True)
+    counts = [plural(len(highlights), "highlight") + (" last week" if last else " so far") if highlights else None,
+              f"{len(due)} due this week" if due else None, f"{len(overdue)} overdue" if overdue else None,
+              f"{len(blockers)} blocked" if blockers else None]
+    blocks: list[dict | None] = [header(f"{labels.get('header') or 'Weekly summary'} in {workspace}"),
+                                 meta("Weekly summary" + (f" · {esc(labels['sent_on'])}" if labels.get("sent_on") else ""),
+                                      *counts)]
     if highlights:
         first = {}
         for i, h in enumerate(highlights):
             first.setdefault(h.get("who") or "", i)
         highlights = sorted(highlights, key=lambda h: first[h.get("who") or ""])   # one person's lines together
-        blocks.append(section(label("Highlights") + "\n" + bullets(
+        blocks.append(section(label(labels["highlights"]) + "\n" + bullets(
             f"*{esc(h['who'])}*  {esc(h['text'])}{src(h.get('src'))}" if h.get("who") else f"{esc(h['text'])}{src(h.get('src'))}"
             for h in highlights[:8])))
+    else:
+        blocks.append(section(label(labels["highlights"]) + "\n_" + ("No highlights from last week." if last else
+                                                                      "No highlights yet this week.") + "_"))
     if decisions:
-        blocks.append(section(label("Decisions") + "\n" + bullets(f"{esc(d['text'])}{src(d.get('src'))}" for d in decisions[:5])))
-    if due or overdue or blockers:
-        blocks.append(divider())
-    if overdue:
-        blocks.append(section(label("Overdue", str(len(overdue))) + "\n" + bullets(
-            f"*{esc(x['who'])}*  {esc(x['text'])}{SEP}_{esc(x['when'])}, {esc(x['late'])}_" for x in overdue[:10])))
-    if due:
-        blocks.append(section(label("Due this week", str(len(due))) + "\n" + bullets(
-            f"*{esc(x['who'])}*  {esc(x['text'])}{SEP}_{esc(x['when'])}_" for x in due[:12])))
-    if blockers:
-        blocks.append(section(label("Blocked") + "\n" + bullets(
-            f"*{esc(b['who'])}*  {esc(b['text'])}" + (f"{SEP}_waiting on {esc(b['waiting_on'])}_" if b.get("waiting_on") else "")
-            for b in blockers[:8])))
+        blocks.append(section(label(labels["decisions"]) + "\n" + bullets(f"{esc(d['text'])}{src(d.get('src'))}" for d in decisions[:5])))
     if meetings:
-        blocks.append(section(label("Meetings this week") + "\n" + bullets(
+        blocks.append(section(label(labels["meetings"]) + "\n" + bullets(
             f"{link(m['url'], cut(m['title'], 80))}{SEP}_{esc(m['when'])}_" if m.get("url") else
             f"{esc(m['title'])}{SEP}_{esc(m['when'])}_" for m in meetings[:8])))
+    blocks.append(divider())
+    if due:
+        blocks.append(section(label(labels["due"], str(len(due))) + "\n" + bullets(
+            f"*{esc(x['who'])}*  {esc(x['text'])}{SEP}_{esc(x['when'])}_" for x in due[:12])))
+    else:
+        blocks.append(section(label(labels["due"]) + "\n_Nothing due this week._"))
+    if overdue:
+        blocks.append(section(label(labels["overdue"], str(len(overdue))) + "\n" + bullets(
+            f"*{esc(x['who'])}*  {esc(x['text'])}{SEP}_{esc(x['when'])}, {esc(x['late'])}_" for x in overdue[:10])))
+    if blockers:
+        blocks.append(section(label(labels["blockers"]) + "\n" + bullets(
+            f"*{esc(b['who'])}*  {esc(b['text'])}" + (f"{SEP}_waiting on {esc(b['waiting_on'])}_" if b.get("waiting_on") else "")
+            for b in blockers[:8])))
     blocks.append(actions(open_button(team_url, "Open Team", primary=True)))
     blocks.append(footer("Only from meetings and pages everyone in the workspace can open", "Sent every Monday"))
-    return message(blocks, f"This week in {workspace}: " + (", ".join(c for c in counts if c) or "a quiet week"))
+    return message(blocks, f"{workspace} · {subject}" if subject else f"{labels.get('header') or 'Weekly summary'} in {workspace}")

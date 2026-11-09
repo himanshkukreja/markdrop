@@ -20197,7 +20197,7 @@
           "team"
         ],
         "summary": "Send Weekly",
-        "description": "This week's summary now (it goes out on its own on Mondays at 9 am, workspace time): posted to the\nSlack meetings channel when Slack is connected, emailed to the admins, kept as Team's \"This week\".",
+        "description": "The weekly summary now (it goes out on its own on Mondays at 9 am, workspace time): last week's\nhighlights and this week's due items, posted to the Slack meetings channel when Slack is connected and\nemailed to the admins.",
         "operationId": "send_weekly_api_v1_team__workspace_id__weekly_send_post",
         "parameters": [
           {
