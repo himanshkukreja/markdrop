@@ -133,3 +133,12 @@ test("classic editor: insert at the caret on its own paragraph", () => {
   assert.equal(insertAtCaret("", 0, "NEW").value, "NEW\n");
   assert.equal(insertAtCaret("end", 3, "NEW").value, "end\n\nNEW\n");
 });
+
+test("scopeBody: Teams — a team's / project's space, and the whole company (space all)", () => {
+  assert.deepEqual(scopeBody("team", ctx, { workspace: "w2", team: "t1" }), { kind: "team", workspace: "w2", team: "t1" });
+  assert.deepEqual(scopeBody("team", ctx, { team: "t1" }), { kind: "team", workspace: "w1", team: "t1" });
+  assert.deepEqual(scopeBody("team", null, { team: "t1" }), { kind: "everything" });
+  assert.deepEqual(scopeBody("team", ctx, {}), { kind: "everything" });
+  assert.deepEqual(scopeBody("project", ctx, { project: "p1" }), { kind: "project", workspace: "w1", project: "p1" });
+  assert.deepEqual(scopeBody("workspace", ctx, { workspace: "w2", space: "all" }), { kind: "workspace", workspace: "w2", space: "all" });
+});

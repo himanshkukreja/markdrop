@@ -16,7 +16,9 @@
  *  - URL: ?workspace=<id> | ?scope=mine, ?c=<conversation> (the old home's ?ask=<id> too), ?q=<ask now>.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ConfirmDialog, Drawer, Icon, IconButton, Spinner, cx } from "@/components/ui";
+import { ConfirmDialog, Drawer, Icon, IconButton, Spinner, Switch, cx } from "@/components/ui";
+import { TeamTile } from "@/components/teams/parts";
+import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
 import { useToast } from "@/components/Toast";
 import { useMounted } from "@/components/shell/useLocation";
 import { Chat } from "@/components/chat";
@@ -35,7 +37,7 @@ import { PERSIST_KEY, setAssistantThread, useAssistant, useAssistantHere, useHom
 import { assistantTransport, loadAssistantThread } from "@/components/assistant/transport";
 import s from "./AskPage.module.css";
 
-type PageScope = { kind: "everything" | "workspace" | "mine"; workspace?: string };
+type PageScope = { kind: "everything" | "workspace" | "mine" | "team"; workspace?: string; team?: string };
 const SCOPE_KEY = "md_ask_scope";
 const CONTEXT = { ctx: null };
 const FALLBACK: ChatSuggestion[] = [
@@ -49,7 +51,7 @@ const POLLS = 5;
 function remembered(): PageScope | null {
   try {
     const v = JSON.parse(localStorage.getItem(SCOPE_KEY) || "null");
-    if (v && (v.kind === "everything" || v.kind === "mine" || (v.kind === "workspace" && /^[0-9a-f]{24}$/.test(v.workspace || "")))) return v;
+    if (v && (v.kind === "everything" || v.kind === "mine" || ((v.kind === "workspace" || v.kind === "team") && /^[0-9a-f]{24}$/.test(v.workspace || "")))) return v;
   } catch { /* storage blocked */ }
   return null;
 }
@@ -80,7 +82,9 @@ export default function AskPage() {
   useEffect(() => {
     if (!mounted) return;
     const p = readAskParams(window.location.search);
-    const wanted: PageScope = p.workspace ? { kind: "workspace", workspace: p.workspace } : p.mine ? { kind: "mine" } : remembered() ?? { kind: "everything" };
+    const team = new URLSearchParams(window.location.search).get("team");
+    const wanted: PageScope = p.workspace && team && /^[0-9a-f]{24}$/.test(team) ? { kind: "team", workspace: p.workspace, team }
+      : p.workspace ? { kind: "workspace", workspace: p.workspace } : p.mine ? { kind: "mine" } : remembered() ?? { kind: "everything" };
     setScopeState(wanted);
     if (p.q) {
       // A suggestion from elsewhere (the home, the panel): a new conversation, asked at once.
@@ -99,12 +103,20 @@ export default function AskPage() {
   const workspaces = useMemo(() => ctx?.workspaces ?? [], [ctx]);
   // A workspace from the URL that isn't one of yours: Everything (the server would answer 404 anyway).
   useEffect(() => {
-    if (ctx && scope?.kind === "workspace" && !workspaces.some((w) => w.id === scope.workspace)) setScopeState({ kind: "everything" });
+    if (ctx && (scope?.kind === "workspace" || scope?.kind === "team") && !workspaces.some((w) => w.id === scope.workspace)) setScopeState({ kind: "everything" });
   }, [ctx, scope, workspaces]);
 
-  const ws = scope?.kind === "workspace" ? workspaces.find((w) => w.id === scope.workspace) ?? null : null;
+  const ws = scope?.kind === "workspace" || scope?.kind === "team" ? workspaces.find((w) => w.id === scope.workspace) ?? null : null;
+  // Teams: the workspace's teams you're in (lib/teamsStore); a team scope answers from that team's space, and
+  // "Ask the whole company" widens it to everything you can read in the workspace (CONTRACT §3 space all).
+  useTeamsSidebar(ws ? [ws.id] : []);
+  const wsTeams = ws ? teamsSlot(ws.id) : undefined;
+  const myTeams = wsTeams ? wsTeams.teams.filter((t) => t.my_role) : [];
+  const team = scope?.kind === "team" ? (wsTeams ? wsTeams.teams.find((t) => t.id === scope.team) ?? null : undefined) : null;
+  const lastTeam = useRef<string | null>(null);
+  if (scope?.kind === "team" && scope.team) lastTeam.current = scope.team;
   const kind: AssistantScopeKind = scope?.kind ?? "everything";
-  const title = askTitle(kind, ws?.name);
+  const title = kind === "team" ? (team ? `Ask ${team.name}` : "\u00a0") : askTitle(kind, ws?.name);
   useAssistantHere({ home: true, workspace: ws?.id ?? null });
   const focus = useCallback(() => chat.current?.focus(), []);
   useHomeFocus(focus);
@@ -116,14 +128,16 @@ export default function AskPage() {
     const p = new URLSearchParams(window.location.search);
     p.delete("workspace");
     p.delete("scope");
-    if (next.kind === "workspace" && next.workspace) p.set("workspace", next.workspace);
+    p.delete("team");
+    if ((next.kind === "workspace" || next.kind === "team") && next.workspace) p.set("workspace", next.workspace);
+    if (next.kind === "team" && next.team) p.set("team", next.team);
     if (next.kind === "mine") p.set("scope", "mine");
     const qs = p.toString();
     window.history.replaceState(window.history.state, "", `/ask${qs ? `?${qs}` : ""}`);
   }, []);
 
   // Suggestions for this scope: the workspace's live ones (polled while the first list is being built).
-  const sugFor = scope ? (scope.kind === "workspace" ? scope.workspace ?? "" : "") : null;
+  const sugFor = scope ? (scope.kind === "workspace" || scope.kind === "team" ? scope.workspace ?? "" : "") : null;
   useEffect(() => {
     if (sugFor === null || !mounted) return;
     let on = true;
@@ -182,8 +196,10 @@ export default function AskPage() {
     setConvParam(null);
   }, [scope, ctxReady, chatKey, setConvParam]);
 
-  const scopeWs = scope?.kind === "workspace" ? scope.workspace ?? null : null;
-  const chatScope = useMemo<ChatScope>(() => ({ kind, ...(scopeWs ? { workspace: scopeWs } : {}) }), [kind, scopeWs]);
+  const scopeWs = scope?.kind === "workspace" || scope?.kind === "team" ? scope.workspace ?? null : null;
+  const scopeTeam = scope?.kind === "team" ? scope.team ?? null : null;
+  const chatScope = useMemo<ChatScope>(() => ({ kind, ...(scopeWs ? { workspace: scopeWs } : {}), ...(scopeTeam ? { team: scopeTeam } : {}),
+    ...(kind === "workspace" && scopeWs ? { space: "all" } : {}) }), [kind, scopeWs, scopeTeam]);
   const suggestions = useMemo(() => {
     const live = sug ? suggestionsOf(sug, phone ? 4 : 8) : [];
     return live.length ? live : FALLBACK;
@@ -191,10 +207,12 @@ export default function AskPage() {
   const status = sug?.status ?? ctx?.status.search ?? null;
   const enabled = status?.enabled !== false;
   const sub = [
+    kind === "team" ? `${team?.name ?? "This team"}'s meetings, pages, files and memory. Turn on "Ask the whole company" to widen it.` :
+    kind === "workspace" && myTeams.length ? "Everything in the company you can open: your teams, open teams, company pages and every team's weekly brief." :
     kind === "workspace" ? "The meetings, docs, pages and files of this workspace that you can open." :
       kind === "mine" ? "Your own documents, pages and files outside any workspace." :
         "Your meetings, documents, pages, files and Guides — only what you can open.",
-    kind === "workspace" ? (sug?.refreshing ? "Finding what's happening…" : updatedLine(sug)) : "",
+    kind === "workspace" || kind === "team" ? (sug?.refreshing ? "Finding what's happening…" : updatedLine(sug)) : "",
   ].filter(Boolean).join(" ");
 
   const chips: Array<{ key: string; scope: PageScope; label: string; icon: string }> = [
@@ -202,7 +220,7 @@ export default function AskPage() {
     ...workspaces.map((w) => ({ key: `workspace:${w.id}`, scope: { kind: "workspace" as const, workspace: w.id }, label: w.name || "Workspace", icon: "users" })),
     { key: "mine", scope: { kind: "mine" }, label: "My files", icon: "user" },
   ];
-  const activeKey = kind === "workspace" ? `workspace:${scope?.workspace}` : kind;
+  const activeKey = kind === "workspace" || kind === "team" ? `workspace:${scope?.workspace}` : kind;
 
   const history = (
     <History threads={threads} current={threadId} onOpen={(id) => { track("ask_page_thread", {}); openThread(id); }}
@@ -228,7 +246,7 @@ export default function AskPage() {
             <h1 id="ask-title" className={s.title} data-testid="ask-title">
               <span className={s.spark} aria-hidden><Icon name="sparkle" size={16} /></span>
               {/* A workspace's name arrives with your workspaces: no "Ask" → "Ask Acme" flash. */}
-              <span className={s.titleText}>{kind === "workspace" && !ctxReady ? "\u00a0" : title}</span>
+              <span className={s.titleText}>{(kind === "workspace" || kind === "team") && !ctxReady ? "\u00a0" : title}</span>
             </h1>
             <button type="button" className={s.newBtn} onClick={() => openThread(null)} data-testid="ask-new">
               <Icon name="plus" size={16} /><span className={s.newLabel}>New chat</span>
@@ -244,6 +262,22 @@ export default function AskPage() {
               </button>
             ))}
           </div>
+          {ws && myTeams.length > 0 && (
+            <div className={s.chips} data-testid="ask-teams">
+              <div role="radiogroup" aria-label="Team" className="contents">
+                {myTeams.map((t) => (
+                  <button key={t.id} type="button" role="radio" aria-checked={kind === "team" && scopeTeam === t.id}
+                    className={cx(s.chip, kind === "team" && scopeTeam === t.id && s.chipOn)} onClick={() => setScope({ kind: "team", workspace: ws.id, team: t.id })}
+                    data-testid={`ask-team-${t.slug}`}>
+                    <TeamTile team={t} size={14} /><span className={s.chipLabel}>{t.name}</span>
+                  </button>
+                ))}
+              </div>
+              <Switch label="Ask the whole company" checked={kind === "workspace"} data-testid="ask-whole-company"
+                onChange={(e) => setScope(e.target.checked ? { kind: "workspace", workspace: ws.id }
+                  : { kind: "team", workspace: ws.id, team: (lastTeam.current && myTeams.some((t) => t.id === lastTeam.current) ? lastTeam.current : myTeams[0]!.id) })} />
+            </div>
+          )}
         </header>
         <div className={s.chat}>
           {scope && (
@@ -260,7 +294,7 @@ export default function AskPage() {
               loadThread={loadAssistantThread}
               suggestions={suggestions}
               empty={{ icon: "sparkle", title, sub }}
-              placeholder={enabled ? askPlaceholder(kind, ws?.name) : status?.message || "AI isn't available right now."}
+              placeholder={enabled ? (kind === "team" ? `Ask anything about ${team?.name ?? "this team"}…` : askPlaceholder(kind, ws?.name)) : status?.message || "AI isn't available right now."}
               banner={!enabled && status?.message ? <p className={s.note} role="status"><Icon name="clock" size={14} /> {status.message}</p> : null}
               footnote="Answers use only what you can open. AI can be wrong."
               assistantName={title}

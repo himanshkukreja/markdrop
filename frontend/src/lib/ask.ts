@@ -39,11 +39,13 @@ export interface AskCitation {
 }
 
 /** What the assistant answers from (backend services/assistant.py). */
-export type AssistantScopeKind = "doc" | "meetings" | "folder" | "workspace" | "mine" | "everything";
+export type AssistantScopeKind = "doc" | "meetings" | "folder" | "workspace" | "mine" | "everything" | "team" | "project";
 export interface AssistantScope {
   kind: AssistantScopeKind;
   page?: string | null; workspace?: string | null; folder?: string | null; meeting?: string | null;
   series?: string | null; since?: string | null; until?: string | null;
+  /** Teams: kind team / project (with workspace); `space` narrows any kind (all | company | team:<id> | project:<id>). */
+  team?: string | null; project?: string | null; space?: string | null;
 }
 export interface AssistantReader { heading?: string | null; selection?: string | null }
 export interface AssistantContext {

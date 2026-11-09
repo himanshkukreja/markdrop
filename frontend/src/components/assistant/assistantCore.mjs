@@ -142,7 +142,10 @@ export function scopeBody(kind, ctx, sub = {}, today = new Date()) {
   switch (kind) {
     case "doc": return ctx && ctx.page ? { kind: "doc", page: ctx.page.slug } : { kind: "everything" };
     case "folder": return ws && ctx.folder ? { kind: "folder", workspace: ws, folder: ctx.folder.id } : { kind: "everything" };
-    case "workspace": return sub.workspace || ws ? { kind: "workspace", workspace: sub.workspace || ws } : { kind: "everything" };
+    case "workspace": return sub.workspace || ws ? { kind: "workspace", workspace: sub.workspace || ws, ...(sub.space ? { space: sub.space } : {}) } : { kind: "everything" };
+    // Teams: a team's or a project's space (Ask <team>); "Ask the whole company" is workspace + space "all".
+    case "team": return sub.team && (sub.workspace || ws) ? { kind: "team", workspace: sub.workspace || ws, team: sub.team } : { kind: "everything" };
+    case "project": return sub.project && (sub.workspace || ws) ? { kind: "project", workspace: sub.workspace || ws, project: sub.project } : { kind: "everything" };
     case "mine": return { kind: "mine" };
     case "meetings": {
       if (!ws) return { kind: "everything" };
