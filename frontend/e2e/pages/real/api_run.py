@@ -830,6 +830,11 @@ if os.environ.get("PB_FAKE_JIRA"):
     def _jira_fields(text: str, members: list[str]) -> dict:
         t = _jre.sub(r":person\[[^\]]*\]\{[^}]*\}", "", text)
         t = _jre.sub(r"\[\d\d:\d\d\]\([^)]*\)|\{#[^}]*\}|·", " ", t)
+        if os.environ.get("PB_DOCS_WORLD") and t.startswith("Discussion about"):
+            # The docs media world: a discussion's issue is named after what its first message asks for.
+            first = _jre.search(r"”:\s*[^:]{2,40}: (.+?)(?:[.?!]|$)", t)
+            if first:
+                t = first.group(1)
         due = _jre.search(r"due (\d{4}-\d{2}-\d{2})", t)
         t = _jre.sub(r"due \d{4}-\d{2}-\d{2}", "", t)
         t = " ".join(t.split()).strip(" .-")

@@ -753,7 +753,7 @@ export default [
       await c.locator(".jr-status", { hasText: /In Progress/i }).waitFor({ timeout: 15000 });
       await h.sleep(900);
       await h.click(c.getByTestId("jira-comment"));
-      await h.type(null, "Legal sent the copy, picking this up today.", { speed: 2.4 });
+      await h.type(null, "Legal sent the copy.", { speed: 2.4 });
       await h.click(h.page.getByTestId("jira-comment-send"));
       await h.sleep(1300);
     },
@@ -779,11 +779,8 @@ export default [
     },
     steps: async (h) => {
       await h.sleep(900);
-      // Someone moves WEB-2 in Jira: the list follows without a reload.
-      await h.sandbox("/__sandbox/jira/move", { key: "WEB-2", status: "In Review", workspace_id: h.fx.workspace.id });
       const row = h.page.locator('[data-testid="jira-list-row"]', { hasText: "Cookie banner" }).first();
-      await row.locator(".jr-status", { hasText: /In Review/i }).waitFor({ timeout: 20000 });
-      await h.sleep(1200);
+      await h.hover(row, 500);
       // And a row's status menu moves an issue, as you.
       await h.click(row.locator('[data-testid="jira-status"]'));
       await h.sleep(400);
@@ -816,7 +813,7 @@ export default [
     steps: async (h) => {
       await h.sleep(500);
       const th = card(h, S.tid);
-      await h.click(th.locator('button[title="Create Jira issue from this discussion"]').first());
+      await h.click(th.getByRole("button", { name: "Create Jira issue" }).first());
       await h.loc('[data-testid="jira-create"]').waitFor({ timeout: 20000 });
       await h.sleep(1800);
       await h.click('[data-testid="jira-create"]');
