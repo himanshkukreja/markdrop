@@ -145,6 +145,8 @@ export interface DocumentResponse {
   read_ticket?: string | null;
   /** Who's viewing: the signed-in reader's ticket for the live socket's hello (lib/presence). Opaque. */
   presence_ticket?: string | null;
+  /** Comments (backend services/comments): null when the item can't have them. */
+  comments?: import("@/lib/comments").DocComments | null;
   /** The owner only: whether the page shows who's viewing (default on). */
   show_presence?: boolean | null;
   /** v2: bumped on every narrowing; the OG image URL carries it (`e=`) so caches re-fetch. */

@@ -123,6 +123,7 @@ async def change(
             await page_assets.apply(db, after, True)
         if "content" in sets:
             await page_links.reindex(db, after)
+            await _comments_follow(db, raw, after)
         await pages.cascade(db, raw, after)
         return after
 
@@ -165,8 +166,16 @@ async def change(
     # ones take its access: re-evaluate them (each through this same function).
     if "content" in sets:
         await page_links.reindex(db, after)
+        await _comments_follow(db, raw, after)
     await pages.cascade(db, raw, after)
     return after
+
+
+async def _comments_follow(db: AsyncIOMotorDatabase, raw: dict, after: dict) -> None:
+    """Comment anchors follow the new text (services/comments/anchoring.py; a no-op without threads)."""
+    from app.services.comments import anchoring
+
+    await anchoring.on_content_saved(db, raw, after)
 
 
 def now_utc() -> datetime:

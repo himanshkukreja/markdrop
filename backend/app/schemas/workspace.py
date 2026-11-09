@@ -51,6 +51,8 @@ class SettingsPayload(BaseModel):
     team_memory: bool = False
     # IANA timezone for Team's weekly summary (Monday 9 am); none: UTC.
     timezone: str | None = Field(None, max_length=64)
+    # Comments on this workspace's pages and documents (services/comments). Default on.
+    comments_enabled: bool = True
 
     @field_validator("timezone")
     @classmethod

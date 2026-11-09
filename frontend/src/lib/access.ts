@@ -94,6 +94,10 @@ export interface AccessState {
   expires_at?: string | null;
   /** "Show who's viewing" (live presence on the page); absent means on. */
   show_presence?: boolean;
+  /** Comments (backend services/comments): this item can have them; the owner's switches. */
+  comments_eligible?: boolean;
+  comments_enabled?: boolean;
+  comments_public?: boolean;
 }
 
 export const getAccess = (slug: string) =>

@@ -14,8 +14,7 @@
     GET    /api/v1/comments/mine                                     threads waiting on you / assigned / mentions
 """
 
-from __future__ import annotations
-
+# No `from __future__ import annotations`: slowapi wraps these routes (see routers/docs_ai.py).
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, Path, Query, Request, Response

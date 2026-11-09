@@ -155,6 +155,9 @@ async def destroy(db: AsyncIOMotorDatabase, raw: dict, *, reason: str = "delete"
     from app.services import signoffs
 
     await signoffs.forget_document(db, doc_id)
+    from app.services.comments import service as comments_service
+
+    await comments_service.on_item_deleted(db, doc_id)
 
     await page_links.forget(db, doc_id)
     await revalidate.purge_doc(db, raw, extra_slugs=raw.get("old_slugs") or [], inline=True)  # B2
