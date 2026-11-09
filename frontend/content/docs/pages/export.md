@@ -1,18 +1,19 @@
 ---
 title: Export a page
-description: Download a page as Markdown, a single HTML file or a PDF, with its images and the sub-pages you can open.
-updated: 2026-11-04
+description: Download a page as Markdown, a Word document, a single HTML file or a PDF, with its images, its comments and the sub-pages you can open.
+updated: 2026-11-09
 prerequisites: [/pages/overview]
-keywords: [export, download, markdown, md, html, pdf, print, zip, sub-pages, images, portable, backup, export_page, allow_export, readers can export]
+keywords: [export, download, markdown, md, word, docx, microsoft word, google docs, comments, export comments, html, pdf, print, zip, sub-pages, images, portable, backup, export_page, allow_export, readers can export]
 ---
 
-You can take a page out of Markdrop as a file: portable Markdown, one HTML file, or a PDF. Open the page's **⋯** menu and choose **Export…**, pick a format, and select **Download** or **Print to PDF…**. The file downloads where you are; if Markdrop can't make it (for example, the page's editors have just turned off exports for readers), the dialog says why.
+You can take a page out of Markdrop as a file: portable Markdown, a Word document, one HTML file, or a PDF. Open the page's **⋯** menu and choose **Export…**, pick a format, and select **Download** or **Print to PDF…**. The file downloads where you are; if Markdrop can't make it (for example, the page's editors have just turned off exports for readers), the dialog says why.
 
 ## Formats
 
 | Format | What you get | Good for |
 | --- | --- | --- |
 | **Markdown** | A `.md` file. With images, a `.zip` holding `page.md` and an `images` folder it links to. | GitHub, Obsidian, VS Code, another wiki, a backup |
+| **Word** | A `.docx` file: headings, lists, tables, links and code, with the page's comments as Word comments if you like. | Word, Pages or Google Docs; reviews with people outside Markdrop |
 | **HTML** | One `.html` file in the page's look, with its images inside it. It opens in any browser, even offline. | Sending a page to someone without a Markdrop account |
 | **PDF** | Your browser's print dialog, with the page laid out for paper. Choose **Save as PDF**. | Printing, attaching to an email, signing off a spec |
 
@@ -30,6 +31,10 @@ The export is Markdown that any app reads, so Markdrop's own blocks are written 
 - The page's **title** is the first heading, with its emoji icon.
 
 Images uploaded to the page go in the `.zip`. If you download a single `.md` instead, a page anyone with the link can read keeps its images as links, and other pages show each image's alt text where it was.
+
+### Word
+
+The Word document has the page's title, then its text: headings, lists (with checkboxes for to-dos), quotes, code, tables and links, written the same way as the Markdown export (callouts as labelled quotes, columns one after another, people and dates as text, locked items as **Locked item**). Images show as their descriptions. Word exports one page at a time, without its sub-pages.
 
 ### HTML
 
@@ -52,6 +57,10 @@ When a page has pages inside it, turn on **Include sub-pages**:
 
 Only sub-pages you can open are included, with the pages inside them. A sub-page you can't open is left out with everything below it, and its title never appears in the export.
 
+## Include comments
+
+When the page has comments you can see, turn on **Include comments**. Markdown puts them in a **Comments** section at the end; Word as comments in the margin or as footnotes; PDF as notes in the margin or at the end. **Open threads only** leaves resolved ones out. See [Export with comments](/pages/comments#export-with-comments).
+
 ## Who can export
 
 - Anyone who can **edit** the page can export it.
@@ -64,7 +73,7 @@ An [end-to-end encrypted](/sharing/end-to-end-encryption) document can't be expo
 
 ## From an AI app
 
-AI apps connected to Markdrop export with the `export_page` tool. It returns the Markdown or HTML as text, or, with `include_subpages` (or `zip` for Markdown with images), a link to the `.zip` that works for 10 minutes. Opening the link downloads the file; once it has expired, it opens a short page saying so: ask the AI app to export the page again. It follows the same rules as the website: locked items stay locked, and readers can export only when the page allows it. See [MCP tools](/ai/tools).
+AI apps connected to Markdrop export with the `export_page` tool. It returns the Markdown or HTML as text (`format: word` gives a link to a `.docx`; `comments: footnotes` or `margin` includes the comments), or, with `include_subpages` (or `zip` for Markdown with images), a link to the `.zip` that works for 10 minutes. Opening the link downloads the file; once it has expired, it opens a short page saying so: ask the AI app to export the page again. It follows the same rules as the website: locked items stay locked, and readers can export only when the page allows it. See [MCP tools](/ai/tools).
 
 The setting is the page property `allow_export: false` in its front matter, which `set_page_properties` sets. See the [Page Markdown reference](/pages/markdown-reference).
 
