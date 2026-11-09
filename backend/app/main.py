@@ -82,6 +82,8 @@ from app.routers.meetings import router as meetings_router
 from app.routers.meetings_backfill import router as meetings_backfill_router
 from app.routers.meeting_memory import router as meeting_memory_router
 from app.routers.team import router as team_router
+from app.routers.teams import meetings_router as teams_meetings_router
+from app.routers.teams import router as teams_router
 from app.routers.slack import router as slack_router
 from app.routers.jira import router as jira_router
 from app.routers.jira_pages import router as jira_pages_router
@@ -341,6 +343,9 @@ app.include_router(meetings_router)
 app.include_router(meeting_memory_router)
 # Team (routers/team.py): who is doing what in a workspace, from its meetings and pages.
 app.include_router(team_router)
+# Teams inside a workspace (routers/teams.py): spaces, briefs, routing, projects.
+app.include_router(teams_router)
+app.include_router(teams_meetings_router)
 app.include_router(slack_router)
 # Jira Cloud (routers/jira.py): issues from meetings, Team and pages; both-way status sync.
 app.include_router(jira_router)

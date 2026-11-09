@@ -352,6 +352,18 @@ async def _call_tool(request_id, params: dict, principal: Principal, *, modern: 
 
         take = pages_service.TAKE_OVER.set(bool(args.get("take_over")) and "take_over" in (
             tool.input_schema.get("properties") or {}))
+        # Teams (CONTRACT §3): a tool's ``space`` narrows every retrieval it makes (access.Ctx.space).
+        from app.services import access as access_service
+
+        sp = args.get("space") if "space" in (tool.input_schema.get("properties") or {}) else None
+        if sp:
+            from app.services import teams as teams_service
+
+            try:
+                teams_service.parse_space(sp)
+            except ValueError as exc:
+                raise tools.ToolError(str(exc))
+        space_token = access_service.SPACE.set(sp if sp and sp != "all" else None)
         try:
             once = await _idempotent_start(ctx.db, principal, tool, args)
             if isinstance(once, tuple):
@@ -365,6 +377,7 @@ async def _call_tool(request_id, params: dict, principal: Principal, *, modern: 
                 await _idempotent_done(ctx.db, once, text, structured)
         finally:
             pages_service.TAKE_OVER.reset(take)
+            access_service.SPACE.reset(space_token)
         ok = True
         result = _tool_result(text, structured, False, modern)
         if isinstance(structured, dict) and isinstance(structured.get("slug"), str):

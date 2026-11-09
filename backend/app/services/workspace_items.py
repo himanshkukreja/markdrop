@@ -227,6 +227,7 @@ async def space_extra(actor: access.Actor, ctx: access.Ctx, workspace_id: str, s
 
     from app.services import teams as teams_service
 
+    space = space or ctx.space
     try:
         sp = teams_service.parse_space(space)
     except ValueError as exc:

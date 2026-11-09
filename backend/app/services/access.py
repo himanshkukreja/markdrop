@@ -55,6 +55,11 @@ from app.models.access import Grant, GrantRole, role_allows as grant_role_allows
 from app.models.workspace import role_allows as ws_role_allows
 from app.services import publicity
 
+from contextvars import ContextVar
+
+# Teams: the ``space`` argument of the MCP call being served (None everywhere else).
+SPACE: ContextVar[str | None] = ContextVar("teams_space", default=None)
+
 MAX_GRANTS_PER_DOCUMENT = 200
 # Re-sharing hops from the root grant (the owner's, or a member's) to the
 # deepest grant that still gives access. Deeper chains are refused at write
@@ -195,7 +200,8 @@ class Ctx:
     now: datetime = field(default_factory=now_utc)
     target_workspace: str | None = None
     # Teams (CONTRACT §3): narrows memory / Ask retrieval to "team:<id>" | "project:<id>" | "company".
-    space: str | None = None
+    # MCP tools take it as an argument (mcp/protocol.py sets SPACE for the call).
+    space: str | None = field(default_factory=lambda: SPACE.get())
     _ws: dict = field(default_factory=dict, repr=False)
     _roles: dict = field(default_factory=dict, repr=False)
     _grants: dict = field(default_factory=dict, repr=False)

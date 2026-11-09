@@ -755,6 +755,14 @@ async def still_readable(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
         for cloud in clouds:
             if await jira.can_use(db, actor.user_id, cloud):
                 ok |= {k for k in keys if k.startswith(f"j:{cloud}:")}
+    # Team briefs (``b:<id>``): readable by every member of their workspace.
+    bids = [ObjectId(k[2:]) for k in keys if k.startswith("b:") and ObjectId.is_valid(k[2:])]
+    if bids and actor.user_id:
+        from app.services import workspace as ws_service
+
+        for b in await db["team_briefs"].find({"_id": {"$in": bids}}, {"workspace_id": 1}).to_list(length=len(bids)):
+            if await ws_service.role_for(db, b["workspace_id"], actor.user_id):
+                ok.add(f"b:{b['_id']}")
     gids = [ObjectId(k[2:]) for k in keys if k.startswith("g:") and ObjectId.is_valid(k[2:])]
     if gids:
         w = await search.world_of(db, actor, ctx)
@@ -1130,7 +1138,40 @@ async def _ask_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
     # ── Jira hook (services/jira_team.py): questions about tickets read the asker's own Jira ─────────
     if keep is None:
         sources += await _jira_sources(db, actor, standalone, [scope] if scope else list(w.member_ws), len(sources))
+    # ── Teams: "Ask the whole company" also reads the teams' weekly briefs (the bridge) ────────────────
+    if keep is None and scope and not ctx.space:
+        sources += await _brief_sources(db, scope, len(sources))
     return sources, len(cands), withheld
+
+
+BRIEF_SOURCES = 6
+
+
+async def _brief_sources(db: AsyncIOMotorDatabase, workspace_id: str, start: int) -> list[Source]:
+    """The latest brief of each team (key ``b:<brief id>``): every workspace member may read every brief
+    (services/team_briefs.py), hidden lines left out, no sources inside."""
+    from app.services import teams as teams_service, urls
+
+    out: list[Source] = []
+    teams = {str(t["_id"]): t async for t in db[teams_service.TEAMS].find({"workspace_id": workspace_id}, {"name": 1, "slug": 1})}
+    if not teams:
+        return out
+    seen: set[str] = set()
+    async for b in db[teams_service.BRIEFS].find({"workspace_id": workspace_id}).sort("week", -1).limit(50):
+        if b["team_id"] in seen or b["team_id"] not in teams or len(out) >= BRIEF_SOURCES:
+            continue
+        seen.add(b["team_id"])
+        lines = [ln["text"] for ln in b.get("lines") or [] if not ln.get("hidden")]
+        if not lines:
+            continue
+        t = teams[b["team_id"]]
+        n = start + len(out) + 1
+        title = f"{t.get('name')} brief · {b.get('label') or b['week']}"
+        url = urls.markdrop_url(f"w/{workspace_id}/teams/{t.get('slug')}?brief={b['_id']}")
+        item = {"key": f"b:{b['_id']}", "n": n, "kind": "brief", "title": title, "url": url, "web_url": url, "slug": None}
+        out.append(Source(n, None, item=item, text="\n".join(f"- {x}" for x in lines), tag="team_brief",
+                          attrs={"title": title, "kind": "Team brief"}))
+    return out
 
 
 async def _jira_sources(db: AsyncIOMotorDatabase, actor: access.Actor, question: str, workspace_ids: list[str],

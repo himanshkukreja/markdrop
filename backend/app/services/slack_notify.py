@@ -32,7 +32,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
-from app.services import slack, slack_api
+from app.services import access, slack, slack_api
 from app.services import slack_blocks as kit
 
 log = logging.getLogger("markdrop.slack")
@@ -213,7 +213,7 @@ async def post_meeting(db: AsyncIOMotorDatabase, meeting_id: str, *, again: bool
     if inst is None:
         return {"posted": False, "reason": "not_connected"}
     chan = (inst.get("meetings_channel") or {}).get("id")
-    if not chan:
+    if not chan and not (row.get("team_ids") or row.get("project_ids")):
         return {"posted": False, "reason": "no_channel"}
     if not again and inst.get("post_meetings") is False:
         return {"posted": False, "reason": "off"}
@@ -226,8 +226,48 @@ async def post_meeting(db: AsyncIOMotorDatabase, meeting_id: str, *, again: bool
     raw = await meetings.page_of(db, row)
     if raw is None:
         return {"posted": False, "reason": "not_found"}
-    if row.get("restricted") or not await channel_may_see(db, inst, raw, shared=await channel_is_shared(token, chan)):
+    team_ids = [str(t) for t in row.get("team_ids") or []] + [str(p) for p in row.get("project_ids") or []]
+    if not team_ids:
+        if row.get("restricted") or not await channel_may_see(db, inst, raw, shared=await channel_is_shared(token, chan)):
+            return {"posted": False, "reason": "private"}
+        return await _post_one(db, inst, token, row, raw, meeting_id, chan, (inst.get("meetings_channel") or {}).get("name"),
+                               again=again, team_post=False)
+    # Teams: a team's meeting goes to its team's own channel(s) only — never the company channel.
+    from app.services import teams as teams_service
+
+    chans = {}
+    async for t in db[teams_service.TEAMS].find({"_id": {"$in": [teams_service.oid(x) for x in row.get("team_ids") or []]}}):
+        ch = t.get("slack_channel") or {}
+        if ch.get("id"):
+            chans[ch["id"]] = ch.get("name")
+    if not chans:
+        return {"posted": False, "reason": "no_team_channel"}
+    if row.get("restricted") or not await team_audience_ok(db, raw):
         return {"posted": False, "reason": "private"}
+    out = {"posted": False, "reason": "no_team_channel"}
+    for cid, cname in chans.items():
+        if await channel_is_shared(token, cid) and not await access.anonymous_can_read(db, raw):
+            continue
+        got = await _post_one(db, inst, token, row, raw, meeting_id, cid, cname, again=again, team_post=True)
+        if got.get("posted") or not out.get("posted"):
+            out = got
+    return out
+
+
+async def team_audience_ok(db: AsyncIOMotorDatabase, raw: dict) -> bool:
+    """Everyone in the item's team(s) can open it: workspace or link access, no password, not expired."""
+    from app.services import publicity
+
+    ctx = access.Ctx(db)
+    eff = await access.effective_doc(db, raw, ctx)
+    return ((eff.get("access_level") or "link") in ("workspace", "link") and not eff.get("read_password_hash")
+            and not raw.get("encrypted") and not publicity.is_expired(raw, ctx.now))
+
+
+async def _post_one(db: AsyncIOMotorDatabase, inst: dict, token: str, row: dict, raw: dict, meeting_id: str, chan: str,
+                    chan_name: str | None, *, again: bool, team_post: bool) -> dict:
+    from app.services import md_outline, meetings, urls
+
     gen = row.get("generated") or {}
     notes = row.get("notes") or {}
     summary = (notes.get("summary") or gen.get("summary") or "").strip()
@@ -236,7 +276,7 @@ async def post_meeting(db: AsyncIOMotorDatabase, meeting_id: str, *, again: bool
     items = await action_items(db, inst["_id"], raw.get("content") or "", row)
     names = [a.get("name") or "" for a in row.get("attendees") or [] if (a.get("name") or "").strip()]
     # Posted on its own once per meeting (writing the summary again doesn't post again); by hand, every time.
-    key = f"m:{meeting_id}:{inst['_id']}" + (f":{_now().timestamp()}" if again else "")
+    key = f"m:{meeting_id}:{inst['_id']}" + (f":{chan}" if team_post else "") + (f":{_now().timestamp()}" if again else "")
     post = {"key": key, "team_id": inst["_id"], "channel": chan, "ts": None, "meeting_id": str(row["_id"]),
             "doc_id": str(raw["_id"]), "title": (row.get("title") or "").strip() or md_outline.display_title(raw), "url": urls.markdrop_url(raw["slug"]),
             "when": _when(row), "day": _day(row), "duration": meetings.fmt_duration(row.get("duration_s")),
@@ -266,7 +306,7 @@ async def post_meeting(db: AsyncIOMotorDatabase, meeting_id: str, *, again: bool
         return {"posted": False, "reason": exc.error}
     await db[POSTS].update_one({"_id": post["_id"]}, {"$set": {"state": "posted", "ts": r.get("ts"),
                                                                "channel": r.get("channel") or chan}})
-    return {"posted": True, "reason": None, "channel": (inst.get("meetings_channel") or {}).get("name"), "ts": r.get("ts")}
+    return {"posted": True, "reason": None, "channel": chan_name, "ts": r.get("ts")}
 
 
 async def meeting_ready(db: AsyncIOMotorDatabase, meeting_id: str) -> None:

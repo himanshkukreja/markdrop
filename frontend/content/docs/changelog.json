@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "teams",
+      "date": "2026-11-10",
+      "title": "Teams inside your workspace",
+      "kind": "new",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Sales, Marketing and Engineering each get their own space in the same workspace: their own pages, meetings, memory and Ask, with weekly team briefs and cross-team projects to keep everyone connected.",
+      "body": "- **A space per team.** Each team has its own pages, folders, meetings inbox, memory and Ask, inside the workspace you already have. People can be in several teams.\n- **Open or private.** Anyone in the workspace can browse and search an open team; a private team's content is for its members only. Workspace admins can see every team.\n- **Meetings find their team.** An imported meeting goes to the team(s) of the people in it, or the team its series went to before; change it any time.\n- **Team briefs.** Every Monday each team gets a short brief of last week from its memory. Everyone in the workspace can read it, and the team's leads can edit or hide any line.\n- **Ask your team, or the whole company.** Ask answers from your team by default; widen it to everything you can read, including the teams' briefs.\n- **Share across teams.** Put a page in several teams, or make a project space shared by several teams with its own pages, meetings and memory.\n- **Per-team Slack and Jira.** A team's meetings post to its own Slack channel; issues from its meetings go to its Jira project.\n- **Nothing moves on its own.** Existing content stays company-wide. Admins get a one-time review that suggests which meetings and pages belong to which team.\n- **In your AI apps.** New MCP tools: list_teams, get_team, create_team, update_team, add_team_members, remove_team_members, move_to_team, share_to_team, get_team_brief, edit_team_brief, list_projects, create_project and route_meeting; search, Ask, Team and listing tools take a `space`."
+    },
+    {
       "id": "comments",
       "date": "2026-11-09",
       "title": "Comments on pages and documents, and Jira inside your pages",

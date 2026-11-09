@@ -3613,6 +3613,12 @@ IDEMPOTENCY_KEY = {
                     "24 hours returns the first call's result instead of doing it again (no duplicate "
                     "pages, blocks or uploads after a timeout)."),
 }
+# Teams (list_teams, get_team, move_to_team, …; ``space`` on the cross-workspace readers): app/mcp/teams_tools.py.
+from app.mcp.teams_tools import TEAMS_TOOLS, add_space  # noqa: E402
+
+TOOLS += TEAMS_TOOLS
+add_space(TOOLS)
+
 for _t in TOOLS:
     if _t.writes and isinstance(_t.input_schema.get("properties"), dict):
         _t.input_schema["properties"].setdefault("idempotency_key", IDEMPOTENCY_KEY)

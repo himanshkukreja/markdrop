@@ -804,3 +804,15 @@ async def set_folder_teams(db: AsyncIOMotorDatabase, actor, ctx, workspace_id: s
             applied += 1
     ctx.forget()
     return {"team_ids": tids, "project_ids": pids, "applied": applied}
+
+
+async def jira_default(db: AsyncIOMotorDatabase, slug: str | None) -> str | None:
+    """The first Jira project of the first team (with any) the item belongs to."""
+    if not slug:
+        return None
+    raw = await db["documents"].find_one({"slug": slug}, {"team_ids": 1})
+    for tid in ids_of(raw, "team_ids"):
+        t = await db[TEAMS].find_one({"_id": oid(tid)}, {"jira_projects": 1})
+        if t and t.get("jira_projects"):
+            return t["jira_projects"][0]
+    return None

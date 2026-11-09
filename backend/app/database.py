@@ -287,6 +287,9 @@ async def connect() -> None:
         from app.services import team_extras as _team_extras
 
         await _team_extras.ensure_indexes(db)
+        from app.services import teams as _teams
+
+        await _teams.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] meetings indexes skipped: {exc}")
     try:
