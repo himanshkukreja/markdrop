@@ -36,11 +36,11 @@ while [ $# -gt 0 ]; do
     --keep-live) KEEP_LIVE=1; shift ;;
     --allow-drift|--yes|-y) PASS+=("$1"); shift ;;
     --python|--ref) PASS+=("$1" "$2"); shift 2 ;;
-    -h|--help) sed -n '3,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '3,23p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown option $1"; exit 1 ;;
   esac
 done
-[ -n "$FROM" ] && [ -n "$FROM_KEY" ] && [ -n "$TO" ] && [ -n "$TO_KEY" ] || { sed -n '3,25p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+[ -n "$FROM" ] && [ -n "$FROM_KEY" ] && [ -n "$TO" ] && [ -n "$TO_KEY" ] || { sed -n '3,23p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 
 SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR"
 # shellcheck disable=SC2086

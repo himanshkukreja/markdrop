@@ -41,7 +41,7 @@ ZONE_NAME="${DOMAIN#*.}"
 MODE=prepare DRY=0 YES=0 ALLOW_DRIFT=0 PYTHON=auto REF="" TUNNEL_PORT=27118 EMAIL="" AWS_EIP=0 PRACTICE=0
 FROM="" FROM_KEY="" TO="" TO_KEY="" FROM_BACKUP="" ENV_FILE="" BACKUP_ENV="" GEOIP_CONF=""
 
-usage() { sed -n '3,37p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-1}"; }
+usage() { sed -n '3,33p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-1}"; }
 while [ $# -gt 0 ]; do
   case $1 in
     --from) FROM=$2; shift 2 ;;
@@ -162,7 +162,7 @@ copy_file() {  # copy_file <path> <mode> — same path OLD → NEW, skipped when
   [ -n "$a" ] || { warn "OLD has no $p"; return 0; }
   b=$(on_new "sudo sha256sum '$p' 2>/dev/null | cut -c1-64" || true)
   if [ "$a" = "$b" ]; then ok "$p (already identical)"; return 0; fi
-  pipe_old "sudo cat '$p'" | pipe_new "sudo install -d -m 755 \"\$(dirname '$p')\" && sudo sh -c \"cat > '$p.part'\" && sudo chmod $mode '$p.part' && sudo mv '$p.part' '$p'"
+  on_old "sudo cat '$p'" | pipe_new "sudo install -d -m 755 \"\$(dirname '$p')\" && sudo sh -c \"cat > '$p.part'\" && sudo chmod $mode '$p.part' && sudo mv '$p.part' '$p'"
   b=$(on_new "sudo sha256sum '$p' | cut -c1-64")
   [ "$a" = "$b" ] || die "$p differs after the copy"
   ok "$p ($(on_new "du -h '$p' | cut -f1"))"
@@ -304,7 +304,7 @@ preflight_old() {
   done <<EOF
 $DRIFT_FILES
 EOF
-  if [ "$drift" = 0 ]; then ok "none: OLD runs exactly what backend/deploy installs"
+  if [ "$drift" = 0 ]; then ok "no config drift: OLD runs exactly the configs backend/deploy installs"
   elif [ "$ALLOW_DRIFT" = 1 ]; then warn "drift accepted (--allow-drift): NEW gets the backend/deploy versions"
   else die "commit OLD's version into backend/deploy (or pass --allow-drift to use the kit's)"; fi
 }
@@ -464,7 +464,7 @@ mode_prepare() {
   step "data files OLD → NEW"
   copy_file /opt/markdrop/geoip/GeoLite2-City.mmdb 644
   if on_old 'test -d /opt/markdrop/backups'; then
-    pipe_old 'sudo tar -C /opt/markdrop -cf - backups' | pipe_new 'sudo tar -C /opt/markdrop -xpf -'
+    on_old 'sudo tar -C /opt/markdrop -cf - backups' | pipe_new 'sudo tar -C /opt/markdrop -xpf -'
     ok "/opt/markdrop/backups ($(on_new 'du -sh /opt/markdrop/backups | cut -f1'))"
   fi
 
@@ -544,7 +544,7 @@ mode_cutover() {
 
   local new_redis; new_redis=$(on_new "redis-server --version | sed -n 's/.*v=\([0-9]*\).*/\1/p'")
   if [ -n "$OLD_REDIS" ] && [ "${new_redis:-0}" -ge "$OLD_REDIS" ]; then
-    if pipe_old 'redis-cli --rdb - 2>/dev/null' | pipe_new 'sudo sh -c "cat > /var/lib/markdrop-move/dump.rdb" &&
+    if on_old 'redis-cli --rdb - 2>/dev/null' | pipe_new 'sudo sh -c "cat > /var/lib/markdrop-move/dump.rdb" &&
          sudo head -c 5 /var/lib/markdrop-move/dump.rdb | grep -q REDIS &&
          sudo systemctl stop redis-server && sudo install -o redis -g redis -m 660 /var/lib/markdrop-move/dump.rdb /var/lib/redis/dump.rdb &&
          sudo systemctl start redis-server && sleep 1 && redis-cli ping | grep -q PONG'; then

@@ -54,7 +54,7 @@ answers "Not set up yet".
 ## 3. Put the secrets on the server (2 minutes)
 
 ```bash
-ssh -i ~/Downloads/server.pem ubuntu@ec2-43-205-199-138.ap-south-1.compute.amazonaws.com
+ssh -i ~/Downloads/server.pem ubuntu@api.markdrop.in
 cd /opt/markdrop/backend
 cp .env .env.bak-$(date +%Y%m%d%H%M)
 nano .env        # add the three lines from step 2, save

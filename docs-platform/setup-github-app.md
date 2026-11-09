@@ -213,7 +213,7 @@ wasn't restarted. Check without printing values:
 
 
 ```bash
-ssh -i ~/Downloads/server.pem ubuntu@ec2-43-205-199-138.ap-south-1.compute.amazonaws.com \
+ssh -i ~/Downloads/server.pem ubuntu@api.markdrop.in \
   "grep -c '^MARKDROP_DOCS_GITHUB_' /opt/markdrop/backend/.env"
 ```
 

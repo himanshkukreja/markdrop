@@ -13,7 +13,7 @@
 set -euo pipefail
 
 SSH_KEY="${MARKDROP_SSH_KEY:-$HOME/Downloads/server.pem}"
-SSH_HOST="${MARKDROP_SSH_HOST:-ubuntu@ec2-43-205-199-138.ap-south-1.compute.amazonaws.com}"
+SSH_HOST="${MARKDROP_SSH_HOST:-ubuntu@api.markdrop.in}"
 REMOTE_BACKEND=/opt/markdrop/backend
 WEBHOOK_URL=https://api.markdrop.in/api/v1/github/webhook
 GITHUB_API=https://api.github.com
