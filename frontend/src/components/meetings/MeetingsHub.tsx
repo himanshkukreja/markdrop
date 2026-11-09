@@ -16,6 +16,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Link from "next/link";
 import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
 import { teamHref } from "@/lib/teams";
+import { TeamChip } from "@/components/teams/parts";
 import {
   Alert, Avatar, AvatarGroup, Badge, Button, ConfirmDialog, Dropdown, Icon, IconButton, Input, Progress, Select, Skeleton, Spinner,
   copyText, useToast, type MenuEntry,
@@ -505,6 +506,9 @@ function MeetingCardItem({ m, onDelete }: { m: MeetingCard; onDelete?: () => voi
             {m.ai.state === "pending" && <span className="mt-state"><Spinner size={12} /> Summarizing</span>}
             {m.restricted && <Badge size="sm" tone="neutral" icon="lock">Attendees only</Badge>}
             {m.source === "auto" && <Badge size="sm" tone="info" icon="refresh">Auto</Badge>}
+            {/* Teams: where it was routed (a guess until someone confirms it, "Suggested"). */}
+            {(m.teams ?? []).slice(0, 2).map((t) => <span key={t.id} data-testid="card-team"><TeamChip team={t as { name: string; icon: string | null; color: string }} /></span>)}
+            {m.routing_state === "auto" && (m.teams ?? []).length > 0 && <span className="text-micro text-text-muted" title="Routed from who attended. Change it from the meeting's Share menu.">Suggested</span>}
           </span>
         </div>
         <p className="mt-card__when" data-testid="card-when">
