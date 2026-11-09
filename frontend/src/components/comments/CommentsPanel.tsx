@@ -229,17 +229,9 @@ export function CommentsPanel() {
 /** The top bar's button: the open count, opens / closes the panel. */
 export function CommentsButton({ className }: { className?: string }) {
   const c = useComments();
-  if (!c || !c.enabled || (!c.perms.view && !c.user && !c.isPublic)) {
-    // Anonymous readers of private comments get a quiet "sign in" entry only when comments are on.
-    if (c && c.enabled && !c.user) {
-      return (
-        <a className={`mdc-topbtn ${className ?? ""}`} href={c.signInHref} title="Sign in to comment" aria-label="Sign in to comment">
-          <Icon name="message" />
-        </a>
-      );
-    }
-    return null;
-  }
+  // Anonymous readers of an item that keeps its comments private see a clean page (selecting text still
+  // offers "Sign in to comment").
+  if (!c || !c.enabled || (!c.user && !c.isPublic)) return null;
   const n = c.counts.open;
   return (
     <button type="button" className={`mdc-topbtn${c.panelOpen ? " is-on" : ""} ${className ?? ""}`}
