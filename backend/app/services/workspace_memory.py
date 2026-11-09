@@ -1089,7 +1089,7 @@ RETRY_BASE = timedelta(minutes=2)
 RETRY_MAX = timedelta(hours=6)
 
 
-def _fresh(s: dict | None, row: dict, now: datetime) -> bool:
+def _source_fresh(s: dict | None, row: dict, now: datetime) -> bool:
     return s is not None and s.get("v") == VERSION and (_aware(s.get("seen_at")) or now) >= (_aware(row.get("updated_at")) or now)
 
 
@@ -1133,7 +1133,7 @@ async def stale_sources(db: AsyncIOMotorDatabase, ws: WsInfo, state: dict, *, li
         {"_id": {"$in": [f"m:{r['_id']}" for r in mrows]}}, _SOURCE_PICK).to_list(length=len(mrows) or 1)}
     for r in mrows:
         s = done.get(f"m:{r['_id']}")
-        if _fresh(s, r, now) or _backing_off(s, now):
+        if _source_fresh(s, r, now) or _backing_off(s, now):
             continue
         out.append(("meeting", r))
         if len(out) >= limit:
@@ -1149,7 +1149,7 @@ async def stale_sources(db: AsyncIOMotorDatabase, ws: WsInfo, state: dict, *, li
         if not page_eligible(r):
             continue
         s = done.get(f"d:{r['_id']}")
-        if _fresh(s, r, now) or _backing_off(s, now):
+        if _source_fresh(s, r, now) or _backing_off(s, now):
             continue
         out.append(("page", r))
         if len(out) >= limit:

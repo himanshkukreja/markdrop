@@ -608,8 +608,9 @@ def _prune(now: float) -> None:
     for k, e in list(_cache.items()):
         if e.expires <= now and e.fut.done():
             _cache.pop(k, None)
-    snaps = sorted((e.expires, k) for k, e in _cache.items() if k.startswith(SNAP_PREFIX) and e.fut.done())
-    for _, k in snaps[: max(0, len(snaps) - SNAP_MAX)]:
+    snaps = [k for k in _cache if k.startswith(SNAP_PREFIX)]  # the one just asked for included
+    done = sorted((_cache[k].expires, k) for k in snaps if _cache[k].fut.done())
+    for _, k in done[: max(0, len(snaps) - SNAP_MAX)]:
         _cache.pop(k, None)
     if len(_cache) > _CACHE_MAX:
         done = sorted((e.expires, k) for k, e in _cache.items() if e.fut.done())
