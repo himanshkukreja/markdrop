@@ -40,6 +40,7 @@ from app.services import access, search, search_index
 
 ACTIONS_MAX = 30
 ACTIONS_SCAN = 300
+TODO_PAGES_MAX = 20_000  # pages with an open to-do for one person the index lookup reads (ids only)
 ATTENTION_MAX = 8
 MEETINGS_MAX = 8
 MEETINGS_DAYS = 21
@@ -73,14 +74,17 @@ async def actions(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx
         # The pages with an open to-do for the caller and those to-dos, from the search index (``td`` is
         # indexed; ``tdl`` holds the lines): no regex over every readable page, and no page bodies over
         # the wire — only each page's own fields, for the access decision (search_index.todo_fields).
-        idx = await db[search_index.COLL].find({"td": uid}, {f"tdl.{uid}": 1}).limit(ACTIONS_SCAN * 2) \
-            .to_list(length=ACTIONS_SCAN * 2)
-        if not idx:
+        ids = [r["_id"] for r in await db[search_index.COLL].find({"td": uid}, {"_id": 1})
+               .to_list(length=TODO_PAGES_MAX)]
+        if not ids:
             return {"items": [], "more": False, "hidden": 0}
-        lines = {r["_id"]: ((r.get("tdl") or {}).get(uid) or []) for r in idx}
-        filt["$and"].append({"_id": {"$in": list(lines)}})
+        filt["$and"].append({"_id": {"$in": ids}})
+        # The newest ACTIONS_SCAN of those pages the caller can read (the same window as before, now of
+        # pages that do have a to-do for them), then only those pages' lines.
         rows = await db["documents"].find(filt, {"content": 0}).sort("updated_at", -1).limit(ACTIONS_SCAN) \
             .to_list(length=ACTIONS_SCAN)
+        lines = {r["_id"]: ((r.get("tdl") or {}).get(uid) or []) for r in await db[search_index.COLL].find(
+            {"_id": {"$in": [r["_id"] for r in rows]}}, {f"tdl.{uid}": 1}).to_list(length=len(rows))} if rows else {}
     else:
         filt["$and"].append({"content": {"$regex": re.escape(f'id="{uid}"')}})
         rows = await db["documents"].find(filt).sort("updated_at", -1).limit(ACTIONS_SCAN).to_list(length=ACTIONS_SCAN)
@@ -217,7 +221,7 @@ async def workspaces(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.
     async def first_people() -> dict[str, list[str]]:
         # The first few people of each (owner first, then by joining): one query for every workspace.
         groups = await db["memberships"].aggregate([
-            {"$match": {"workspace_id": {"$in": ids}}}, {"$sort": {"created_at": 1}},
+            {"$match": {"workspace_id": {"$in": ids}}}, {"$sort": {"created_at": 1, "_id": 1}},
             {"$group": {"_id": "$workspace_id", "rows": {"$push": {"u": "$user_id", "r": "$role"}}}},
             {"$project": {"rows": {"$slice": ["$rows", PEOPLE_SHOWN * 3]}}},
         ]).to_list(length=len(ids))
