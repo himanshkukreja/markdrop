@@ -159,11 +159,27 @@ def _fold_char(ch: str) -> str:
     return base[0] if len(base) >= 1 else ch.lower()
 
 
+_ASCII_LOWER = {i: i + 32 for i in range(65, 91)}
+_FOLDED: dict[str, str] = {}
+
+
 def fold(text: str) -> str:
     """Lower case, accents off, ONE character per character (positions stay valid)."""
     if text.isascii():
         return text.lower()
-    return "".join(_fold_char(c) if ord(c) > 127 else c.lower() for c in text)
+    # One em dash or curly quote used to send the whole text (20,000 characters a result, every
+    # keystroke) through a Python loop per character: fold each distinct character once instead, and
+    # let str.translate do the rest. Same result character for character.
+    table: dict[int, str | int] = dict(_ASCII_LOWER)
+    for ch in set(text):
+        if ord(ch) > 127:
+            f = _FOLDED.get(ch)
+            if f is None:
+                f = _fold_char(ch)
+                if len(_FOLDED) < 50_000:
+                    _FOLDED[ch] = f
+            table[ord(ch)] = f
+    return text.translate(table)
 
 
 @dataclass

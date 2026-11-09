@@ -101,6 +101,25 @@ class TodoFields(unittest.TestCase):
         self.assertEqual(search_index.doc_row({"content": md, "encrypted": True})["td"], [])
 
 
+class Fold(unittest.TestCase):
+    def test_same_as_one_character_at_a_time(self):
+        import random
+
+        from app.services import search
+
+        def ref(text):
+            if text.isascii():
+                return text.lower()
+            return "".join(search._fold_char(c) if ord(c) > 127 else c.lower() for c in text)
+
+        rng = random.Random(7)
+        pool = "aZq —…éÉİßñ“”ÅKﬁΩ中文😀\u0301\u212b\u212a"
+        for _ in range(3000):
+            t = "".join(rng.choice(pool) for _ in range(rng.randint(0, 40)))
+            self.assertEqual(search.fold(t), ref(t), t)
+            self.assertEqual(len(search.fold(t)), len(t))
+
+
 # ── bcrypt off the loop, remembered when right ───────────────────────────────
 
 
