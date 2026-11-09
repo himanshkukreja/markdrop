@@ -322,7 +322,8 @@ class Devices(PushWorld):
     async def test_prefs(self):
         r = await self.http.patch("/api/v1/push/prefs", json={"mention": False, "nope": True}, headers=self.session("wm"))
         self.assertEqual(r.json()["prefs"], {"mention": False, "signoff_requested": True, "shared": True,
-                                             "access_request": True})
+                                             "access_request": True, "comment_mention": True,
+                                             "comment_assigned": True})
 
 
 # ── Delivery ──────────────────────────────────────────────────────────────────
