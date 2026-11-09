@@ -63,7 +63,9 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 .md-btn--loading > :not(.md-btn__spinner):not(.md-btn__label) { visibility: hidden; }
 /* Never wider than its box: a long text label ends in "…" (the icons keep their size). */
 .md-btn:has(> .md-btn__label) { max-width: 100%; }
-.md-btn__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* pointer-events: none keeps the button itself the event target (the editor's node views only leave
+   clicks on a BUTTON / INPUT to the control: a span inside would select the block instead). */
+.md-btn__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 .md-btn > .md-icon, .md-btn > svg { flex: none; }
 .md-btn .md-icon { font-size: 16px; }
 .md-btn--sm .md-icon { font-size: 14px; }
