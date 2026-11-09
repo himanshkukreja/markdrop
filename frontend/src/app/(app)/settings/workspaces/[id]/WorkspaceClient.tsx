@@ -199,8 +199,8 @@ export default function WorkspaceClient({ id }: { id: string }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
-      <Anchor href={`/w/${encodeURIComponent(id)}`} className="md-focus md-hit inline-flex items-center gap-1.5 self-start rounded-sm text-[13px] font-medium text-accent-text no-underline hover:underline">
-        <Icon name="chevronLeft" size={14} /> Back to <span className="ph-sensitive ph-mask">{ws.name}</span>
+      <Anchor href={`/w/${encodeURIComponent(id)}`} title={`Back to ${ws.name}`} className="md-focus md-hit inline-flex min-w-0 max-w-full items-center gap-1.5 self-start rounded-sm text-[13px] font-medium text-accent-text no-underline hover:underline">
+        <Icon name="chevronLeft" size={14} className="shrink-0" /><span className="shrink-0">Back to</span><span className="ph-sensitive ph-mask min-w-0 truncate">{ws.name}</span>
       </Anchor>
       <div className="flex min-w-0 items-center gap-3.5">
         <WorkspaceTile ws={ws} active size={44} />

@@ -286,7 +286,7 @@ export function Badge({ tone = "neutral", variant = "soft", size = "md", dot, li
   return (
     <span className={cx("md-badge", `md-badge--${tone}`, variant !== "soft" && `md-badge--${variant}`, size === "sm" && "md-badge--sm", upper && "md-badge--upper", className)} {...rest}>
       {(dot || live) && <span className={cx("md-badge__dot", live && "md-badge__dot--live")} aria-hidden />}
-      {icon && <Icon name={icon} />}{children}
+      {icon && <Icon name={icon} />}{typeof children === "string" ? <span className="md-badge__label">{children}</span> : children}
     </span>
   );
 }

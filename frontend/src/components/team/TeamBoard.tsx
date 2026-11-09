@@ -263,7 +263,7 @@ function MemberCard({ c, ws, days, today, jira }: { c: Card; ws: string; days: n
       <div className="tm-card__top">
         <Avatar name={c.name} src={c.avatar_url ?? undefined} size="lg" />
         <div className="tm-card__who">
-          <p className="tm-card__name">{c.name}{c.you && <span className="tm-you">You</span>}</p>
+          <p className="tm-card__name" title={c.name}><span className="tm-card__nametext">{c.name}</span>{c.you && <span className="tm-you">You</span>}</p>
           <p className="tm-card__role">{c.title || (c.role ? c.role[0]!.toUpperCase() + c.role.slice(1) : "")}</p>
         </div>
         <StatusChip status={c.status} size="sm" />

@@ -587,6 +587,15 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
   .pb-frame .dxe-touchbar { display: none !important; }
 }
 
+/* The smallest phones (320 px): the bar's buttons keep 44 px, so the path (only "…" here; the title is
+   the page's own head) gives way and nothing pushes the page wider than the screen (overflow.mjs). */
+@media (max-width: 359px) {
+  .pb-bar { padding: 0 2px; }
+  .pb-bar > .pb-bar__btn { flex: none; }
+  .pb-bar__crumbs { display: none; }
+  .pb-bar__actions { gap: 0; margin-left: auto; }
+}
+
 @keyframes pb-pop { from { opacity: 0; transform: translateY(4px) scale(0.98); } to { opacity: 1; transform: none; } }
 @keyframes pb-drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @keyframes pb-fade { from { opacity: 0; } to { opacity: 1; } }

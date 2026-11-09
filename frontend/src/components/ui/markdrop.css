@@ -92,8 +92,9 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 .md-input__adorn--prefix { left: 0; } .md-input__adorn--suffix { right: 0; }
 .md-input__adorn button { pointer-events: auto; }
 .md-textarea { min-height: 88px; resize: vertical; }
-.md-select-wrap { position: relative; }
-.md-select { appearance: none; padding-right: 34px; cursor: pointer; }
+.md-select-wrap { position: relative; min-width: 0; max-width: 100%; }
+/* A long option (a group or project name) never widens the select past its row: it ends in "…". */
+.md-select { appearance: none; padding-right: 34px; cursor: pointer; max-width: 100%; text-overflow: ellipsis; }
 .md-select-wrap .md-input__adorn { right: 0; }
 /* Literal text prefix/suffix ("markdrop.in/") attached inside the field border. */
 .md-input-group { display: flex; align-items: center; width: 100%; min-width: 0; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); cursor: text; transition: border-color var(--duration-fast); }
@@ -178,6 +179,10 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 .md-badge__dot--live { animation: md-breathe 2s ease-in-out infinite; }
 @keyframes md-breathe { 50% { opacity: .3; } }
 .md-badge .md-icon { font-size: 12px; }
+/* A long label (a workspace name) ends in "…" when the badge has to fit its box. */
+.md-badge { max-width: 100%; min-width: 0; }
+.md-badge > .md-icon { flex: none; }
+.md-badge__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .md-badge--neutral { background: var(--surface-hover); color: var(--text-secondary); }
 .md-badge--info { background: var(--accent-soft); color: var(--accent-text); }
 .md-badge--success { background: var(--success-soft); color: var(--success); }
