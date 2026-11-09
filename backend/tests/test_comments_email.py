@@ -184,3 +184,35 @@ class Settings(ReachWorld):
             await self.bell("wm", "comment_mention", doc, th)
         got = await self.flush(2)
         self.assertEqual(got, {"sent": notifications.DAILY_CAP, "capped": 1})
+
+
+class EndToEnd(ReachWorld):
+    """Through Track A's real routes: a thread with a mention, replies, the bell rows, the emails."""
+
+    async def post(self, who: str, path: str, body: dict):
+        r = await self.http.post(path, json=body, headers=self.session(who))
+        self.assertIn(r.status_code, (200, 201), r.text)
+        return r.json()
+
+    async def test_mention_then_replies_through_the_api(self):
+        doc = await self.item()
+        base = f"/api/v1/documents/{doc['slug']}/comments"
+        th = await self.post("owner", base, {"anchor": {"type": "text", "quote": {"exact": "frontend"}},
+                                             "body": "@WM is Friday real?", "mentions": [self.uid["wm"]]})
+        self.assertEqual([r["kind"] for r in await self.notes("wm")], ["comment_mention"])
+        self.assertEqual(await self.flush(2), {"sent": 1})
+        self.assertIn("mentioned you in a comment", self.sent[-1]["subject"])
+        self.assertIn(f"#c-{th['id']}", self.sent[-1]["html"])
+        # wm replies: the owner (thread author) gets a reply row, gathered 15 minutes.
+        await self.post("wm", f"{base}/{th['id']}/replies", {"body": "Yes, Friday holds"})
+        self.assertEqual([r["kind"] for r in await self.notes("owner")], ["comment_reply"])
+        self.assertEqual(await self.flush(5), {})
+        self.assertEqual(await self.flush(16), {"sent": 1})
+        self.assertIn("WM replied to a comment", self.sent[-1]["subject"])
+        # Another reply while that row is unread: the same row, its email put back in line.
+        await self.post("wm", f"{base}/{th['id']}/replies", {"body": "And QA signed off"})
+        rows = await self.notes("owner")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]["email"], rows[0]["extra"]["count"]), ("pending", 2))
+        self.assertEqual(await self.flush(40), {"sent": 1})
+        self.assertIn("And QA signed off", self.sent[-1]["html"])

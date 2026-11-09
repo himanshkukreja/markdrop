@@ -298,11 +298,21 @@ async def _notify_comment(db: AsyncIOMotorDatabase, recipient: dict, user_id: st
          "$inc": {"extra.count": 1}},
         return_document=True)
     if hit is not None:
+        if hit.get("email") != "pending":
+            # Email (Track C): the earlier email already went (or was seen / pushed): this one gets its own turn,
+            # under the same calm rules (services/comments/notify_email.py).
+            from app.services.comments import notify_email
+
+            fields = notify_email.bump_fields(recipient, kind, now)
+            if fields:
+                fields["first_at"] = now
+                await db[COLL].update_one({"_id": hit["_id"]}, {"$set": fields})
+                hit.update(fields)
         return hit
     row = {
         "user_id": user_id, "kind": kind, "doc_id": doc_id, "block_id": None, "thread_id": str(thread_id),
         "actor_id": actor_id, "actor_name": (actor_name or "Someone")[:80], "via": _via(actor),
-        "extra": {**clean, "count": 1}, "created_at": now, "read_at": None,
+        "extra": {**clean, "count": 1}, "created_at": now, "first_at": now, "read_at": None,
         "email": "pending" if kind in EMAIL_KINDS and wants_email(recipient, kind) else "off",
         "email_at": now + GATHER, "emailed_at": None,
     }
