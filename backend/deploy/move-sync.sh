@@ -7,8 +7,8 @@
 # bundle), so the source URI is this server's admin URI on the tunnel port: no password is passed around.
 set -uo pipefail
 PORT=${1:?usage: move-sync.sh <tunnel port>}
-if [ "$(cat /etc/markdrop/role 2>/dev/null)" = live ]; then
-  echo "EXIT 3 refusing: this server is live (a copy would replace its data)"; exit 3
+if [ "$(cat /etc/markdrop/role 2>/dev/null)" != standby ]; then
+  echo "EXIT 3 refusing: this server is not a provisioned standby (a copy would replace its data)"; exit 3
 fi
 ADMIN=$(grep '^MONGO_ADMIN_URI=' /etc/markdrop/mongo.env | cut -d= -f2- | tr -d "'\"")
 export DEST_URI="$ADMIN"

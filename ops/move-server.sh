@@ -125,7 +125,7 @@ echo "──── $(date '+%Y-%m-%d %H:%M:%S') move-server.sh $MODE$( [ "$DRY" 
 
 if [ "$MODE" != backup ] && [ "$(host_of "$FROM")" = "$(host_of "$TO")" ]; then
   [ "$DRY" = 1 ] && [ "${MOVE_ALLOW_SAME_HOST:-0}" = 1 ] || die "--from and --to are the same host"
-  warn "same host for --from and --to (MOVE_ALLOW_SAME_HOST, dry-run only)"
+  warn "same host for --from and --to (MOVE_ALLOW_SAME_HOST, dry-run only)"; SAME_HOST_DRY=1
 fi
 
 # ─────────────────────────────────────────────────────────────────────────── kit, bundle, files
@@ -191,7 +191,7 @@ code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8080
 for u in markdrop markdrop-worker mongod redis-server nginx; do
   systemctl is-active -q "$u" && y "$u active" || w "$u is $(systemctl is-active "$u")"
 done
-[ -f /etc/markdrop/mongo.env ] && sudo test -f /etc/mongod.key && y "self-hosted MongoDB (mongo.env, keyfile)" || n "no /etc/markdrop/mongo.env or /etc/mongod.key — this tool moves a self-hosted MongoDB"
+sudo test -f /etc/markdrop/mongo.env && sudo test -f /etc/mongod.key && y "self-hosted MongoDB (mongo.env, keyfile)" || n "no /etc/markdrop/mongo.env or /etc/mongod.key — this tool moves a self-hosted MongoDB"
 grep -q '^MARKDROP_MONGODB_URI=.*@127\.0\.0\.1:27017' /opt/markdrop/backend/.env && y "the app uses the local mongod" \
   || n "the app's MARKDROP_MONGODB_URI is not the local mongod (still on Atlas?)"
 read -r -d '' PYCODE <<'PY' || true
@@ -224,7 +224,7 @@ REMOTE
 }
 
 new_checks() {  # read-only
-  pipe_new "MONGO_MB=${MONGO_MB:-500} bash -s" <<'REMOTE'
+  pipe_new "MONGO_MB=${MONGO_MB:-500} SAME_HOST_DRY=${SAME_HOST_DRY:-0} bash -s" <<'REMOTE'
 bad=0
 y() { echo "  ✓ $*"; }; n() { echo "  ✗ $*"; bad=1; }; w() { echo "  ! $*"; }
 sudo -n true 2>/dev/null && y "passwordless sudo ($(id -un))" || n "$(id -un) needs passwordless sudo"
@@ -258,6 +258,10 @@ if command -v ufw >/dev/null && sudo ufw status 2>/dev/null | grep -q 'Status: a
   sudo ufw status | grep -qE '^(80|443|Nginx Full)' && y "ufw allows web" || n "ufw is active and does not allow 80/443"
 fi
 role=$(sudo cat /etc/markdrop/role 2>/dev/null || echo none); echo "FACT role=$role"
+if systemctl is-active -q markdrop 2>/dev/null && [ "$role" != standby ]; then
+  if [ "${SAME_HOST_DRY:-0}" = 1 ]; then w "this server runs a live Markdrop API (role: $role) — a real run would refuse it as NEW"
+  else n "this server runs a live Markdrop API (role: $role) — refusing to use it as NEW (wrong --to?)"; fi
+fi
 [ -d /opt/markdrop/.git ] && w "already provisioned before (role: $role) — re-running is fine"
 echo "FACT sync=$(systemctl is-active markdrop-move-sync 2>/dev/null)"
 echo "FACT ip=$(curl -s4 --max-time 5 https://checkip.amazonaws.com)"
@@ -273,7 +277,7 @@ preflight_old() {
   [ "$(fact "$out" bad)" = 0 ] || die "OLD is not in a state to move from (see ✗ above)"
   OLD_COMMIT=$(fact "$out" commit); OLD_REDIS=$(fact "$out" redis); OLD_EGRESS=$(fact "$out" ip)
   MONGO_MB=$(fact "$out" mongo_mb); OLD_GEOIP=$(fact "$out" geoip)
-  local units; units=$(printf '%s\n' "$out" | sed -n 's/^FACT unit=//p' | grep -vxE 'markdrop.service|markdrop-worker.service|markdrop-backup.service|markdrop-backup.timer' | tr '\n' ' ')
+  local units; units=$(printf '%s\n' "$out" | sed -n 's/^FACT unit=//p' | { grep -vxE 'markdrop.service|markdrop-worker.service|markdrop-backup.service|markdrop-backup.timer' || true; } | tr '\n' ' ')
   [ -z "$units" ] || warn "unknown markdrop units on OLD (not moved): $units"
   [ -n "$REF" ] || REF=$OLD_COMMIT
   local dns; dns=$(dig +short "$DOMAIN" A | tail -1)

@@ -88,6 +88,10 @@ cmd_install() {
   done
   [ "$(role)" != live ] || [ "${FORCE:-0}" = 1 ] || \
     die "this server is live — install would reset its code and restart mongod. Use backend/deploy.sh (or FORCE=1)."
+  # A server set up before this kit (no role file) that runs the API is a production server too.
+  if [ "$(role)" = none ] && systemctl is-active -q markdrop 2>/dev/null && [ "${FORCE:-0}" != 1 ]; then
+    die "this server already runs the Markdrop API (set up by hand) — refusing to re-provision it (FORCE=1 overrides)"
+  fi
 
   . /etc/os-release
   case "$ID:${VERSION_ID%%.*}" in
