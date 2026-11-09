@@ -660,7 +660,7 @@ def drop(slug: str | None) -> None:
         r.flush_handle.cancel()
 
 
-def access_changed_for(user_id: str | None) -> int:
+def access_changed_for(user_id: str | None, *, local: bool = False) -> int:
     """Someone's access changed outside any one document (removed from a workspace, a new role
     there): every page they have open re-checks through the read path (``{"type": "access"}`` on
     their own sockets only; the socket then closes and the page reconnects with a fresh ticket if
@@ -668,6 +668,8 @@ def access_changed_for(user_id: str | None) -> int:
     how many were told."""
     if not user_id:
         return 0
+    if not local:
+        live.user_access_changed(user_id)  # the other processes' sockets (several processes only)
     told = 0
     for r in list(_rooms.values()):
         for c in list(r.conns.values()):

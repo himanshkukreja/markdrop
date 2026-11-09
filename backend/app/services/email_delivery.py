@@ -83,6 +83,7 @@ KINDS: dict[str, str] = {
     "guide_access_decision": TRANSACTIONAL,
     "guide_domain": TRANSACTIONAL,
     "admin_change": TRANSACTIONAL,    # services/admin_roles.py: an admin added or removed
+    "ops_alert": TRANSACTIONAL,       # services/memory_health.py: an API process over its memory line
     "mention": TRANSACTIONAL,
     "signoff": TRANSACTIONAL,
     "campaign_test": TRANSACTIONAL,

@@ -1,5 +1,13 @@
 import time
+import tracemalloc
 from contextlib import asynccontextmanager
+
+from app.config import get_settings
+
+# MARKDROP_TRACEMALLOC=1: trace allocations from before the app's own modules load, so
+# /api/v1/admin/health/memory's top 20 covers everything the process holds (services/memory_health.py).
+if get_settings().tracemalloc and not tracemalloc.is_tracing():
+    tracemalloc.start(10)
 
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
@@ -9,7 +17,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.config import get_settings
 from app.database import connect, disconnect
 from app.limiter import limiter
 from app.middleware.docs_cors import DocsCORSMiddleware
@@ -26,6 +33,7 @@ from app.routers.admin_analytics import router as admin_analytics_router
 from app.routers.admin_email import router as admin_email_router
 from app.routers.admin_journeys import router as admin_journeys_router
 from app.routers.admin_roles import router as admin_roles_router
+from app.routers.admin_health import router as admin_health_router
 from app.routers.beat import router as beat_router
 from app.routers.artifacts import router as artifacts_router
 from app.routers.auth import router as auth_router
@@ -95,27 +103,19 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await connect()
-    # Campaign sender: sends queued campaigns in the background and resumes
-    # them after a restart (services/email_campaigns/engine.py).
+    from app import worker
     from app.database import get_database
-    from app.services.email_campaigns import engine as email_engine
+    from app.services import live, memory_health
 
-    email_engine.start(get_database)
-    # Revalidation outbox, expiry sweeper, access reconciler (services/background.py),
-    # and custom-domain re-verification / lapsing (services/domain_monitor.py).
-    # Each runs one worker per pass via a Mongo lease.
-    from app.services import analytics_digest, background, domain_monitor
-
-    background.start(get_database)
-    domain_monitor.start(get_database)
-    # Markdrop Docs jobs: route each to GitHub Actions or the local worker, dispatch, sweep
-    # (services/docs_dispatch.py; a lease, one API worker per pass).
-    from app.services import docs_dispatch
-
-    docs_dispatch.start(get_database)
-    # Weekly analytics digest: off unless MARKDROP_ANALYTICS_DIGEST_ENABLED
-    # (and background workers) are on; a lease + per-user claims, never twice.
-    analytics_digest.start(get_database)
+    # The background loops (app/worker.py): here unless MARKDROP_ROLE=web, where the
+    # markdrop-worker service runs them.
+    loops = worker.runs_loops()
+    if loops:
+        await worker.start_loops()
+    # Every process watches its own memory (logs, samples, the owners' alert).
+    memory_health.start(get_database)
+    # Several processes (web + worker): document changes reach every process's sockets.
+    live.start_bus()
     # Everything loaded at startup lives as long as the process: move it out of the collector's
     # reach, so a full collection doesn't walk it on every request that allocates a lot (global
     # search builds thousands of candidates per keystroke; a gen-2 pass over the startup heap
@@ -125,11 +125,10 @@ async def lifespan(app: FastAPI):
     gc.collect()
     gc.freeze()
     yield
-    await analytics_digest.stop()
-    await docs_dispatch.stop()
-    await domain_monitor.stop()
-    await background.stop()
-    await email_engine.stop()
+    await live.stop_bus()
+    await memory_health.stop()
+    if loops:
+        await worker.stop_loops()
     await disconnect()
 
 
@@ -265,6 +264,7 @@ app.include_router(admin_ai_workspaces_router, include_in_schema=False)
 app.include_router(admin_journeys_router, include_in_schema=False)
 app.include_router(admin_email_router, include_in_schema=False)
 app.include_router(admin_roles_router, include_in_schema=False)
+app.include_router(admin_health_router, include_in_schema=False)
 app.include_router(email_public_router, include_in_schema=False)
 app.include_router(beat_router, include_in_schema=False)
 app.include_router(auth_router)

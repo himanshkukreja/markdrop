@@ -656,6 +656,33 @@ async def send_admin_change_email(*, to_email: str, actor: str, actor_email: str
     await _send(to_email, mail, purpose="share", kind="admin_change", ref=target)
 
 
+# ── Operations: the API's memory watchdog (services/memory_health.py) ──────────
+
+
+def compose_ops_alert(*, host: str, role: str, pid: int, why: str, rss_mb: float, swap_mb: float, peak_mb: float,
+                      uptime_s: int, top: list[tuple[str, int]] | None = None) -> dict:
+    """To every owner, at most once an hour: an API process is using too much memory."""
+    subject = f"Markdrop API memory: {_one_line(why, 100)}"
+    hours = uptime_s / 3600
+    body = [K.eyebrow("Operations"), K.title("The API is using too much memory"),
+            K.callout(f"{why}.", tone="warn"),
+            K.stats([("RSS", f"{rss_mb:.0f} MB"), ("Swap", f"{swap_mb:.0f} MB"), ("Peak", f"{peak_mb:.0f} MB")]),
+            K.p([K.strong(f"{role} process"), f" {pid} on {host}, up {hours:.1f} h. Slow pages and, at the "
+                 "service's MemoryMax, a restart come next."]),
+            K.p("Biggest in-process structures: " + (", ".join(f"{k} {v:,}" for k, v in top) if top else "none") + "."),
+            K.button(f"{_base()}/admin?tab=health", "Open Product health", margin="4px 0 24px"),
+            K.small("On the server: journalctl -u markdrop -u markdrop-worker | grep memory, and "
+                    "GET /api/v1/admin/health/memory for the caches (set MARKDROP_TRACEMALLOC=1 and restart for "
+                    "allocation sites).")]
+    e = K.layout(title_=subject, preheader=f"{why} ({role}, pid {pid}).", base=_base(), label_="Operations", body=body,
+                 footer=Footer(why="You're getting this because you're an owner of Markdrop. At most one an hour."))
+    return _mail(subject, f"{why} ({role}, pid {pid}).", e)
+
+
+async def send_ops_alert_email(*, to_email: str, mail: dict) -> None:
+    await _send(to_email, mail, purpose="share", kind="ops_alert", ref="memory")
+
+
 def compose_admin_granted(*, actor: str, has_account: bool, name: str | None = None) -> dict:
     """To a new admin: what they can do now, and how to get in."""
     subject = "You're now an admin of Markdrop"

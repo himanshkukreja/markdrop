@@ -898,6 +898,9 @@ async def _follow_jira(db: AsyncIOMotorDatabase, ln: dict, done: bool, actor_acc
 
     raw = await db["documents"].find_one({"_id": ObjectId(ln["doc_id"])}) if ln.get("doc_id") else None
     if raw is None or raw.get("deleted_at"):
+        if (ln.get("sync") or {}).get("state") == "pending":
+            # Otherwise retry_pending re-reads it every minute for ever.
+            await _sync_state(db, ln["_id"], "error", "The page was deleted.", pending=None)
         return 0
     who = []
     uid = await jira.user_for_account(db, ln["workspace_id"], ln["cloud_id"], actor_account)
