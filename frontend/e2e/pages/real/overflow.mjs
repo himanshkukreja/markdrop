@@ -50,7 +50,7 @@ const LINE = "ABCDEFGHIJ0123456789".repeat(15); // 300 chars
 const URL_LONG = "https://github.com/acme-corporation/platform-infrastructure-monorepo/pull/48213/files#diff-4f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c";
 // The fake Team AI reads up to the first "." of a line, so Team's hostile words have no dots.
 const URL_NODOT = `http://localhost:3000/${"platform-infrastructure-".repeat(6)}pull/48213`;
-const NAME = "Bartholomew Alexander Montgomery-Fitzgerald Wolfeschlegelsteinhausenberger";
+const NAME = "Bartholomew Montgomery-Fitzgerald Wolfeschlegelsteinhausen"; // 58: Team memory matches names up to 60
 const EMAIL = "bartholomew.alexander.montgomery-fitzgerald@extraordinarily-long-subdomain.acme-corporation.test";
 const TITLE = `Quarterly ${WORD.slice(0, 120)} review ${URL_LONG}`.slice(0, 190);
 const WS_NAME = `Acme ${WORD}`.slice(0, 80);
@@ -151,7 +151,7 @@ async function seed() {
   const meetings = [];
   for (const [i, lines] of [
     [`${NAME}: Done: shipped ${WORD}. Working on: ${URL_NODOT} for sourcing. Target: ${LINE} by tomorrow.`,
-      `Ben Member: Done: ${WORD} for billing. Working on: ${URL_NODOT}. Target: ${WORD} by Friday. Blocked: ${WORD} ${URL_NODOT} (waiting on Ada Owner).`,
+      `Ben Member: Done: ${WORD} for billing. Working on: ${URL_NODOT} for sourcing. Target: ${WORD} by Friday. Blocked: ${WORD} ${URL_NODOT} (waiting on Ada Owner).`,
       `Ada Owner: Status: ${WORD}. Decision: ${LINE} for onboarding. Working on: ${LINE}.`,
       `Wes Admin: Role: ${WORD}. Done: ${URL_NODOT} for mobile. Target: ${URL_NODOT} by yesterday.`],
     [`${NAME}: Blocked: ${LINE} (waiting on Ben Member). Done: ${URL_NODOT}. Target: ${WORD} by tomorrow. Target: ${LINE} by Friday. Target: ${URL_NODOT} by tomorrow.`,
@@ -301,10 +301,17 @@ const findings = [];
 const shots = [];
 const tok = (who) => (who === "anon" ? null : who === "admin" ? X.admin : T[who]);
 
-async function settle(p) {
-  await p.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
+/** Loaded, fonts in, and the DOM quiet for 400 ms (pages that poll or stream never go network-idle). */
+async function settle(p, max = 6000) {
+  await p.waitForLoadState("load", { timeout: 15000 }).catch(() => {});
   await p.evaluate(() => document.fonts?.ready).catch(() => {});
-  await p.waitForTimeout(500);
+  await p.evaluate((max) => new Promise((done) => {
+    let t = setTimeout(fin, 400);
+    const mo = new MutationObserver(() => { clearTimeout(t); t = setTimeout(fin, 400); });
+    const hard = setTimeout(fin, max);
+    function fin() { mo.disconnect(); clearTimeout(hard); done(); }
+    mo.observe(document.body, { subtree: true, childList: true, characterData: true });
+  }), max).catch(() => {});
 }
 
 async function flipTheme(p, theme) {
@@ -339,7 +346,7 @@ async function record(p, name, width, theme) {
         const el = document.querySelector(`[data-ovf="${n}"]`);
         const box = document.querySelector(`[data-ovf-box="${n}"]`);
         if (!el) return;
-        el.scrollIntoView({ block: "center", inline: "nearest" });
+        el.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
         el.style.outline = "2px solid #ff00ff";
         el.style.outlineOffset = "-1px";
         if (box) { box.style.outline = "2px dashed #00bcd4"; box.style.outlineOffset = "1px"; }
@@ -368,8 +375,10 @@ for (const [name, who, url, action, opt = {}] of ROUTES) {
     try {
       await p.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
       await settle(p);
-      if (action && (await action(p)) === "skip") { log(`- ${name}: skipped (no control)`); await c.close(); continue; }
-      await settle(p);
+      if (action) {
+        if ((await action(p)) === "skip") { log(`- ${name}: skipped (no control)`); await c.close(); continue; }
+        await settle(p, 3000);
+      }
       for (const [ti, theme] of THEMES.entries()) {
         if (ti > 0) await flipTheme(p, theme);
         for (const w of group) {
@@ -387,6 +396,9 @@ for (const [name, who, url, action, opt = {}] of ROUTES) {
   }
   const mine = findings.slice(before);
   log(`${mine.length ? "✗" : "✓"} ${name}${mine.length ? ` (${mine.length})` : ""}`);
+  for (const f of mine.filter((x, i, a) => a.findIndex((y) => y.rule === x.rule && y.who === x.who) === i)) {
+    log(`    ${f.rule} · ${f.width}${f.theme === "dark" ? "d" : ""} · ${f.who} · by ${f.by ?? "?"}px · "${f.text}"`);
+  }
 }
 await browser.close();
 

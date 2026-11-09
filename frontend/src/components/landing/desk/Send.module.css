@@ -122,16 +122,18 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 9999px;
+  min-height: 30px;
+  max-width: 100%;
+  padding: 4px 12px;
+  border-radius: 15px;
   border: 1px dashed var(--border-strong);
   background: var(--surface-raised);
   font-size: 13px;
+  line-height: 18px;
   font-weight: 700;
   color: var(--text-secondary);
-  white-space: nowrap;
 }
+.route i { flex: none; }
 .route i {
   width: 18px;
   height: 0;

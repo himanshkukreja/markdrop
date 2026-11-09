@@ -87,14 +87,12 @@ export function measureOverflow({ tol = 1.5, max = 60 } = {}) {
   function container(start, includeSelf) {
     let clipper = null;
     for (let a = includeSelf ? start : start.parentElement; a; a = a.parentElement) {
-      const s = cs(a);
-      const ox = s.overflowX;
-      if (a !== start && (ox === "auto" || ox === "scroll")) return { skip: "scroll" };
-      if (a !== start && (ox === "hidden" || ox === "clip") && !clipper) clipper = a;
-      if (a === start && includeSelf && (ox === "auto" || ox === "scroll")) return { skip: "scroll" };
-      if (a === start && includeSelf && (ox === "hidden" || ox === "clip") && !clipper) clipper = a;
+      // The page (body clips sideways so it never scrolls): its edge is the viewport's.
       if (a === de || a === document.body) return { box: a, clipper };
-      if (isBlock(a) && isBox(a) && (a !== start || includeSelf)) return { box: a, clipper };
+      const ox = cs(a).overflowX;
+      if (ox === "auto" || ox === "scroll") return { skip: "scroll" };
+      if ((ox === "hidden" || ox === "clip") && !clipper) clipper = a;
+      if (isBlock(a) && isBox(a)) return { box: a, clipper };
       // Floating things (a tooltip, a badge, a popover's inner part) sit where they're put, on purpose.
       if (positioned(a)) return { skip: "positioned" };
     }
@@ -172,10 +170,19 @@ export function measureOverflow({ tol = 1.5, max = 60 } = {}) {
     const s = cs(el);
     if (s.position === "sticky") continue;
     const c = container(el, false);
-    if (c.skip || c.clipper) continue;
+    if (c.skip) continue;
     const rects = [...el.getClientRects()].filter((r) => r.width > 0.5 && r.height > 0.5);
     if (!rects.length) continue;
     const left = Math.min(...rects.map((r) => r.left)), right = Math.max(...rects.map((r) => r.right));
+    if (c.clipper) {
+      // Sliced off by a clipping block: part of the chip / button shows, the rest is gone.
+      const k = inner(c.clipper);
+      const shown = rects.filter((r) => r.bottom > k.top + 1 && r.top < k.bottom - 1);
+      if (!shown.length) continue;
+      const cutR = right - k.right, cutL = k.left - left;
+      if ((cutR > tol && left < k.right - 4) || (cutL > tol && right > k.left + 4)) push("cut", el, c.clipper, { left, right, top: rects[0].top, bottom: rects[rects.length - 1].bottom }, k, Math.max(cutR, cutL));
+      continue;
+    }
     const b = inner(c.box);
     // Bleeding into the box's border (a full-width divider) is fine; past its outer edge is not.
     const bs = c.box === de || c.box === document.body ? { l: 0, r: 0 } : { l: parseFloat(cs(c.box).borderLeftWidth), r: parseFloat(cs(c.box).borderRightWidth) };
