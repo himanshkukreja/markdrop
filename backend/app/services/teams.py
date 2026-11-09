@@ -502,7 +502,9 @@ async def _pull(db: AsyncIOMotorDatabase, key: str, ident: str) -> None:
 
 
 async def add_members(db: AsyncIOMotorDatabase, view: TeamView, team: dict, user_ids: list[str]) -> dict:
-    if not view.can_manage(str(team["_id"])):
+    # Anyone in the workspace may join an OPEN team themselves (Browse teams › Join); adding others is for leads/admins.
+    self_join = team.get("visibility") == "open" and list(dict.fromkeys(user_ids)) == [view.uid]
+    if not (view.can_manage(str(team["_id"])) or self_join):
         raise Refused(403, "Only the team's leads and workspace admins can add people.")
     members = await _ws_members(db, view.workspace_id)
     add = [u for u in dict.fromkeys(user_ids) if u in members]
