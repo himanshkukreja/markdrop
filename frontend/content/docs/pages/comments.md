@@ -90,11 +90,6 @@ A workspace admin can turn comments off for the whole workspace in **Workspace s
 ## From an AI app
 
 Your AI assistant can read and write comments through [MCP](/ai/tools#comments): `list_comments`, `get_thread`, `add_comment` (on quoted text, a block, or the page), `reply_comment`, `resolve_comment`, `reopen_comment`, `assign_thread`, `react_comment` and `set_comment_settings`. It acts as you, with your access.
-<!-- /B:suggestions -->
-
-<!-- /B:ai -->
-
-<!-- /B:attachments -->
 
 ## Email, push and Slack
 
