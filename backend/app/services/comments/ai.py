@@ -37,6 +37,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from app.services import docs_agent
 from app.services.comments import events, model
 
 log = logging.getLogger("markdrop.comments.ai")
@@ -108,7 +109,7 @@ def _err(status: int, detail: str, code: str) -> HTTPException:
 async def why_not(db, user_id: str | None, workspace_id: str | None, *, count: bool = True) -> str | None:
     """None when a comments AI call may run now; else off | not_configured | workspace_off | blocked |
     user_daily | burst | daily | monthly | signin."""
-    from app.services import ai_usage, docs_agent, pages_ai
+    from app.services import ai_usage, pages_ai
 
     if not user_id:
         return "signin"
@@ -154,7 +155,7 @@ def _params(system: str, content: str, max_tokens: int, schema: dict | None = No
 
 async def _call(db, *, kind: str, actor, raw: dict, params: dict, log_in: dict, meta: dict | None = None) -> str:
     """One model call under the comments_ai limits: the text. Raises AILimit / 502."""
-    from app.services import ai_output, ai_usage, docs_agent, pages_ai
+    from app.services import ai_output, ai_usage, pages_ai
 
     uid = actor.user_id
     reason = await why_not(db, uid, _ws(raw))
