@@ -125,6 +125,9 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[COLL].create_index([("user_id", 1), ("read_at", 1)])
     await db[COLL].create_index([("user_id", 1), ("kind", 1), ("doc_id", 1), ("block_id", 1), ("created_at", -1)])
     await db[COLL].create_index([("email", 1), ("created_at", 1)])
+    # Comment rows are bumped while unread (services/comments/notify_app.py).
+    await db[COLL].create_index([("user_id", 1), ("kind", 1), ("thread_id", 1), ("read_at", 1)],
+                                partialFilterExpression={"thread_id": {"$exists": True}}, name="comment_thread")
     await db[COLL].create_index([("email", 1), ("email_at", 1)])
     await db[COLL].create_index("created_at", expireAfterSeconds=KEEP_DAYS * 24 * 3600)
     await db[EMAIL_LOG].create_index("sent_at", expireAfterSeconds=24 * 3600)
@@ -200,7 +203,7 @@ def _clean_extra(extra: dict | None) -> dict:
     from app.services import mailer
 
     out: dict = {}
-    for key, limit in (("label", 120), ("excerpt", 200), ("message", 500), ("role", 20)):
+    for key, limit in (("label", 120), ("excerpt", 200), ("message", 500), ("role", 20)):  # (+ "count": comments)
         v = (extra or {}).get(key)
         if isinstance(v, str) and v.strip():
             out[key] = v.strip()[:limit] if key == "message" else mailer._one_line(v, limit)
@@ -235,6 +238,9 @@ async def notify(db: AsyncIOMotorDatabase, user_id: str, kind: str, doc: Any, bl
     block = block_id if isinstance(block_id, str) and _ANCHOR.match(block_id) else None
     doc_id = str(raw["_id"])
     now = _now()
+    if kind in COMMENT_KINDS:
+        return await _notify_comment(db, recipient, user_id, kind, raw, actor, actor_id, actor_name, extra,
+                                     thread_id, now)
     if kind != "shared":
         same = {"user_id": user_id, "kind": kind, "doc_id": doc_id, "block_id": block,
                 "created_at": {"$gt": now - DEDUPE}}
@@ -257,6 +263,45 @@ async def notify(db: AsyncIOMotorDatabase, user_id: str, kind: str, doc: Any, bl
 
     await slack_notify.queue_notification(db, row)
     # And a push notification on their devices (services/push).
+    from app.services import push
+
+    await push.queue_notification(db, row)
+    return row
+
+
+async def _notify_comment(db: AsyncIOMotorDatabase, recipient: dict, user_id: str, kind: str, raw: dict, actor: Any,
+                          actor_id: str, actor_name: str | None, extra: dict | None, thread_id: str | None,
+                          now: datetime) -> dict | None:
+    """Comment rows (services/comments/notify_app.py): one unread row per person + kind + thread; a
+    second event while it's unread bumps it (newest actor, excerpt and time; ``extra.count``)."""
+    if not thread_id or not ObjectId.is_valid(str(thread_id)):
+        return None
+    if raw.get("comments_off") is True:
+        return None
+    if actor_name is None:
+        actor_name = _actor_info(await _user_row(db, actor_id) or {"_id": actor_id})[1]
+    doc_id = str(raw["_id"])
+    clean = _clean_extra(extra)
+    hit = await db[COLL].find_one_and_update(
+        {"user_id": user_id, "kind": kind, "thread_id": str(thread_id), "read_at": None},
+        {"$set": {"actor_id": actor_id, "actor_name": (actor_name or "Someone")[:80], "via": _via(actor),
+                  "created_at": now, **({"extra.excerpt": clean["excerpt"]} if clean.get("excerpt") else {})},
+         "$inc": {"extra.count": 1}},
+        return_document=True)
+    if hit is not None:
+        return hit
+    row = {
+        "user_id": user_id, "kind": kind, "doc_id": doc_id, "block_id": None, "thread_id": str(thread_id),
+        "actor_id": actor_id, "actor_name": (actor_name or "Someone")[:80], "via": _via(actor),
+        "extra": {**clean, "count": 1}, "created_at": now, "read_at": None,
+        "email": "pending" if kind in EMAIL_KINDS and wants_email(recipient, kind) else "off",
+        "email_at": now + GATHER, "emailed_at": None,
+    }
+    res = await db[COLL].insert_one(row)
+    row["_id"] = res.inserted_id
+    from app.services import slack_notify
+
+    await slack_notify.queue_notification(db, row)
     from app.services import push
 
     await push.queue_notification(db, row)
@@ -523,8 +568,20 @@ async def on_page_saved(db: AsyncIOMotorDatabase, before: dict | None, after: di
 # ── Reading them ──────────────────────────────────────────────────────────────
 
 
+_COMMENT_SENTENCES = {
+    "comment_mention": ("{a} mentioned you in a comment on {w}", "{a} mentioned you in a comment"),
+    "comment_reply": ("{a} replied to a comment on {w}", "{a} replied to a comment"),
+    "comment_new": ("{a} commented on {w}", "{a} commented on an item of yours"),
+    "comment_resolved": ("{a} resolved your comment on {w}", "{a} resolved your comment"),
+    "comment_assigned": ("{a} assigned you a comment on {w}", "{a} assigned you a comment"),
+}
+
+
 def _sentence(kind: str, actor: str, title: str | None, label: str | None) -> str:
     where = f"“{title}”" if title else "a page you can't open"
+    if kind in _COMMENT_SENTENCES:
+        open_, closed = _COMMENT_SENTENCES[kind]
+        return open_.format(a=actor, w=where) if title else closed.format(a=actor) + " on a page you can't open"
     if kind == "signoff_requested":
         what = f"“{label}”" if (label and title) else "a sign-off"
         return f"{actor} asked you to sign off on {what}" + (f" in {where}" if title else f" on {where}")
@@ -559,7 +616,8 @@ async def _view(db: AsyncIOMotorDatabase, rows: list[dict], user_row: dict) -> l
         title = md_outline.display_title(d) if ok else None
         extra = r.get("extra") or {}
         block = r.get("block_id") if ok else None
-        href = (f"/{d['slug']}" + (f"#{block}" if block else "")) if ok else None
+        frag = f"#c-{r['thread_id']}" if r.get("thread_id") else (f"#{block}" if block else "")
+        href = (f"/{d['slug']}" + frag) if ok else None
         actor = r.get("actor_name") or "Someone"
         page_meta = {"slug": d["slug"], "title": title} if ok else None
         out.append({
@@ -569,7 +627,9 @@ async def _view(db: AsyncIOMotorDatabase, rows: list[dict], user_row: dict) -> l
             "via_ai": r.get("via") == "mcp",
             "text": _sentence(r["kind"], actor, title, extra.get("label") if ok else None),
             "available": ok, "page": page_meta, "block": block, "href": href,
-            "url": (urls.markdrop_url(d["slug"]) + (f"#{block}" if block else "")) if ok else None,
+            "url": (urls.markdrop_url(d["slug"]) + frag) if ok else None,
+            "thread_id": r.get("thread_id") if ok else None,
+            "count": int(extra.get("count") or 1),
             "excerpt": extra.get("excerpt") if ok else None,
             "label": extra.get("label") if ok else None,
             "message": extra.get("message") if ok else None,
@@ -635,6 +695,9 @@ async def open_one(db: AsyncIOMotorDatabase, user_id: str, notification_id: str)
     if doc is None or not await can_open(db, user_row, doc):
         raise HTTPException(status_code=403, detail="You can't open that page any more.")
     block = row.get("block_id")
+    if row.get("thread_id"):
+        return {"href": f"/{doc['slug']}#c-{row['thread_id']}", "slug": doc["slug"], "block": None,
+                "thread_id": row["thread_id"]}
     return {"href": f"/{doc['slug']}" + (f"#{block}" if block else ""), "slug": doc["slug"], "block": block}
 
 

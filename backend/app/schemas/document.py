@@ -151,6 +151,10 @@ class DocumentResponse(BaseModel):
     # shows who's viewing (default on).
     presence_ticket: str | None = None
     show_presence: bool | None = None
+    # Comments (services/comments): null when the item can't have them or the reader can't open it;
+    # else {enabled, public, open (count, only when the reader may see comments), can_view, can_comment,
+    # reason, settings}.
+    comments: dict | None = None
     # ── Pages (services/pages.py) ────────────────────────────────────────────
     # "blocks" when it opens in the block editor; null for the classic one.
     editor: str | None = None

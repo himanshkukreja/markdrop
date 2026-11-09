@@ -290,7 +290,23 @@ async def home(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx) -
         row = await meetings_inbox.mine(db, actor.user_id)
         return {"connected": row is not None, "workspace_id": (row or {}).get("workspace_id")}
 
-    att, act, mts, wss, conn = await asyncio.gather(
+    async def comments() -> tuple[dict, list[dict]]:
+        # Comments (services/comments/tasks.py): threads waiting on you, and threads assigned to you as
+        # action items (ticking one resolves it).
+        from app.services.comments import tasks as comment_tasks
+
+        try:
+            return (await comment_tasks.home_section(db, actor, ctx),
+                    await comment_tasks.action_items(db, actor, ctx))
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception("home: comments section failed")
+            return {"waiting": [], "waiting_count": 0}, []
+
+    att, act, mts, wss, conn, (cms, assigned) = await asyncio.gather(
         attention(db, actor, ctx), actions(db, actor, ctx, w), meetings_across(db, actor, ctx, w),
-        workspaces(db, actor, ctx, w), meet())
-    return {"attention": att, "actions": act, "meetings": mts, "workspaces": wss, "meet": conn}
+        workspaces(db, actor, ctx, w), meet(), comments())
+    if assigned:
+        act = {**act, "items": [*assigned, *act["items"]][:ACTIONS_MAX + len(assigned)]}
+    return {"attention": att, "actions": act, "meetings": mts, "workspaces": wss, "meet": conn, "comments": cms}

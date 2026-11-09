@@ -1044,4 +1044,7 @@ async def sync_push(
     from app.services import page_links
 
     await page_links.reindex(db, updated)
+    from app.services.comments import anchoring
+
+    await anchoring.on_content_saved(db, raw, updated)
     return ("ok", _doc_from_mongo(updated))
