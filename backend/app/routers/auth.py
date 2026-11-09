@@ -122,6 +122,11 @@ _TENANT_ALLOWED = (
     # A page's sign-off blocks as this reader sees them (routers/signoffs.py). Read-only:
     # signing stays on markdrop.in (a tenant token can't change anything).
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/signoffs$")),
+    # Jira inside pages for readers on the workspace's own domain (routers/jira_pages.py): the page's
+    # chips and cards (snapshots; live details through the reader's own Jira), its lists, the issues
+    # linked to its comment threads. Read-only: changing an issue stays on markdrop.in.
+    ("GET", re.compile(r"^/api/v1/jira/pages/[^/]+/(items|threads)$")),
+    ("POST", re.compile(r"^/api/v1/jira/pages/[^/]+/list$")),
     # Page AI for signed-in readers on the workspace's own domain (routers/pages_ai.py): what
     # the page offers, and Ask (answers from the page and the embeds this reader can open).
     # Both check can(read).
