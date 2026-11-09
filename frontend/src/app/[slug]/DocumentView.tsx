@@ -256,19 +256,23 @@ export default function DocumentView(props: DocumentViewProps) {
   useEffect(() => {
     if (!pageEditable) setEditorReady(false);
   }, [pageEditable]);
-  // The editor's text, for comment highlights while editing (found once it's on screen).
+  // The editor's text, for comment highlights while editing (found once it's on screen): a page's block
+  // editor, or a classic document's editor.
+  const classicEditing = editing && !isPage;
   useEffect(() => {
-    if (!pageEditable || !editorReady) { setEditEl(null); return; }
-    let raf = 0;
+    const want = pageEditable ? editorReady : classicEditing;
+    if (!want) { setEditEl(null); return; }
+    const sel = pageEditable ? ".pb-live .ProseMirror" : "#main .ProseMirror";
+    let timer = 0;
     let tries = 0;
     const find = () => {
-      const el = document.querySelector<HTMLElement>(".pb-live .ProseMirror");
+      const el = document.querySelector<HTMLElement>(sel);
       if (el) setEditEl(el);
-      else if (tries++ < 40) raf = requestAnimationFrame(find);
+      else if (tries++ < 60) timer = window.setTimeout(find, 200);
     };
     find();
-    return () => cancelAnimationFrame(raf);
-  }, [pageEditable, editorReady]);
+    return () => window.clearTimeout(timer);
+  }, [pageEditable, editorReady, classicEditing]);
   // The edit flow (⋯ › Edit, which asks for the edit secret) just unlocked the page: edit it.
   const editRise = useRef(editing);
   useEffect(() => {
@@ -674,7 +678,15 @@ export default function DocumentView(props: DocumentViewProps) {
   // ── Edit flow ──────────────────────────────────────────────────────────────
   if (editing && !pageScreen) {
     return (
-      <>
+      <CommentsHost
+        slug={slug}
+        summary={commentsSummary}
+        user={user ? { id: user.id, name: user.name ?? null } : null}
+        signInHref={signInHref}
+        subscribeLive={v.subscribeLive}
+      >
+        {commentsSummary && <CommentLayer root={editEl} name="md-comments-editor" />}
+        {commentsSummary && <CommentsPanel />}
         {docBar({ title: displayTitle, gated: false, menu: [], shareUrl: "" })}
         <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
           {secretUnlocked && !isPage && backToPage && <div className="mx-auto w-full max-w-reading px-4 pt-4 sm:px-6">{backToPage}</div>}
@@ -692,7 +704,7 @@ export default function DocumentView(props: DocumentViewProps) {
           )}
         </main>
         {toBlocksDialog}
-      </>
+      </CommentsHost>
     );
   }
 
