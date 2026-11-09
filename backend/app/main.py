@@ -94,6 +94,10 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Event-loop lag and who caused it (services/loop_monitor.py): GET /health/loop on the box.
+    from app.services import loop_monitor
+
+    loop_monitor.start()
     await connect()
     # Campaign sender: sends queued campaigns in the background and resumes
     # them after a restart (services/email_campaigns/engine.py).
@@ -131,6 +135,7 @@ async def lifespan(app: FastAPI):
     await background.stop()
     await email_engine.stop()
     await disconnect()
+    await loop_monitor.stop()
 
 
 app = FastAPI(
@@ -330,3 +335,15 @@ app.include_router(mcp_router)
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/health/loop", include_in_schema=False)
+async def health_loop(request: Request, reset: bool = False):
+    """Event-loop lag since the last reset, and the stacks that blocked it (services/loop_monitor.py).
+    Only on the box itself: a direct loopback request, never one nginx forwarded."""
+    from app.services import loop_monitor
+
+    host = request.client.host if request.client else ""
+    if host not in ("127.0.0.1", "::1") or request.headers.get("x-forwarded-for") or request.headers.get("x-real-ip"):
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
+    return loop_monitor.snapshot(reset=reset)
