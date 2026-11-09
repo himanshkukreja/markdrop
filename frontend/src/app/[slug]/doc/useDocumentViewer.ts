@@ -978,6 +978,41 @@ export function useDocumentViewer({
     // drop, a server restart). The page editor catches up itself (`resync`); a reader re-reads.
     let opened = false;
 
+    // `changed` arrives on every autosave of whoever is editing (every ~2 s while they type), and each
+    // one makes this tab re-read the document (plus its sign-offs and Jira chips). With several readers
+    // on a page being edited that multiplied into a steady stream of full reads that slowed the API for
+    // everyone. So `changed` is coalesced: at most one every CHANGED_GAP_MS (the latest rev; a restore
+    // is never lost), spread by a little jitter so readers don't all ask in the same instant, and none
+    // while the tab is hidden — one catch-up when it's shown again.
+    const CHANGED_GAP_MS = 3000;
+    let lastChanged = 0;
+    let pendingChanged: Record<string, unknown> | null = null;
+    let changedTimer: ReturnType<typeof setTimeout> | null = null;
+    let dispatch: ((msg: Record<string, unknown>) => void) | null = null;
+    function flushChanged() {
+      changedTimer = null;
+      if (!pendingChanged || !dispatch) return;
+      if (document.visibilityState === "hidden") return; // onVisible sends it
+      const msg = pendingChanged;
+      pendingChanged = null;
+      lastChanged = Date.now();
+      dispatch(msg);
+    }
+    function queueChanged(msg: Record<string, unknown>) {
+      const prev = pendingChanged;
+      const rev = (m: Record<string, unknown> | null) => (m && typeof m.rev === "number" ? m.rev : -1);
+      pendingChanged = { ...(rev(msg) >= rev(prev) ? msg : prev), ...((prev?.restored || msg.restored) ? { restored: true } : {}) };
+      if (changedTimer || document.visibilityState === "hidden") return;
+      const wait = Math.max(0, lastChanged + CHANGED_GAP_MS - Date.now()) + Math.random() * 400;
+      changedTimer = setTimeout(flushChanged, wait);
+    }
+    function onVisible() {
+      if (document.visibilityState === "visible" && pendingChanged && !changedTimer) {
+        changedTimer = setTimeout(flushChanged, Math.random() * 400);
+      }
+    }
+    document.addEventListener("visibilitychange", onVisible);
+
     function connect() {
       try {
         ws = new WebSocket(liveSocketUrl(slug, readTicket));
@@ -998,10 +1033,15 @@ export function useDocumentViewer({
         opened = true;
       };
       ws.onmessage = (ev) => {
-        let msg: { type?: string } | null = null;
-        try { msg = JSON.parse(ev.data); } catch { return; }
+        let parsed: { type?: string } | null = null;
+        try { parsed = JSON.parse(ev.data); } catch { return; }
         // Who's viewing: the presence channel takes its own messages.
-        if (msg && presence.channel.handle(msg)) return;
+        if (parsed && presence.channel.handle(parsed)) return;
+        if (parsed?.type === "changed") { queueChanged(parsed as Record<string, unknown>); return; }
+        handle(parsed);
+      };
+      const handle = (first: { type?: string } | null) => {
+        let msg = first;
         // The page editor, while open, follows `changed` and `appended` itself.
         if (msg && liveListeners.current.size) liveListeners.current.forEach((fn) => fn(msg as Record<string, unknown>));
         // An AI app appended blocks (MCP append_blocks): readers re-read like any change.
@@ -1033,6 +1073,7 @@ export function useDocumentViewer({
           })
           .catch(() => { if (narrowed) window.location.reload(); });
       };
+      dispatch = (m) => handle(m);
       ws.onclose = () => {
         setLive(false);
         presence.channel.detach();
@@ -1047,6 +1088,8 @@ export function useDocumentViewer({
     return () => {
       closed = true;
       if (retry) clearTimeout(retry);
+      if (changedTimer) clearTimeout(changedTimer);
+      document.removeEventListener("visibilitychange", onVisible);
       ws?.close();
       presence.channel.detach();
       setLive(false);

@@ -215,9 +215,10 @@ class Ctx:
             return None
         key = (workspace_id, user_id)
         if key not in self._roles:
-            raw = await self.db["memberships"].find_one(
-                {"workspace_id": workspace_id, "user_id": user_id}, {"role": 1})
-            self._roles[key] = raw["role"] if raw else None
+            from app.services import workspace as ws_service
+
+            # The same answer ws_service.role_for gives, asked once per read request (request_memo).
+            self._roles[key] = await ws_service.role_for(self.db, workspace_id, user_id)
         return self._roles[key]
 
     async def grants_for(self, email: str) -> dict[str, str]:

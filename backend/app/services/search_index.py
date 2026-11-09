@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -101,6 +102,8 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[COLL].create_index("site", sparse=True)
     await db[COLL].create_index("fx", sparse=True)
     await db[COLL].create_index("ax", sparse=True)
+    # The home's open to-dos for one person (todo_users): the rows naming them.
+    await db[COLL].create_index("td", name="td")
     await search_chunks.ensure_indexes(db)
     # The reconciler's "what changed since" scans.
     await db["documents"].create_index("updated_at")
@@ -155,7 +158,39 @@ def plain_fields(text: str | None, *, limit: int = FILE_TEXT) -> dict:
     return {"hd": [], "hw": [], "w": st.word_set(t), "x": t}
 
 
-EMPTY = {"hd": [], "hw": [], "w": [], "x": ""}
+EMPTY = {"hd": [], "hw": [], "w": [], "x": "", "td": []}
+
+# ── Open to-dos per person (``td``) ──────────────────────────────────────────
+# The home's "Your action items" (services/home.actions) used to find them with a regex over every
+# readable page's content — a scan Mongo can't index, then 300 full pages over the wire and through
+# Python on every dashboard load. ``td`` keeps, on each block page's row, the people who have an open
+# to-do (``- [ ] … :person[…]{id="…"}``) in it; the home asks the index for the caller's id and reads
+# only those pages (then decides each one exactly as before). Kept in step by every (re)index;
+# todos_tick fills it once for rows written before it existed.
+TODOS_VERSION = 1
+_OPEN_TASK = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\[ \]\s+\S")
+# Any id="…" on the line, like ask_markdrop.task_lines' own test (a superset of person mentions: a stray
+# id only means a page the home reads and finds nothing for).
+_MENTION_ID = re.compile(r'\bid="([^"\n]{1,64})"')
+
+
+def todo_users(raw: dict) -> list[str]:
+    """Who has an open to-do in this block page (the ids its unchecked task lines mention), sorted."""
+    if raw.get("editor") != "blocks" or raw.get("kind") == "artifact" or title_only(raw):
+        return []
+    content = raw.get("content") or ""
+    if 'id="' not in content:
+        return []
+    out: set[str] = set()
+    fence = False
+    for line in content.split("\n"):
+        if line.lstrip().startswith(("```", "~~~")):
+            fence = not fence
+            continue
+        if fence or 'id="' not in line or not _OPEN_TASK.match(line):
+            continue
+        out.update(_MENTION_ID.findall(line))
+    return sorted(out)
 
 
 def is_video(raw: dict) -> bool:
@@ -182,7 +217,7 @@ def doc_row(raw: dict) -> dict:
         if is_video(raw):
             row["ax"] = "pending"
         return row
-    return {**base, **text_fields(raw.get("content"))}
+    return {**base, **text_fields(raw.get("content")), "td": todo_users(raw)}
 
 
 def guide_row(page: dict) -> dict:
@@ -642,9 +677,54 @@ async def coverage_tick(db: AsyncIOMotorDatabase, *, batch: int = COVERAGE_BATCH
 _last_orphans: dict[str, float] = {}
 
 
+_TODOS_DONE: dict[str, bool] = {}
+
+
+async def todos_ready(db: AsyncIOMotorDatabase) -> bool:
+    """Every row carries ``td`` (todos_tick finished), so the home may read to-dos from the index."""
+    if _TODOS_DONE.get("v"):
+        return True
+    state = await _meta(db, "todos")
+    done = state.get("version") == TODOS_VERSION and bool(state.get("done"))
+    if done:
+        _TODOS_DONE["v"] = True
+    return done
+
+
+async def todos_tick(db: AsyncIOMotorDatabase, *, batch: int = 200, budget_s: float = 4.0) -> dict:
+    """One slice of filling ``td`` on rows written before it existed: block pages by ``_id``, resumable.
+    A no-op once done for TODOS_VERSION."""
+    state = await _meta(db, "todos")
+    if state.get("version") == TODOS_VERSION and state.get("done"):
+        return {"done": True, "n": 0}
+    if state.get("version") != TODOS_VERSION:
+        state = {"version": TODOS_VERSION, "cursor": None, "count": 0, "started_at": now()}
+    t0 = time.monotonic()
+    n = 0
+    while time.monotonic() - t0 < budget_s:
+        q: dict = {"editor": "blocks"}
+        if state.get("cursor") is not None:
+            q["_id"] = {"$gt": state["cursor"]}
+        rows = await db["documents"].find(q, {"content": 1, "editor": 1, "kind": 1, "encrypted": 1,
+                                              "read_password_hash": 1}).sort("_id", 1).limit(batch).to_list(length=batch)
+        if not rows:
+            state.update(done=True, finished_at=now())
+            break
+        tds = await asyncio.to_thread(lambda: [todo_users(r) for r in rows])
+        ops = [UpdateOne({"_id": r["_id"]}, {"$set": {"td": td}}) for r, td in zip(rows, tds)]
+        await db[COLL].bulk_write(ops, ordered=False)
+        n += len(rows)
+        state["cursor"] = rows[-1]["_id"]
+        state["count"] = int(state.get("count") or 0) + len(rows)
+        await db[META].update_one({"_id": "todos"}, {"$set": state}, upsert=True)
+    await db[META].update_one({"_id": "todos"}, {"$set": state}, upsert=True)
+    return {"done": bool(state.get("done")), "n": n}
+
+
 async def background(db: AsyncIOMotorDatabase) -> None:
     """The ``search_index`` loop body (services/background.py)."""
     await backfill_tick(db)
+    await todos_tick(db)
     await reconcile(db)
     await coverage_tick(db)
     await extract_pending(db)

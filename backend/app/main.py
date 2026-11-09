@@ -242,6 +242,11 @@ app.add_middleware(InternalRequestMiddleware)
 from app.services.ai_log import RequestContextMiddleware  # noqa: E402
 
 app.add_middleware(RequestContextMiddleware)
+# Read requests remember who the caller is, a workspace and a role for their own length
+# (services/request_memo.py): one dashboard call asked the database the same thing several times.
+from app.services.request_memo import RequestMemoMiddleware  # noqa: E402
+
+app.add_middleware(RequestMemoMiddleware)
 
 # Routers
 app.include_router(trash_router)  # before documents: /documents/{slug}/delete-preview

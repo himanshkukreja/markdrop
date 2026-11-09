@@ -85,8 +85,14 @@ async def set_google_refresh_token(
 async def get_user_by_id(db: AsyncIOMotorDatabase, user_id: str) -> User | None:
     if not ObjectId.is_valid(user_id):
         return None
-    raw = await db["users"].find_one({"_id": ObjectId(user_id)})
-    return _user_from_mongo(raw) if raw else None
+    from app.services.request_memo import remember
+
+    async def load() -> User | None:
+        raw = await db["users"].find_one({"_id": ObjectId(user_id)})
+        return _user_from_mongo(raw) if raw else None
+
+    # Asked by require_user and again deeper in the same read request: once (services/request_memo.py).
+    return await remember(("user", user_id), load)
 
 
 async def get_user_by_email(db: AsyncIOMotorDatabase, email: str) -> User | None:

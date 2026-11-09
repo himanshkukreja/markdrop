@@ -70,7 +70,16 @@ async def actions(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx
     filt = await search.doc_filter(db, actor, ctx, w.member_ws, search.Query(q=""))
     if filt is None or not uid:
         return {"items": [], "more": False, "hidden": 0}
-    filt["$and"].append({"content": {"$regex": re.escape(f'id="{uid}"')}})
+    if await search_index.todos_ready(db):
+        # The pages with an open to-do for the caller, from the search index's ``td`` (an index lookup),
+        # instead of a regex over every readable page's content (search_index.todo_users).
+        ids = [r["_id"] for r in await db[search_index.COLL].find(
+            {"td": uid}, {"_id": 1}).limit(ACTIONS_SCAN * 2).to_list(length=ACTIONS_SCAN * 2)]
+        if not ids:
+            return {"items": [], "more": False, "hidden": 0}
+        filt["$and"].append({"_id": {"$in": ids}})
+    else:
+        filt["$and"].append({"content": {"$regex": re.escape(f'id="{uid}"')}})
     filt["$and"].append({"kind": {"$ne": "artifact"}, "editor": "blocks", "encrypted": {"$ne": True}, "deleted_at": None})
     rows = await db["documents"].find(filt).sort("updated_at", -1).limit(ACTIONS_SCAN).to_list(length=ACTIONS_SCAN)
     # Newest first by when the to-do was set: a meeting's own date for meeting notes (a bulk import touches
@@ -78,11 +87,12 @@ async def actions(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx
     mids = {_oid(r.get("meeting_id")) for r in rows if r.get("meeting_id")} - {None}
     mdate = {str(m["_id"]): m.get("date") for m in await db["meetings"].find(
         {"_id": {"$in": list(mids)}}, {"date": 1}).to_list(length=len(mids))} if mids else {}
+    # The text work for up to 300 pages, off the event loop (it held every other request meanwhile).
+    all_tasks = await asyncio.to_thread(
+        lambda: [[] if search_index.title_only(r) else task_lines(_CITE.sub("", r.get("content") or ""), uid)
+                 for r in rows])
     out: list[dict] = []
-    for raw in rows:
-        if search_index.title_only(raw):
-            continue
-        tasks = task_lines(_CITE.sub("", raw.get("content") or ""), uid)
+    for raw, tasks in zip(rows, all_tasks):
         if not tasks:
             continue
         if not (await access.can(actor, raw, "read", ctx)).allowed:
@@ -156,16 +166,18 @@ async def meetings_across(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: ac
     from app.services import meetings
 
     since = (ctx.now - timedelta(days=MEETINGS_DAYS)).date().isoformat()
-    found: list[dict] = []
-    for ws, _role in w.memberships:
+    async def one(ws) -> list[dict]:
         try:
             res = await meetings.list_meetings(db, ws.id, actor, ctx, limit=MEETINGS_MAX, since=since,
                                                overview=False, attendees_max=6)
         except HTTPException:
-            continue
+            return []
         for m in res["meetings"]:
             m["workspace_name"] = ws.name
-            found.append(m)
+        return res["meetings"]
+
+    # Every workspace at once rather than one after another.
+    found: list[dict] = [m for ms in await asyncio.gather(*(one(ws) for ws, _role in w.memberships)) for m in ms]
     found.sort(key=lambda m: (m.get("date") or "", m.get("time") or "", m.get("created_at") or ""), reverse=True)
     keep = ("id", "workspace_id", "workspace_name", "title", "page_title", "slug", "date", "time", "duration_s",
             "type", "series", "attendees", "action_items", "summary", "decisions", "open_questions", "cover",
@@ -187,31 +199,32 @@ async def workspaces(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.
     if not w.memberships:
         return []
     ids = [ws.id for ws, _ in w.memberships]
-    filt = await search.doc_filter(db, actor, ctx, w.member_ws, search.Query(q=""))
-    counts: dict[str, int] = {}
-    if filt is not None:
+
+    async def item_counts() -> dict[str, int]:
+        # How many items the caller can see in each (search's readable filter, trash excluded).
+        filt = await search.doc_filter(db, actor, ctx, w.member_ws, search.Query(q=""))
+        if filt is None:
+            return {}
         filt["$and"].append({"workspace_id": {"$in": ids}, "deleted_at": None})
-        for r in await db["documents"].aggregate([
+        return {r["_id"]: int(r["n"]) for r in await db["documents"].aggregate([
             {"$match": filt}, {"$group": {"_id": "$workspace_id", "n": {"$sum": 1}}},
-        ]).to_list(length=200):
-            counts[r["_id"]] = int(r["n"])
-    members: dict[str, int] = {}
-    for r in await db["memberships"].aggregate([
-        {"$match": {"workspace_id": {"$in": ids}}}, {"$group": {"_id": "$workspace_id", "n": {"$sum": 1}}},
-    ]).to_list(length=200):
-        members[r["_id"]] = int(r["n"])
-    meet_counts: dict[str, int] = {}
-    for r in await db["meetings"].aggregate([
-        {"$match": {"workspace_id": {"$in": ids}}}, {"$group": {"_id": "$workspace_id", "n": {"$sum": 1}}},
-    ]).to_list(length=200):
-        meet_counts[r["_id"]] = int(r["n"])
-    # The first few people of each (owner first, then by joining), with their names and photos.
-    firsts: dict[str, list[str]] = {}
-    for ws_id in ids:
+        ]).to_list(length=200)}
+    async def grouped(coll: str) -> dict[str, int]:
+        return {r["_id"]: int(r["n"]) for r in await db[coll].aggregate([
+            {"$match": {"workspace_id": {"$in": ids}}}, {"$group": {"_id": "$workspace_id", "n": {"$sum": 1}}},
+        ]).to_list(length=200)}
+
+    async def first_people(ws_id: str) -> list[str]:
+        # The first few people (owner first, then by joining).
         rows = await db["memberships"].find({"workspace_id": ws_id}, {"user_id": 1, "role": 1, "created_at": 1}) \
             .sort([("created_at", 1)]).limit(PEOPLE_SHOWN * 3).to_list(length=PEOPLE_SHOWN * 3)
         rows.sort(key=lambda r: (r.get("role") != "owner",))
-        firsts[ws_id] = [r["user_id"] for r in rows[:PEOPLE_SHOWN]]
+        return [r["user_id"] for r in rows[:PEOPLE_SHOWN]]
+
+    # Independent reads, at once.
+    counts, members, meet_counts, *people_rows = await asyncio.gather(
+        item_counts(), grouped("memberships"), grouped("meetings"), *(first_people(ws_id) for ws_id in ids))
+    firsts: dict[str, list[str]] = dict(zip(ids, people_rows))
     uids = {u for us in firsts.values() for u in us}
     users = {str(u["_id"]): u async for u in db["users"].find(
         {"_id": {"$in": [o for o in (_oid(u) for u in uids) if o]}}, {"name": 1, "email": 1, "picture": 1})}

@@ -73,14 +73,25 @@ async def get_workspace(db: AsyncIOMotorDatabase, workspace_id: str) -> Workspac
         oid = ObjectId(workspace_id)
     except Exception:
         return None
-    raw = await db["workspaces"].find_one({"_id": oid})
-    return _to_workspace(raw) if raw else None
+    from app.services.request_memo import remember
+
+    async def load() -> Workspace | None:
+        raw = await db["workspaces"].find_one({"_id": oid})
+        return _to_workspace(raw) if raw else None
+
+    return await remember(("ws", str(oid)), load)
 
 
 async def role_for(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str | None) -> str | None:
     """The caller's role in this workspace, or None if they aren't a member."""
     if not user_id:
         return None
+    from app.services.request_memo import remember
+
+    return await remember(("role", workspace_id, user_id), lambda: _load_role(db, workspace_id, user_id))
+
+
+async def _load_role(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str) -> str | None:
     raw = await db["memberships"].find_one(
         {"workspace_id": workspace_id, "user_id": user_id}, {"role": 1}
     )
