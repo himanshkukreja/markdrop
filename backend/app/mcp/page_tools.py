@@ -375,6 +375,13 @@ async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
         out["property_values"] = typed
     if note:
         out["note"] = note
+    jira_text = ""
+    if "jira" in content:
+        # Jira chips, cards and lists (mcp/jira_page_tools.py): plain links, "KEY · title" + URL.
+        from app.mcp import jira_page_tools
+
+        out["jira"] = await jira_page_tools.page_listing(ctx, raw)
+        jira_text = jira_page_tools.listing_text(out["jira"])
     lock = pages.lock_view(raw.get("edit_lock"))
     if lock:
         out["editing"] = lock["name"]
@@ -389,7 +396,7 @@ async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
                  f"a heading will be refused until the lock releases (in about {pages._ago(f['releases_in_s'])} "
                  "if they stop) unless the page's owner or a workspace admin passes take_over: true; "
                  "append_blocks still works")
-    return f"{head}\n\n{content}", out
+    return f"{head}\n\n{content}" + (f"\n\n{jira_text}" if jira_text else ""), out
 
 
 async def update_page(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -1126,6 +1133,7 @@ PAGE_TOOLS: list[Tool] = [
             "rev": {"type": "integer"}, "editor": {"type": "string"}, "parent": {"type": ["object", "null"]},
             "children": {"type": "array"}, "embeds": {"type": "array"}, "assets": {"type": "array"},
             "editing": {"type": "string"}, "edit_lock": {"type": "object"}, "note": {"type": "string"},
+            "jira": {"type": "array", "description": "Jira chips, cards and lists on the page, as plain links."},
             "properties": {"type": "object"},
             "property_values": {"type": "array", "items": {"type": "object", "properties": {
                 "key": {"type": "string"}, "name": {"type": "string"}, "type": {"type": "string"},

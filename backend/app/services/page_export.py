@@ -385,7 +385,7 @@ _CELL_ATTR = re.compile(r"[ \t]*\{([^{}\n|]*)\}(?=[ \t]*\|)")
 _ATTR_LINE = re.compile(r"^[ \t]*\{([^{}\n]*)\}[ \t]*$")
 _IMAGE = re.compile(r"!\[((?:\\.|[^\]\\\n])*)\]\(\s*<?([^\s)>]+)>?(?:\s+\"((?:\\.|[^\"\\\n])*)\")?\s*\)(\{[^{}\n]*\})?")
 _CODE_SPAN = re.compile(r"(`+)(?!`)(.+?)(?<!`)\1(?!`)")
-_INLINE_NAMES = ("markdrop", "person", "date", "kbd", "span", "u")
+_INLINE_NAMES = ("markdrop", "person", "date", "kbd", "span", "u", "jira")
 
 
 # ── The context an export is made in ─────────────────────────────────────────
@@ -419,6 +419,8 @@ class PageCtx:
     children: list[dict] = field(default_factory=list)      # included sub-pages: {title, path}
     mode: str = "single"            # "single" | "zip"
     notes: list[str] = field(default_factory=list)
+    jira: dict = field(default_factory=dict)                # "<host>/<KEY>" → snapshot (services/jira_pages.py)
+    jira_site: str | None = None                            # the workspace's Jira host, for chips without one
 
 
 def _item_icon(e: dict) -> str:
@@ -529,6 +531,19 @@ class Inline:
             if self.out == "md":
                 return f"[{md_text(title)}]({md_url(href)})"
             return self.slot(f'<a class="chip" href="{esc(href)}">{_item_icon(e)} {esc(title)}</a>')
+        if name == "jira":
+            # A Jira chip: a plain link, "KEY · title" from the page's snapshot (services/jira_pages.py).
+            from app.services import jira_pages
+
+            ref = jira_pages.ref_of("jira", label, attrs)
+            if ref is None:
+                return None
+            p = jira_pages.plain(ref, pc.jira, pc.jira_site)
+            if self.out == "md":
+                return p["markdown"]
+            if not p["url"]:
+                return self.slot(f'<span class="chip">{esc(p["text"])}</span>')
+            return self.slot(f'<a class="chip" href="{esc(p["url"])}">{esc(p["text"])}</a>')
         if name == "person":
             who = label.strip()
             if self.out == "md":
@@ -783,6 +798,11 @@ def _leaf_md(b: Block, pc: PageCtx, headings: list[tuple[int, str]]) -> str:
             return f"*{LOCKED}*"
         href = pc.links.get(slug or "") or e.get("url") or ""
         return f"{_item_icon(e)} [{md_text(e.get('title') or slug)}]({md_url(href)})"
+    if b.name in ("jira", "jira-list"):
+        from app.services import jira_pages
+
+        ref = jira_pages.ref_of(b.name, b.label, a, leaf=True)
+        return jira_pages.plain(ref, pc.jira, pc.jira_site)["markdown"] if ref else b.text
     if b.name == "bookmark":
         url = a.get("url") or ""
         if not is_web(url):
@@ -962,6 +982,15 @@ def _leaf_html(b: Block, pc: PageCtx, md) -> str:
         href = pc.links.get(slug or "") or e.get("url") or ""
         meta = ("Page" if b.name == "page" else _item_kind(e)) + " · " + esc(_host_of(e.get("url") or "") or "markdrop.in")
         return _card(_item_icon(e), esc(e.get("title") or slug), meta, href)
+    if b.name in ("jira", "jira-list"):
+        from app.services import jira_pages
+
+        ref = jira_pages.ref_of(b.name, b.label, a, leaf=True)
+        if ref is None:
+            return f"<p>{esc(b.text)}</p>"
+        p = jira_pages.plain(ref, pc.jira, pc.jira_site)
+        meta = ("Jira issues" if ref.kind == "list" else "Jira issue") + (f" · {esc(p['site'])}" if p.get("site") else "")
+        return _card("🎫", esc(p["text"]), meta, p.get("url"))
     if b.name == "bookmark":
         url = a.get("url") or ""
         if not is_web(url):
@@ -1287,6 +1316,11 @@ async def _page_plan(db, raw: dict, actor: access.Actor, person: access.Actor, c
     url = await urls.workspace_url(db, raw) or urls.markdrop_url(raw["slug"])
     pc = PageCtx(slug=raw["slug"], title=title, url=url, props=props, embeds=embeds, images=images,
                  public=public, public_urls=public_urls, crumbs=crumbs, mode=mode)
+    if "jira" in content:
+        # Jira chips, cards and lists: plain links from the page's snapshots (services/jira_pages.py).
+        from app.services import jira_pages
+
+        pc.jira, pc.jira_site = await jira_pages.snapshots(db, raw)
     return PagePlan(raw=raw, content=content, pc=pc, folder=folder, images=list(images.values()))
 
 

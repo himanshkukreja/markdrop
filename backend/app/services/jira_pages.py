@@ -454,6 +454,15 @@ def plain(ref: Ref, snaps: dict[str, dict], default: str | None) -> dict:
             "markdown": f"[{_md(text)}]({url})" if url else _md(text)}
 
 
+def ref_of(name: str, label: str | None, attrs: dict, *, leaf: bool = False) -> Ref | None:
+    """A chip (``jira``, inline), card (``jira`` leaf) or list (``jira-list``) from a parsed directive."""
+    if name == "jira-list":
+        spec = list_spec(attrs)
+        return Ref("list", host_of(attrs.get("site")), spec=spec, attrs=attrs) if spec else None
+    key = norm_key(attrs.get("key") or label)
+    return Ref("card" if leaf else "chip", host_of(attrs.get("site")), key=key, attrs=attrs) if key else None
+
+
 def _md(s: str) -> str:
     return re.sub(r"([\\`*_\[\]<>|])", r"\\\1", s or "")
 
