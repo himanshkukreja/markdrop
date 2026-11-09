@@ -50,6 +50,9 @@ from app.routers.guide_insights import app_router as guide_insights_app_router
 from app.routers.guide_insights import router as guide_insights_router
 from app.routers.docs_studio import router as docs_studio_router
 from app.routers.documents import router as documents_router
+from app.routers.comments import router as comments_router
+from app.routers.comments_review import router as comments_review_router
+from app.routers.comments_insights import router as comments_insights_router
 from app.routers.feedback import router as feedback_router
 from app.routers.files import router as files_router
 from app.routers.workspaces import router as workspaces_router
@@ -120,6 +123,10 @@ async def lifespan(app: FastAPI):
     memory_health.start(get_database)
     # Several processes (web + worker): document changes reach every process's sockets.
     live.start_bus()
+    # Comments' plugin handlers (Track B / C modules register on import; services/comments/events.py).
+    from app.services.comments import events as _comment_events
+
+    _comment_events.load_plugins()
     # Everything loaded at startup lives as long as the process: move it out of the collector's
     # reach, so a full collection doesn't walk it on every request that allocates a lot (global
     # search builds thousands of candidates per keystroke; a gen-2 pass over the startup heap
@@ -256,6 +263,10 @@ app.include_router(pages_ai_router)
 app.include_router(pages_ai_guides_router)
 app.include_router(page_history_router)
 app.include_router(signoffs_router)
+# Comments: core first (its /{thread_id} matches 24-hex ids only), then review (B) and insights (C).
+app.include_router(comments_router)
+app.include_router(comments_review_router)
+app.include_router(comments_insights_router)
 app.include_router(page_export_router)
 app.include_router(bookmarks_router)
 app.include_router(web_embeds_router)

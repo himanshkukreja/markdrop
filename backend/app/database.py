@@ -369,6 +369,14 @@ async def connect() -> None:
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] push indexes skipped: {exc}")
 
+    # Comments (services/comments): threads and messages on pages and markdown documents.
+    try:
+        from app.services.comments import model as _comments_model
+
+        await _comments_model.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] comment indexes skipped: {exc}")
+
     # Bug reports / feature requests
     await db["feedback"].create_index([("created_at", -1)])
     await db["feedback"].create_index([("status", 1), ("type", 1), ("created_at", -1)])

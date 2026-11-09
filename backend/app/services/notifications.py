@@ -92,7 +92,10 @@ log = logging.getLogger(__name__)
 COLL = "notifications"
 EMAIL_LOG = "notification_email_log"
 WITHDRAWN = "notification_withdrawn"   # delivered-then-withdrawn rows, for the 24-hour dedupe
-KINDS = ("mention", "signoff_requested", "shared")
+KINDS = ("mention", "signoff_requested", "shared",
+         # Comments (services/comments/notify_app.py): one row per person + thread + kind while unread.
+         "comment_mention", "comment_reply", "comment_new", "comment_resolved", "comment_assigned")
+COMMENT_KINDS = ("comment_mention", "comment_reply", "comment_new", "comment_resolved", "comment_assigned")
 EMAIL_KINDS = ("mention", "signoff_requested")
 DEDUPE = timedelta(hours=24)
 EMAIL_GAP = timedelta(minutes=10)
@@ -208,7 +211,7 @@ def _clean_extra(extra: dict | None) -> dict:
 
 
 async def notify(db: AsyncIOMotorDatabase, user_id: str, kind: str, doc: Any, block_id: str | None = None,
-                 actor: Any = None, extra: dict | None = None) -> dict | None:
+                 actor: Any = None, extra: dict | None = None, thread_id: str | None = None) -> dict | None:
     """Tell ``user_id`` that ``actor`` did ``kind`` on ``doc`` (a documents row,
     or its id / slug), at ``block_id`` (``b-…``, or None for the page).
 

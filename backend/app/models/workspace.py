@@ -75,6 +75,8 @@ class WorkspaceSettings:
     team_memory: bool = False
     # IANA timezone (Team's Monday 9 am weekly summary); set from an admin's browser. None: UTC.
     timezone: str | None = None
+    # Comments (services/comments) on this workspace's pages and documents. Default on; admins turn it off.
+    comments_enabled: bool = True
 
     @classmethod
     def from_dict(cls, raw: dict | None) -> "WorkspaceSettings":
@@ -91,6 +93,7 @@ class WorkspaceSettings:
             auto_covers=raw.get("auto_covers") is not False,
             team_memory=raw.get("team_memory") is True,
             timezone=raw.get("timezone") if isinstance(raw.get("timezone"), str) else None,
+            comments_enabled=raw.get("comments_enabled") is not False,
         )
 
 

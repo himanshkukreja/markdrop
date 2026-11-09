@@ -1,0 +1,5 @@
+"""Comment emails: mentions immediately, replies/new comments batched ~15 min, calm rules. Track C.
+
+STUB from the contract commit (CONTRACT §7): Track C owns this file and replaces it. Register handlers at import
+time with `app.services.comments.events.on(handler, kinds=[...], name="...")`.
+"""
