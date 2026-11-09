@@ -328,7 +328,7 @@ class Email(NotifyWorld):
         self.assertTrue(r.json()["mention_emails"])
         r = await self.http.patch("/api/v1/me/preferences", json={"mention_emails": False}, headers=self.session("wm"))
         self.assertEqual(r.json(), {"analytics_digest": "weekly", "mention_emails": False,
-                                    "email_notify": {"mention": "off", "signoff_requested": "off"}})
+                                    "email_notify": {"mention": "off", "signoff_requested": "off", "comment_mention": "off", "comment_activity": "off"}})
         self.assertFalse((await self.http.get("/api/v1/auth/me", headers=self.session("wm"))).json()["mention_emails"])
         p = await self.page()
         await self.save(p["slug"], "owner", person(self.uid["wm"], "WM"))
@@ -339,7 +339,7 @@ class Email(NotifyWorld):
         # The digest preference alone still works as before.
         r = await self.http.patch("/api/v1/me/preferences", json={"analytics_digest": "off"}, headers=self.session("wm"))
         self.assertEqual(r.json(), {"analytics_digest": "off", "mention_emails": True,
-                                    "email_notify": {"mention": "hourly", "signoff_requested": "instant"}})
+                                    "email_notify": {"mention": "hourly", "signoff_requested": "instant", "comment_mention": "instant", "comment_activity": "instant"}})
         self.assertEqual((await self.http.patch("/api/v1/me/preferences", json={},
                                                 headers=self.session("wm"))).status_code, 422)
 

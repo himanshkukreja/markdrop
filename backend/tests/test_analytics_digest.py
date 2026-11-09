@@ -278,7 +278,7 @@ class Endpoints(DigestWorld):
         r = await self.http.patch("/api/v1/me/preferences", json={"analytics_digest": "off"},
                                   headers=self.session("owner"))
         # The response also carries the notification email settings (services/notifications.py), unchanged here.
-        modes = {"mention": "hourly", "signoff_requested": "instant"}
+        modes = {"mention": "hourly", "signoff_requested": "instant", "comment_mention": "instant", "comment_activity": "instant"}
         self.assertEqual((r.status_code, r.json()), (200, {"analytics_digest": "off", "mention_emails": True,
                                                            "email_notify": modes}))
         me = await self.http.get("/api/v1/auth/me", headers=self.session("owner"))
