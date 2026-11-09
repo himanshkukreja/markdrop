@@ -186,10 +186,19 @@ async def item_for(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx
         "has_children": (raw["_id"] in kids) if kids is not None
         else await db["documents"].find_one({"parent_id": raw["_id"]}, {"_id": 1}) is not None,
         "icon": raw.get("page_icon"),
+        "teams": await _team_labels(actor, ctx, raw),
     }
     if mine:
         out["id"] = str(raw["_id"])
     return out
+
+
+async def _team_labels(actor: access.Actor, ctx: access.Ctx, raw: dict) -> list[dict]:
+    from app.services import teams as teams_service
+
+    if teams_service.company_wide(raw) or not raw.get("workspace_id"):
+        return []
+    return teams_service.labels(await ctx.team_view(raw["workspace_id"], actor.user_id), raw)
 
 
 def redacted_item(raw: dict, workspace_id: str, *, names: dict, folders: dict) -> dict:
@@ -210,6 +219,24 @@ def redacted_item(raw: dict, workspace_id: str, *, names: dict, folders: dict) -
 
 
 # ── Tree ──────────────────────────────────────────────────────────────────────
+
+
+async def space_extra(actor: access.Actor, ctx: access.Ctx, workspace_id: str, space: str | None) -> dict | None:
+    """The Mongo narrowing for ``space`` (CONTRACT §3); 404 for a team / project the caller can't read."""
+    from fastapi import HTTPException
+
+    from app.services import teams as teams_service
+
+    try:
+        sp = teams_service.parse_space(space)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    if sp.kind == "all":
+        return None
+    view = await ctx.team_view(workspace_id, actor.user_id)
+    if not teams_service.space_ok(view, sp):
+        raise HTTPException(status_code=404, detail="Team not found" if sp.kind == "team" else "Project not found")
+    return teams_service.space_clause(view, sp)
 
 
 async def readable_rows(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
@@ -287,7 +314,7 @@ def folder_activity(rows: list[dict], folders: list[Folder]) -> dict[str, dict]:
 
 
 async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
-               workspace_id: str, role: str) -> dict:
+               workspace_id: str, role: str, *, space: str | None = None) -> dict:
     """The workspace's folders with readable counts, plus, per folder, when its readable contents
     last changed (``updated_at``) and the people whose items are in it (``people``: up to
     :data:`FOLDER_PEOPLE`, most recent first, and ``people_count``). The caller is a workspace
@@ -296,7 +323,9 @@ async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
     ws = await ctx.workspace(workspace_id)
     folders = await folder_service.list_folders(db, workspace_id)
     paths = folder_service.paths_by_id(folders)
-    rows = await readable_rows(db, actor, ctx, workspace_id, NOT_HIDDEN,
+    sx = await space_extra(actor, ctx, workspace_id, space)
+    folders = await _team_folders(actor, ctx, workspace_id, folders, space)
+    rows = await readable_rows(db, actor, ctx, workspace_id, NOT_HIDDEN, *([sx] if sx else []),
                                projection={"folder_id": 1, "access_level": 1, "read_password_hash": 1,
                                            "owner_id": 1, "updated_at": 1})
     direct, total, root = counts(rows, folders)
@@ -315,6 +344,8 @@ async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
         return out
 
     ordered = sorted(folders, key=lambda f: [s.lower() for s in (paths.get(f.id) or [])])
+    fteams = {str(r["_id"]): [str(t) for t in r.get("team_ids") or []] for r in await db["folders"].find(
+        {"workspace_id": workspace_id, "team_ids": {"$exists": True}}, {"team_ids": 1}).to_list(length=5000)}
     ws_default = ws.settings.default_access if ws else "link"
     return {
         "workspace": {"id": workspace_id, "name": ws.name if ws else None, "role": role,
@@ -335,6 +366,7 @@ async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
                 "people_count": len(activity[f.id]["owners"]),
                 **({"meetings": True} if f.meetings else {}),
                 **({"meetings_sub": True} if f.meetings_sub else {}),
+                **({"team_ids": fteams[f.id]} if fteams.get(f.id) else {}),
             }
             for f in ordered
         ],
@@ -343,11 +375,26 @@ async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
     }
 
 
+async def _team_folders(actor: access.Actor, ctx: access.Ctx, workspace_id: str, folders: list, space: str | None) -> list:
+    """Folders a team owns are listed only to people who may read that team (CONTRACT §2), and a team
+    space shows its own folders (plus those holding its items, found by the counts)."""
+    from app.services import teams as teams_service
+
+    rows = {str(r["_id"]): r for r in await ctx.db["folders"].find(
+        {"workspace_id": workspace_id, "$or": [{"team_ids": {"$exists": True}}, {"project_ids": {"$exists": True}}]},
+        {"team_ids": 1, "project_ids": 1}).to_list(length=5000)}
+    if not rows:
+        return folders
+    view = await ctx.team_view(workspace_id, actor.user_id)
+    return [f for f in folders if f.id not in rows or teams_service.item_ok(view, rows[f.id])]
+
+
 _NAV_FIELDS = {"slug": 1, "title": 1, "kind": 1, "editor": 1, "original_filename": 1, "encrypted": 1,
                "folder_id": 1, "parent_id": 1, "created_at": 1}
 
 
-async def nav(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace_id: str) -> dict:
+async def nav(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace_id: str,
+              *, space: str | None = None) -> dict:
     """The app rail's outline of a workspace, in one request: every readable top-level item
     (pages, documents and files; sub-pages come from ``GET /documents/{slug}/children`` when a
     page is opened), compact, grouped by folder. Per folder (``""`` = the top level): pages first
@@ -358,7 +405,8 @@ async def nav(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, wo
     image icon."""
     from app.services import pages as pages_service
 
-    rows = await readable_rows(db, actor, ctx, workspace_id, projection=_NAV_FIELDS)
+    sx = await space_extra(actor, ctx, workspace_id, space)
+    rows = await readable_rows(db, actor, ctx, workspace_id, *([sx] if sx else []), projection=_NAV_FIELDS)
     parents = {r.get("parent_id") for r in rows if r.get("parent_id") is not None}
     places: dict[str, list[dict]] = {}
     for r in rows:
@@ -387,7 +435,7 @@ async def nav(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, wo
     for r in order:
         raw = full.get(r["_id"])
         # The filter is the policy's (A1); can(read) stays the authority for anything we name.
-        if raw is None or not (await access.can(actor, raw, "read", ctx)).allowed:
+        if raw is None or not await access.discoverable(actor, raw, ctx):
             continue
         page = raw.get("editor") == "blocks"
         artifact = raw.get("kind") == "artifact"
@@ -415,7 +463,8 @@ async def nav(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, wo
 
 async def items(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace_id: str,
                 *, folder: str = "all", q: str | None = None, kind: str | None = None,
-                cursor: str | None = None, limit: int = 50, file_type: str | None = None) -> dict:
+                cursor: str | None = None, limit: int = 50, file_type: str | None = None,
+                space: str | None = None) -> dict:
     """A page of the folder's (or the top level's, or with ``q`` the workspace's) readable
     items, optionally of one file type (services/file_types). The first page also carries
     ``count_by_type``: the scope's readable items per type, whatever the search, type and kind
@@ -423,6 +472,9 @@ async def items(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
     limit = max(1, min(MAX_ITEMS_PAGE, int(limit or 50)))
     rf = await access.readable_filter(actor, workspace_id, ctx)
     scope: list[dict] = [NOT_HIDDEN]
+    sx = await space_extra(actor, ctx, workspace_id, space)
+    if sx:
+        scope.append(sx)
     if folder in ("root", "unfiled"):
         scope.append({"folder_id": None})
     elif folder and folder != "all":
@@ -434,7 +486,7 @@ async def items(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
     clauses = [e for e in extra if e]
     # Admins' placeholders for private items say nothing of what they are, so a search or a type
     # filter never lists them (it would say what they match).
-    redacted_q = rf.redacted if (rf.redacted is not None and not q and not file_type) else None
+    redacted_q = rf.redacted if (rf.redacted is not None and not q and not file_type and not sx) else None
     who = {"$or": [rf.readable, redacted_q]} if redacted_q is not None else rf.readable
     query = {"$and": [*rf.base, who, *clauses]}
     # Without the body (a document's content can be large and nothing here reads it). The sort is
@@ -449,7 +501,7 @@ async def items(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
     kids = await with_children(db, [r["_id"] for r in rows])
     out = []
     for raw in rows:
-        if (await access.can(actor, raw, "read", ctx)).allowed:
+        if await access.discoverable(actor, raw, ctx):
             out.append(await item_for(db, raw, actor, ctx, names=names, folders=folders, hosts=hosts, kids=kids))
         elif redacted_q is not None:
             out.append(redacted_item(raw, workspace_id, names=names, folders=folders))
