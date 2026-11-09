@@ -9,7 +9,6 @@ keywords: [comments, comment, discussion, thread, reply, resolve, reopen, mentio
 Comment on selected text, a whole block, or the page as a whole. Everyone signed in who can open the page or
 document can see the comments and add their own. The text of the page never changes because of a comment.
 
-<!-- A:core -->
 ## Comment on something
 
 - **Text.** Select a few words, a sentence or a few paragraphs, then choose the **Comment** button that appears beside the selection, or press **⌘⌥M** (**Ctrl+Alt+M** on Windows and Linux). Write your comment and choose **Comment**, or press **⌘ Enter** (**Ctrl+Enter**).
@@ -91,22 +90,3 @@ A workspace admin can turn comments off for the whole workspace in **Workspace s
 ## From an AI app
 
 Your AI assistant can read and write comments through [MCP](/ai/tools#comments): `list_comments`, `get_thread`, `add_comment` (on quoted text, a block, or the page), `reply_comment`, `resolve_comment`, `reopen_comment`, `assign_thread`, `react_comment` and `set_comment_settings`. It acts as you, with your access.
-<!-- /A:core -->
-
-<!-- B:suggestions -->
-<!-- /B:suggestions -->
-
-<!-- B:ai -->
-<!-- /B:ai -->
-
-<!-- B:attachments -->
-<!-- /B:attachments -->
-
-<!-- C:notifications -->
-<!-- /C:notifications -->
-
-<!-- C:analytics -->
-<!-- /C:analytics -->
-
-<!-- C:exports -->
-<!-- /C:exports -->
