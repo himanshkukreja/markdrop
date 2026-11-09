@@ -242,6 +242,16 @@ await step("editor", async () => {
     return document.querySelectorAll(".mdc-box").length > 0;
   }, null, { timeout: 15000 });
   await shot(p, "comments-editor-highlight");
+  // The block menu's "Comment".
+  await p.locator(".pb-live .ProseMirror p", { hasText: "Rollout happens" }).first().hover();
+  await p.locator(".dxe-handle__grip").first().click({ timeout: 8000 });
+  await p.locator(".dxe-blockmenu").getByText("Comment", { exact: true }).click({ timeout: 8000 });
+  const box = panel(p).locator(".mdc-draft textarea");
+  await box.waitFor({ timeout: 8000 });
+  await box.type("From the block menu");
+  await panel(p).locator(".mdc-draft button:has-text('Comment')").click();
+  await p.locator("article.mdc-thread", { hasText: "From the block menu" }).waitFor({ timeout: 8000 });
+  if (!(await p.locator("article.mdc-thread", { hasText: "From the block menu" }).innerText()).includes("Rollout happens")) fail("block menu comment not on its block");
 });
 
 await step("mobile", async () => {

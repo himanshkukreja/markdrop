@@ -12,6 +12,8 @@ import { Fragment, type Node as PMNode, type ResolvedPos } from "@tiptap/pm/mode
 import { Dropdown, Icon, copyText, useToast, type MenuEntry } from "@/components/ui";
 import { slugify } from "@/components/reading/slug";
 import { useHost } from "../host";
+import { useComments } from "@/components/comments/context";
+import { blockAnchor } from "@/components/comments/anchorDom";
 import { turnBlocks, type TurnInto } from "../pageKeys";
 import { serializeFlow } from "../core/markdown.mjs";
 import { openSlashAt } from "./slash";
@@ -201,6 +203,8 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
   const frozen = useRef(false);
   frozen.current = menu;
   const toast = useToast();
+  // Comments (components/comments): "Comment" on a block, when this page takes comments from this person.
+  const comments = useComments();
 
   // Touch: a long press on a block opens its menu; the touch bar opens it for the caret's block.
   useEffect(() => {
@@ -393,6 +397,17 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
             const id = ensureAnchor(editor, shown.pos);
             if (!id) return;
             void copyText(blockLink(id)).then((ok) => (ok ? toast.success("Link to block copied") : toast.error("Couldn't copy the link")));
+          },
+        }]
+      : []),
+    ...(pageMode && !many && comments?.perms.comment && shown.node.textContent.trim()
+      ? [{
+          label: "Comment",
+          icon: "message",
+          kbd: "⌘ ⌥ M",
+          onClick: () => {
+            const el = editor.view.nodeDOM(shown.pos);
+            if (el instanceof HTMLElement) comments.startDraft(blockAnchor(el));
           },
         }]
       : []),
