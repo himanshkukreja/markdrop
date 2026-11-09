@@ -249,6 +249,34 @@ class RequestMemo(_home.HomeWorld):
         self.assertEqual([m is not None for m in seen], [True, False, False, False, False])
 
 
+class RecentViews(_home.HomeWorld):
+    async def test_live_rereads_write_recent_once_but_order_still_follows_you(self):
+        from bson import ObjectId
+
+        from app.services import personal
+
+        a, b = ObjectId(), ObjectId()
+        wm = self.uid["wm"]
+        writes = 0
+        real = type(self.db["recent_views"]).update_one
+
+        def spy(c, *x, **k):
+            nonlocal writes
+            if c.name == "recent_views":
+                writes += 1
+            return real(c, *x, **k)
+
+        with mock.patch.object(type(self.db["recent_views"]), "update_one", spy):
+            for _ in range(5):                       # a reader following someone's edits
+                await personal.record_view(self.db, wm, a)
+            self.assertEqual(writes, 1)
+            await personal.record_view(self.db, wm, b)
+            await personal.record_view(self.db, wm, a)  # back to A: A is the newest again
+        self.assertEqual(writes, 3)
+        rows = await self.db["recent_views"].find({"user_id": wm}).sort("viewed_at", -1).to_list(10)
+        self.assertEqual([r["doc_id"] for r in rows], [str(a), str(b)])
+
+
 # ── Quieter background loops ─────────────────────────────────────────────────
 
 
