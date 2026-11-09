@@ -200,6 +200,17 @@ class Ctx:
     _facts: dict = field(default_factory=dict, repr=False)
     _inherit: dict = field(default_factory=dict, repr=False)
     _grants_sub: dict = field(default_factory=dict, repr=False)
+    _teams: dict = field(default_factory=dict, repr=False)
+
+    async def team_view(self, workspace_id: str, user_id: str | None):
+        """services/teams.TeamView of one person in one workspace (teams + projects, read once)."""
+        key = (workspace_id, user_id)
+        if key not in self._teams:
+            from app.services import teams as teams_service
+
+            role = await self.role(workspace_id, user_id) if user_id else None
+            self._teams[key] = await teams_service.load_view(self.db, workspace_id, user_id, role)
+        return self._teams[key]
 
     async def workspace(self, workspace_id: str | None):
         if not workspace_id:
@@ -264,6 +275,7 @@ class Ctx:
             self._grants_sub.clear()
             self._ws.clear()
             self._inherit.clear()
+            self._teams.clear()
         else:
             # A change to a page can change what its sub-pages inherit, so the
             # inheritance cache goes whole (per request, cheap to refill).
@@ -406,6 +418,8 @@ class Facts:
     # The row whose password applies (the inherited source, for a sub-page).
     pw_doc: dict | None = None
     inherited: bool = False
+    # Teams (services/teams.py): the item is company-wide, or one of its teams/projects is readable.
+    team_ok: bool = True
 
 
 def _max_role(a: str | None, b: str | None) -> str | None:
@@ -444,6 +458,17 @@ async def facts(actor: Actor, doc: dict, ctx: Ctx) -> Facts:
     member_doc_role = None
     if ws_role is not None and level != "private":
         member_doc_role = "viewer" if ws_role == "viewer" else "editor"
+    team_ok = True
+    if ws_id:
+        from app.services import teams as teams_service
+
+        if not teams_service.company_wide(doc):
+            tv = await ctx.team_view(ws_id, uid)
+            team_ok = teams_service.item_ok(tv, doc)
+            if not team_ok:
+                member_doc_role = None
+            elif member_doc_role == "editor" and not teams_service.item_member(tv, doc):
+                member_doc_role = "viewer"   # read through an open team / project only
     grant_role = None
     if uid and doc.get("_id") is not None:
         mine = await ctx.grants_for(actor.email)
@@ -464,7 +489,7 @@ async def facts(actor: Actor, doc: dict, ctx: Ctx) -> Facts:
         is_owner=is_owner, secret_ok=secret_ok, grant_role=grant_role, ws_role=ws_role,
         member_doc_role=member_doc_role, role=role,
         doc_role="owner" if (is_owner or secret_ok) else role,
-        pw_doc=src, inherited=inh is not None,
+        pw_doc=src, inherited=inh is not None, team_ok=team_ok,
     )
     ctx._facts[key] = f
     return f
@@ -842,6 +867,16 @@ async def can_read(db: AsyncIOMotorDatabase, raw_doc: dict, user_id: str | None,
 # ── Listings (§4.2) ───────────────────────────────────────────────────────────
 
 
+async def discoverable(actor: Actor, doc: dict | None, ctx: Ctx) -> bool:
+    """May this item *show up* for the caller — in a listing, search, Ask, memory, a digest (CONTRACT §2)?
+    Read access, and the team rule unless they own it or it was shared with them: a private team's page
+    that is readable by its link still never surfaces for someone outside the team."""
+    if doc is None or not (await can(actor, doc, "read", ctx)).allowed:
+        return False
+    f = await facts(actor, doc, ctx)
+    return f.team_ok or f.is_owner or f.grant_role is not None
+
+
 def not_expired_clause(now: datetime) -> dict:
     return {"$or": [{"expires_at": None}, {"expires_at": {"$gt": now}}]}
 
@@ -899,16 +934,25 @@ async def readable_filter(actor: Actor, workspace_id: str, ctx: Ctx) -> Readable
     nothing = {"_id": {"$in": []}}
     if ws is None:
         return ReadableFilter(base, nothing, None, None, False)
+    from app.services import teams as teams_service
+
+    # Teams (CONTRACT §2): what the membership (or the public link level) reaches is narrowed to
+    # company-wide items and the teams / projects this person may read; owner and grants are not.
+    tclause = teams_service.clause(await ctx.team_view(workspace_id, uid))
+
+    def _t(c: dict) -> dict:
+        return {"$and": [c, tclause]} if tclause else c
+
     if role is not None:
-        readable = {"$or": [{"owner_id": uid}, {"access_level": {"$ne": "private"}},
+        readable = {"$or": [{"owner_id": uid}, _t({"access_level": {"$ne": "private"}}),
                             {"_id": {"$in": granted}}]}
     elif uid:
         ors: list[dict] = [{"owner_id": uid}, {"_id": {"$in": granted}}]
         if not require_auth:
-            ors.append(public_clause())
+            ors.append(_t(public_clause()))
         readable = {"$or": ors}
     else:
-        readable = nothing if require_auth else public_clause()
+        readable = nothing if require_auth else _t(public_clause())
     redacted = None
     if ws_role_allows(role, "admin"):
         redacted = {"access_level": "private", "owner_id": {"$ne": uid}, "_id": {"$nin": granted}}
