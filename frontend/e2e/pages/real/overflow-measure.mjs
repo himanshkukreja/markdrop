@@ -128,6 +128,10 @@ export function measureOverflow({ tol = 1.5, max = 60 } = {}) {
       if (!visible(el)) continue;
       const r = el.getBoundingClientRect();
       if (r.width <= 0 || r.right <= vw + 1) continue;
+      // Inside a scroller or a clipping box it can't widen the page.
+      let held = false;
+      for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) if (cs(a).overflowX !== "visible") { held = true; break; }
+      if (held) continue;
       if (!worst || r.right >= worst.r.right - 0.5) worst = { el, r };
     }
     push("hscroll", worst ? worst.el : de, null, worst?.r, null, sw - vw, `scrollWidth ${sw} > ${vw}${worst ? ` · ${sample(worst.el)}` : ""}`);

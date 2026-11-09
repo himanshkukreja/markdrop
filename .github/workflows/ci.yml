@@ -431,6 +431,17 @@ jobs:
         working-directory: frontend/e2e/pages/real
         run: node reach.mjs
 
+      # No content overflows on any page (owner 2026-11-09): hostile long words, URLs, emails, names, Jira
+      # keys and Team lines on every app route at 320-1440 px (Team up to 1920), light and dark; fails on any
+      # sideways scroll, text or chip past its card, or text cut without an ellipsis. On the real job, after
+      # the others (it reseeds); the API restarts with the fake Jira, Team and Meetings AI.
+      - name: overflow.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'real' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: |
+          PB_FAKE_JIRA=1 PB_FAKE_TEAM_AI=1 PB_FAKE_MEETINGS_AI=1 zsh up.sh restart-api
+          node overflow.mjs
+
       # The edit lock goes as its editor leaves (sub-page, navigation, a closed or killed tab, the
       # workspace's domain): ~1.5 min, on the shorter bughunt job.
       - name: lockleave.mjs on ${{ matrix.browser }}
@@ -512,6 +523,7 @@ jobs:
           name: e2e-${{ matrix.browser }}-${{ matrix.script }}
           path: |
             ${{ env.PB_WORK }}/real-shots/
+            ${{ env.PB_WORK }}/overflow/
             ${{ env.PB_WORK }}/stack/*.log
           if-no-files-found: ignore
           retention-days: 14
