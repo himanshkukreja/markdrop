@@ -107,3 +107,6 @@ a.cr-file:focus-visible { outline: 2px solid var(--border-focus); outline-offset
   .cr-file__name { max-width: 140px; }
   .cr-file--image { width: 96px; height: 72px; }
 }
+
+/* The composer's bar wraps when a draft carries files or a suggestion (they take a full row). */
+.mdc-composer__bar:has(.cr-draft-files, .cr-compose-sugg) { flex-wrap: wrap; }
