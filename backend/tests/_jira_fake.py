@@ -52,8 +52,14 @@ class FakeJira:
         self.webhooks: dict[int, dict] = {}
         self.calls: list[tuple[str, str, dict | None, str | None]] = []
         self.fail: dict[str, int] = {}      # "<METHOD> <path suffix>" -> status
+        self.retry_after: str | None = None  # a forced 429's Retry-After header
         self.n = 0
         self.ttl = 3600
+        # Jira in pages (services/jira_pages.py): extra workflow steps (id, name, to, {field id: meta}),
+        # saved filters (id -> project keys), comments by issue, sprints by issue.
+        self.extra_transitions: list[tuple[str, str, str, dict]] = []
+        self.filters: dict[str, list[str]] = {}
+        self.comments: dict[str, list[dict]] = {}
 
     # ── World building ──
 
@@ -142,7 +148,8 @@ class FakeJira:
         for k, st in self.fail.items():
             m, _, suffix = k.partition(" ")
             if request.method == m and path.endswith(suffix):
-                return httpx.Response(st, json={"errorMessages": [f"forced {st}"]})
+                headers = {"Retry-After": self.retry_after} if st == 429 and self.retry_after else None
+                return httpx.Response(st, json={"errorMessages": [f"forced {st}"]}, headers=headers)
         if url.startswith(AUTH):
             if path == "/oauth/token":
                 if body.get("grant_type") == "authorization_code":
@@ -202,6 +209,43 @@ class FakeJira:
             self.issues[key]["fields"]["description"] = f.get("description")
             self.issues[key]["fields"]["reporter"] = self._user(who)
             return httpx.Response(201, json={"id": self.issues[key]["id"], "key": key, "self": f"{API}/issue/{key}"})
+        mm = re.match(r"^issue/([A-Z0-9_]+-\d+)/(assignee|comment)$", rest)
+        if mm or (re.match(r"^issue/[A-Z0-9_]+-\d+$", rest) and method == "PUT"):
+            key = (mm.group(1) if mm else rest.split("/")[1])
+            it = self.issues.get(key)
+            if it is None or not self._sees(who, key):
+                return httpx.Response(404, json={"errorMessages": ["Issue does not exist or you do not have permission to see it."]})
+            if acc.get("read_only"):
+                return httpx.Response(403, json={"errorMessages": ["You do not have permission to edit issues in this project."]})
+            if mm and mm.group(2) == "assignee" and method == "PUT":
+                aid = (body or {}).get("accountId")
+                if aid is not None and aid not in self.accounts:
+                    return httpx.Response(400, json={"errorMessages": [f"User '{aid}' cannot be assigned issues."]})
+                it["fields"]["assignee"] = self._user(aid) if aid else None
+            elif mm and mm.group(2) == "comment" and method == "POST":
+                self.n += 1
+                self.comments.setdefault(key, []).append({"id": str(9000 + self.n), "by": who, "body": (body or {}).get("body")})
+                it["fields"]["updated"] = datetime.now(timezone.utc).isoformat()
+                return httpx.Response(201, json={"id": str(9000 + self.n)})
+            elif not mm:
+                f = (body or {}).get("fields") or {}
+                if "priority" in f and f["priority"] and f["priority"].get("name") not in self.priorities:
+                    return httpx.Response(400, json={"errors": {"priority": "Specify a valid priority."}})
+                if "summary" in f:
+                    it["fields"]["summary"] = f["summary"]
+                if "priority" in f:
+                    it["fields"]["priority"] = f["priority"]
+                if "duedate" in f:
+                    it["fields"]["duedate"] = f["duedate"]
+            else:
+                return httpx.Response(405)
+            it["fields"]["updated"] = datetime.now(timezone.utc).isoformat()
+            return httpx.Response(204)
+        if rest == "user/assignable/search":
+            q = (request.url.params.get("query") or "").lower()
+            hits = [self._user(a) for a, v in self.accounts.items()
+                    if self._sees(a, request.url.params.get("issueKey") or "") and (not q or q in v["name"].lower())]
+            return httpx.Response(200, json=hits)
         mm = re.match(r"^issue/([A-Z0-9_]+-\d+)(/transitions)?$", rest)
         if mm:
             key = mm.group(1)
@@ -214,12 +258,28 @@ class FakeJira:
                 if not acc["can_transition"]:
                     return httpx.Response(200, json={"transitions": []})
                 cur = it["fields"]["status"]["name"]
-                return httpx.Response(200, json={"transitions": [
-                    {"id": tid, "name": name, "to": _status(name)} for tid, name in TRANSITIONS if name != cur]})
+                expand = "transitions.fields" in (request.url.params.get("expand") or "")
+                rows = [{"id": tid, "name": name, "to": _status(name)} for tid, name in TRANSITIONS if name != cur]
+                for tid, name, to, fields in self.extra_transitions:
+                    if to != cur:
+                        rows.append({"id": tid, "name": name, "to": _status(to), **({"fields": fields} if expand else {})})
+                if expand:
+                    for r in rows:
+                        r.setdefault("fields", {})
+                return httpx.Response(200, json={"transitions": rows})
             if not acc["can_transition"]:
                 return httpx.Response(403, json={"errorMessages": ["You don't have permission to transition this issue."]})
             tid = str(((body or {}).get("transition") or {}).get("id"))
             name = dict(TRANSITIONS).get(tid)
+            extra = next((x for x in self.extra_transitions if x[0] == tid), None)
+            if extra is not None:
+                missing = [fid for fid, meta in extra[3].items() if meta.get("required") and not ((body or {}).get("fields") or {}).get(fid)]
+                if missing:
+                    return httpx.Response(400, json={"errorMessages": [], "errors": {fid: f"{extra[3][fid].get('name', fid)} is required."
+                                                                                     for fid in missing}})
+                name = extra[2]
+                for fid, v in ((body or {}).get("fields") or {}).items():
+                    it["fields"][fid] = v
             if name is None:
                 return httpx.Response(400, json={"errorMessages": ["Transition id is not valid."]})
             it["fields"]["status"] = _status(name)
@@ -228,6 +288,8 @@ class FakeJira:
             return httpx.Response(204)
         if rest == "search/jql" and method == "POST":
             jql = (body or {}).get("jql") or ""
+            if "BADJQL" in jql:
+                return httpx.Response(400, json={"errorMessages": ["Error in the JQL Query: 'BADJQL' is not a valid field."]})
             keys = None
             km = re.search(r"key in \(([^)]*)\)", jql)
             if km:
@@ -239,6 +301,20 @@ class FakeJira:
             assignees = [x.strip().strip('"') for x in am.group(1).split(",")] if am else None
             pm = re.search(r"project in \(([^)]*)\)", jql)
             projects = [x.strip().strip('"') for x in pm.group(1).split(",")] if pm else None
+            k1 = re.search(r"\bkey = ([A-Z0-9_]+-\d+)", jql)
+            if k1:
+                keys = [k1.group(1)]
+            p1 = re.search(r'project = "?([A-Z0-9_]+)"?', jql)
+            if p1:
+                projects = [p1.group(1)]
+            f1 = re.search(r"filter = (\d+)", jql)
+            if f1:
+                if f1.group(1) not in self.filters:
+                    return httpx.Response(400, json={"errorMessages": [f"The value '{f1.group(1)}' does not exist for the field 'filter'."]})
+                projects = self.filters[f1.group(1)]
+            t1 = re.search(r'text ~ "([^"*]*)\*?"', jql)
+            words = t1.group(1).strip().lower() if t1 else None
+            mine = "currentUser()" in jql
             out = []
             for key, it in self.issues.items():
                 if keys is not None and key not in keys:
@@ -249,8 +325,19 @@ class FakeJira:
                     continue
                 if not self._sees(who, key):
                     continue
+                if words and words not in it["fields"]["summary"].lower():
+                    continue
+                if mine and (it["fields"].get("assignee") or {}).get("accountId") != who and (it["fields"].get("reporter") or {}).get("accountId") != who:
+                    continue
                 out.append(it)
-            return httpx.Response(200, json={"issues": out, "isLast": True})
+            size = int((body or {}).get("maxResults") or 50)
+            start = int((body or {}).get("nextPageToken") or 0)
+            page = out[start:start + size]
+            more = start + size < len(out)
+            res = {"issues": page, "isLast": not more}
+            if more:
+                res["nextPageToken"] = str(start + size)
+            return httpx.Response(200, json=res)
         if rest == "user/search":
             q = (request.url.params.get("query") or "").lower()
             hits = [self._user(a) for a, v in self.accounts.items() if (v.get("email") or "").lower() == q]
