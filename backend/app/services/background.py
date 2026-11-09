@@ -44,6 +44,7 @@ by default; tests leave it off and call the loop bodies directly).
 from __future__ import annotations
 
 import asyncio
+import time
 import logging
 import os
 import secrets
@@ -85,10 +86,18 @@ async def acquire(db: AsyncIOMotorDatabase, name: str, ttl: timedelta, holder: s
 async def _loop(name: str, every: float, get_db: Callable[[], AsyncIOMotorDatabase],
                 body: Callable[[AsyncIOMotorDatabase], Awaitable[object]]) -> None:
     ttl = timedelta(seconds=max(30.0, every * 3))
+    # A lease taken is ours until `until`; renewing it on every 5 s pass was one database operation a
+    # pass per loop for nothing (perf/scale). Renew once half of it is gone; never let it lapse.
+    held_until = 0.0
     while True:
         try:
             db = get_db()
-            if await acquire(db, name, ttl):
+            mine = time.monotonic() < held_until - ttl.total_seconds() / 2
+            if not mine:
+                t0 = time.monotonic()
+                mine = await acquire(db, name, ttl)
+                held_until = t0 + ttl.total_seconds() if mine else 0.0
+            if mine:
                 await body(db)
         except asyncio.CancelledError:
             raise

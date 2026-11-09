@@ -262,7 +262,9 @@ async def index_doc(db: AsyncIOMotorDatabase, doc_id: Any) -> bool:
         await db[COLL].delete_one({"_id": oid})
         await search_chunks.drop(db, oid)
         return False
-    row = doc_row(raw)
+    # Markdown → words for a 20,000-character page is real CPU: off the event loop (it held every
+    # request for its length on each autosave; perf/scale's loop monitor caught it).
+    row = await asyncio.to_thread(doc_row, raw)
     if title_only(raw):
         await search_chunks.drop(db, oid)       # encrypted / password: never a word of its text
         row.update(nc=0, ch=None, cv=COVERAGE_VERSION)
@@ -298,7 +300,7 @@ async def index_guide_page(db: AsyncIOMotorDatabase, page_id: Any) -> bool:
     if page is None or page.get("deleted_at") is not None:
         await db[COLL].delete_one({"_id": key})
         return False
-    await db[COLL].update_one({"_id": key}, {"$set": guide_row(page)}, upsert=True)
+    await db[COLL].update_one({"_id": key}, {"$set": await asyncio.to_thread(guide_row, page)}, upsert=True)
     return True
 
 
@@ -564,14 +566,18 @@ async def backfill_tick(db: AsyncIOMotorDatabase, *, budget_s: float = BACKFILL_
                 continue
             state.update(done=True, finished_at=now())
             break
-        ops = []
-        for raw in rows:
-            if coll == "documents":
-                if raw.get("template"):
-                    continue
-                ops.append(UpdateOne({"_id": raw["_id"]}, {"$set": doc_row(raw)}, upsert=True))
-            else:
-                ops.append(UpdateOne({"_id": f"g:{raw['_id']}"}, {"$set": guide_row(raw)}, upsert=True))
+        def build(rows: list[dict] = rows, coll: str = coll) -> list:
+            ops = []
+            for raw in rows:
+                if coll == "documents":
+                    if raw.get("template"):
+                        continue
+                    ops.append(UpdateOne({"_id": raw["_id"]}, {"$set": doc_row(raw)}, upsert=True))
+                else:
+                    ops.append(UpdateOne({"_id": f"g:{raw['_id']}"}, {"$set": guide_row(raw)}, upsert=True))
+            return ops
+
+        ops = await asyncio.to_thread(build)  # a batch of 200 pages' text: off the event loop
         if ops:
             await db[COLL].bulk_write(ops, ordered=False)
         n += len(rows)
@@ -677,18 +683,10 @@ async def coverage_tick(db: AsyncIOMotorDatabase, *, batch: int = COVERAGE_BATCH
 _last_orphans: dict[str, float] = {}
 
 
-_TODOS_DONE: dict[str, bool] = {}
-
-
 async def todos_ready(db: AsyncIOMotorDatabase) -> bool:
     """Every row carries ``td`` (todos_tick finished), so the home may read to-dos from the index."""
-    if _TODOS_DONE.get("v"):
-        return True
     state = await _meta(db, "todos")
-    done = state.get("version") == TODOS_VERSION and bool(state.get("done"))
-    if done:
-        _TODOS_DONE["v"] = True
-    return done
+    return state.get("version") == TODOS_VERSION and bool(state.get("done"))
 
 
 async def todos_tick(db: AsyncIOMotorDatabase, *, batch: int = 200, budget_s: float = 4.0) -> dict:
