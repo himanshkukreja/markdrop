@@ -96,7 +96,7 @@ async function openExport(p) {
 
 async function flip(dlg, name, want) {
   const sw = dlg.getByRole("switch", { name });
-  await sw.waitFor({ timeout: 10000 });
+  await sw.waitFor({ state: "attached", timeout: 10000 });
   if ((await sw.isChecked()) !== want) await dlg.getByText(name, { exact: true }).click();
   if ((await sw.isChecked()) !== want) fail(`couldn't set ${name}`);
 }
@@ -186,6 +186,12 @@ await step("pdf", async () => {
     const firstText = await p.locator(".pbx-print .pbx-cmark").nth(1).evaluate((el) => el.previousSibling?.textContent ?? "");
     if (!/Monday$/.test(firstText.trim())) fail(`marker after "${firstText.slice(-30)}"`);
     await p.emulateMedia({ media: "print" });
+    console.log("  dbg", await p.evaluate(() => {
+      const m = document.querySelector(".pbx-print .pbx-cmark"), a = document.querySelector(".pbx-print aside.pbx-cnote");
+      const sec = document.querySelector(".pbx-print__page");
+      const cs = (e) => (e ? (({ color, float, width, marginRight, display }) => ({ color, float, width, marginRight, display }))(getComputedStyle(e)) : null);
+      return JSON.stringify({ sec: sec.className, body: sec.querySelector(".pb-body")?.className, pad: getComputedStyle(sec.querySelector(".pb-body") || sec).paddingRight, m: cs(m), a: cs(a), ap: a?.parentElement?.tagName, r: a?.getBoundingClientRect() });
+    }));
     await shot(p, `reach-pdf-${style.startsWith("Margin") ? "margin" : "end"}`);
     await p.emulateMedia({ media: "screen" });
     log(`pdf ${style}: ${marks} markers, ${margin} margin notes, ${end} at the end`);
@@ -228,7 +234,7 @@ await step("analytics", async () => {
   await p.getByRole("tab", { name: "Comments" }).waitFor({ timeout: 30000 });
   const box = p.locator("[data-testid=comment-insights]");
   await box.waitFor({ timeout: 20000 });
-  await box.getByText("Open threads").waitFor();
+  await box.getByText("Open threads", { exact: true }).waitFor();
   await box.getByText("Most active").waitFor();
   await shot(p, "reach-analytics-comments");
   log("analytics: Comments tab");
@@ -248,9 +254,9 @@ await step("settings", async () => {
   const me = await api("GET", "/api/v1/auth/me", T.member);
   if (me.body.email_notify.comment_activity !== "hourly") fail("activity not saved");
   const sw = p.getByRole("switch", { name: "Daily comments digest" });
-  await sw.waitFor();
+  await sw.waitFor({ state: "attached" });
   if (!(await sw.isChecked())) fail("digest default off");
-  await p.getByText("Daily comments digest", { exact: true }).click();
+  await sw.evaluate((el) => el.click());   // the row's label is a <p>: the switch itself
   await p.waitForTimeout(800);
   const d = await api("GET", "/api/v1/comments/digest/settings", T.member);
   if (d.body.on !== false) fail("digest not turned off");

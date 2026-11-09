@@ -122,15 +122,15 @@
 }
 
 /* ── Comments in the PDF (components/comments/insights/printComments.ts) ─────────────────── */
-.pbx-print .pbx-cmark { font: 600 0.7em/1 var(--font-sans); color: #b45309; margin-left: 1px; vertical-align: super; }
-.pbx-print .pbx-cnote, .pbx-print .pbx-cnote-item { font: 400 8.5pt/1.35 var(--font-sans); color: #344054; }
+html .pbx-print .pbx-cmark { font: 600 0.7em/1 var(--font-sans); color: #b45309 !important; margin-left: 1px; vertical-align: super; }
+html .pbx-print .pbx-cnote, html .pbx-print .pbx-cnote-item { font: 400 8.5pt/1.35 var(--font-sans); color: #344054 !important; letter-spacing: 0; text-transform: none; }
 .pbx-print .pbx-cnote__head { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; margin-bottom: 2px; }
-.pbx-print .pbx-cnote__n { font-weight: 700; color: #b45309; }
+html .pbx-print .pbx-cnote__n { font-weight: 700; color: #b45309 !important; }
 .pbx-print .pbx-cnote__about { font-style: italic; color: #667085; }
 .pbx-print .pbx-cnote__state { color: #067647; }
 .pbx-print .pbx-cnote__msg { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pbx-print .pbx-cnote__when { color: #98a2b3; }
-.pbx-print .pbx-comments-margin .pb-body { padding-right: 32%; position: relative; }
+html .pbx-print .pbx-comments-margin .pb-body { padding-right: 32% !important; position: relative; }
 .pbx-print .pbx-comments-margin .pbx-cnote {
   float: right; clear: right; width: 28%; margin: 0 -32% 6px 0; padding: 4px 0 4px 8px;
   border-left: 2px solid #f5c26b; break-inside: avoid; text-indent: 0; text-align: left;

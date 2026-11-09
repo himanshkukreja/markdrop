@@ -147,7 +147,11 @@ export function decoratePrint(section: HTMLElement, threads: ExportThreadDto[], 
       continue;
     }
     placed++;
-    if (style === "margin") host.insertBefore(note(t, "aside"), host.firstChild);
+    if (style === "margin") {
+      // A comment on the whole page sits at the top of the body's margin (the title has no margin column).
+      const at = t.anchor_type === "page" || !body.contains(host) ? body : host;
+      at.insertBefore(note(t, "aside"), at.firstChild);
+    }
   }
   const listed = style === "margin" ? unplaced : threads;
   if (listed.length) {
