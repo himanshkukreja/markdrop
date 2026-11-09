@@ -224,16 +224,43 @@ class EverySlackMessage(unittest.TestCase):
         from app.services import workspace_memory as wm
 
         blocks, text = team_extras.slack_blocks(wm.WsInfo("w1", "Senseloaf", True, True), g.weekly_summary())
-        self.assertEqual(blocks[0]["text"]["text"], "This week in Senseloaf")
-        self.assertTrue(text.startswith("This week in Senseloaf: 4 highlights"))
-        body = json.dumps(blocks)
-        for part in ("*Highlights*", "*Decisions*", "*Overdue*", "*Due this week*", "*Blocked*", "*Meetings this week*",
-                     "4 days late", "waiting on Alex Chen"):
+        # Sent Monday Nov 9: last week's highlights (Nov 2 – 8), this week's due items (Nov 9 – 15).
+        self.assertEqual(blocks[0]["text"]["text"], "Week of Nov 9 in Senseloaf")
+        self.assertIn("Weekly summary · Monday Nov 9", blocks[1]["elements"][0]["text"])
+        self.assertIn("4 highlights last week", blocks[1]["elements"][0]["text"])
+        self.assertEqual(text, "Senseloaf · Week of Nov 9: last week's highlights and what's due")
+        body = json.dumps(blocks, ensure_ascii=False)
+        for part in ("*Last week (Nov 2 – 8)*", "*Decisions last week*", "*Meetings last week*", "*Overdue*",
+                     "*Due this week (Nov 9 – 15)*", "*Blocked right now*", "4 days late", "waiting on Alex Chen"):
             self.assertIn(part, body)
+        self.assertNotIn("This week in", body)
+        # Last week's parts come first, then the divider, then this week's.
+        heads = [b["text"]["text"].split("\n")[0] for b in blocks if b["type"] == "section"]
+        self.assertEqual([h.split("  ·  ")[0] for h in heads],
+                         ["*Last week (Nov 2 – 8)*", "*Decisions last week*", "*Meetings last week*",
+                          "*Due this week (Nov 9 – 15)*", "*Overdue*", "*Blocked right now*"])
         # One person's highlights together.
-        hl = next(b["text"]["text"] for b in blocks if b.get("text", {}).get("text", "").startswith("*Highlights*"))
+        hl = next(b["text"]["text"] for b in blocks if b.get("text", {}).get("text", "").startswith("*Last week"))
         names = re.findall(r"\*(Maya Patel|Alex Chen|Sam Lee)\*", hl)
         self.assertEqual(names[:2], ["Maya Patel", "Maya Patel"])
+
+    def test_weekly_summary_empty_parts(self):
+        from app.services import workspace_memory as wm
+
+        s = g.weekly_summary()
+        for k in ("highlights", "decisions", "meetings"):
+            s[k] = []
+        blocks, text = team_extras.slack_blocks(wm.WsInfo("w1", "Senseloaf", True, True), s)
+        texts = [b["text"]["text"] for b in blocks if b["type"] == "section"]
+        self.assertIn("*Last week (Nov 2 – 8)*\n_No highlights from last week._", texts)
+        self.assertNotIn("Decisions last week", json.dumps(blocks))
+        self.assertEqual(text, "Senseloaf · Week of Nov 9: what's due")
+        m = team_extras.compose_email(wm.WsInfo("w1", "Senseloaf", True, True), s)
+        self.assertEqual(m["subject"], "Week of Nov 9: what's due")
+        self.assertIn("No highlights from last week.", m["text"])
+        s["due"] = []
+        blocks, _t = team_extras.slack_blocks(wm.WsInfo("w1", "Senseloaf", True, True), s)
+        self.assertIn("*Due this week (Nov 9 – 15)*\n_Nothing due this week._", [b["text"]["text"] for b in blocks if b["type"] == "section"])
 
     def test_dm_footer_is_last(self):
         for e in ("slack-dm-mention", "slack-dm-shared", "slack-dm-signoff", "slack-dm-access-request"):

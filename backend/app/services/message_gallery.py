@@ -124,7 +124,8 @@ def _meeting_post_done() -> dict:
 
 
 def weekly_summary() -> dict:
-    """A week of a team (team_extras.compose's shape)."""
+    """A week of a team as sent on Monday Nov 9 (team_extras.compose(summary=True)'s shape): last week's
+    highlights, decisions and meetings (Nov 2 – 8), this week's due items (Nov 9 – 15)."""
     def p(name: str) -> dict:
         return {"id": name.split()[0].lower(), "name": name, "avatar_url": None}
 
@@ -132,7 +133,8 @@ def weekly_summary() -> dict:
         return {"title": title, "href": f"/{slug}"}
 
     return {
-        "from": "2026-11-03", "to": "2026-11-09", "week": "2026-W45", "today": "2026-11-10",
+        "from": "2026-11-09", "to": "2026-11-15", "week": "2026-W46", "today": "2026-11-09", "window": "last_week",
+        "highlights_from": "2026-11-02", "highlights_to": "2026-11-08",
         "highlights": [
             {"person": p("Maya Patel"), "text": "Shipped the onboarding checklist behind a flag", "kind": "update",
              "sources": [src("Weekly product sync", "weekly-product-sync-nov-4")]},
@@ -151,11 +153,11 @@ def weekly_summary() -> dict:
         ],
         "blockers": [{"person": p("Jordan Park"), "text": "The Postgres connector demo needs read-only credentials",
                       "waiting_on": "Alex Chen", "source": src("Daily standup", "daily-standup-nov-6")}],
-        "due": [{"person": p("Maya Patel"), "text": "Update the onboarding docs", "due": "2026-11-11", "days": 1,
+        "due": [{"person": p("Maya Patel"), "text": "Update the onboarding docs", "due": "2026-11-11", "days": 2,
                  "source": src("Weekly product sync", "weekly-product-sync-nov-4")},
-                {"person": p("Sam Lee"), "text": "Send the release notes to customers", "due": "2026-11-12", "days": 2,
+                {"person": p("Sam Lee"), "text": "Send the release notes to customers", "due": "2026-11-12", "days": 3,
                  "source": None}],
-        "overdue": [{"person": p("Alex Chen"), "text": "Triage the crash reports from 2.4.0", "due": "2026-11-06", "days": -4,
+        "overdue": [{"person": p("Alex Chen"), "text": "Triage the crash reports from 2.4.0", "due": "2026-11-05", "days": -4,
                      "source": src("Daily standup", "daily-standup-nov-5")}],
         "meetings": [{"title": "Weekly product sync", "date": "2026-11-04", "time": "10:00", "href": "/weekly-product-sync-nov-4"},
                      {"title": "Pricing review", "date": "2026-11-05", "time": "15:30", "href": "/pricing-review-nov-5"},
@@ -169,7 +171,7 @@ def _ws():
     return wm.WsInfo("6aecc9488c77e564c2be27c0", "Senseloaf", True, True)
 
 
-@entry("slack-team-weekly", "slack", "Slack · channel posts", "This week in Senseloaf (Team's weekly summary)",
+@entry("slack-team-weekly", "slack", "Slack · channel posts", "Week of Nov 9 in Senseloaf (Team's weekly summary)",
        "Monday 9:00 in the workspace's timezone, and Team › Send now")
 def _team_weekly_slack() -> dict:
     from app.services import team_extras
@@ -458,7 +460,7 @@ def _e_catchup() -> dict:
     return _mail("share", n.compose_digest(user_id=UID, pages=_pages(), mode="catchup", catchup=True))
 
 
-@entry("email-team-weekly", "email", "Email · digests", "This week in Senseloaf (Team's weekly summary)",
+@entry("email-team-weekly", "email", "Email · digests", "Week of Nov 9: last week's highlights and what's due (Team's weekly summary)",
        "Monday 9:00 to the workspace's admins, and Team › Send now")
 def _e_team_weekly() -> dict:
     from app.services import team_extras
