@@ -86,6 +86,10 @@ def normalise(text: str | None) -> str:
     return _WS.sub(" ", unicodedata.normalize("NFC", text)).strip()
 
 
+def _ctx(text: str | None) -> str:
+    return _WS.sub(" ", unicodedata.normalize("NFC", text)) if text else ""
+
+
 def _inline(src: str) -> str:
     s = _BID.sub("", src)
     s = _INLINE_DIR.sub(lambda m: m.group(2), s)
@@ -403,8 +407,9 @@ def make_anchor(markdown: str, anchor_in: dict, rev: int) -> dict:
     exact = normalise(q.get("exact"))[:MAX_QUOTE]
     if not exact:
         raise AnchorError("Select some text to comment on.")
-    prefix = normalise(q.get("prefix"))[-CONTEXT:] if q.get("prefix") else ""
-    suffix = normalise(q.get("suffix"))[:CONTEXT] if q.get("suffix") else ""
+    # Context keeps its edge spaces (" delta" must not become "delta"); runs still collapse to one.
+    prefix = _ctx(q.get("prefix"))[-CONTEXT:]
+    suffix = _ctx(q.get("suffix"))[:CONTEXT]
     # The browser's prefix / suffix may begin or end mid-whitespace: compare on what normalising kept.
     hint = anchor_in.get("start") if isinstance(anchor_in.get("start"), int) else None
     pos = _find_exact(full, bl, exact, prefix, suffix, hint, target)
