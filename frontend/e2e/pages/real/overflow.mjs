@@ -181,10 +181,25 @@ async function seed() {
     }
     jira = !!soft(await api("PUT", "/api/v1/jira/site", T.owner, { workspace_id: WS, cloud_id: "cloud-acme", projects: ["PAY", "WEB", "PLATFORMOP"], default_project: "PAY", default_issue_type: "Task" }), "jira site");
   } else log("(no fake Jira on this stack: PB_FAKE_JIRA=1 for the Jira states)");
+  // Teams: a private team with a long name, emoji and description (Ada leads, Ben and the long-named user), an open
+  // team Ben isn't in, a project linked to both; the long page goes into the team; a brief with long lines.
+  const tbase = `/api/v1/workspaces/${WS}`;
+  const tA = soft(await api("POST", `${tbase}/teams`, T.owner, { name: `Team ${WORD}`.slice(0, 60), icon: "🛰", color: "violet", visibility: "private",
+    description: `${WORD} ${URL_LONG}`.slice(0, 280), lead_ids: [U.owner], member_ids: [U.owner, U.member, L.id] }), "team A");
+  const tB = soft(await api("POST", `${tbase}/teams`, T.owner, { name: `Private ${LINE}`.slice(0, 60), color: "teal", visibility: "private",
+    lead_ids: [U.owner], member_ids: [U.owner] }), "team B");
+  let teams = null;
+  if (tA?.id && tB?.id) {
+    const pr = soft(await api("POST", `${tbase}/projects`, T.owner, { name: `Project ${WORD}`.slice(0, 60), team_ids: [tA.id, tB.id], description: LINE.slice(0, 280) }), "project");
+    soft(await api("PUT", `${tbase}/items/${page.slug}/teams`, T.owner, { team_ids: [tA.id], project_ids: pr?.id ? [pr.id] : [] }), "page into team");
+    const br = soft(await api("POST", `${tbase}/teams/${tA.id}/briefs/draft`, T.owner), "brief");
+    if (br?.id) for (const text of [`${WORD} ${URL_NODOT}`, LINE]) soft(await api("POST", `${tbase}/teams/${tA.id}/briefs/${br.id}/lines`, T.owner, { text: text.slice(0, 300) }), "brief line");
+    teams = { a: tA.id, aSlug: tA.slug, bSlug: tB.slug, project: pr?.slug ?? null };
+  }
   const board = soft(await api("GET", `/api/v1/team/${WS}`, T.owner), "board");
   const project = board?.lanes?.[0]?.key ?? board?.projects?.[0]?.key ?? null;
   const out = { S, M, admin: admin.token, long: L.id, folder: folderId, page: page.slug, doc: doc.slug, priv: priv.slug,
-    request: reqr?.id ?? null, threads, meetings: meetings.map((m) => m.slug), project, jira };
+    request: reqr?.id ?? null, threads, meetings: meetings.map((m) => m.slug), project, jira, teams };
   fs.writeFileSync(FILE, JSON.stringify(out, null, 1));
   return out;
 }
@@ -265,6 +280,25 @@ const ROUTES = [
   ["team-person-ben", "member", `${APP}/team/${WS}/people/${U.member}`, null, { team: true }],
   ["team-person-me", "owner", `${APP}/team/${WS}/people/${U.owner}`, null, { team: true }],
   ["team-project", "owner", X.project ? `${APP}/team/${WS}/projects/${encodeURIComponent(X.project)}` : null, null, { team: true }],
+  // Teams (a long-named private team, its project, the review)
+  ...(X.teams ? [
+    ["teams-company", "owner", `${APP}/w/${WS}/home`],
+    ["teams-browse", "owner", `${APP}/w/${WS}/teams`],
+    ["teams-home", "owner", `${APP}/w/${WS}/teams/${X.teams.aSlug}`],
+    ["teams-locked", "member", `${APP}/w/${WS}/teams/${X.teams.bSlug}`],
+    ["teams-pages", "owner", `${APP}/w/${WS}/teams/${X.teams.aSlug}/pages`],
+    ["teams-settings", "owner", `${APP}/w/${WS}/teams/${X.teams.aSlug}/settings`],
+    ["teams-meetings", "owner", `${APP}/meetings/${WS}?space=${encodeURIComponent(`team:${X.teams.a}`)}`],
+    ["teams-memory", "owner", `${APP}/team/${WS}?space=${encodeURIComponent(`team:${X.teams.a}`)}`, null, { team: true }],
+    ["teams-project", "owner", X.teams.project ? `${APP}/w/${WS}/projects/${X.teams.project}` : null],
+    ["teams-review", "owner", `${APP}/w/${WS}/teams-review`],
+    ["teams-ask", "member", `${APP}/ask?workspace=${WS}&team=${X.teams.a}`],
+    ["teams-share", "owner", `${APP}/${X.page}`, async (p) => {
+      await p.locator(".pb-paper").first().waitFor({ timeout: 20000 }).catch(() => {});
+      await click(p, p.getByRole("button", { name: /^Share/ }));
+      await p.getByTestId("share-teams").waitFor({ timeout: 8000 }).catch(() => {});
+    }],
+  ] : []),
   // Settings
   ["settings", "owner", `${APP}/settings`],
   ["settings-account", "owner", `${APP}/settings/account`],

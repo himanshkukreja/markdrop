@@ -8,9 +8,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Alert, Avatar, AvatarGroup, Button, Dropdown, EmptyState, FileIcon, Icon, IconButton, Input, Skeleton, Textarea, useToast } from "@/components/ui";
+import { Alert, Avatar, Button, Dropdown, EmptyState, FileIcon, Icon, IconButton, Input, Skeleton, Textarea, useToast } from "@/components/ui";
 import type { FileRenderer } from "@/components/ui/markdrop";
 import { useAuth } from "@/contexts/AuthContext";
+import { useWorkspaceTree } from "@/lib/workspaceStore";
 import { useAssistantHere } from "@/components/assistant/store";
 import { jiraTeam, type JiraTeam } from "@/lib/jira";
 import {
@@ -26,7 +27,9 @@ import "./teams.css";
 const KIND_ICON: Record<BriefKind, string> = { shipped: "checkCircle", decision: "flag", update: "refresh", blocker: "alert", focus: "zap", note: "message" };
 const KIND_LABEL: Record<BriefKind, string> = { shipped: "Shipped", decision: "Decision", update: "Update", blocker: "Blocker", focus: "Focus", note: "Note" };
 
-export function Crumbs({ ws, wsName, trail }: { ws: string; wsName?: string | null; trail: { label: string; href?: string }[] }) {
+export function Crumbs({ ws, trail }: { ws: string; trail: { label: string; href?: string }[] }) {
+  // The workspace's name from the shared tree cache (the rail loads it for the workspace you're in).
+  const wsName = useWorkspaceTree(ws).tree?.workspace.name;
   return (
     <nav className="tz-crumbs" aria-label="Breadcrumb">
       <Link href={`/w/${encodeURIComponent(ws)}/home`}>{wsName || "Company"}</Link>
@@ -370,7 +373,6 @@ function MembersCard({ home, ws }: { home: Home; ws: string }) {
         <h2 className="tz-h2" id="tz-mem-people-h"><Icon name="user" size={16} /> Members <span className="tz-muted">{t.members.length}</span></h2>
         {t.can_manage && <Link href={teamSettingsHref(ws, t)}>Manage</Link>}
       </div>
-      <AvatarGroup className="mb-2">{t.members.slice(0, 8).map((m) => <Avatar key={m.id} name={m.name || m.email} src={m.picture ?? undefined} size="sm" />)}</AvatarGroup>
       <ul className="tz-rows">
         {t.members.slice(0, 12).map((m) => {
           const st = statusOf.get(m.id);

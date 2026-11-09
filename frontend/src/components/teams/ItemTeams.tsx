@@ -38,7 +38,7 @@ export default function ItemTeams({ ws, item, onChanged }: { ws: string; item: s
       <div className="flex items-center justify-between gap-2">
         <h3 id="share-teams-h" className="text-body font-semibold text-text">Teams</h3>
         {data.can_change && (addT.length > 0 || addP.length > 0) && (
-          <Dropdown portal align="right" aria-label="Add to a team"
+          <Dropdown align="right" aria-label="Add to a team"
             trigger={<button type="button" disabled={busy} className="md-focus inline-flex cursor-pointer items-center gap-1 rounded-sm bg-transparent p-0 text-[13px] font-semibold text-accent-text hover:underline" data-testid="share-teams-add"><Icon name="plus" size={14} /> Add to a team</button>}
             items={[
               ...(addT.length ? [{ header: "Teams" }, ...addT.map((t) => ({ label: t.name, icon: t.visibility === "private" ? "lock" : "users", onClick: () => void save([...data.team_ids, t.id], data.project_ids, `Added to ${t.name}`) }))] : []),
