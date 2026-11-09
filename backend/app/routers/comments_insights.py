@@ -153,6 +153,9 @@ async def digest_off(request: Request, t: str = "", db: AsyncIOMotorDatabase = D
 
 
 @router.get("/api/v1/admin/analytics/comments", summary="Comments across Markdrop (admin)", include_in_schema=False)
-async def admin_comments(range_: Literal["7d", "30d", "90d", "all"] = Query("30d", alias="range"),
+async def admin_comments(range_: str = Query("30d", alias="range", max_length=16),
                          db: AsyncIOMotorDatabase = Depends(get_db), _: dict = Depends(require_admin)):
-    return await analytics.admin_totals(db, range_=range_)
+    # The admin tab's range keys (today, 24h, 7d, 30d, 90d, 12m, custom…) → the nearest of ours.
+    r = {"today": "7d", "24h": "7d", "yesterday": "7d", "7d": "7d", "30d": "30d", "90d": "90d"}.get(range_, "all"
+                                                                                                       if range_ in ("12m", "all", "6m") else "30d")
+    return await analytics.admin_totals(db, range_=r)
