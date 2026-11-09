@@ -220,6 +220,8 @@ await step("editor", async () => {
   await picker.getByRole("textbox").fill("refund");
   await picker.getByTestId("jira-pick-row").first().click();
   await p.locator('.pb-live [data-testid="jira-inline"][data-key="PAY-2"]').waitFor({ timeout: 10000 });
+  // The caret is back in the page once the picker has gone.
+  await p.waitForFunction(() => document.activeElement?.classList.contains("ProseMirror"), null, { timeout: 5000 });
   // A pasted Jira link becomes a chip.
   await p.keyboard.press("End");
   await p.keyboard.press("Enter");

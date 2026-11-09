@@ -370,9 +370,10 @@ async def page_items(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.
     rs = refs(raw.get("content"))
     out["lists"] = sum(1 for r in rs if r.kind == "list")
     keyed = [r for r in rs if r.key]
-    if not rs:
+    if not rs and not actor.user_id:
         return out
-    default = await default_host(db, raw) if any(r.host is None for r in rs) else None
+    # The page's site (chips written without one; an editor's picker searches it).
+    default = await default_host(db, raw)
     out["default_site"] = default
     doc_id = str(raw["_id"])
     snaps = {(s["host"], s["key"]): s async for s in db[SNAPS].find({"doc_id": doc_id})}

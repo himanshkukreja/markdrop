@@ -155,11 +155,16 @@ export function JiraIssuePicker({ open, onClose, onPick, jira, title = "Add a Ji
   );
 }
 
-/** After a picker dialog: the editor gets focus back (the dialog gave it to the page itself). */
-function refocus(editor: ReactNodeViewProps["editor"]) {
+/** After a picker dialog: the editor gets focus back (the dialog gave it to the page itself), once it has gone. */
+function refocus(editor: ReactNodeViewProps["editor"], tries = 8) {
   window.setTimeout(() => {
-    if (!editor.isDestroyed && !editor.view.hasFocus() && !document.querySelector('[role="dialog"][aria-modal="true"]')) editor.commands.focus();
-  }, 260);
+    if (editor.isDestroyed || editor.view.hasFocus()) return;
+    if (document.querySelector('[role="dialog"][aria-modal="true"]')) {
+      if (tries > 0) refocus(editor, tries - 1);
+      return;
+    }
+    editor.commands.focus();
+  }, 200);
 }
 
 /* ── The inline chip ─────────────────────────────────────────────────────── */
