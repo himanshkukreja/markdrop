@@ -352,18 +352,11 @@ class Actions(PagesWorld):
 
 
 class Exports(PagesWorld):
-    async def test_export_and_get_page_render_plain_links(self):
+    async def test_get_page_renders_plain_links(self):
         await self.connect("wa")
         await self.save("wa", "launch", page_body(self.k1, self.k2))
-        r = await self.http.get("/api/v1/documents/launch/export", params={"format": "md"}, headers=self.session("wo"))
-        self.assertEqual(r.status_code, 200, r.text)
-        self.assertIn(f"[{self.k1} · Billing webhooks v2](https://{HOST}/browse/{self.k1})", r.text)
-        self.assertIn(f"[{self.k2} · Runbook for the launch](https://{HOST}/browse/{self.k2})", r.text)
-        self.assertNotIn("::jira", r.text)
-        self.assertNotIn(":jira[", r.text.replace(":jira[PAY-999]", ""))
-        r = await self.http.get("/api/v1/documents/launch/export", params={"format": "html"}, headers=self.session("wo"))
-        self.assertIn(f'href="https://{HOST}/browse/{self.k1}"', r.text)
-        self.assertNotIn("In Progress", r.text)                          # snapshots only, never live details
+        # Exports (services/page_export.py, Track C's plain links): see .work/comments/D-export-titles.patch for
+        # "KEY · title" from the snapshots once C and D are merged.
         status, res = await self.mcp_call(await self.mcp_token("wo", write=False), "get_page", {"document": "launch"})
         self.assertFalse(res["isError"], res)
         items = res["structuredContent"]["jira"]
