@@ -201,6 +201,21 @@ await step("listrow", async () => {
   if ((await issue("PAY-3")).fields.status.name !== "To Do") fail("row didn't move");
 });
 
+await step("listhook", async () => {
+  // A page with only a list: an issue changing in Jira (the webhook) re-runs the list for an open reader.
+  ok(await api("POST", "/__sandbox/jira/move", null, { key: "PAY-3", status: "To Do", by: ACC.owner, workspace_id: WS }), "PAY-3 to do");
+  const slug = await newPage(`Done this week ${run}`, `# Done this week ${run}\n\n::jira-list{jql="project = PAY AND status = Done" title="Done"}\n`);
+  const { c, p } = await ctx(browser, { token: T.member });
+  await p.goto(`${APP}/${slug}`, { waitUntil: "domcontentloaded" });
+  await list(p).waitFor({ timeout: 30000 });
+  const row = list(p).locator('[data-testid="jira-list-row"][data-key="PAY-3"]');
+  await p.waitForTimeout(2000);
+  if (await row.count()) fail("PAY-3 already in the Done list");
+  ok(await api("POST", "/__sandbox/jira/move", null, { key: "PAY-3", status: "Done", by: ACC.owner, workspace_id: WS }), "PAY-3 done");
+  await row.waitFor({ timeout: 20000 });
+  await c.close();
+});
+
 await step("editor", async () => {
   const slug = await newPage(`Jira editor ${run}`, "Start here\n");
   const { p } = await ctx(browser, { token: T.owner });
