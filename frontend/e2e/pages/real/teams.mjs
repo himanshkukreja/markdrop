@@ -186,6 +186,21 @@ await step("settings", async () => {
   // Ada owns the workspace (admin): visibility is enabled for her.
   await shot(p, "teams-settings-light", { full: true });
   ok(await api("DELETE", `${base}/teams/${sales.id}/members/${U.priya}`, T.owner), "remove priya");
+  // With a Slack channel: "Post new and resolved comments" (on by default) turns off.
+  ok(await api("PATCH", `${base}/teams/${sales.id}`, T.owner, { slack_channel: { id: "C0SALES", name: "sales" } }), "channel");
+  await p.reload();
+  const sw = p.getByTestId("slack-comments");
+  await sw.waitFor({ state: "attached", timeout: 20000 });
+  if (!(await sw.isChecked())) fail("comment posts not on by default");
+  await p.locator("label", { has: sw }).click();
+  await p.waitForFunction(() => !document.querySelector('[data-testid="slack-comments"]')?.checked);
+  let saved = false;
+  for (let i = 0; i < 20 && !saved; i++) {
+    saved = ok(await api("GET", `${base}/teams/${sales.id}`, T.owner), "team").team.slack_comments === false;
+    if (!saved) await new Promise((r) => setTimeout(r, 250));
+  }
+  if (!saved) fail("slack_comments not saved");
+  ok(await api("PATCH", `${base}/teams/${sales.id}`, T.owner, { slack_channel: null, slack_comments: true }), "reset channel");
 });
 
 await step("share", async () => {
@@ -254,6 +269,29 @@ await step("import", async () => {
   await p.locator("textarea#mt-paste").fill("Deal desk - Transcript\nAttendees\nAda Owner, Ben Member\nTranscript\nAda Owner: Northwind wants two years.\nBen Member: I'll draft it.\n");
   await p.waitForFunction(() => document.querySelector('[data-testid="import-teams"]')?.textContent?.includes("Suggested"), null, { timeout: 15000 });
   if (!(await p.getByTestId("import-teams").getByRole("checkbox", { name: "Sales" }).isChecked())) fail("Sales not suggested from the attendees");
+});
+
+await step("company-meetings", async () => {
+  // Company › Meetings: company-wide meetings only; "Show all I can open" adds the teams' meetings.
+  const imp = async (title, team_ids) => ok(await api("POST", "/api/v1/meetings/import", T.owner, { workspace: WS, wait: true,
+    restricted: false, title, date: "2026-11-05", team_ids, sources: [{ name: `${title} - Transcript`,
+      text: `${title} - Transcript\nAttendees\nAda Owner\nTranscript\nAda Owner: Notes for ${title}.\n` }] }), title).meetings[0];
+  const salesM = await imp("Sales deal desk", [sales.id]);
+  const allHands = await imp("All hands", []);
+  const { p } = await ctx(browser, { token: T.member });
+  await p.goto(`${APP}/w/${W}/home`);
+  await row(p, `ws:${WS}:meetings`).waitFor({ timeout: 20000 });
+  const href = await row(p, `ws:${WS}:meetings`).first().evaluate((el) => el.getAttribute("href") || el.querySelector("a")?.getAttribute("href"));
+  if (!href?.includes("space=company")) fail(`Company › Meetings links to ${href}`);
+  await row(p, `ws:${WS}:meetings`).first().click();
+  await p.getByRole("heading", { name: "Company meetings" }).waitFor({ timeout: 20000 });
+  const card = (id) => p.locator(`[data-testid="meeting-card"][data-id="${id}"]`);
+  await card(allHands.id).waitFor({ timeout: 20000 });
+  if (await card(salesM.id).count()) fail("a Sales meeting in Company › Meetings");
+  await p.locator("label", { has: p.getByTestId("meetings-show-all") }).click();
+  await p.waitForURL(/space=all/, { timeout: 10000 });
+  await card(salesM.id).waitFor({ timeout: 20000 });
+  await card(allHands.id).waitFor();
 });
 
 await step("project", async () => {
