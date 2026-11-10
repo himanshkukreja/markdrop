@@ -90,6 +90,27 @@ const EXPIRY: Array<{ value: "" | ExpiresIn; label: string }> = [
 /** "https://docs.acme.com/guides/x" → "docs.acme.com/guides/x" */
 const bare = (u: string) => u.replace(/^https?:\/\//, "").replace(/\/$/, "");
 
+/** One shareable address with its own Copy (the share dialog's Links). `primary`: the default. */
+function LinkRow({ url, label, icon, primary, testId }: { url: string; label: string; icon: string; primary?: boolean; testId: string }) {
+  return (
+    <div
+      className={`flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 ${primary ? "border-accent bg-accent-soft" : "border-border bg-surface-inset"}`}
+      data-testid={testId}
+      data-url={url}
+    >
+      <Icon name={icon} size={14} className="shrink-0 text-text-muted" />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="flex items-center gap-1.5 text-caption text-text-muted">
+          {label}
+          {primary && <span className="rounded-full bg-accent px-1.5 text-[11px] font-semibold leading-4 text-on-accent">Default</span>}
+        </span>
+        <code className="ph-sensitive ph-mask truncate font-mono text-[13px] text-text" title={url}>{bare(url)}</code>
+      </div>
+      <CopyButton text={url} label="Copy" size="sm" variant={primary ? "primary" : "secondary"} announceText={`${label} link copied`} />
+    </div>
+  );
+}
+
 export default function ShareDialog({
   slug, title, documentId, shareUrl, location, startWithLocation, onClose, onChanged, peopleOnly,
 }: {
@@ -265,9 +286,16 @@ export default function ShareDialog({
   const addresses = state?.url
     ? [state.workspace_url, state.url].filter((u): u is string => !!u).map(bare)
     : [`markdrop.in/${slug}`, ...(host && wsId ? [[host, ...folderPath, slug].join("/")] : [])];
-  // "Copy link": what the caller passed (it may carry an encrypted document's #k=), else the
-  // canonical address — never for an encrypted document, whose link needs the key.
-  const copyUrl = shareUrl ?? (state && !state.encrypted ? state.workspace_url ?? state.url ?? undefined : undefined);
+  // Both links (owner, 2026-11-10): an item whose workspace has a live domain is shared by that
+  // address (the default, highlighted) or by markdrop.in; one access setting covers both. Not for
+  // an encrypted document: its link is the caller's, key and all.
+  const domainLink = state && !state.encrypted ? state.workspace_url ?? null : null;
+  const markdropLink = state?.url ?? null;
+  const dual = !!(domainLink && markdropLink && domainLink !== markdropLink);
+  // "Copy link": the workspace domain's address when there are both; else what the caller passed
+  // (it may carry an encrypted document's #k=), else the canonical address — never for an
+  // encrypted document, whose link needs the key.
+  const copyUrl = dual ? domainLink! : shareUrl ?? (state && !state.encrypted ? state.workspace_url ?? state.url ?? undefined : undefined);
 
   const header = (
     <span className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-text-muted">
@@ -398,7 +426,9 @@ export default function ShareDialog({
               />
               {busy === "level" && <p className="text-caption text-text-muted" role="status">Updating…</p>}
               {canManage ? (
-                <p className="mt-1 text-caption text-text-muted">
+                dual ? (
+                  <p className="mt-1 text-caption text-text-muted">One setting for both links below.</p>
+                ) : <p className="mt-1 text-caption text-text-muted">
                   {addresses.length > 1 ? "One setting for every address of this file: " : "Its address: "}
                   {addresses.map((a, i) => (
                     <span key={a}>
@@ -412,6 +442,15 @@ export default function ShareDialog({
                 <p className="text-caption text-text-muted">Only the owner can change who can open it.</p>
               )}
             </div>}
+
+            {/* ── Links: the workspace's own domain (default) and markdrop.in ── */}
+            {dual && (
+              <div className="flex flex-col gap-2" data-testid="share-links">
+                <span className="text-[13px] font-semibold text-text">Links</span>
+                <LinkRow url={domainLink!} label="Workspace domain" icon="globe" primary testId="share-link-domain" />
+                <LinkRow url={markdropLink!} label="markdrop.in" icon="link" testId="share-link-markdrop" />
+              </div>
+            )}
 
             {/* ── More options: password and expiry ─────────────────── */}
             {canManage && !peopleOnly && (
