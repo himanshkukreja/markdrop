@@ -15,7 +15,7 @@ from __future__ import annotations
 import base64
 import json
 from datetime import date, datetime, timedelta, timezone
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 import httpx
 
@@ -70,7 +70,7 @@ class FakeZoom:
         if transcript:
             files.append({"id": f"f-{uuid}-vtt", "file_type": "TRANSCRIPT", "file_extension": "VTT",
                           "recording_type": "audio_transcript", "status": "completed",
-                          "download_url": f"{AUTH}/rec/download/{uuid}"})
+                          "download_url": f"{AUTH}/rec/download/{quote(uuid, safe='')}"})
             self.transcripts[uuid] = vtt(lines or [("Ada Lovelace", f"Welcome to {topic}."),
                                                    ("Grace Hopper", "Let's review the pipeline."),
                                                    ("Ada Lovelace", "I'll send the proposal to Acme by Friday.")])
@@ -78,13 +78,13 @@ class FakeZoom:
              "topic": topic, "type": 2, "start_time": start, "timezone": tz, "duration": duration,
              "recording_count": len(files), "recording_files": files}
         self.meetings[uuid] = m
-        self.participants[uuid] = participants if participants is not None else ["Ada Lovelace", "Grace Hopper", "Client Person"]
+        self.participants[uuid] = participants if participants is not None else ["Ada Lovelace", "Grace Hopper", "Priya Raman"]
         return m
 
     def add_transcript(self, uuid: str) -> None:
         m = self.meetings[uuid]
         m["recording_files"].append({"id": f"f-{uuid}-vtt", "file_type": "TRANSCRIPT", "recording_type": "audio_transcript",
-                                     "status": "completed", "download_url": f"{AUTH}/rec/download/{uuid}"})
+                                     "status": "completed", "download_url": f"{AUTH}/rec/download/{quote(uuid, safe='')}"})
         self.transcripts[uuid] = vtt([("Ada Lovelace", "The transcript came later."), ("Grace Hopper", "Good.")])
 
     def event(self, name: str, uuid: str, *, host_email: bool = True) -> dict:
@@ -136,7 +136,7 @@ class FakeZoom:
         if url.startswith(AUTH + "/rec/download/"):
             if not self._authed(req):
                 return self._json(401, {"code": 124, "message": "Invalid access token."})
-            uuid = unquote(req.url.path.rsplit("/", 1)[1])
+            uuid = unquote(req.url.raw_path.decode().split("?", 1)[0].rsplit("/", 1)[1])
             if uuid not in self.transcripts:
                 return self._json(404, {"code": 3301, "message": "No file"})
             return httpx.Response(200, content=self.transcripts[uuid].encode())
