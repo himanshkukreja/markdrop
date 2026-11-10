@@ -22,5 +22,6 @@
   "/guides": "/guides/overview",
   "/guides/github-sync": "/guides/import-from-github",
   "/pages/comments": "/collaboration/comments",
-  "/pages/jira-in-pages": "/collaboration/jira-in-pages"
+  "/pages/jira-in-pages": "/collaboration/jira-in-pages",
+  "/teams": "/teams/overview"
 }

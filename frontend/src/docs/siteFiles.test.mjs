@@ -142,3 +142,11 @@ test("escapeSource and host helpers", () => {
   assert.deepEqual(docsHostsFromEnv({}), ["docs.markdrop.in", "docs.localhost"]);
   assert.deepEqual(docsHostsFromEnv({ NEXT_PUBLIC_DOCS_HOST: "Docs.Acme.com:443", NEXT_PUBLIC_DOCS_HOSTS: "help.acme.com., " }), ["docs.acme.com", "docs.localhost", "help.acme.com"]);
 });
+
+test("markdrop docs: a section's bare address opens its overview (/collaboration, /teams)", () => {
+  const dir = path.join(path.dirname(new URL(import.meta.url).pathname), "../../content/docs");
+  const got = Object.fromEntries(readRedirects(dir).redirects.map((r) => [r.from, r.to]));
+  assert.equal(got["/collaboration"], "/collaboration/overview");
+  assert.equal(got["/teams"], "/teams/overview");
+  assert.ok(fs.existsSync(path.join(dir, "teams/overview.md")));
+});
