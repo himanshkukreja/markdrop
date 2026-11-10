@@ -364,7 +364,9 @@ await step("slashgate", async () => {
   // Atlassian's page, faked: straight back to the callback with Wes's code (the server checks the state).
   await p.route("https://auth.jira.test/**", (r) => {
     const state = new URL(r.request().url()).searchParams.get("state");
-    return r.fulfill({ status: 302, headers: { location: `${APP}/integrations/jira/callback?code=code-${ACC.admin}&state=${encodeURIComponent(state)}` } });
+    // A page that goes on (WebKit can't fulfill a request with a redirect).
+    const to = `${APP}/integrations/jira/callback?code=code-${ACC.admin}&state=${encodeURIComponent(state)}`;
+    return r.fulfill({ status: 200, contentType: "text/html", body: `<script>location.replace(${JSON.stringify(to)})</script>` });
   });
   await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
   await editPage(p);
