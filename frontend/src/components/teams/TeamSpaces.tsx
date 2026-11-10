@@ -235,7 +235,7 @@ export function CompanyHome({ ws }: { ws: string }) {
         </div>
         <div className="tz-col">
           <section className="tz-card tz-card--flush" aria-labelledby="ch-meet">
-            <div className="tz-sec__head px-2.5 pt-2.5"><h2 className="tz-h2" id="ch-meet">Company meetings</h2><Link href={`/meetings/${encodeURIComponent(ws)}`}>All meetings</Link></div>
+            <div className="tz-sec__head px-2.5 pt-2.5"><h2 className="tz-h2" id="ch-meet">Company meetings</h2><Link href={`/meetings/${encodeURIComponent(ws)}?space=company`}>All company meetings</Link></div>
             {meetings === null ? <div className="p-3"><Skeleton variant="rect" height={120} /></div> : meetings.length ? <ul className="tz-rows">{meetings.map((m) => <MeetingRow key={m.id} m={m} />)}</ul> : <p className="tz-empty">No company-wide meetings.</p>}
           </section>
           {side && side.projects.length > 0 && (

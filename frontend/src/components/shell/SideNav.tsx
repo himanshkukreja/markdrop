@@ -462,7 +462,9 @@ function workspaceNode(
           onFiles: filesTo(null, ws.name),
           actions: member ? { add: { href: `/pages/new?workspace=${encodeURIComponent(ws.id)}`, label: `New company page in ${ws.name}` } } : null,
         },
-        ...meetingsRow.map((r) => (r.key === wsTeamKey(ws.id) ? { ...r, label: "People", sig: `${r.sig}p` } : r)),
+        // Company › Meetings: company-wide meetings only (a team's meetings live in that team; the hub can show all).
+        ...meetingsRow.map((r) => (r.key === wsTeamKey(ws.id) ? { ...r, label: "People", sig: `${r.sig}p` }
+          : r.key === wsMeetingsKey(ws.id) ? { ...r, href: `${meetingsHref(ws.id)}?space=company`, sig: `${r.sig}c` } : r)),
       ];
       const mine: TreeNode[] = teams.teams.filter((t) => t.my_role || t.can_admin).map((t) => {
         const k = (sub?: string) => wsTeamRowKey(ws.id, t.id, sub);

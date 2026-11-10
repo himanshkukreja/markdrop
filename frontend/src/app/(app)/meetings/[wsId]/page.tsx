@@ -12,7 +12,8 @@ export const metadata: Metadata = {
 /** A workspace's meetings: import a call, ask across them, open one (components/meetings). */
 export default async function Page({ params, searchParams }: Props) {
   const { wsId } = await params;
-  // Teams: ?space=team:<id> | project:<id> scopes it to that space (lib/teams).
+  // Teams: ?space=team:<id> | project:<id> scopes it to that space (lib/teams); Company › Meetings is
+  // ?space=company (company-wide meetings only), with "Show all I can open" (?space=all).
   const space = parseSpace((await searchParams).space);
-  return <MeetingsHub key={space ?? ""} workspaceId={decodeURIComponent(wsId)} space={space === "company" || space === "all" ? undefined : space} />;
+  return <MeetingsHub key={space ?? ""} workspaceId={decodeURIComponent(wsId)} space={space} />;
 }

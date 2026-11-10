@@ -281,6 +281,21 @@ class Memory(TeamsWorld):
 
         return await user_service.get_user_by_id(self.db, self.uid[who])
 
+    async def test_company_meetings_are_company_wide_only(self):
+        async def ids(who, space=None):
+            params = {"workspace": self.W, **({"space": space} if space else {})}
+            r = await self.http.get("/api/v1/meetings", headers=self.session(who), params=params)
+            self.assertEqual(r.status_code, 200, r.text)
+            return {m["id"] for m in r.json()["meetings"]}
+
+        self.assertNotIn(self.m["id"], await ids("wm", "company"))         # routed to Sales: lives in Sales
+        self.assertIn(self.m["id"], await ids("wm", f"team:{self.sales}"))
+        self.assertIn(self.m["id"], await ids("wm", "all"))                 # "Show all I can open"
+        self.assertIn(self.m["id"], await ids("wm"))
+        await self.http.put(f"/api/v1/meetings/{self.m['id']}/teams", headers=self.session("wa"),
+                            json={"team_ids": [], "project_ids": []})
+        self.assertIn(self.m["id"], await ids("wm", "company"))             # back to company-wide
+
     async def test_lines_say_which_team_they_came_from(self):
         # An open team's lines reach everyone, each labelled with its team; a private one's reach no outsider.
         r = await self.http.patch(f"{self.base}/teams/{self.sales}", headers=self.session("wa"), json={"visibility": "open"})

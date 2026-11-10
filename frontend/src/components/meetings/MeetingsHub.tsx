@@ -14,11 +14,12 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
 import { teamHref } from "@/lib/teams";
 import { TeamChip } from "@/components/teams/parts";
 import {
-  Alert, Avatar, AvatarGroup, Badge, Button, ConfirmDialog, Dropdown, Icon, IconButton, Input, Progress, Select, Skeleton, Spinner,
+  Alert, Avatar, AvatarGroup, Badge, Button, ConfirmDialog, Dropdown, Icon, IconButton, Input, Progress, Select, Skeleton, Spinner, Switch,
   copyText, useToast, type MenuEntry,
 } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,7 +43,10 @@ import { useAssistantHere } from "@/components/assistant/store";
 import "./meetings.css";
 import "./backfill.css";
 
-export default function MeetingsHub({ workspaceId, space }: { workspaceId: string; /** Teams: "team:<id>" | "project:<id>" — that space's meetings. */ space?: string }) {
+export default function MeetingsHub({ workspaceId, space: spaceParam }: { workspaceId: string; /** Teams: "team:<id>" | "project:<id>" — that space's meetings; "company": company-wide only; "all": everything you can open. */ space?: string }) {
+  const router = useRouter();
+  const space = spaceParam === "all" ? undefined : spaceParam;
+  const companyView = spaceParam === "company" || spaceParam === "all";
   const { user, loading: authLoading } = useAuth();
   const toast = useToast();
   const [ws, setWs] = useState<Workspace | null>(null);
@@ -265,8 +269,12 @@ export default function MeetingsHub({ workspaceId, space }: { workspaceId: strin
       </nav>
       <header className="mt-hub__head">
         <div className="mt-hub__titles">
-          <h1 className="mt-hub__title">{spaceTeam ? `${spaceTeam.name} meetings` : "Meetings"}</h1>
-          <p className="mt-hub__sub">Every call as a page — summary, decisions, action items and the transcript.</p>
+          <h1 className="mt-hub__title">{spaceTeam ? `${spaceTeam.name} meetings` : spaceParam === "company" ? "Company meetings" : "Meetings"}</h1>
+          <p className="mt-hub__sub">{spaceParam === "company" ? "Company-wide calls. A team's meetings live in that team." : "Every call as a page — summary, decisions, action items and the transcript."}</p>
+          {companyView && (
+            <Switch label="Show all I can open" checked={spaceParam === "all"} data-testid="meetings-show-all"
+              onChange={(e) => router.replace(`/meetings/${encodeURIComponent(workspaceId)}?space=${e.currentTarget.checked ? "all" : "company"}`)} />
+          )}
         </div>
         <div className="mt-hub__actions">
           <span className="mt-hub__secondary">{checkButton}{connectButton}{any && pastButton}</span>
