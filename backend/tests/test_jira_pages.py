@@ -235,6 +235,40 @@ class Lists(PagesWorld):
         await self.run_list("wm", {"project": "PAY"})
         self.assertEqual(self.searches(), n)
 
+    async def test_webhook_reruns_list_pages_with_no_jira_data_in_the_nudge(self):
+        await self.mkdoc("L", owner="wo", grants=False, slug="board", content="# Board\n", editor="blocks")
+        await self.save("wa", "board", f"# Board\n\n::jira-list{{jql=\"assignee = currentUser()\" site={HOST}}}\n")
+        await self.mkdoc("L", owner="wo", grants=False, slug="web-only", content="# Web\n", editor="blocks")
+        await self.save("wa", "web-only", f"# Web\n\n::jira-list{{project=WEB site={HOST}}}\n")
+        rows = {r["doc_id"]: r async for r in self.db[jira_pages.LIST_PAGES].find({"host": HOST})}
+        self.assertEqual(len(rows), 3)
+        await self.connect("wm")
+        await self.run_list("wm", {"project": "PAY", "site": HOST})
+        n = self.searches()
+        await self.run_list("wm", {"project": "PAY", "site": HOST})
+        self.assertEqual(self.searches(), n)                              # cached
+        self.events.clear()
+        fresh = self.fj.add_issue("PAY", "Fresh one")
+        r = await self.hook(self.fj.move(fresh, "Done", by="acc-wa"))
+        self.assertEqual(r.status_code, 200, r.text)
+        slugs = {s for s, _ in self.events}
+        self.assertIn(("board", {"type": "jira", "lists": True}), self.events)   # a JQL list: any issue of the site
+        self.assertIn(("launch", {"type": "jira", "lists": True}), self.events)  # its PAY list
+        self.assertNotIn("web-only", slugs)                                       # a WEB list can't hold PAY-n
+        self.assertNotIn(fresh, str(self.events))                                 # never the key, never details
+        await self.run_list("wm", {"project": "PAY", "site": HOST})
+        self.assertEqual(self.searches(), n + 1)                          # re-run under the viewer's own token
+        # The list leaves a page: no more nudges for it.
+        await self.save("wa", "web-only", "# Web\n")
+        self.assertEqual(await self.db[jira_pages.LIST_PAGES].count_documents({"host": HOST}), 2)
+
+    async def test_list_pages_backfill_once(self):
+        await self.db[jira_pages.LIST_PAGES].delete_many({})
+        self.assertEqual(await jira_pages.backfill_list_pages(self.db), 1)
+        row = await self.db[jira_pages.LIST_PAGES].find_one({"doc_id": str(self.page["_id"])})
+        self.assertEqual((row["host"], row["projects"], row["any"]), (HOST, ["PAY"], False))
+        self.assertEqual(await jira_pages.backfill_list_pages(self.db), 0)
+
     async def test_jql_safety(self):
         await self.connect("wv")
         # A reader (a workspace viewer) can't run a query that isn't on the page.

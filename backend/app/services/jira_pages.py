@@ -38,7 +38,13 @@ links the thread to it; the panel shows the issue, and resolving one offers to r
 Collections
     jira_snaps         _id "<doc_id>|<host>|<KEY>": doc_id, host, key, title, url, at, tried_at
     jira_thread_links  _id "<doc_id>|<thread_id>": doc_id, thread_id, host, cloud_id, key, title, url, created_by, created_at
-    jira_list_cache    _id sha1: keys, next, expires_at (TTL)
+    jira_list_cache    _id sha1: host, keys, next, expires_at (TTL)
+    jira_page_lists    _id "<doc_id>|<host>": doc_id, host, projects [KEY] (project lists), any (a JQL/filter list)
+
+**Lists follow Jira** (``on_issue_changed``): a webhook (or an action) for an issue of a site drops that
+site's cached list results and nudges every page with a list that could hold it (a list of its project,
+or any JQL/filter list on that site) with ``{"type": "jira", "lists": true}`` — no keys, no data; each
+viewer's page re-runs its lists under their own token.
 """
 
 from __future__ import annotations
@@ -63,6 +69,7 @@ log = logging.getLogger("markdrop.jira")
 SNAPS = "jira_snaps"
 THREADS = "jira_thread_links"
 LISTS = "jira_list_cache"
+LIST_PAGES = "jira_page_lists"
 
 VIEW_TTL = timedelta(seconds=60)
 LIST_TTL = timedelta(seconds=60)
@@ -90,6 +97,49 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[THREADS].create_index("doc_id")
     await db[THREADS].create_index([("host", 1), ("key", 1)])
     await db[LISTS].create_index("expires_at", expireAfterSeconds=0)
+    await db[LISTS].create_index("host")
+    await db[LIST_PAGES].create_index([("host", 1), ("projects", 1)])
+    await db[LIST_PAGES].create_index("doc_id")
+    await backfill_list_pages(db)
+
+
+async def backfill_list_pages(db: AsyncIOMotorDatabase) -> int:
+    """Once: index the list blocks of pages saved before lists followed webhooks."""
+    if await db[LIST_PAGES].find_one({"_id": "_backfilled"}):
+        return 0
+    n = 0
+    async for d in db["documents"].find({"content": {"$regex": "::jira-list"}, "deleted_at": None},
+                                        {"content": 1, "workspace_id": 1, "folder_id": 1}):
+        try:
+            n += await sync_list_pages(db, d)
+        except Exception:
+            log.info("jira: list index backfill skipped %s", d.get("_id"), exc_info=True)
+    await db[LIST_PAGES].update_one({"_id": "_backfilled"}, {"$set": {"at": now_utc(), "n": n}}, upsert=True)
+    return n
+
+
+async def sync_list_pages(db: AsyncIOMotorDatabase, doc: dict, rs: list | None = None) -> int:
+    """The page's list blocks by site (which projects; any JQL/filter list), for webhooks to find it."""
+    doc_id = str(doc["_id"])
+    rs = refs(doc.get("content") or "") if rs is None else rs
+    lists = [r for r in rs if r.kind == "list"]
+    default = await default_host(db, doc) if any(r.host is None for r in lists) else None
+    by_host: dict[str, dict] = {}
+    for r in lists:
+        h = r.host or default
+        if not h:
+            continue
+        row = by_host.setdefault(h, {"projects": set(), "any": False})
+        if (r.spec or {}).get("project"):
+            row["projects"].add(r.spec["project"])
+        else:
+            row["any"] = True
+    await db[LIST_PAGES].delete_many({"doc_id": doc_id, "host": {"$nin": list(by_host)}})
+    for h, row in by_host.items():
+        await db[LIST_PAGES].update_one({"_id": f"{doc_id}|{h}"}, {"$set": {
+            "doc_id": doc_id, "host": h, "projects": sorted(row["projects"]), "any": row["any"], "at": now_utc()}},
+            upsert=True)
+    return len(by_host)
 
 
 # ── The syntax ────────────────────────────────────────────────────────────────
@@ -522,6 +572,7 @@ async def on_page_saved(db: AsyncIOMotorDatabase, before: dict | None, after: di
         if "jira" not in content and "jira" not in ((before or {}).get("content") or ""):
             return
         rs = refs(content)
+        await sync_list_pages(db, after, rs)
         default = await default_host(db, after) if any(r.host is None for r in rs) else None
         now_on = {(r.host or default, r.key) for r in rs if r.key and (r.host or default)}
         have = {(s["host"], s["key"]): s async for s in db[SNAPS].find({"doc_id": doc_id})}
@@ -594,7 +645,26 @@ async def on_issue_changed(db: AsyncIOMotorDatabase, site_url: str | None, key: 
             slugs.add(d["slug"])
     for slug in slugs:
         live.notify(slug, {"type": "jira", "keys": [key]})
-    return len(slugs)
+    return len(slugs) + await _lists_follow(db, host, key, skip=slugs)
+
+
+async def _lists_follow(db: AsyncIOMotorDatabase, host: str, key: str, *, skip: set[str]) -> int:
+    """Pages with a list that could hold this issue re-run their lists (each viewer, own token). The nudge
+    carries no key: the issue may not be on that page, and a reader's list is theirs to work out."""
+    from app.services import live
+
+    project = key.split("-", 1)[0]
+    await db[LISTS].delete_many({"host": host})          # results from before the change
+    doc_ids = [r["doc_id"] async for r in db[LIST_PAGES].find(
+        {"host": host, "$or": [{"any": True}, {"projects": project}]}, {"doc_id": 1}).limit(500)]
+    oids = [ObjectId(d) for d in doc_ids if ObjectId.is_valid(d)]
+    n = 0
+    if oids:
+        async for d in db["documents"].find({"_id": {"$in": oids}, "deleted_at": None}, {"slug": 1}):
+            if d["slug"] not in skip:
+                live.notify(d["slug"], {"type": "jira", "lists": True})
+                n += 1
+    return n
 
 
 # ── Lists ─────────────────────────────────────────────────────────────────────
@@ -640,7 +710,7 @@ async def run_list(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ct
         issues = [jira.shape_issue(site["cloud_id"], site["url"], x) for x in (res or {}).get("issues") or []][:limit]
         await jira.store_issues(db, issues)
         nxt = None if (res or {}).get("isLast") else (res or {}).get("nextPageToken")
-        await db[LISTS].update_one({"_id": ck}, {"$set": {"keys": [i["key"] for i in issues], "next": nxt,
+        await db[LISTS].update_one({"_id": ck}, {"$set": {"host": host, "keys": [i["key"] for i in issues], "next": nxt,
                                                           "expires_at": now_utc() + LIST_TTL}}, upsert=True)
     return {"site": host, "jql": jql, "url": search_url(host, jql), "cols": spec["cols"], "title": spec["title"],
             "issues": [jira.public_issue(i) for i in issues], "next": nxt}
