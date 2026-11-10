@@ -96,9 +96,11 @@ def checked(host: Any) -> str:
         raise CfSaasRefused(f"not a hostname: {host!r}")
     try:
         ipaddress.ip_address(host.strip("[]"))
-        raise CfSaasRefused("an IP address")
+        is_ip = True
     except ValueError:
-        pass
+        is_ip = False
+    if is_ip:
+        raise CfSaasRefused("an IP address")
     labels = host.split(".")
     if len(labels) < 2 or not all(_LABEL.fullmatch(lbl) for lbl in labels):
         raise CfSaasRefused(f"not a hostname: {host!r}")

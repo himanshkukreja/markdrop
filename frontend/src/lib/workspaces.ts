@@ -184,6 +184,28 @@ export interface Domain {
   dns_routing_options?: Array<{ type: string; name: string; value: string }>;
   /** Pending claims only: when the unverified claim is dropped. */
   expires_at?: string | null;
+  /** The host's certificate on Markdrop's next hosting (Cloudflare for SaaS), admins only; absent/null when
+   *  it has none. `hosting_ready`: nothing left to add. `hosting_records`: the TXT records it validates by. */
+  hosting_provider?: string | null;
+  hosting_ready?: boolean | null;
+  hosting_message?: string | null;
+  hosting_records?: HostingRecord[];
+}
+
+export interface HostingRecord {
+  type: string;
+  name: string;
+  value: string;
+  /** "certificate": _acme-challenge (needed); "ownership": _cf-custom-hostname (usually proven without it). */
+  purpose: "certificate" | "ownership";
+  /** False once what it proves is done. */
+  needed: boolean;
+}
+
+/** The pre-validation records a live domain still needs before Markdrop's hosting move (none when ready). */
+export function hostingRecordsNeeded(d: Domain): HostingRecord[] {
+  if (!d.hosting_provider || d.hosting_ready) return [];
+  return (d.hosting_records ?? []).filter((r) => r.needed);
 }
 
 export interface Folder {
