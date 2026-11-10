@@ -1,8 +1,11 @@
 /**
  * Teams inside a workspace (.work/briefs/teams-v1.md, .work/teams/CONTRACT.md) on the REAL stack, fake models:
  *
- *   sidebar   COMPANY (Home · Pages · People) + YOUR TEAMS (each: Home, Pages, Meetings, Memory, Ask <team>, its
- *             projects) + Browse teams; the active row follows the URL; keyboard (arrow keys move, Enter opens)
+ *   sidebar   Option A "One tree": switcher, Teams (General first, Everyone) each opening inline to Meetings, People &
+ *             memory, projects and its pages; no Company section; the active row follows the URL; keyboard; open state remembered
+ *   nav       /w/<ws>/home → General's home (brief, Needs you, Across teams, meetings, recent, What's happening, new people);
+ *             the switcher; favorites from a row's ⋯ menu; ?space=company → General's Meetings row; General can't be
+ *             deleted or made private
  *   home      a team's home: brief (the lead edits and hides a line), recent pages, meetings, memory, members
  *   leak      Priya (not in private Sales): its name + brief only — the home is locked, its page is in no listing, rail,
  *             search, company home or API body she receives; Wes (workspace admin) reads it and the settings say so
@@ -54,6 +57,7 @@ const wsNow = ok(await api("GET", base, T.owner), "ws");
 ok(await api("PUT", base, T.owner, { name: wsNow.name, settings: { ...(wsNow.settings || {}), team_memory: true } }), "team memory on");
 log("world", JSON.stringify({ sales: sales.id, eng: eng.id }));
 
+const G = {};   // General's id, once the sidebar step has read it
 const rail = (p) => p.locator('aside[data-rail="full"] nav[aria-label="Your drive"]');
 const row = (p, key) => rail(p).locator(`[data-rail-key="${key}"]`);
 const tk = (tid, sub) => `ws:${WS}:team:${tid}${sub ? `:${sub}` : ""}`;
@@ -63,33 +67,115 @@ const noHScroll = async (p, what) => {
 };
 
 await step("sidebar", async () => {
+  // Option A "One tree": switcher, Search/Home/Inbox/Ask, Teams (General first, EVERYONE), each team opens inline to
+  // Meetings, People & memory, its projects and its pages; Browse teams; You. No Company section.
   const { p } = await ctx(browser, { token: T.member });
   await p.goto(`${APP}/w/${W}/teams/${sales.slug}`);
   await p.getByTestId("team-home").waitFor({ timeout: 20000 });
   const r = rail(p);
-  await r.getByText("Company", { exact: true }).waitFor();
-  await r.getByText("Your teams", { exact: true }).waitFor();
-  for (const k of [`ws:${WS}:home`, `ws:${WS}:pages`, tk(sales.id), tk(sales.id, "pages"), tk(sales.id, "meetings"), tk(sales.id, "memory"), tk(sales.id, "ask"), `ws:${WS}:browse`]) {
+  await r.getByTestId("ws-switcher").waitFor();
+  if (await r.getByText("Company", { exact: true }).count()) fail("a Company section in the rail");
+  await r.getByText("Teams", { exact: true }).waitFor();
+  await r.getByText("You", { exact: true }).waitFor();
+  const side = ok(await api("GET", `${base}/teams`, T.member), "sidebar");
+  const gen = side.teams[0];
+  if (!gen?.general) fail("General isn't first in the sidebar payload");
+  G.id = gen.id;
+  await row(p, tk(gen.id)).waitFor();
+  if (!(await row(p, tk(gen.id)).innerText()).toUpperCase().includes("EVERYONE")) fail("General has no Everyone tag");
+  const order = await r.locator('[data-rail-key^="ws:"][data-rail-key*=":team:"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-rail-key")));
+  if (order[0] !== tk(gen.id)) fail(`General isn't the first team row: ${order[0]}`);
+  for (const k of [tk(sales.id), tk(sales.id, "meetings"), tk(sales.id, "memory"), tk(gen.id, "meetings"), tk(gen.id, "memory")]) {
     if (!(await row(p, k).count())) fail(`no rail row ${k}`);
   }
-  if (await row(p, tk(eng.id)).count()) fail("Eng (not his team) is under Your teams");
-  if ((await row(p, tk(sales.id, "home")).getAttribute("aria-current")) !== "page") fail("team home row not current");
-  if (!(await row(p, tk(sales.id, "ask")).innerText()).includes("Ask Sales")) fail("Ask Sales label");
-  // Navigate by the rail: Pages → the team's pages; the active row follows.
-  await row(p, tk(sales.id, "pages")).click();
-  await p.getByTestId("team-pages").waitFor();
-  await p.getByText(`${SECRET} plan`).first().waitFor();
-  await p.waitForFunction((k) => document.querySelector(`[data-rail-key="${k}"]`)?.getAttribute("aria-current") === "page", tk(sales.id, "pages"));
-  // Keyboard: focus the team row, ArrowDown moves to Home, Enter opens it.
+  for (const gone of [tk(sales.id, "home"), tk(sales.id, "pages"), tk(sales.id, "ask"), `ws:${WS}:home`, `ws:${WS}:pages`]) {
+    if (await row(p, gone).count()) fail(`old rail row ${gone}`);
+  }
+  if (await row(p, tk(eng.id)).count()) fail("Eng (not his team) is under Teams");
+  await r.getByTestId("rail-browse-teams").waitFor();
+  if ((await row(p, tk(sales.id)).getAttribute("aria-current")) !== "page") fail("team row not current on its home");
+  // The team's pages are inside it; General's tree doesn't hold them.
+  await row(p, `ws:${WS}:item:quokka-plan`).waitFor({ timeout: 15000 });
+  const keys = await rail(p).locator("[data-rail-key]").evaluateAll((els) => els.map((e) => e.getAttribute("data-rail-key")));
+  const at = (k) => keys.indexOf(k);
+  const nextTeam = keys.findIndex((k, i) => i > at(tk(sales.id)) && /:team:[^:]+$/.test(k));
+  const inSales = at(`ws:${WS}:item:quokka-plan`) > at(tk(sales.id)) && (nextTeam < 0 || at(`ws:${WS}:item:quokka-plan`) < nextTeam);
+  if (!inSales) fail("Sales's page isn't under Sales");
+  // Navigate by the rail: Meetings → the team's meetings; the active row follows.
+  await row(p, tk(sales.id, "meetings")).click();
+  await p.getByRole("heading", { name: "Sales meetings" }).waitFor({ timeout: 20000 });
+  await p.waitForFunction((k) => document.querySelector(`[data-rail-key="${k}"]`)?.getAttribute("aria-current") === "page", tk(sales.id, "meetings"));
+  // Keyboard: focus the team row, ArrowDown moves to Meetings, Enter opens it.
   await row(p, tk(sales.id)).focus();
   await p.keyboard.press("ArrowDown");
   const focused = await p.evaluate(() => document.activeElement?.getAttribute("data-rail-key"));
-  if (focused !== tk(sales.id, "home")) fail(`ArrowDown landed on ${focused}`);
+  if (focused !== tk(sales.id, "meetings")) fail(`ArrowDown landed on ${focused}`);
+  await row(p, tk(sales.id)).focus();
   await p.keyboard.press("Enter");
   await p.getByTestId("team-home").waitFor();
-  // Company › Pages holds the company tree, not the team page.
-  if (await row(p, `ws:${WS}:page:quokka-plan`).count()) fail("team page in Company › Pages");
+  // Collapsed state is remembered: close Sales, reload, still closed; General's closed state too.
+  await row(p, tk(sales.id)).focus();
+  await p.keyboard.press("ArrowLeft");
+  await p.waitForFunction((k) => !document.querySelector(`[data-rail-key="${k}"]`), tk(sales.id, "meetings"));
+  await p.goto(`${APP}/w/${W}/teams`);
+  await rail(p).getByTestId("rail-browse-teams").waitFor({ timeout: 20000 });
+  await p.waitForTimeout(800);
+  if (await row(p, tk(sales.id, "meetings")).count()) fail("Sales reopened after a reload");
+  await row(p, tk(gen.id)).focus();
+  await p.keyboard.press("ArrowLeft");
+  await p.reload();
+  await row(p, tk(gen.id)).waitFor({ timeout: 20000 });
+  await p.waitForTimeout(800);
+  if (await row(p, tk(gen.id, "meetings")).count()) fail("General reopened after a reload");
+  await row(p, tk(gen.id)).focus();
+  await p.keyboard.press("ArrowRight");
+  await row(p, tk(gen.id, "meetings")).waitFor();
   await shot(p, "teams-sidebar-light");
+});
+
+await step("nav", async () => {
+  // Old Company links land on General; the switcher; favorites from a row's ⋯ menu; the drawer has the same tree.
+  const { p } = await ctx(browser, { token: T.member });
+  await p.goto(`${APP}/w/${W}/home`);
+  await p.waitForURL(/\/teams\/general$/, { timeout: 20000 });
+  await p.getByTestId("general-home").waitFor({ timeout: 20000 });
+  for (const id of ["team-brief", "team-needs-you", "general-across", "team-meetings", "team-recent", "team-feed", "general-new-people", "team-memory"]) {
+    await p.getByTestId(id).waitFor({ timeout: 15000 });
+  }
+  const across = await p.getByTestId("general-across").innerText();
+  if (!across.includes("Eng") || !across.includes("Sales")) fail(`Across teams: ${across.slice(0, 200)}`);
+  if ((await row(p, tk(G.id)).getAttribute("aria-current")) !== "page") fail("General row not current on its home");
+  // Switcher: lists the workspace, New workspace and its settings.
+  await rail(p).getByTestId("ws-switcher").click();
+  await p.getByRole("menuitem", { name: "New workspace" }).waitFor();
+  await p.keyboard.press("Escape");
+  // Favorites: star Company holidays from its row menu; it appears under Favorites; unstar.
+  const hrow = row(p, `ws:${WS}:page:${holidays}`);
+  await hrow.waitFor({ timeout: 15000 });
+  await hrow.hover();
+  await rail(p).getByRole("button", { name: "Actions for Company holidays" }).first().click();
+  await p.getByRole("menuitem", { name: "Add to favorites" }).click({ timeout: 10000 });
+  const fav = rail(p).getByRole("tree", { name: "Favorites" });
+  await fav.getByText("Company holidays").waitFor({ timeout: 10000 });
+  let saved = false;
+  for (let i = 0; i < 20 && !saved; i++) {
+    saved = ok(await api("GET", `${base}/favorites`, T.member), "favorites").favorites.some((f) => f.ref === holidays);
+    if (!saved) await p.waitForTimeout(250);
+  }
+  if (!saved) fail("favorite not saved");
+  ok(await api("PUT", `${base}/favorites`, T.member, { kind: "doc", ref: holidays, on: false }), "unstar");
+  // Old routes: Company › Meetings (?space=company) and the Team board resolve to General's rows.
+  await p.goto(`${APP}/meetings/${W}?space=company`);
+  await p.getByRole("heading", { name: "General meetings" }).waitFor({ timeout: 20000 });
+  await p.waitForFunction((k) => document.querySelector(`[data-rail-key="${k}"]`)?.getAttribute("aria-current") === "page", tk(G.id, "meetings"));
+  // General: everyone, can't be deleted / made private / left.
+  const del = await api("DELETE", `${base}/teams/${G.id}`, T.owner);
+  if (del.status !== 409) fail(`deleting General → ${del.status}`);
+  const priv = await api("PATCH", `${base}/teams/${G.id}`, T.owner, { visibility: "private" });
+  if (priv.status !== 409) fail(`General private → ${priv.status}`);
+  const gh = ok(await api("GET", `${base}/teams/general`, T.priya), "general home");
+  if (gh.team.member_count < 4) fail(`General has ${gh.team.member_count} members`);
+  await shot(p, "general-home-light", { full: true });
 });
 
 await step("home", async () => {
@@ -97,7 +183,8 @@ await step("home", async () => {
   const { p } = await ctx(browser, { token: T.owner });
   await p.goto(`${APP}/w/${W}/teams/${sales.slug}`);
   await p.getByTestId("team-brief").waitFor({ timeout: 20000 });
-  for (const id of ["team-recent", "team-meetings", "team-memory", "team-members"]) await p.getByTestId(id).waitFor();
+  for (const id of ["team-ask-bar", "team-needs-you", "team-recent", "team-meetings", "team-feed", "team-memory"]) await p.getByTestId(id).waitFor();
+  await p.getByTestId("team-feed").getByText(`${SECRET} plan`).first().waitFor();
   await p.getByTestId("team-recent").getByText(`${SECRET} plan`).waitFor();
   const lines = p.locator(".tz-brief__line");
   if (await lines.count()) {
@@ -122,8 +209,9 @@ await step("leak", async () => {
   await p.goto(`${APP}/w/${W}/teams/${sales.slug}`);
   await p.getByText("This is a private team").waitFor({ timeout: 20000 });
   if (await p.getByTestId("team-recent").count()) fail("locked home shows recent pages");
-  await p.goto(`${APP}/w/${W}/home`);
-  await p.getByTestId("company-home").waitFor();
+  await p.goto(`${APP}/w/${W}/teams/general`);
+  await p.getByTestId("general-home").waitFor({ timeout: 20000 });
+  await p.getByTestId("team-feed").waitFor();
   await p.goto(`${APP}/w/${W}`);
   await p.waitForTimeout(1500);
   await p.goto(`${APP}/search?q=Quokka`);
@@ -140,8 +228,8 @@ await step("leak", async () => {
   // The workspace admin reads it, and the private team's settings say so.
   const { p: a } = await ctx(browser, { token: T.admin });
   await a.goto(`${APP}/w/${W}/teams/${sales.slug}/settings`);
-  await a.getByTestId("admins-note").waitFor({ timeout: 20000 });
-  if (!(await a.getByTestId("admins-note").innerText()).includes("Workspace admins can see this team's content")) fail("admins note text");
+  await a.getByRole("dialog").getByTestId("admins-note").waitFor({ timeout: 20000 });
+  if (!(await a.getByRole("dialog").getByTestId("admins-note").innerText()).includes("Workspace admins can see every team")) fail("admins note text");
   if ((await api("GET", "/api/v1/documents/quokka-plan", T.admin)).status !== 200) fail("admin can't read");
 });
 
@@ -161,34 +249,66 @@ await step("browse", async () => {
 });
 
 await step("create", async () => {
+  // The New team dialog: + next to Teams; icon & name row, picker (emoji/icons, colour, remove icon), Open/Private
+  // cards, people chips with Lead/Member, ⌘↵ creates.
   const { p } = await ctx(browser, { token: T.admin });
-  await p.goto(`${APP}/w/${W}/teams`);
-  await p.getByTestId("new-team").click();
+  await p.goto(`${APP}/w/${W}/teams/general`);
+  await rail(p).getByTestId("rail-new-team").click({ timeout: 20000 });
+  const dlg = p.getByRole("dialog");
   await p.getByTestId("team-name").fill("Marketing");
-  await p.getByRole("dialog").locator("label", { hasText: "Only members see" }).click();
-  await p.getByRole("dialog").getByTestId("admins-note").waitFor();
-  await p.getByTestId("create-team").click();
+  await p.getByTestId("team-icon").click();
+  await p.getByTestId("icon-picker").waitFor();
+  await dlg.getByRole("tab", { name: "Icons" }).click();
+  await dlg.getByRole("button", { name: "megaphone" }).click();
+  await dlg.getByRole("radio", { name: "Colour pink" }).click();
+  await p.keyboard.press("Escape");                        // Esc closes the picker first, not the dialog
+  await p.getByTestId("icon-picker").waitFor({ state: "detached" });
+  await p.getByTestId("vis-private").click();
+  await dlg.getByTestId("admins-note").waitFor();
+  await p.getByTestId("team-add-people").fill("Priya");
+  await p.getByRole("option", { name: /Priya Shah/ }).waitFor({ timeout: 15000 });
+  await p.keyboard.press("Enter");
+  await dlg.locator(".tz-mchip", { hasText: "Priya" }).waitFor();
+  await dlg.locator(".tz-mchip", { hasText: "Priya" }).getByRole("button", { name: /member\. Switch/ }).click();
+  await shot(p, "teams-new-dialog-light");
+  await p.keyboard.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter");
   await p.waitForURL(/\/teams\/marketing$/, { timeout: 20000 });
   await p.getByTestId("team-home").waitFor();
-  await row(p, `ws:${WS}:browse`).waitFor();
+  const t = ok(await api("GET", `${base}/teams/marketing`, T.admin), "marketing").team;
+  if (t.icon !== "glyph:megaphone" || t.color !== "pink" || t.visibility !== "private") fail(`created ${JSON.stringify([t.icon, t.color, t.visibility])}`);
+  if (!t.members.some((m) => m.id === U.priya && m.role === "lead")) fail("Priya isn't a lead");
+  await row(p, tk(t.id)).waitFor({ timeout: 15000 });
+  // General's settings: rename-only (Private disabled, no Delete, no people remove).
+  await p.goto(`${APP}/w/${W}/teams/general/settings`);
+  await p.getByTestId("vis-private").waitFor({ timeout: 20000 });
+  if ((await p.getByTestId("vis-private").getAttribute("aria-disabled")) !== "true") fail("General can be made private in the dialog");
+  if (await p.getByRole("dialog").getByRole("button", { name: "Delete" }).count()) fail("General offers Delete");
+  await p.getByRole("dialog").getByText(/everyone in/).waitFor();
+  await p.keyboard.press("Escape");
+  await p.waitForURL(/\/teams\/general$/, { timeout: 10000 });
 });
 
 await step("settings", async () => {
   const { p } = await ctx(browser, { token: T.owner });
   await p.goto(`${APP}/w/${W}/teams/${sales.slug}/settings`);
-  await p.getByTestId("team-members-settings").waitFor({ timeout: 20000 });
-  await p.getByTestId("add-members").click();
   const dlg = p.getByRole("dialog");
-  await dlg.locator("label", { hasText: "Priya Shah" }).click();
-  await dlg.getByTestId("add-members-confirm").click();
-  await p.getByTestId("team-members-settings").getByText("Priya Shah").waitFor();
+  await p.getByTestId("team-add-people").waitFor({ timeout: 20000 });
+  await p.getByTestId("team-add-people").fill("Priya");
+  await p.getByRole("option", { name: /Priya Shah/ }).waitFor({ timeout: 15000 });
+  await p.keyboard.press("Enter");
+  await dlg.locator(".tz-mchip", { hasText: "Priya" }).waitFor();
+  await dlg.locator("summary", { hasText: "Connect Slack and Jira" }).click();
   await p.getByTestId("team-integrations").waitFor();
-  // Ada owns the workspace (admin): visibility is enabled for her.
   await shot(p, "teams-settings-light", { full: true });
+  await p.getByTestId("save-team").click();
+  await dlg.waitFor({ state: "detached", timeout: 15000 });
+  const t = ok(await api("GET", `${base}/teams/${sales.id}`, T.owner), "sales").team;
+  if (!t.members.some((m) => m.id === U.priya)) fail("Priya not added from the dialog");
   ok(await api("DELETE", `${base}/teams/${sales.id}/members/${U.priya}`, T.owner), "remove priya");
   // With a Slack channel: "Post new and resolved comments" (on by default) turns off.
   ok(await api("PATCH", `${base}/teams/${sales.id}`, T.owner, { slack_channel: { id: "C0SALES", name: "sales" } }), "channel");
-  await p.reload();
+  await p.goto(`${APP}/w/${W}/teams/${sales.slug}/settings`);
+  await p.getByRole("dialog").locator("summary", { hasText: "Connect Slack and Jira" }).click({ timeout: 20000 });
   const sw = p.getByTestId("slack-comments");
   await sw.waitFor({ state: "attached", timeout: 20000 });
   if (!(await sw.isChecked())) fail("comment posts not on by default");
@@ -217,7 +337,7 @@ await step("share", async () => {
   if (!it.team_ids.includes(sales.id)) fail("not in Sales");
   await shot(p, "teams-share-light");
   await sec.getByRole("button", { name: "Remove from Sales" }).click();
-  await sec.getByText(/Company-wide/).waitFor();
+  await sec.getByText(/In General/).waitFor();
   it = ok(await api("GET", `${base}/items/${holidays}/teams`, T.member), "item teams");
   if (it.team_ids.length) fail("still in a team");
 });
@@ -250,7 +370,7 @@ await step("search", async () => {
   await sel.selectOption("company");
   await p.waitForFunction(() => location.search.includes("space=company"));
   await p.waitForTimeout(1500);
-  if (await p.getByText(`${SECRET} plan`).count()) fail("team page under Company-wide only");
+  if (await p.getByText(`${SECRET} plan`).count()) fail("team page under General (company-wide)");
   await sel.selectOption(`team:${sales.id}`);
   await p.getByText(`${SECRET} plan`).first().waitFor({ timeout: 15000 });
 });
@@ -271,27 +391,24 @@ await step("import", async () => {
   if (!(await p.getByTestId("import-teams").getByRole("checkbox", { name: "Sales" }).isChecked())) fail("Sales not suggested from the attendees");
 });
 
-await step("company-meetings", async () => {
-  // Company › Meetings: company-wide meetings only; "Show all I can open" adds the teams' meetings.
+await step("general-meetings", async () => {
+  // General › Meetings: meetings in no other team; "Show all I can open" adds the teams' meetings.
   const imp = async (title, team_ids) => ok(await api("POST", "/api/v1/meetings/import", T.owner, { workspace: WS, wait: true,
     restricted: false, title, date: "2026-11-05", team_ids, sources: [{ name: `${title} - Transcript`,
       text: `${title} - Transcript\nAttendees\nAda Owner\nTranscript\nAda Owner: Notes for ${title}.\n` }] }), title).meetings[0];
   const salesM = await imp("Sales deal desk", [sales.id]);
   const allHands = await imp("All hands", []);
   const { p } = await ctx(browser, { token: T.member });
-  await p.goto(`${APP}/w/${W}/home`);
-  await row(p, `ws:${WS}:meetings`).waitFor({ timeout: 20000 });
-  const href = await row(p, `ws:${WS}:meetings`).first().evaluate((el) => el.getAttribute("href") || el.querySelector("a")?.getAttribute("href"));
-  if (!href?.includes("space=company")) fail(`Company › Meetings links to ${href}`);
-  await row(p, `ws:${WS}:meetings`).first().click();
-  await p.getByRole("heading", { name: "Company meetings" }).waitFor({ timeout: 20000 });
+  await p.goto(`${APP}/w/${W}/teams/general`);
+  await row(p, tk(G.id, "meetings")).waitFor({ timeout: 20000 });
+  await row(p, tk(G.id, "meetings")).first().click();
+  await p.getByRole("heading", { name: "General meetings" }).waitFor({ timeout: 20000 });
   const card = (id) => p.locator(`[data-testid="meeting-card"][data-id="${id}"]`);
   await card(allHands.id).waitFor({ timeout: 20000 });
-  if (await card(salesM.id).count()) fail("a Sales meeting in Company › Meetings");
-  await p.locator("label", { has: p.getByTestId("meetings-show-all") }).click();
-  await p.waitForURL(/space=all/, { timeout: 10000 });
-  await card(salesM.id).waitFor({ timeout: 20000 });
-  await card(allHands.id).waitFor();
+  if (await card(salesM.id).count()) fail("a Sales meeting in General › Meetings");
+  // General's home shows meetings from every team you can see.
+  await p.goto(`${APP}/w/${W}/teams/general`);
+  await p.getByTestId("team-meetings").getByText("Sales deal desk").waitFor({ timeout: 20000 });
 });
 
 await step("project", async () => {
@@ -331,7 +448,7 @@ await step("phone", async () => {
   for (const width of [360, 390]) {
     for (const theme of ["light", "dark"]) {
       const { p, c } = await ctx(browser, { token: T.owner, width, height: 800, mobile: true, theme });
-      for (const u of [`/w/${W}/teams/${sales.slug}`, `/w/${W}/teams`, `/w/${W}/home`, `/w/${W}/teams/${sales.slug}/settings`, `/w/${W}/teams/${sales.slug}/pages`]) {
+      for (const u of [`/w/${W}/teams/${sales.slug}`, `/w/${W}/teams`, `/w/${W}/teams/general`, `/w/${W}/teams/${sales.slug}/settings`, `/w/${W}/teams/${sales.slug}/pages`]) {
         await p.goto(`${APP}${u}`);
         await p.waitForTimeout(1800);
         await noHScroll(p, `${u} @${width} ${theme}`);
@@ -342,7 +459,8 @@ await step("phone", async () => {
         await shot(p, `teams-home-phone-${theme}`);
         await p.getByRole("button", { name: "Menu" }).first().click();
         const drawer = p.locator('[role="dialog"] nav[aria-label="Your drive"]');
-        await drawer.locator(`[data-rail-key="${tk(sales.id, "home")}"]`).waitFor({ timeout: 10000 });
+        await drawer.locator(`[data-rail-key="${tk(sales.id)}"]`).waitFor({ timeout: 10000 });
+        await drawer.getByTestId("ws-switcher").waitFor();
         await shot(p, `teams-drawer-phone-${theme}`);
       }
       await c.close();
