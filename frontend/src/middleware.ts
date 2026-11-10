@@ -115,6 +115,8 @@ export function middleware(request: NextRequest) {
       pathname,
       search: request.nextUrl.search,
       cookie: request.cookies.get(SIGNED_IN_COOKIE)?.value,
+      fetchMode: request.headers.get("sec-fetch-mode"),
+      accept: request.headers.get("accept"),
     });
     if (home) {
       const here = `${request.nextUrl.protocol}//${request.headers.get("host") || request.nextUrl.host}`;

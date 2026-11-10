@@ -24,6 +24,8 @@ const browser = await launch();
 const { step, results } = stepper(browser);
 const LANDING = "#hero-h1";
 
+/** What a browser sends on a page load (c.request is a plain fetch otherwise, which is never redirected). */
+const PAGE = { accept: "text/html,application/xhtml+xml", "sec-fetch-mode": "navigate" };
 const cookieOf = async (c, url = APP) => (await c.cookies(url)).find((k) => k.name === "md_si")?.value ?? null;
 const path = (p) => { const u = new URL(p.url()); return u.pathname + u.search; };
 
@@ -99,17 +101,20 @@ await step("signin", async () => {
   await p.waitForURL(/\/settings\/account/, { timeout: 30000 });
   if ((await cookieOf(c)) !== "1") fail("signing in didn't set md_si");
   // The middleware answers before any HTML.
-  const raw = await c.request.get(`${APP}/?utm_source=x`, { maxRedirects: 0 });
+  const raw = await c.request.get(`${APP}/?utm_source=x`, { maxRedirects: 0, headers: PAGE });
   if (raw.status() !== 307) fail(`/ → ${raw.status()}, want 307`);
   if (raw.headers().location?.replace(APP, "") !== "/dashboard?utm_source=x") fail(`location ${raw.headers().location}`);
   if (!/no-store/.test(raw.headers()["cache-control"] || "")) fail(`cache-control ${raw.headers()["cache-control"]}`);
+  // A router prefetch of "/" is served as is (only page loads redirect: lib/homeRedirect).
+  const pre = await c.request.get(`${APP}/?_rsc=x`, { maxRedirects: 0, headers: { rsc: "1", "next-router-prefetch": "1", accept: "*/*", "sec-fetch-mode": "cors" } });
+  if (pre.status() === 307) fail("a router prefetch of / was redirected");
   const res = await p.goto(`${APP}/?utm_source=x`);
   if (res.request().redirectedFrom()?.response() == null) log("(no redirect response recorded)");
   await p.waitForURL(/\/dashboard\?utm_source=x/, { timeout: 30000 });
   await p.locator("main#main").first().waitFor({ timeout: 30000 });
   // Only "/": other landing pages stay put.
   for (const other of ["/enterprise", "/guides", "/privacy"]) {
-    const r = await c.request.get(`${APP}${other}`, { maxRedirects: 0 });
+    const r = await c.request.get(`${APP}${other}`, { maxRedirects: 0, headers: PAGE });
     if (r.status() === 307 && /dashboard/.test(r.headers().location || "")) fail(`${other} redirected to the dashboard`);
   }
   await c.close();
@@ -121,11 +126,13 @@ await step("escape", async () => {
   await p.goto(`${APP}/dashboard`);
   await p.locator("main#main").first().waitFor({ timeout: 30000 });
   await p.waitForFunction(() => document.cookie.includes("md_si=1"), null, { timeout: 15000 });
-  const logo = p.locator('a[aria-label="Markdrop home"]').filter({ visible: true }).first();
-  if (await logo.count()) {
-    const href = await logo.getAttribute("href");
-    if (href !== "/dashboard") fail(`signed-in logo → ${href}`);
-  } else log("(no header logo on the dashboard)");
+  // The header logo (rendered "/" until the session loads) goes to the dashboard.
+  const logos = await p.waitForFunction(() => {
+    const a = [...document.querySelectorAll('a[aria-label="Markdrop home"]')].filter((x) => x.offsetParent);
+    return a.length === 0 ? "none" : a.every((x) => x.getAttribute("href") === "/dashboard") ? "ok" : false;
+  }, null, { timeout: 15000 }).then((h) => h.jsonValue()).catch(() => "wrong");
+  if (logos === "wrong") fail("signed-in logo doesn't go to /dashboard");
+  if (logos === "none") log("(no header logo on the dashboard)");
   await p.getByRole("button", { name: /Account menu/ }).first().click();
   await p.getByRole("menuitem", { name: "Home page" }).click();
   await p.waitForURL((u) => u.pathname === "/" && u.searchParams.get("home") === "1", { timeout: 30000 });
@@ -149,6 +156,9 @@ await step("logout", async () => {
   if (await confirm.isVisible({ timeout: 2000 }).catch(() => false)) await confirm.click();
   await p.waitForFunction(() => !localStorage.getItem("markdrop_token"), null, { timeout: 15000 });
   if (await cookieOf(c)) fail("md_si survived sign-out");
+  // Home sends a signed-out visitor to sign-in: let that finish first.
+  await p.waitForURL(/\/login/, { timeout: 15000 }).catch(() => {});
+  await p.waitForLoadState("domcontentloaded");
   await p.goto(`${APP}/`);
   await p.locator(LANDING).waitFor({ timeout: 30000 });
   await p.waitForTimeout(1500);
@@ -172,7 +182,7 @@ await step("fallback", async () => {
   if ((await cookieOf(c)) !== "1") fail("the boot script didn't set md_si");
   log("fallback / record:", JSON.stringify(r));
   // Next time it's the middleware.
-  const raw = await c.request.get(`${APP}/`, { maxRedirects: 0 });
+  const raw = await c.request.get(`${APP}/`, { maxRedirects: 0, headers: PAGE });
   if (raw.status() !== 307) fail(`second visit: / → ${raw.status()}`);
   await c.close();
 });
@@ -211,7 +221,7 @@ await step("tenant", async () => {
   const { c, p } = await ctx(browser);
   await seedToken(c, TENANT, T.owner);
   await c.addCookies([{ name: "md_si", value: "1", domain: new URL(TENANT).hostname, path: "/" }]);
-  const raw = await c.request.get(`${TENANT}/`, { maxRedirects: 0 });
+  const raw = await c.request.get(`${TENANT}/`, { maxRedirects: 0, headers: PAGE });
   if (raw.status() === 307 && /\/dashboard/.test(raw.headers().location || "")) fail("tenant / redirected to /dashboard");
   await p.goto(`${TENANT}/`);
   await p.waitForTimeout(3000);

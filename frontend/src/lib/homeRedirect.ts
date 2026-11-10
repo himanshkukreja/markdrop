@@ -62,6 +62,12 @@ function escaped(search: string): boolean {
   return new URLSearchParams(search).get(HOME_ESCAPE_PARAM) === "1";
 }
 
+/** A document navigation: Sec-Fetch-Mode "navigate", or (browsers without it) an Accept naming HTML. */
+export function isPageLoad(fetchMode: string | null | undefined, accept: string | null | undefined): boolean {
+  if (fetchMode) return fetchMode === "navigate";
+  return /text\/html/i.test(accept || "");
+}
+
 /**
  * Where the middleware sends this request, or null to serve it. `search` is the raw query
  * ("" or "?utm_source=x"), kept on the way to the dashboard.
@@ -72,10 +78,18 @@ export function homeRedirect(req: {
   pathname: string;
   search: string;
   cookie: string | null | undefined;
+  /** Sec-Fetch-Mode and Accept: only a page load (a document navigation) redirects. */
+  fetchMode?: string | null;
+  accept?: string | null;
 }): string | null {
   if (req.pathname !== "/") return null;
   if (req.method !== "GET" && req.method !== "HEAD") return null;
   if (req.cookie !== "1") return null;
+  // Page loads only, never a router fetch: Next strips its RSC headers (and ?_rsc) before middleware
+  // runs, so a redirected prefetch of "/" would fetch /dashboard's RSC payload at the page's own URL
+  // (WebKit then never finishes loading that page). A client-side visit to "/" shows the landing
+  // page; it is rare (signed in, the logo goes to /dashboard).
+  if (!isPageLoad(req.fetchMode, req.accept)) return null;
   if (!isAppHomeHost(req.host)) return null;
   if (escaped(req.search)) return null;
   return HOME_TARGET + req.search;

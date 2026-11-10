@@ -3,12 +3,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  HOME_BOOT_SCRIPT, SIGNED_IN_COOKIE, hintCookie, homeRedirect, isAppHomeHost, tokenExpiry,
+  HOME_BOOT_SCRIPT, SIGNED_IN_COOKIE, hintCookie, homeRedirect, isAppHomeHost, isPageLoad, tokenExpiry,
 } from "./homeRedirect.ts";
 
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const jwt = (payload) => `${b64({ alg: "HS256", typ: "JWT" })}.${b64(payload)}.sig`;
 const NOW = 1_800_000_000_000;
+const NAV = { fetchMode: "navigate", accept: "text/html,application/xhtml+xml,*/*;q=0.8" };
 
 test("the cookie is md_si", () => assert.equal(SIGNED_IN_COOKIE, "md_si"));
 
@@ -22,7 +23,7 @@ test("host matrix × cookie × path", () => {
   for (const host of [...app, ...never]) {
     for (const cookie of ["1", undefined, "", "0", "yes"]) {
       for (const pathname of paths) {
-        const got = homeRedirect({ host, method: "GET", pathname, search: "", cookie });
+        const got = homeRedirect({ host, method: "GET", pathname, search: "", cookie, ...NAV });
         const want = pathname === "/" && cookie === "1" && isAppHomeHost(host) ? "/dashboard" : null;
         assert.equal(got, want, `${host} ${cookie} ${pathname}`);
       }
@@ -30,14 +31,28 @@ test("host matrix × cookie × path", () => {
   }
 });
 
-test("query kept; ?home=1 is the escape hatch; only GET/HEAD", () => {
-  const r = (search, method = "GET") => homeRedirect({ host: "www.markdrop.in", method, pathname: "/", search, cookie: "1" });
+test("query kept; ?home=1 is the escape hatch; only GET/HEAD page loads", () => {
+  const r = (search, method = "GET") => homeRedirect({ host: "www.markdrop.in", method, pathname: "/", search, cookie: "1", ...NAV });
   assert.equal(r("?utm_source=x&utm_medium=y"), "/dashboard?utm_source=x&utm_medium=y");
   assert.equal(r("?home=1"), null);
   assert.equal(r("?utm_source=x&home=1"), null);
   assert.equal(r("?home=0"), "/dashboard?home=0");
   assert.equal(r("", "HEAD"), "/dashboard");
   assert.equal(r("", "POST"), null);
+});
+
+test("only page loads redirect, never a router fetch (RSC payload, prefetch)", () => {
+  const r = (fetchMode, accept) => homeRedirect({ host: "markdrop.in", method: "GET", pathname: "/", search: "", cookie: "1", fetchMode, accept });
+  assert.equal(r("navigate", "text/html"), "/dashboard");
+  assert.equal(r("navigate", "*/*"), "/dashboard");
+  assert.equal(r(null, "text/html,application/xhtml+xml"), "/dashboard"); // no Sec-Fetch-* (older browsers)
+  assert.equal(r("cors", "*/*"), null); // Next's router fetch
+  assert.equal(r("cors", "text/html"), null);
+  assert.equal(r("no-cors", null), null);
+  assert.equal(r(null, "*/*"), null);
+  assert.equal(r(null, null), null);
+  assert.ok(isPageLoad("navigate", null));
+  assert.ok(!isPageLoad("same-origin", "text/html"));
 });
 
 test("tokenExpiry", () => {
