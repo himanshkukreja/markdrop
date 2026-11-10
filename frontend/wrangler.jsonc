@@ -16,6 +16,10 @@
   "upload_source_maps": false,
   "workers_dev": true,
   "preview_urls": false,
+  // No "routes" here on purpose. Workspace custom domains (Cloudflare for SaaS custom hostnames on the markdrop.in
+  // zone) each get a route `<host>/*` -> markdrop-web made by the API (backend services/cf_saas.py) or
+  // scripts/cf_saas_migrate.py; the zone refuses a `*/*` route (error 100327). Declaring routes here would make
+  // every deploy replace the script's route set and drop those. Owner steps: .work/cf-audit/SAAS-OWNER-STEPS.md.
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS",

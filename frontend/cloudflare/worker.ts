@@ -13,6 +13,10 @@
 //  7. Edge copies in the colo's cache (Vercel's CDN kept these): docs-site pages for the deployment's lifetime (their
 //     content is built in), and every 404 for 60 s (the documents' own revalidate). A copy answers without loading
 //     Next, which also spares the visitor a cold isolate's first render.
+//  8. Workspace custom domains (content.acme.com) arrive through their own route `<host>/*` (Cloudflare for SaaS,
+//     backend services/cf_saas.py) with the customer's host in the URL and Host header; nothing here changes it
+//     (x-md-host is honoured on test hosts only), so the middleware rewrites it to the tenant renderer exactly as on
+//     Vercel, and edge copies are kept per host. The zone's fallback origin is never fetched.
 // @ts-ignore built by `opennextjs-cloudflare build` (missing until then)
 import { default as handler } from "../.open-next/worker.js";
 

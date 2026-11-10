@@ -24,6 +24,19 @@
   "next": [],
   "entries": [
     {
+      "id": "domain-certificate-record",
+      "date": "2026-11-11",
+      "title": "A certificate record for your workspace domain",
+      "kind": "improved",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Workspace domains can show one TXT record that gets their certificate ready on Markdrop's new hosting before the move, so readers notice nothing.",
+      "body": "- **One record, then nothing.** A live domain may ask for a **Certificate record** (`_acme-challenge.<your domain>`). Add it and choose **Check DNS again**; the card goes away once the certificate is ready. [A certificate record](/workspaces/custom-domain#a-certificate-record)\n- **Nothing moves until it's ready.** Your domain keeps serving as it does now, and your other records stay as they are.\n- **In the API.** Domain responses for admins carry `hosting_ready` and `hosting_records`."
+    },
+    {
       "id": "zoom",
       "date": "2026-11-10",
       "title": "Zoom meetings come into a team on their own",
