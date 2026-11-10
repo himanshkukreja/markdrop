@@ -151,7 +151,7 @@ export function useJiraSlash({ mode, slug, workspaceId, tenant, jira, editor, fl
   }
 
   const leaf = (name: string, attributes: Record<string, string>) => ({ type: "directiveLeaf", attrs: { name, attributes } });
-  const listOf = (p: JiraPresetAttrs) => leaf("jira-list", { jql: p.jql, title: p.title, ...(p.cols ? { cols: p.cols } : {}) });
+  const listOf = (p: JiraPresetAttrs) => leaf("jira-list", listAttrs(p));
 
   /** The command itself, once Jira is there. */
   const go = useCallback(async (editor: Editor, action: JiraAction, at: Spot, line: Line | null) => {
@@ -204,7 +204,8 @@ export function useJiraSlash({ mode, slug, workspaceId, tenant, jira, editor, fl
   useEffect(() => {
     if (!state) return;
     setLoaded(state.loaded);
-    return state.subscribe(() => setLoaded(state.loaded));
+    const off = state.subscribe(() => setLoaded(state.loaded));
+    return () => { off(); };
   }, [state]);
   useEffect(() => {
     if (resumed.current || !editor || editor.isDestroyed || !loaded || typeof window === "undefined") return;
@@ -266,8 +267,8 @@ export function useJiraSlash({ mode, slug, workspaceId, tenant, jira, editor, fl
           if (a.action === "epic") {
             const preset = JIRA_PRESETS.epic(k);
             const def = jiraRef.current?.store.state.default_site ?? null;
-            const s = site && site !== def ? { site } : {};
-            put(a.editor, a.at, [leaf("jira", { key: k, ...s }), ...(preset ? [leaf("jira-list", { jql: preset.jql, title: preset.title, ...(preset.cols ? { cols: preset.cols } : {}), ...s })] : [])]);
+            const s: Record<string, string> = site && site !== def ? { site } : {};
+            put(a.editor, a.at, [leaf("jira", { key: k, ...s }), ...(preset ? [leaf("jira-list", { ...listAttrs(preset), ...s })] : [])]);
             void jiraRef.current?.store.ensure(site, k);
           } else if (mode === "doc") {
             void putLink(a.editor, a.at, k, site);
@@ -280,6 +281,7 @@ export function useJiraSlash({ mode, slug, workspaceId, tenant, jira, editor, fl
   return { slash, dialog };
 }
 
+const listAttrs = (p: JiraPresetAttrs): Record<string, string> => ({ jql: p.jql, title: p.title, ...(p.cols ? { cols: p.cols } : {}) });
 const clean = (s: string) => s.replace(/\s+/g, " ").trim();
 
 /** "from text": the text of the line "/" was typed on (without the command), else the block above's. */
