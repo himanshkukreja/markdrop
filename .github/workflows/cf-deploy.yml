@@ -1,0 +1,91 @@
+# Markdrop web app on Cloudflare Workers (OpenNext). Manual only, STAGING only for now: markdrop-web-staging on
+# workers.dev (no live traffic; the live domains stay on Vercel). Production is added at cutover.
+# Needs: secret CLOUDFLARE_API_TOKEN (Himanshu@markdrop.in's account: Workers Scripts Edit, Workers R2 Storage Edit,
+# Account Settings Read, Workers Observability Edit; + Workers Routes Edit and Zone Read on markdrop.in for a custom
+# domain later), variable CLOUDFLARE_ACCOUNT_ID, the Vercel ones already used by vercel-deploy.yml (VERCEL_TOKEN,
+# VERCEL_ORG_ID, VERCEL_PROJECT_ID) to pull the production env, and secret MARKDROP_INTERNAL_SECRET (Vercel keeps it
+# "sensitive", so it can't be pulled).
+name: cf-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Where to deploy (staging = markdrop-web-staging on workers.dev)"
+        type: choice
+        options: [staging]
+        default: staging
+
+concurrency:
+  group: cf-${{ inputs.target }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      NEXT_TELEMETRY_DISABLED: "1"
+      CACHE_BUCKET: markdrop-web-cache
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Production env from Vercel (build env + Worker secrets)
+        env:
+          EXTRA_MARKDROP_INTERNAL_SECRET: ${{ secrets.MARKDROP_INTERNAL_SECRET }}
+        run: |
+          set -euo pipefail
+          npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+          node scripts/cf/env-from-vercel.mjs .vercel/.env.production.local "$RUNNER_TEMP/worker-secrets.json"
+          rm -f .vercel/.env.production.local
+
+      - name: Build (OpenNext) + ASCII-only handler + _headers
+        run: |
+          set -euo pipefail
+          MARKDROP_BUILD_ID="cf-${GITHUB_SHA::12}" npm run cf:build
+
+      - name: Size and encoding check
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/cf-dist" | grep -E "Total Upload" | tee -a "$GITHUB_STEP_SUMMARY"
+          node scripts/cf/check-bundle.mjs "$RUNNER_TEMP/cf-dist" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: ISR cache bucket
+        run: npx wrangler r2 bucket create "$CACHE_BUCKET" --location apac || echo "bucket exists"
+
+      - name: Deploy
+        # pipefail: a rejected upload (e.g. over a size limit) must fail the run, not hide behind the filters
+        run: |
+          set -o pipefail
+          npx wrangler deploy | tee "$RUNNER_TEMP/deploy.log" | grep -vE "^\s*$" | tail -20
+
+      - name: Worker secrets
+        run: |
+          set -o pipefail
+          npx wrangler secret bulk "$RUNNER_TEMP/worker-secrets.json" | tail -3
+
+      - name: Prerendered pages into the ISR cache
+        run: npx opennextjs-cloudflare populateCache remote
+
+      - name: Summary
+        run: |
+          grep -Eo "https://[a-z0-9.-]+workers.dev" "$RUNNER_TEMP/deploy.log" | head -1 | sed 's/^/Deployed: /' >> "$GITHUB_STEP_SUMMARY" || true

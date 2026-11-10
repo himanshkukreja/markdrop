@@ -26,7 +26,8 @@ type TagCache = { mode?: string; hasBeenRevalidated(tags: string[], lastModified
 
 export function withStaleOnRevalidate(base: IncrementalCache): IncrementalCache {
   return {
-    name: `swr-${base.name}`,
+    // the same name as the cache it wraps: `opennextjs-cloudflare populateCache` picks the store by name
+    name: base.name,
     async get(key, cacheType) {
       const t0 = Date.now();
       const entry = await base.get(key, cacheType);
