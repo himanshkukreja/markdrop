@@ -515,6 +515,7 @@ function MeetingCardItem({ m, onDelete }: { m: MeetingCard; onDelete?: () => voi
             {m.ai.state === "pending" && <span className="mt-state"><Spinner size={12} /> Summarizing</span>}
             {m.restricted && <Badge size="sm" tone="neutral" icon="lock">Attendees only</Badge>}
             {m.source === "auto" && <Badge size="sm" tone="info" icon="refresh">Auto</Badge>}
+            {m.source === "zoom" && <Badge size="sm" tone="info" icon="film">Zoom</Badge>}
             {/* Teams: where it was routed (a guess until someone confirms it, "Suggested"). */}
             {(m.teams ?? []).slice(0, 2).map((t) => <span key={t.id} data-testid="card-team"><TeamChip team={t as { name: string; icon: string | null; color: string }} /></span>)}
             {m.routing_state === "auto" && (m.teams ?? []).length > 0 && <span className="text-micro text-text-muted" title="Routed from who attended. Change it from the meeting's Share menu.">Suggested</span>}

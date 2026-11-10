@@ -3660,6 +3660,10 @@ TOOLS += JIRA_TOOLS
 from app.mcp.jira_page_tools import JIRA_PAGE_TOOLS  # noqa: E402
 
 TOOLS += JIRA_PAGE_TOOLS
+# Zoom (zoom_status, import_zoom_meetings): app/mcp/zoom_tools.py.
+from app.mcp.zoom_tools import ZOOM_TOOLS  # noqa: E402
+
+TOOLS += ZOOM_TOOLS
 
 # Comments (Track A core; Track B review/AI; Track C insights): app/mcp/comment_tools.py and friends.
 from app.mcp.comment_tools import COMMENT_TOOLS  # noqa: E402

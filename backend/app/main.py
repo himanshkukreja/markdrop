@@ -87,6 +87,7 @@ from app.routers.teams import router as teams_router
 from app.routers.slack import router as slack_router
 from app.routers.jira import router as jira_router
 from app.routers.jira_pages import router as jira_pages_router
+from app.routers.zoom import router as zoom_router
 from app.routers.ask import router as ask_router
 from app.routers.home import router as home_router
 from app.routers.og import router as og_router
@@ -351,6 +352,8 @@ app.include_router(slack_router)
 app.include_router(jira_router)
 # Jira inside pages (routers/jira_pages.py): chips, cards, live lists, actions, discussions → issues.
 app.include_router(jira_pages_router)
+# Zoom (routers/zoom.py): a workspace's recorded Zoom meetings → Meetings, in one team.
+app.include_router(zoom_router)
 # Ask Markdrop (routers/ask.py): the home's question box, threads, suggestions.
 app.include_router(ask_router)
 app.include_router(home_router)

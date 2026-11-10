@@ -409,7 +409,7 @@ def page_markdown(meeting: dict, gen: dict | None, people: People) -> str:
         if s.get("url"):
             links.append(f"- {what}: [{name}]({s['url']})")
         else:
-            how = {"paste": "pasted", "upload": "uploaded"}.get(s.get("origin"), "imported")
+            how = {"paste": "pasted", "upload": "uploaded", "zoom": "from Zoom"}.get(s.get("origin"), "imported")
             links.append(f"- {what} ({how}): {name}")
     if links:
         src.append("\n".join(links))
@@ -495,7 +495,7 @@ async def folder_of(db: AsyncIOMotorDatabase, workspace_id: str) -> dict | None:
 class Incoming:
     name: str
     text: str
-    origin: str = "paste"            # paste | upload | google | mcp
+    origin: str = "paste"            # paste | upload | google | mcp | zoom
     file_id: str | None = None
     url: str | None = None
     # The Drive file's owner ({name, email}) when Google said: who organized the call.
@@ -2108,8 +2108,9 @@ _VIA = {"manual": {"$nin": ["inbox", "mcp"]}, "auto": "inbox", "mcp": "mcp"}
 
 
 def source_of(row: dict) -> str:
-    """How the meeting came in: "auto" (the Google Meet script), "mcp", or "manual" (the website)."""
-    return {"inbox": "auto", "mcp": "mcp"}.get(row.get("via") or "", "manual")
+    """How the meeting came in: "auto" (the Google Meet script), "zoom" (services/zoom.py), "mcp", or
+    "manual" (the website)."""
+    return {"inbox": "auto", "mcp": "mcp", "zoom": "zoom"}.get(row.get("via") or "", "manual")
 
 
 async def list_meetings(db: AsyncIOMotorDatabase, workspace_id: str, actor: access.Actor, ctx: access.Ctx, *,

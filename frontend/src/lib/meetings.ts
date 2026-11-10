@@ -73,7 +73,7 @@ export interface Meeting {
   can_regenerate: boolean;
   approx_times?: boolean;
   /** How it came in: the website, the Google Meet script, or an AI tool (MCP). */
-  source?: "manual" | "auto" | "mcp";
+  source?: "manual" | "auto" | "mcp" | "zoom";
   /** On import: a new meeting, the missing half added to one already here, or nothing new. */
   status?: "imported" | "attached" | "duplicate";
   /** A meeting held more than a day before it was imported: not posted to Slack on its own. */
