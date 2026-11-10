@@ -41,7 +41,7 @@ export function JiraWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolea
   async function go(kind: "site" | "me") {
     setBusy(kind);
     try {
-      const { url } = await jiraStart({ kind, workspace_id: id, back: kind === "me" ? `/settings/workspaces/${id}?tab=integrations` : null });
+      const { url } = await jiraStart({ kind, workspace_id: id, back: kind === "me" ? `/settings/workspaces/${id}/integrations/jira` : null });
       window.location.href = url;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "That didn't work. Try again.");
@@ -150,7 +150,7 @@ export function JiraWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolea
             )}
           </div>
           {st.me.connected && (
-            <Link href="/settings/account#jira" className="text-[13px] font-medium text-accent-text hover:underline">Manage in Settings › Account</Link>
+            <Link href="/settings/integrations/jira" className="text-[13px] font-medium text-accent-text hover:underline">Manage in Settings › Integrations</Link>
           )}
         </section>
       )}

@@ -56,7 +56,7 @@ export function JiraGlance({ data, people, ws, canManage }: { data: JiraTeam | n
       <figure className="tm-chart tm-chart--wide" data-testid="team-jira">
         <figcaption className="tm-chart__title"><JiraMark size={14} /> Jira</figcaption>
         <p className="tm-muted">
-          {canManage ? <>Choose which Jira projects show here: <Link href={`/settings/workspaces/${encodeURIComponent(ws)}?tab=integrations`}>Workspace settings › Integrations › Jira</Link>.</>
+          {canManage ? <>Choose which Jira projects show here: <Link href={`/settings/workspaces/${encodeURIComponent(ws)}/integrations/jira`}>Workspace settings › Integrations › Jira</Link>.</>
             : "A workspace admin chooses which Jira projects show here."}
         </p>
       </figure>

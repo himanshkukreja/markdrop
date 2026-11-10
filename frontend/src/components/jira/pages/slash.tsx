@@ -347,7 +347,7 @@ function GateDialog({ ask, slug, workspaceId, mode, flush, broken, onClose, onRe
           <Button variant="ghost" onClick={onClose}>Not now</Button>
           {opened
             ? <Button loading={retrying} onClick={retry} data-testid="jira-slash-continue">I&apos;ve connected: continue</Button>
-            : <Button iconLeft="external" href="/settings/account#jira" target="_blank" rel="noopener" onClick={() => setOpened(true)} data-testid="jira-slash-connect">{broken ? "Reconnect Jira" : "Connect Jira"}</Button>}
+            : <Button iconLeft="external" href="/settings/integrations/jira" target="_blank" rel="noopener" onClick={() => setOpened(true)} data-testid="jira-slash-connect">{broken ? "Reconnect Jira" : "Connect Jira"}</Button>}
         </>}>
         <p className="text-body-sm text-text-muted" data-testid="jira-slash-gate" data-why={ask.why}>Connect in Settings › Account › Jira, then come back here and continue.</p>
       </Dialog>
@@ -395,7 +395,7 @@ function GateDialog({ ask, slug, workspaceId, mode, flush, broken, onClose, onRe
         footer={<>
           <Button variant="ghost" onClick={onClose}>Close</Button>
           {workspaceId && (
-            <Button iconLeft="settings" href={`/settings/workspaces/${encodeURIComponent(workspaceId)}?tab=integrations`} data-testid="jira-slash-settings">Jira settings</Button>
+            <Button iconLeft="settings" href={`/settings/workspaces/${encodeURIComponent(workspaceId)}/integrations/jira`} data-testid="jira-slash-settings">Jira settings</Button>
           )}
         </>}>
         <p className="text-body-sm text-text-muted" data-testid="jira-slash-gate" data-why="site">Each person then connects their own Atlassian account, so everyone sees only what their Jira lets them.</p>

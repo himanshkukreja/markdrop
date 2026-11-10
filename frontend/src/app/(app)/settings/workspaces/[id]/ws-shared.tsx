@@ -12,9 +12,10 @@ export type TabId = "people" | "look" | "integrations" | "advanced";
 export const TAB_IDS: TabId[] = ["people", "look", "integrations", "advanced"];
 
 /** Old `?tab=` names (before the simpler settings) and where they live now. "folders" isn't a tab
- *  any more: it opens the workspace's folder view. */
+ *  any more: it opens the workspace's folder view. slack/jira/zoom/meet open that integration's own page
+ *  (OLD_WORKSPACE_TABS in lib/integrations, handled by WorkspaceClient). */
 export const OLD_TABS: Record<string, TabId | "folders"> = {
-  general: "look", brand: "look", domains: "look", people: "people", folders: "folders", slack: "integrations", jira: "integrations",
+  general: "look", brand: "look", domains: "look", people: "people", folders: "folders",
 };
 
 /** What every tab gets from the page: the workspace, the caller's powers and the lazily loaded collections. */

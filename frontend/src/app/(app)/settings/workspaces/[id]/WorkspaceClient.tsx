@@ -17,17 +17,19 @@ import PeopleTab from "./tabs/PeopleTab";
 import LookTab from "./tabs/LookTab";
 import AdvancedTab from "./tabs/AdvancedTab";
 import IntegrationsTab from "./tabs/IntegrationsTab";
+import { OLD_WORKSPACE_TABS, integrationHref } from "@/lib/integrations";
 
 /** `?tab=` → a tab; old names map onto the new ones; "folders" opens the folder view. */
 function tabFromSearch(search: string): TabId | "folders" {
   const t = new URLSearchParams(search).get("tab") ?? "";
   if ((TAB_IDS as string[]).includes(t)) return t as TabId;
+  if (OLD_WORKSPACE_TABS[t]) return "integrations"; // on its way to that integration's page
   return OLD_TABS[t] ?? "people";
 }
 
 /**
  * /settings/workspaces/[id] (simpler UI, Settings board): "Back to {workspace}", the workspace's tile,
- * name and one line of facts, then four tabs — People · Look and domain · Integrations (Slack) · Advanced — synced to
+ * name and one line of facts, then four tabs — People · Look and domain · Integrations (a grid; each opens its own page) · Advanced — synced to
  * `?tab=` (read after mount, written with history.replaceState). Old tab names still work:
  * general/brand/domains → Look and domain, people → People, folders → the workspace's folder view.
  *
@@ -46,6 +48,16 @@ export default function WorkspaceClient({ id }: { id: string }) {
   useEffect(() => {
     if (wanted === "folders") router.replace(`/w/${encodeURIComponent(id)}`);
   }, [wanted, id, router]);
+
+  // ?tab=slack|jira|zoom|meet (older links): that integration's own page, keeping the rest of the query.
+  useEffect(() => {
+    const q = new URLSearchParams(search);
+    const to = OLD_WORKSPACE_TABS[q.get("tab") ?? ""];
+    if (!to) return;
+    q.delete("tab");
+    const rest = q.toString();
+    router.replace(integrationHref("workspace", to, id) + (rest ? `?${rest}` : ""));
+  }, [search, id, router]);
 
   const [ws, setWs] = useState<Workspace | null>(null);
   const [loadError, setLoadError] = useState("");

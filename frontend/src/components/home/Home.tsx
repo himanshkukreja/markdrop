@@ -862,7 +862,7 @@ function GetStarted() {
     { href: "/pages/new", icon: "doc", tint: "var(--cat-document)", title: "Write a page", desc: "Notes, specs, plans. Share it as a link.", id: "page" },
     { href: "/upload", icon: "upload", tint: "var(--cat-artifact)", title: "Upload a file", desc: "PDF, HTML, sheet, video: it opens in any browser.", id: "upload" },
     { href: "/settings/workspaces?new=1", icon: "users", tint: "var(--cat-share)", title: "Create a workspace", desc: "Your team's folders, pages and meetings.", id: "workspace" },
-    { href: "/settings/connections", icon: "link", tint: "var(--cat-sync)", title: "Connect your tools", desc: "AI assistants like Claude, VS Code and the CLI.", id: "connect" },
+    { href: "/settings/integrations", icon: "link", tint: "var(--cat-sync)", title: "Connect your tools", desc: "AI assistants like Claude, VS Code and the CLI.", id: "connect" },
   ];
   return (
     <section className="hm-sec" aria-labelledby="hm-start" data-testid="home-get-started">

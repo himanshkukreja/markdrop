@@ -13,6 +13,13 @@ export const DOCS_PAGES = {
   commentInsights: "/collaboration/insights-and-exports#insights",
   exportWithComments: "/collaboration/insights-and-exports#export-with-comments",
   slackNotifications: "/integrations/slack#slack-notifications",
+  // Integrations (the grid and each one's page)
+  integrationsOverview: "/integrations/overview",
+  slackIntegration: "/integrations/slack",
+  jiraIntegration: "/integrations/jira",
+  zoomIntegration: "/integrations/zoom",
+  meetingsAutoImport: "/workspaces/meetings-auto-import",
+  googleDocs: "/integrations/overview#google-docs",
   // Documents
   writing: "/documents/writing",
   addresses: "/documents/addresses",

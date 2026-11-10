@@ -71,7 +71,7 @@ export function useSlackPrompt(active: boolean, push: { settled: boolean; show: 
       setMe(out);
       const sum = slackTurnedOnSummary(out);
       if (sum.ok) toast.success(sum.text);
-      else toast.info(sum.text, { duration: 9000, action: { label: "Settings", onClick: () => window.location.assign("/settings/account#slack") } });
+      else toast.info(sum.text, { duration: 9000, action: { label: "Settings", onClick: () => window.location.assign("/settings/integrations/slack") } });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't turn Slack notifications on. Try again.");
     } finally {

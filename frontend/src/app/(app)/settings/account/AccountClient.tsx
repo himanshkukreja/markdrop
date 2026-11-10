@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button, Card, Field, Input, Select, useToast } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
 import { PageHeader } from "@/components/shell/PageHeader";
@@ -13,9 +14,8 @@ import { useTheme } from "@/lib/theme";
 import { useShortcutsEnabled } from "@/lib/shortcuts";
 import { useMounted } from "@/components/shell/useLocation";
 import { SettingsLoader, SwitchRow, useRequireUser } from "../settings-shared";
+import { OLD_ACCOUNT_ANCHORS } from "@/lib/integrations";
 import { PushCard } from "./PushCard";
-import { SlackCard } from "./SlackCard";
-import { JiraCard } from "./JiraCard";
 import { ViewHistoryCard } from "./ViewHistoryCard";
 import { AccountTrackCard } from "@/components/analytics/AnalyticsSettings";
 
@@ -71,7 +71,8 @@ function EmailModeRow({ id, label, hint, value, disabled, onChange, modes = EMAI
   );
 }
 
-/** /settings/account (REVAMP_PLAN 7.11): profile, appearance, notifications on devices, Slack notifications, email, sign out. */
+/** /settings/account (REVAMP_PLAN 7.11): profile, appearance, notifications on devices, a link to Integrations, email, sign out.
+ *  #slack and #jira (old links) go to Settings › Integrations › Slack / Jira. */
 export default function AccountClient() {
   const { user, ready } = useRequireUser("/settings/account");
   const { updateUser, signOut: authSignOut } = useAuth();
@@ -79,6 +80,18 @@ export default function AccountClient() {
   const { lightEnabled, lightLaunched, lightBeta, setLightBeta } = useTheme();
   const mounted = useMounted();
   const [shortcuts, setShortcuts] = useShortcutsEnabled();
+  const router = useRouter();
+
+  // #slack / #jira (Slack messages' footers, older links): those settings live on their integration's page now.
+  useEffect(() => {
+    const [anchor, query] = window.location.hash.slice(1).split("?");
+    const to = OLD_ACCOUNT_ANCHORS[anchor];
+    if (!to) return;
+    const q = new URLSearchParams(window.location.search);
+    new URLSearchParams(query ?? "").forEach((v, k) => q.set(k, v));
+    const rest = q.toString();
+    router.replace(`/settings/integrations/${to}${rest ? `?${rest}` : ""}`);
+  }, [router]);
 
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState("");
@@ -259,9 +272,9 @@ export default function AccountClient() {
 
       <PushCard />
 
-      <SlackCard />
-
-      <JiraCard />
+      <Card title="Integrations" description="Slack notifications, Jira, Claude, ChatGPT, Google Docs, VS Code and more each have their own page now.">
+        <Button variant="secondary" size="sm" href="/settings/integrations" iconRight="arrowRight" data-testid="account-integrations-link">Open Integrations</Button>
+      </Card>
 
       <Card title="Email" id="email">
         <div className="flex min-w-0 flex-col gap-4">

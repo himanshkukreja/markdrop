@@ -69,6 +69,7 @@ export function AccountMenu({ user, align = "right", studio }: { user: MeUser; a
     { label: studio ? "Markdrop dashboard" : "Dashboard", href: appHref("/dashboard"), icon: "home", separated: true },
     { label: "Guides", href: studioUrl("/"), icon: "layers" },
     { label: "Workspaces & domains", href: appHref("/settings/workspaces"), icon: "users" },
+    { label: "Integrations", href: appHref("/settings/integrations"), icon: "link" },
     { label: "API tokens", href: appHref("/settings/tokens"), icon: "key" },
     { label: "Connected apps", href: appHref("/settings/connections"), icon: "sparkle" },
     { label: "Account settings", href: appHref("/settings/account"), icon: "settings" },

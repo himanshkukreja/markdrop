@@ -107,7 +107,7 @@ export function railKeyFor(pathname: string, search: string): string | null {
   if (pathname === "/settings/workspaces") return "ws:new";
   // Integrations (VS Code tokens, connected apps) live under Settings.
   if (pathname === "/settings" || pathname.startsWith("/settings/account") || pathname.startsWith("/settings/tokens")
-    || pathname.startsWith("/settings/connections")) return "settings";
+    || pathname.startsWith("/settings/connections") || pathname.startsWith("/settings/integrations")) return "settings";
   return null;
 }
 

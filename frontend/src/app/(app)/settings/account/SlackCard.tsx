@@ -19,7 +19,7 @@ const KIND_HINTS: Record<SlackNotifyKind, string> = {
 };
 
 /**
- * Settings › Account › Slack notifications (routers/slack.py GET /me, PUT /me/notifications): off by
+ * Settings › Integrations › Slack (Slack notifications) (routers/slack.py GET /me, PUT /me/notifications): off by
  * default. Turning it on finds you in each Slack workspace connected to a Markdrop workspace of yours
  * by your own sign-in email; where it can't, "Link my Slack account" (Sign in with Slack) is the
  * fallback. Then which kinds. Hidden while no workspace of yours has Slack connected (and it's off).

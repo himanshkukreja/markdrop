@@ -37,9 +37,9 @@ export default function JiraCallbackClient() {
       try {
         const out = await jiraFinish(code, state);
         if (out.kind === "site" && out.workspace_id) {
-          router.replace(`/settings/workspaces/${encodeURIComponent(out.workspace_id)}?tab=integrations&jira=pick`);
+          router.replace(`/settings/workspaces/${encodeURIComponent(out.workspace_id)}/integrations/jira?jira=pick`);
         } else {
-          const to = out.back || "/settings/account#jira";
+          const to = out.back || "/settings/integrations/jira";
           router.replace(to + (to.includes("?") ? "&" : "?") + "jira=connected");
         }
       } catch (e) {
@@ -48,7 +48,7 @@ export default function JiraCallbackClient() {
     })();
   }, [loading, user, denied, code, kind, state, router]);
 
-  const backTo = kind === "site" && workspace ? `/settings/workspaces/${encodeURIComponent(workspace)}?tab=integrations` : (back || "/settings/account#jira");
+  const backTo = kind === "site" && workspace ? `/settings/workspaces/${encodeURIComponent(workspace)}/integrations/jira` : (back || "/settings/integrations/jira");
   const problem = denied
     ? (denied === "access_denied" ? "You cancelled on Atlassian's page. Nothing changed." : "Atlassian didn't finish connecting.")
     : (!code || !kind) ? "This page finishes connecting Jira. Start from Settings." : error;

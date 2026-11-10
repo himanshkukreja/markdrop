@@ -6,7 +6,7 @@ import { JiraMark } from "@/components/jira/JiraMark";
 import { connectMyJira, jiraDisconnectMe, jiraMe, type JiraAccount } from "@/lib/jira";
 
 /**
- * Settings › Account › Jira (routers/jira.py GET/DELETE /me): connect your own Atlassian account so
+ * Settings › Integrations › Jira (routers/jira.py GET/DELETE /me): connect your own Atlassian account so
  * issues are created and moved as you, and tickets show on Team and in Ask through your own Jira access.
  * Lists the workspaces of yours that have a Jira site and whether your account reaches it. Hidden while
  * Jira isn't set up on the server and you aren't connected.
@@ -46,7 +46,7 @@ export function JiraCard() {
             {(!me.connected || me.broken) ? (
               <Button size="sm" iconLeft="link" loading={busy} data-testid="jira-account-connect" onClick={async () => {
                 setBusy(true);
-                try { await connectMyJira("/settings/account#jira"); } catch (e) { toast.error(e instanceof Error ? e.message : "That didn't work."); setBusy(false); }
+                try { await connectMyJira("/settings/integrations/jira"); } catch (e) { toast.error(e instanceof Error ? e.message : "That didn't work."); setBusy(false); }
               }}>{me.broken ? "Reconnect" : "Connect my Atlassian account"}</Button>
             ) : (
               <Button size="sm" variant="secondary" onClick={() => setConfirm(true)}>Disconnect</Button>

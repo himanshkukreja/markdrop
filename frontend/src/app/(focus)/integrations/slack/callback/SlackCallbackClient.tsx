@@ -37,12 +37,12 @@ export default function SlackCallbackClient() {
       try {
         if (kind === "install") {
           await slackConnect(code, state);
-          router.replace(`/settings/workspaces/${encodeURIComponent(workspace || "")}?tab=integrations&slack=connected`);
+          router.replace(`/settings/workspaces/${encodeURIComponent(workspace || "")}/integrations/slack?slack=connected`);
         } else {
           const out = await slackLinkFinish(code, state);
           const back = takeSlackReturn();
           if (back) router.replace(back);
-          else if (out.workspace_id) router.replace(`/settings/workspaces/${encodeURIComponent(out.workspace_id)}?tab=integrations&slack=linked`);
+          else if (out.workspace_id) router.replace(`/settings/workspaces/${encodeURIComponent(out.workspace_id)}/integrations/slack?slack=linked`);
           else setLinked(out.team_name || "Slack");
         }
       } catch (e) {
@@ -51,7 +51,7 @@ export default function SlackCallbackClient() {
     })();
   }, [loading, user, denied, code, kind, state, workspace, router]);
 
-  const back = kind === "install" && workspace ? `/settings/workspaces/${encodeURIComponent(workspace)}?tab=integrations` : "/settings/workspaces";
+  const back = kind === "install" && workspace ? `/settings/workspaces/${encodeURIComponent(workspace)}/integrations/slack` : "/settings/workspaces";
   const problem = denied
     ? (denied === "access_denied" ? "You cancelled in Slack. Nothing changed." : "Slack didn't finish connecting.")
     : (!code || !kind) ? "This page finishes connecting Slack. Start from Workspace settings › Integrations." : error;
