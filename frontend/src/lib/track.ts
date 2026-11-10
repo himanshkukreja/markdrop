@@ -134,7 +134,7 @@ function entryInfo(): Record<string, string> {
 
 function isPrimaryHost(): boolean {
   const h = location.hostname;
-  return h === "localhost" || h === "127.0.0.1" || h === "markdrop.in" || h.endsWith(".markdrop.in") || h.endsWith(".vercel.app") || isStudioHost(h);
+  return h === "localhost" || h === "127.0.0.1" || h === "markdrop.in" || h.endsWith(".markdrop.in") || h.endsWith(".vercel.app") || h.endsWith(".workers.dev") || isStudioHost(h);
 }
 
 function shape(pathname: string): string {

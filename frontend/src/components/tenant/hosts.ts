@@ -13,6 +13,9 @@ const PRIMARY_HOSTS = new Set(
     .filter(Boolean),
 );
 
+/** The app's staging hosts: ours, never a customer's domain. */
+export const STAGING_HOSTS: ReadonlySet<string> = new Set(["next.markdrop.in"]);
+
 /**
  * Lowercase, no port, no trailing dot: `Docs.Acme.com.:443` and `docs.acme.com` are one host.
  * Without the trailing-dot rule `docs.acme.com.` would be a "different" host to every string
@@ -32,9 +35,11 @@ export function isPrimaryHost(raw: string): boolean {
   if (PRIMARY_HOSTS.has(host)) return true;
   // Markdrop Guides' studio (guides.markdrop.in): ours, never a customer's domain.
   if (STUDIO_HOSTS.has(host)) return true;
-  // Vercel preview deployments get a generated hostname per build; treating
-  // them as customer domains would make every preview 404.
-  if (host.endsWith(".vercel.app")) return true;
+  // Vercel preview deployments get a generated hostname per build, and Cloudflare test
+  // deploys live on workers.dev; treating them as customer domains would make every preview 404.
+  if (host.endsWith(".vercel.app") || host.endsWith(".workers.dev")) return true;
+  // The app's own staging on Cloudflare (cloudflare/worker.ts), on the real zone.
+  if (STAGING_HOSTS.has(host)) return true;
   if (host === "127.0.0.1" || host === "localhost") return true;
   return false;
 }

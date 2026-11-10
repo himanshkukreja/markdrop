@@ -110,7 +110,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </NextLinkProvider>
         {/* Markdrop's trackers: everywhere but a docs site that isn't Markdrop's (docs/client/AppTrackers). */}
         <AppTrackers>
-          <VercelInsights />
+          {/* Vercel's own analytics only exist on Vercel: the Cloudflare build sets NEXT_PUBLIC_VERCEL_INSIGHTS=off. */}
+          {process.env.NEXT_PUBLIC_VERCEL_INSIGHTS !== "off" && <VercelInsights />}
           <SiteTracker />
           <ThirdPartyAnalytics />
         </AppTrackers>

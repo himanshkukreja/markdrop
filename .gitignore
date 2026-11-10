@@ -76,3 +76,9 @@ frontend/tsconfig.tsbuildinfo
 
 # CI backend shard output (.github/scripts/backend_shard.py)
 ci-out/
+
+# Cloudflare Workers build (OpenNext)
+frontend/.open-next/
+frontend/.wrangler/
+frontend/.cf/
+frontend/.dev.vars*

@@ -30499,6 +30499,47 @@
             "type": "array",
             "title": "Dns Routing Options",
             "default": []
+          },
+          "hosting_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hosting Provider"
+          },
+          "hosting_ready": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hosting Ready"
+          },
+          "hosting_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hosting Message"
+          },
+          "hosting_records": {
+            "items": {
+              "$ref": "#/components/schemas/HostingRecord"
+            },
+            "type": "array",
+            "title": "Hosting Records",
+            "default": []
           }
         },
         "type": "object",
@@ -31916,6 +31957,44 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HostingRecord": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "certificate",
+              "ownership"
+            ],
+            "title": "Purpose"
+          },
+          "needed": {
+            "type": "boolean",
+            "title": "Needed",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "name",
+          "value",
+          "purpose"
+        ],
+        "title": "HostingRecord",
+        "description": "A record the hosting provider validates by (Cloudflare for SaaS pre-validation)."
       },
       "ImportBody": {
         "properties": {

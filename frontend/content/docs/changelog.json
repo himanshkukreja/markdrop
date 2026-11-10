@@ -37,6 +37,19 @@
       "body": "- **One click.** In **Workspace settings › Integrations › Zoom**, pick the team and choose **Connect Zoom**; a Zoom account admin approves the Markdrop app. You can also add it from the Zoom App Marketplace and pick the workspace. [Connect with one click](/integrations/zoom#connect-with-one-click)\n- **Read-only, minimal access.** Users, cloud recordings' transcripts and who joined; never audio or video, never changes in Zoom.\n- **Removing the app.** Disconnect in Markdrop (it also removes the app from Zoom, and can delete the imported meetings), or remove it in Zoom: Markdrop deletes its tokens and Zoom data right away. [Removing the app](/integrations/zoom#removing-the-app)\n- **Your own app still works.** Companies that prefer their own Server-to-Server app keep it, under **Advanced**. [Advanced](/integrations/zoom#advanced-your-own-server-to-server-app)\n- **From an AI app.** `zoom_status` gives a workspace admin a one-click link to connect Zoom. [Tools](/ai/tools#zoom)"
     },
     {
+      "id": "domain-certificate-record",
+      "date": "2026-11-11",
+      "title": "A certificate record for your workspace domain",
+      "kind": "improved",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Workspace domains can show one TXT record that gets their certificate ready on Markdrop's new hosting before the move, so readers notice nothing.",
+      "body": "- **One record, then nothing.** A live domain may ask for a **Certificate record** (`_acme-challenge.<your domain>`). Add it and choose **Check DNS again**; the card goes away once the certificate is ready. [A certificate record](/workspaces/custom-domain#a-certificate-record)\n- **Nothing moves until it's ready.** Your domain keeps serving as it does now, and your other records stay as they are.\n- **In the API.** Domain responses for admins carry `hosting_ready` and `hosting_records`."
+    },
+    {
       "id": "zoom",
       "date": "2026-11-10",
       "title": "Zoom meetings come into a team on their own",

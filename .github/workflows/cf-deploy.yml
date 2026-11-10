@@ -1,0 +1,139 @@
+# Production deploys: push to main or deploy/cf-production.
+# Markdrop web app on Cloudflare Workers (OpenNext). Vercel's own workflows are unchanged and keep deploying.
+#   push to main             -> production (markdrop-web; its live domains are attached by hand, .work cutover plan)
+#   push to feat/cf-workers  -> staging (markdrop-web-staging: workers.dev + next.markdrop.in), until the branch merges
+#   push to deploy/cf-production -> production, before this file is on main (a manual run needs it there)
+#   manual run               -> the target picked
+# Needs: secret CLOUDFLARE_API_TOKEN (Himanshu@markdrop.in's account: Workers Scripts Edit, Workers R2 Storage Edit,
+# Account Settings Read, Workers Observability Edit; Workers Routes Edit + Zone Read on markdrop.in), variable
+# CLOUDFLARE_ACCOUNT_ID, the Vercel ones already used by vercel-deploy.yml (VERCEL_TOKEN, VERCEL_ORG_ID,
+# VERCEL_PROJECT_ID) to pull the production env, and secret MARKDROP_INTERNAL_SECRET (Vercel keeps it "sensitive").
+# Optional variable CF_WARM_ORIGINS: "<app origin> [docs origin]" the warm job requests after a production deploy
+# (default: the production workers.dev URL; after the cutover "https://www.markdrop.in https://docs.markdrop.in").
+name: cf-deploy
+
+on:
+  push:
+    branches: [main, feat/cf-workers, deploy/cf-production]
+    paths: ["frontend/**", ".github/workflows/cf-deploy.yml"]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "staging (markdrop-web-staging) or production (markdrop-web)"
+        type: choice
+        options: [staging, production]
+        default: staging
+
+concurrency:
+  group: cf-${{ inputs.target || ((github.ref_name == 'main' || github.ref_name == 'deploy/cf-production') && 'production' || 'staging') }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      url: ${{ steps.summary.outputs.url }}
+      target: ${{ steps.target.outputs.target }}
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      NEXT_TELEMETRY_DISABLED: "1"
+      TARGET: ${{ inputs.target || ((github.ref_name == 'main' || github.ref_name == 'deploy/cf-production') && 'production' || 'staging') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Target
+        id: target
+        run: |
+          set -euo pipefail
+          if [ "$TARGET" = production ]; then
+            { echo "WENV="; echo "CACHE_BUCKET=markdrop-web-cache-prod"; } >> "$GITHUB_ENV"
+          else
+            { echo "WENV=--env staging"; echo "CACHE_BUCKET=markdrop-web-cache"; } >> "$GITHUB_ENV"
+          fi
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "Target: $TARGET" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Production env from Vercel (build env + Worker secrets)
+        env:
+          EXTRA_MARKDROP_INTERNAL_SECRET: ${{ secrets.MARKDROP_INTERNAL_SECRET }}
+        run: |
+          set -euo pipefail
+          npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+          node scripts/cf/env-from-vercel.mjs .vercel/.env.production.local "$RUNNER_TEMP/worker-secrets.json"
+          rm -f .vercel/.env.production.local
+
+      - name: Build (OpenNext) + ASCII-only handler + _headers
+        run: |
+          set -euo pipefail
+          MARKDROP_BUILD_ID="cf-${GITHUB_SHA::12}" npm run cf:build
+
+      - name: Size and encoding check
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/cf-dist" $WENV | grep -E "Total Upload" | tee -a "$GITHUB_STEP_SUMMARY"
+          node scripts/cf/check-bundle.mjs "$RUNNER_TEMP/cf-dist" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: ISR cache bucket
+        run: npx wrangler r2 bucket create "$CACHE_BUCKET" --location apac || echo "bucket exists"
+
+      # prerendered pages first: the new deployment reads them from its first request
+      - name: Prerendered pages into the ISR cache
+        run: npx opennextjs-cloudflare populateCache remote $WENV
+
+      - name: Deploy
+        # pipefail: a rejected upload (e.g. over a size limit) must fail the run, not hide behind the filters
+        run: |
+          set -o pipefail
+          npx wrangler deploy $WENV | tee "$RUNNER_TEMP/deploy.log" | grep -vE "^\s*$" | tail -20
+
+      - name: Worker secrets
+        run: |
+          set -o pipefail
+          npx wrangler secret bulk "$RUNNER_TEMP/worker-secrets.json" $WENV | tail -3
+
+      - name: Summary
+        id: summary
+        run: |
+          url=$(grep -Eo "https://[a-z0-9.-]+workers.dev" "$RUNNER_TEMP/deploy.log" | head -1 || true)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployed $TARGET: $url" >> "$GITHUB_STEP_SUMMARY"
+
+  # each deploy changes the build id, so edge copies and rendered pages start empty: request them once
+  warm:
+    needs: deploy
+    if: needs.deploy.outputs.target == 'production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: frontend/scripts/cf
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Warm
+        env:
+          ORIGINS: ${{ vars.CF_WARM_ORIGINS || needs.deploy.outputs.url }}
+        run: |
+          set -euo pipefail
+          sleep 20
+          node frontend/scripts/cf/warm.mjs $ORIGINS | tee -a "$GITHUB_STEP_SUMMARY"

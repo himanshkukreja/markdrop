@@ -42,7 +42,7 @@ export function pwaSurface(rawHost: string | null | undefined): "app" | "studio"
   if (!h) return null;
   if (h === STUDIO_HOST || h === "guides.localhost") return "studio";
   if (h === "markdrop.in" || h === "www.markdrop.in" || h === "localhost" || h === "127.0.0.1") return "app";
-  if (PRIMARY_HOST && h === PRIMARY_HOST && !h.endsWith(".vercel.app")) return "app";
+  if (PRIMARY_HOST && h === PRIMARY_HOST && !h.endsWith(".vercel.app") && !h.endsWith(".workers.dev")) return "app";
   return null;
 }
 

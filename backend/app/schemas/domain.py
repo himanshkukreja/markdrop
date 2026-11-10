@@ -17,6 +17,19 @@ class DnsRecord(BaseModel):
     value: str
 
 
+class HostingRecord(BaseModel):
+    """A record the hosting provider validates by (Cloudflare for SaaS pre-validation)."""
+
+    type: str
+    name: str
+    value: str
+    # "certificate" (the _acme-challenge TXT) or "ownership" (_cf-custom-hostname TXT; usually proven
+    # without it, over HTTP on the host itself).
+    purpose: Literal["certificate", "ownership"]
+    # False once what it proves is done; the record may then be removed.
+    needed: bool = True
+
+
 class DomainResponse(BaseModel):
     id: str
     host: str
@@ -60,6 +73,13 @@ class DomainResponse(BaseModel):
     # their panel accepts. `dns_target_*` above is the first entry.
     apex_certain: bool | None = True
     dns_routing_options: list[DnsRecord] = []
+    # The host's certificate on the next hosting (Cloudflare for SaaS), admins only: null when there is
+    # none. `hosting_ready` = its hostname and certificate are both active (nothing left to add);
+    # `hosting_records` = the TXT records it validates by, `needed` marking those still missing.
+    hosting_provider: str | None = None
+    hosting_ready: bool | None = None
+    hosting_message: str | None = None
+    hosting_records: list[HostingRecord] = []
 
 
 class DomainListResponse(BaseModel):
