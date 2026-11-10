@@ -13,16 +13,20 @@ const labels = (xs) => xs.map((x) => x.label);
 test("a page's menu comes in sections, in the spec's order", () => {
   const shown = orderItems(page);
   const groups = [...new Set(shown.map((x) => x.group))];
-  assert.deepEqual(groups, ["basic", "media", "markdrop", "advanced", "inline"]);
+  assert.deepEqual(groups, ["basic", "media", "markdrop", "jira", "advanced", "inline"]);
   assert.deepEqual(labels(shown.filter((x) => x.group === "basic")), [
     "Text", "Heading 1", "Heading 2", "Heading 3", "To-do list", "Bulleted list", "Numbered list", "Toggle list",
     "Toggle heading 1", "Toggle heading 2", "Toggle heading 3", "Quote", "Divider", "Callout",
   ]);
   assert.deepEqual(labels(shown.filter((x) => x.group === "media")), ["Image", "Video", "Audio", "File", "Bookmark", "Web embed"]);
   // "From meetings…" is in the list; the menu offers it only while the page's meeting panel is there (available).
-  assert.deepEqual(labels(shown.filter((x) => x.group === "markdrop")), ["Embed an item", "Mention an item", "Sub-page", "Sign-off", "From meetings…", "Jira card", "Jira list", "New Jira issue"]);
+  assert.deepEqual(labels(shown.filter((x) => x.group === "markdrop")), ["Embed an item", "Mention an item", "Sub-page", "Sign-off", "From meetings…"]);
+  // Jira's commands: offered to signed-in editors (the host's "jira"; jira.test.mjs).
+  assert.deepEqual(labels(shown.filter((x) => x.group === "jira")), [
+    "Jira issue", "Jira card", "Jira list", "My Jira issues", "Jira sprint", "Jira bugs", "Jira recently updated", "Jira epic", "New Jira issue", "Jira issue from text",
+  ]);
   assert.deepEqual(labels(shown.filter((x) => x.group === "advanced")), ["Table", "Columns", "Code", "Equation", "Mermaid diagram", "Table of contents", "Breadcrumb", "Button"]);
-  assert.deepEqual(labels(shown.filter((x) => x.group === "inline")), ["Mention a person", "Date", "Emoji", "Jira issue"]);
+  assert.deepEqual(labels(shown.filter((x) => x.group === "inline")), ["Mention a person", "Date", "Emoji"]);
   // An empty query is the sectioned list.
   assert.deepEqual(ids(filterItems("", page)), ids(shown));
 });
