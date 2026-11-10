@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { TENANT_HOST_HEADER, isPrimaryHost, normalizeHost } from "@/components/tenant/hosts";
 import { DOCS_INTERNAL, docsOrigin, docsRewritePath, isDocsHost } from "@/docs/host";
 import { STUDIO_ROBOTS, isStudioHost, studioRouting, type StudioRouting } from "@/lib/studioHost";
+import { SIGNED_IN_COOKIE, homeRedirect } from "@/lib/homeRedirect";
 
 /**
  * Route requests that arrived on a customer's own domain to the tenant renderer.
@@ -105,6 +106,22 @@ export function middleware(request: NextRequest) {
   }
 
   if (isPrimaryHost(host)) {
+    // Signed in (the md_si hint, lib/homeRedirect): "/" is the dashboard, before any HTML. Only "/"
+    // on the app host, never with ?home=1. no-store: this answer is per browser, while the
+    // prerendered "/" everyone else gets stays as it is.
+    const home = homeRedirect({
+      host,
+      method: request.method,
+      pathname,
+      search: request.nextUrl.search,
+      cookie: request.cookies.get(SIGNED_IN_COOKIE)?.value,
+    });
+    if (home) {
+      const here = `${request.nextUrl.protocol}//${request.headers.get("host") || request.nextUrl.host}`;
+      const res = NextResponse.redirect(new URL(home, here), 307);
+      res.headers.set("Cache-Control", "private, no-store");
+      return res;
+    }
     // The tenant renderer is internal: reachable only through the rewrite below.
     // (`/h` alone is left to /[slug]: it is not the tenant renderer.)
     if (pathname.startsWith("/h/")) return notFound();

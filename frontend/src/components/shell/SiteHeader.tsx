@@ -97,6 +97,7 @@ export function SiteHeader({ variant = "default", width = "contained", createVar
   const authPending = mounted && loading && !!getToken();
   const signedOut = !user && !authPending;
   const showPhoneMenu = marketing || signedOut;
+  const logoHref = user ? "/dashboard" : "/";
 
   return (
     <header
@@ -119,8 +120,9 @@ export function SiteHeader({ variant = "default", width = "contained", createVar
             <IconButton icon="menu" label="Menu" variant="ghost" className="-ml-2 size-11 shrink-0 min-[720px]:hidden" onClick={openBrowse} aria-haspopup="dialog" data-testid="app-menu" />
           )}
           {/* Phones with the Menu: the mark alone, so search, Create, the bell and the avatar keep 44 px. */}
-          <MarkdropLogo size={24} className={cx("shrink-0 md:hidden", menu && user && "min-w-11 justify-center max-[719px]:[&_.md-wordmark]:hidden")} />
-          <MarkdropLogo size={28} className="hidden shrink-0 md:inline-flex" />
+          {/* Signed in, the logo is the dashboard ("/" is too, lib/homeRedirect; the landing page is /?home=1). */}
+          <MarkdropLogo size={24} href={logoHref} className={cx("shrink-0 md:hidden", menu && user && "min-w-11 justify-center max-[719px]:[&_.md-wordmark]:hidden")} />
+          <MarkdropLogo size={28} href={logoHref} className="hidden shrink-0 md:inline-flex" />
           {search && user && <SearchTrigger />}
 
           {marketing && (
