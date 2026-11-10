@@ -139,6 +139,14 @@ export function middleware(request: NextRequest) {
 
   // Our own route handlers (geo, revalidate) answer on every host.
   if (pathname.startsWith("/api/")) return NextResponse.next();
+  // Cloudflare for SaaS checks hostname ownership here before the host moves to Cloudflare
+  // (app/api/hostname-challenge): answered from the API, never by the tenant renderer.
+  if (pathname.startsWith("/.well-known/cf-custom-hostname-challenge/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/api/hostname-challenge";
+    url.search = `?path=${encodeURIComponent(pathname)}`;
+    return NextResponse.rewrite(url);
+  }
   // So do the built-in page covers: a page on a workspace's domain shows them too.
   if (pathname.startsWith("/page-covers/")) return NextResponse.next();
 

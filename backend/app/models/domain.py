@@ -57,3 +57,8 @@ class Domain:
     txt_ok: bool | None = None
     # Pending rows only: when the unverified claim is dropped (TTL index).
     expires_at: datetime | None = None
+    # Which hosting provider attached it ("vercel", "cloudflare_saas", "dns"; None on old rows).
+    attached_via: str | None = None
+    # Its Cloudflare for SaaS custom hostname, when one exists (services/cf_saas.state): the
+    # pre-validation records still needed and whether the certificate is ready.
+    cf_saas: dict | None = None

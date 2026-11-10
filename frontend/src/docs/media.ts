@@ -10,7 +10,7 @@
  * - A dark variant sits next to its light file: `x.webp` → `x.dark.webp`, `x.mp4` → `x.dark.mp4`.
  * - A clip is referenced without an extension: `<src>.webm`, `<src>.mp4` and the poster `<src>.webp`.
  */
-import fs from "node:fs";
+import * as fs from "./contentFs";
 import path from "node:path";
 
 export interface MediaEntry {

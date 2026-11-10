@@ -6,11 +6,12 @@ import {
   Skeleton, useToast, type MenuItem,
 } from "@/components/ui";
 import DnsInstructions from "@/components/workspace/DnsInstructions";
+import HostingRecords from "@/components/workspace/HostingRecords";
 import DomainStepper from "@/components/workspace/DomainStepper";
 import { downloadDnsCsv } from "@/lib/dnsCsv";
 import { ReadMore } from "@/components/ReadMore";
 import {
-  addDomain, attachDomain, detachDomain, errorStatus, removeDomain, setPrimaryDomain, verifyDomain,
+  addDomain, attachDomain, detachDomain, errorStatus, hostingRecordsNeeded, removeDomain, setPrimaryDomain, verifyDomain,
   type Domain, type DomainKind,
 } from "@/lib/workspaces";
 import { shortDate } from "../../../settings-shared";
@@ -216,7 +217,7 @@ export default function DomainsCard({ id, ws, isAdmin, domains, refresh }: WsTab
                   {(d.status !== "verified" || !d.attached) && primaryAction(d)}
                   {isAdmin && <RowMenu portal align="right" label={`Domain actions for ${d.host}`} items={menuFor(d)} />}
                 </div>
-                <div className={`flex min-w-0 flex-col gap-3 px-3.5 pb-3.5 ${d.status === "verified" && d.attached && !recordsOpen.has(d.id) ? "hidden" : ""}`}>
+                <div className={`flex min-w-0 flex-col gap-3 px-3.5 pb-3.5 ${d.status === "verified" && d.attached && !recordsOpen.has(d.id) && !(isAdmin && hostingRecordsNeeded(d).length) ? "hidden" : ""}`}>
                   {(d.status !== "verified" || !d.attached) && <DomainStepper domain={d} className="rounded-lg border border-border bg-surface-inset p-3" />}
                   <p className="text-caption text-text-muted">
                     {d.status === "verified"
@@ -232,6 +233,7 @@ export default function DomainsCard({ id, ws, isAdmin, domains, refresh }: WsTab
                   )}
                   {d.last_error && d.status !== "lapsed" && <Alert tone="warning" className="ph-sensitive ph-mask">{d.last_error}</Alert>}
                   {d.warning && <p className="ph-sensitive ph-mask text-caption text-text-secondary">{d.warning}</p>}
+                  {isAdmin && d.status === "verified" && <HostingRecords domain={d} />}
                   {/* The records (and the TXT token that proves ownership) are admin-only: the
                       server sends them only to admins and the owner. */}
                   {!isAdmin ? (

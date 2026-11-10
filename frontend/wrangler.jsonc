@@ -1,0 +1,77 @@
+// Markdrop web app on Cloudflare Workers (OpenNext). Vercel ignores this file.
+// Top level = production (markdrop-web: workers.dev until the owner attaches the live domains, .work cutover plan);
+// `--env staging` = markdrop-web-staging (workers.dev + next.markdrop.in). Account: Himanshu@markdrop.in's (the
+// markdrop.in zone); from the Mac run wrangler with XDG_CONFIG_HOME=$HOME/.wrangler-markdrop (the default profile is a
+// different account). Build: npm run cf:build (scripts/cf/build.sh). Deploy: .github/workflows/cf-deploy.yml.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "markdrop-web",
+  "main": "cloudflare/worker.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // esbuild's keepNames wraps functions in __name(): a function stringified into the HTML (an inline script) then
+  // calls a __name that doesn't exist there
+  "keep_names": false,
+  // source maps count toward the upload limit and nobody loads them; debug from a local build
+  "upload_source_maps": false,
+  "workers_dev": true,
+  "preview_urls": false,
+  // No "routes" here on purpose. Workspace custom domains (Cloudflare for SaaS custom hostnames on the markdrop.in
+  // zone) each get a route `<host>/*` -> markdrop-web made by the API (backend services/cf_saas.py) or
+  // scripts/cf_saas_migrate.py; the zone refuses a `*/*` route (error 100327). Declaring routes here would make
+  // every deploy replace the script's route set and drop those. Owner steps: .work/cf-audit/SAAS-OWNER-STEPS.md.
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+    // public/*.html (landing demos, offline page, studio sign-out) are served at their own paths, not redirected
+    "html_handling": "none"
+  },
+  // Smart Placement OFF: it can move the Worker far from readers (the portfolio's went to San Jose; India paid
+  // 0.75-1.2 s per request). The ISR bucket and tag cache are in APAC, near most readers and the API (Hyderabad).
+  "placement": { "mode": "off" },
+  // the heaviest server renders (the 1.8 MB changelog, workspace domains) take tens of ms; headroom for cold ones
+  "limits": { "cpu_ms": 120000 },
+  "observability": { "enabled": true },
+  // /_next/image (OpenNext resizes through it; without it originals are served)
+  "images": { "binding": "IMAGES" },
+  // the deployment's id: the Worker's edge copies (cloudflare/worker.ts) are kept per deployment
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
+  "vars": {
+    // the x-md-host test header (cloudflare/worker.ts): honoured on workers.dev / next.markdrop.in only, never on
+    // the live hosts; lets the docs and workspace-domain paths be checked on the workers.dev URL before cutover
+    "STAGING_HOST_OVERRIDE": "1"
+  },
+  // the Worker can't fetch its own workers.dev/custom domain; OpenNext uses this binding for that
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "markdrop-web" }],
+  "r2_buckets": [{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "markdrop-web-cache-prod" }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "NEXT_CACHE_DO_QUEUE", "class_name": "DOQueueHandler" },
+      { "name": "NEXT_TAG_CACHE_DO_SHARDED", "class_name": "DOShardedTagCache" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DOQueueHandler", "DOShardedTagCache"] }],
+  "env": {
+    "staging": {
+      // markdrop-web-staging (wrangler names it <name>-<env>)
+      "workers_dev": true,
+      "preview_urls": false,
+      "assets": { "directory": ".open-next/assets", "binding": "ASSETS", "html_handling": "none" },
+      "placement": { "mode": "off" },
+      "limits": { "cpu_ms": 120000 },
+      "observability": { "enabled": true },
+      "images": { "binding": "IMAGES" },
+      "version_metadata": { "binding": "CF_VERSION_METADATA" },
+      "vars": { "STAGING_HOST_OVERRIDE": "1" },
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "markdrop-web-staging" }],
+      "r2_buckets": [{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "markdrop-web-cache" }],
+      "durable_objects": {
+        "bindings": [
+          { "name": "NEXT_CACHE_DO_QUEUE", "class_name": "DOQueueHandler" },
+          { "name": "NEXT_TAG_CACHE_DO_SHARDED", "class_name": "DOShardedTagCache" }
+        ]
+      },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DOQueueHandler", "DOShardedTagCache"] }]
+    }
+  }
+}

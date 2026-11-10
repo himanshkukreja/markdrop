@@ -159,6 +159,16 @@ If the records stop resolving to Markdrop for three days, the domain stops servi
 
 To see the records again later, open the domain's menu and choose **Show DNS records**. **Download records (CSV)** is in the same menu.
 
+## A certificate record
+
+A live domain may show **One more record keeps this domain secure**, with a **Certificate record**: a TXT record named `_acme-challenge.` followed by your domain. Markdrop is moving to faster hosting, and this record lets the new certificate for your domain be issued before the move, so readers notice nothing.
+
+Add it where your DNS lives, the way you added the other two, then choose **Check DNS again**. The card disappears once the certificate is ready. Keep your other records as they are.
+
+A **Hosting ownership record** may be listed under it. Markdrop usually confirms that one on its own; add it only if it's still listed an hour later.
+
+If your DNS is at Cloudflare, keep the routing record set to **DNS only** (grey cloud).
+
 ## Take a domain off the air
 
 Open the domain's menu:
