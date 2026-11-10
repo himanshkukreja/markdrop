@@ -1,3 +1,4 @@
+# Production deploys: push to main or deploy/cf-production.
 # Markdrop web app on Cloudflare Workers (OpenNext). Vercel's own workflows are unchanged and keep deploying.
 #   push to main             -> production (markdrop-web; its live domains are attached by hand, .work cutover plan)
 #   push to feat/cf-workers  -> staging (markdrop-web-staging: workers.dev + next.markdrop.in), until the branch merges
