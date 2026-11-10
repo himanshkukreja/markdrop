@@ -48,11 +48,11 @@ class Tools(McpTestCase):
 
     async def test_publish_document(self):
         out = self.ok(await self.tool("publish_document", markdown="# Hello\n\nworld", title="Hello"))
-        self.assertEqual(set(out), {"url", "markdrop_url", "workspace_url", "slug", "title", "access",
-                                    "expires_at", "editor"})
+        self.assertEqual(set(out), {"url", "markdrop_url", "workspace_url", "domain_url", "slug", "title",
+                                    "access", "expires_at", "editor"})
         self.assertEqual(out["editor"], "classic")
         self.assertEqual(out["url"], f"https://markdrop.in/{out['slug']}")
-        self.assertEqual((out["markdrop_url"], out["workspace_url"]), (out["url"], None))
+        self.assertEqual((out["markdrop_url"], out["workspace_url"], out["domain_url"]), (out["url"], None, None))
         self.assertEqual((out["title"], out["access"], out["expires_at"]), ("Hello", "link", None))
         raw = await self.db["documents"].find_one({"slug": out["slug"]})
         self.assertEqual(raw["owner_id"], self.user_id)
