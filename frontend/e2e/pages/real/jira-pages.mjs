@@ -441,7 +441,8 @@ await step("presets", async () => {
   const picker = p.getByTestId("jira-picker");
   await picker.waitFor({ timeout: 10000 });
   await picker.getByRole("textbox").fill("PAY-1");
-  await picker.getByTestId("jira-pick-row").first().click();
+  // The search's own row (not one from the list shown before it answered).
+  await picker.getByTestId("jira-pick-row").filter({ has: p.locator(".jp-chip__key", { hasText: /^PAY-1$/ }) }).first().click();
   await added();
   await p.locator('.pb-live [data-testid="jira-card"][data-key="PAY-1"]').first().waitFor({ timeout: 15000 });
   // A card, through its picker.
@@ -449,7 +450,7 @@ await step("presets", async () => {
   await slash(p, "jira card", "Jira card");
   await picker.waitFor({ timeout: 10000 });
   await picker.getByRole("textbox").fill("refund");
-  await picker.getByTestId("jira-pick-row").first().click();
+  await picker.getByTestId("jira-pick-row").filter({ hasText: "Refund flow" }).first().click();
   await p.locator('.pb-live [data-testid="jira-card"][data-key="PAY-2"]').first().waitFor({ timeout: 15000 });
   await lists.last().locator('[data-testid="jira-list-row"]').first().waitFor({ timeout: 15000 });
   await shot(p, "jira-slash-presets");
