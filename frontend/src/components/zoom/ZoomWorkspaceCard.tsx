@@ -220,18 +220,18 @@ export function ZoomWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolea
         onClose={() => setConfirm(false)}
         title="Disconnect Zoom?"
         description={(
-          <span className="flex flex-col gap-3">
-            <span>
-              {st.mode === "oauth"
-                ? <>Markdrop deletes its access to your Zoom account, removes the Markdrop app from it, and stops bringing in meetings.</>
-                : <>Markdrop deletes the Zoom app&apos;s credentials and stops bringing in meetings. You can also delete the app in Zoom.</>}
-              {" "}Meetings already imported stay unless you delete them here.
-            </span>
-            <span data-testid="zoom-drop-meetings">
-              <Checkbox label={`Also delete the ${c?.imported ? `${c.imported} ` : ""}meetings imported from Zoom (they go to the Trash)`}
-                checked={dropMeetings} onChange={(e) => setDropMeetings(e.target.checked)} />
-            </span>
-          </span>
+          <>
+            {st.mode === "oauth"
+              ? <>Markdrop deletes its access to your Zoom account, removes the Markdrop app from it, and stops bringing in meetings.</>
+              : <>Markdrop deletes the Zoom app&apos;s credentials and stops bringing in meetings. You can also delete the app in Zoom.</>}
+            {" "}Meetings already imported stay unless you delete them here.
+          </>
+        )}
+        body={(
+          <div data-testid="zoom-drop-meetings">
+            <Checkbox label={`Also delete the ${c?.imported ? `${c.imported} ` : ""}meetings imported from Zoom (they go to the Trash)`}
+              checked={dropMeetings} onChange={(e) => setDropMeetings(e.target.checked)} />
+          </div>
         )}
         confirmLabel="Disconnect"
         onConfirm={async () => {
