@@ -146,3 +146,34 @@ class General(TeamsWorld):
         gid = str((await self.general())["_id"])
         self.assertNotIn(gid, {s["team_id"] for s in sug})
         self.assertTrue(sug)
+
+
+class Favorites(TeamsWorld):
+    async def favs(self, who: str) -> list[dict]:
+        r = await self.http.get(f"{self.base}/favorites", headers=self.session(who))
+        self.assertEqual(r.status_code, 200, r.text)
+        return r.json()["favorites"]
+
+    async def star(self, who: str, kind: str, ref: str, on: bool = True) -> int:
+        r = await self.http.put(f"{self.base}/favorites", headers=self.session(who), json={"kind": kind, "ref": ref, "on": on})
+        return r.status_code
+
+    async def test_star_list_unstar_and_access(self):
+        from app.services import favorites
+
+        await favorites.ensure_indexes(self.db)
+        self.assertEqual(await self.star("wm", "doc", self.s_w["slug"]), 200)
+        self.assertEqual(await self.star("wm", "doc", self.s_w["slug"]), 200)        # idempotent
+        self.assertEqual(await self.star("wm", "team", self.eng), 200)
+        got = await self.favs("wm")
+        self.assertEqual([f["kind"] for f in got], ["doc", "team"])
+        self.assertEqual(got[0]["href"], f"/{self.s_w['slug']}")
+        # Someone who can't read a private team's page can't star it, and their list never shows it.
+        self.assertEqual(await self.star("wv", "doc", self.s_w["slug"]), 404)
+        self.assertEqual(await self.star("wv", "team", self.sales), 404)
+        self.assertEqual(await self.favs("wv"), [])
+        # Losing access hides it (not deleted, not revealed).
+        await self.http.delete(f"{self.base}/teams/{self.sales}/members/{self.uid['wm']}", headers=self.session("wa"))
+        self.assertEqual([f["kind"] for f in await self.favs("wm")], ["team"])
+        self.assertEqual(await self.star("wm", "team", self.eng, on=False), 200)
+        self.assertEqual(await self.favs("wm"), [])

@@ -290,6 +290,9 @@ async def connect() -> None:
         from app.services import teams as _teams
 
         await _teams.ensure_indexes(db)
+        from app.services import favorites as _favorites
+
+        await _favorites.ensure_indexes(db)
         # Every workspace's default "General" team (idempotent; nav redesign 2026-11-10).
         made = await _teams.migrate_general(db)
         if made:

@@ -15,6 +15,7 @@
     PUT    /api/v1/workspaces/{ws}/folders/{folder_id}/teams    a folder's teams (+ its items)
     GET|POST /api/v1/workspaces/{ws}/projects                   GET|PATCH|DELETE …/projects/{project}
     GET    /api/v1/workspaces/{ws}/teams-review                 admins: the guided review; POST …/apply, POST …/done
+    GET|PUT /api/v1/workspaces/{ws}/favorites                   your starred pages, files, projects and teams (sidebar)
     GET|PUT /api/v1/meetings/{meeting_id}/teams                 a meeting's teams (suggestions, confirm)
 
 Members of the workspace only (anyone else: 404).
@@ -137,6 +138,12 @@ class Accept(BaseModel):
 class ItemTeams(BaseModel):
     team_ids: list[str] = Field(default_factory=list, max_length=20)
     project_ids: list[str] = Field(default_factory=list, max_length=20)
+
+
+class Favorite(BaseModel):
+    kind: Literal["doc", "project", "team"]
+    ref: str = Field(min_length=1, max_length=80)
+    on: bool = True
 
 
 class FolderTeams(ItemTeams):
@@ -684,3 +691,30 @@ async def put_meeting_teams(request: Request, meeting_id: str, body: ItemTeams, 
         return jsonable_encoder(await routing.set_meeting_teams(db, actor, ctx, row, body.team_ids, body.project_ids))
     except T.Refused as exc:
         raise _err(exc)
+
+
+# ── Favorites (sidebar; services/favorites.py) ────────────────────────────────
+
+
+@router.get("/{workspace_id}/favorites", summary="Favorites: your starred pages, files, projects and teams")
+@limiter.limit("240/minute")
+async def get_favorites(request: Request, workspace_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                        user: User = Depends(require_user)):
+    from app.services import favorites
+
+    actor, ctx, _view, _role = await _ctx(request, db, user, workspace_id)
+    return jsonable_encoder({"favorites": await favorites.list_favorites(db, actor, ctx, workspace_id)})
+
+
+@router.put("/{workspace_id}/favorites", summary="Favorites: star or unstar")
+@limiter.limit("120/minute")
+async def put_favorite(request: Request, workspace_id: str, body: Favorite, db: AsyncIOMotorDatabase = Depends(get_db),
+                       user: User = Depends(require_user)):
+    from app.services import favorites
+
+    actor, ctx, _view, _role = await _ctx(request, db, user, workspace_id)
+    try:
+        await favorites.set_favorite(db, actor, ctx, workspace_id, body.kind, body.ref, body.on)
+    except favorites.Refused as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail)
+    return jsonable_encoder({"favorites": await favorites.list_favorites(db, actor, ctx, workspace_id)})

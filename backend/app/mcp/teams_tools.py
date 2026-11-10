@@ -307,7 +307,52 @@ async def route_meeting(ctx: Context, args: dict) -> tuple[str, dict]:
 
 
 _O = {"type": "object"}
+async def list_favorites(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import favorites
+
+    view, actx, _role = await _view(ctx, args["workspace"])
+    favs = await favorites.list_favorites(ctx.db, actor_of(ctx), actx, view.workspace_id)
+    out = {"favorites": [{"kind": f["kind"], "ref": f["ref"], "title": f["title"], "url": _abs(f["href"])} for f in favs]}
+    if not favs:
+        return "No favorites in this workspace yet.", out
+    return "Favorites:\n" + "\n".join(f"- {f['title']} ({f['kind']}) {_abs(f['href'])}" for f in favs), out
+
+
+async def set_favorite(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import favorites
+
+    view, actx, _role = await _view(ctx, args["workspace"])
+    kind, ref = args["kind"], (args.get("item") or "").strip()
+    if kind == "doc":
+        raw = await _doc(ctx, ref)
+        ref = raw["slug"]
+    elif kind == "team":
+        ref = str((await _team(ctx, view, ref))["_id"])
+    else:
+        p = await T.get_project(ctx.db, view.workspace_id, ref)
+        if p is None or str(p["_id"]) not in view.readable_projects:
+            raise ToolError("Project not found.")
+        ref = str(p["_id"])
+    on = args.get("on", True) is not False
+    try:
+        await favorites.set_favorite(ctx.db, actor_of(ctx), actx, view.workspace_id, kind, ref, on)
+    except favorites.Refused as exc:
+        raise ToolError(exc.detail)
+    return ("Added to favorites." if on else "Removed from favorites."), {"kind": kind, "ref": ref, "on": on}
+
+
 TEAMS_TOOLS = [
+    Tool(name="list_favorites", title="Your favorites in a workspace",
+         description="The pages, files, projects and teams the user starred in a workspace (the sidebar's Favorites).",
+         scope=READ, input_schema={"type": "object", "properties": {"workspace": _WS}, "required": ["workspace"]},
+         output_schema=_out({"favorites": {"type": "array", "items": _O}}), annotations=_ann(True, False, True), handler=list_favorites),
+    Tool(name="set_favorite", title="Star or unstar a favorite", writes=True, scope=WRITE,
+         description=("Add (on: true, default) or remove (on: false) a favorite. kind: doc (item: slug or link), team "
+                      "(id, slug or name) or project (id or slug)."),
+         input_schema={"type": "object", "properties": {"workspace": _WS, "kind": {"type": "string", "enum": ["doc", "team", "project"]},
+                                                        "item": {"type": "string", "maxLength": 300}, "on": {"type": "boolean"}},
+                       "required": ["workspace", "kind", "item"]},
+         output_schema=_out({"kind": _STR, "ref": _STR, "on": {"type": "boolean"}}), annotations=_ann(False, False, True), handler=set_favorite),
     Tool(name="list_teams", title="Teams in a workspace",
          description=("The teams of a workspace (Sales, Marketing, Engineering…): name, open or private, size, whether "
                       "the user is a lead or member. A private team the user isn't in shows only its name (and its "
