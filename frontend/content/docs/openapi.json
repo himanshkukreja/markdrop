@@ -34529,6 +34529,11 @@
             "type": "boolean",
             "title": "Comments Enabled",
             "default": true
+          },
+          "allow_resharing": {
+            "type": "boolean",
+            "title": "Allow Resharing",
+            "default": true
           }
         },
         "type": "object",

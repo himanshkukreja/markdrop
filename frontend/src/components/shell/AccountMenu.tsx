@@ -78,6 +78,8 @@ export function AccountMenu({ user, align = "right", studio }: { user: MeUser; a
     studio
       ? { label: "Guides docs", href: docsUrl(DOCS_PAGES.guidesOverview), icon: "doc", external: true }
       : { label: "Docs", href: DOCS_URL, icon: "doc" },
+    // Signed in, markdrop.in/ is the dashboard (lib/homeRedirect): ?home=1 shows the landing page.
+    ...(studio ? [] : [{ label: "Home page", href: appHref("/?home=1"), icon: "globe" }]),
     ...(pwa.installPath ? [{ label: "Install app", icon: "download", onClick: pwa.install }] : []),
     ...(LIGHT_ENABLED
       ? [{

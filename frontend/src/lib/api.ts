@@ -1,3 +1,4 @@
+import { forgetSignedIn, rememberSignedIn } from "@/lib/homeRedirect";
 import { utmFrom } from "@/lib/engageCore";
 import { moveRememberedKey } from "@/lib/e2e";
 import type { FileType } from "@/lib/fileTypes";
@@ -50,9 +51,12 @@ export function getToken(): string | null {
 }
 export function setToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token);
+  // The md_si hint: markdrop.in/ goes straight to the dashboard (lib/homeRedirect).
+  rememberSignedIn(token);
 }
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+  forgetSignedIn();
 }
 
 /** Authorization header for the current session, if logged in. */

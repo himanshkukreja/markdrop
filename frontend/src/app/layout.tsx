@@ -12,6 +12,7 @@ import ThirdPartyAnalytics from "@/components/analytics/ThirdPartyAnalytics";
 import { AppTrackers } from "@/docs/client/AppTrackers";
 import { themeScript } from "@/lib/themeScript";
 import { pwaBootScript } from "@/lib/pwa";
+import { HOME_BOOT_SCRIPT } from "@/lib/homeRedirect";
 import { PwaProvider } from "@/components/pwa/PwaProvider";
 import { DEFAULT_OG_IMAGE, SITE_ORIGIN } from "@/lib/og";
 
@@ -84,6 +85,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${manrope.variable} ${jetbrains.variable}`} suppressHydrationWarning>
       <head>
+        {/* Signed in on "/": straight to /dashboard before anything paints (a session from before the
+            md_si hint; the middleware handles the rest). A no-op anywhere else. lib/homeRedirect. */}
+        <script dangerouslySetInnerHTML={{ __html: HOME_BOOT_SCRIPT }} />
         {/* Resolves the theme before first paint. Static, so ISR-safe: it never reads cookies,
             headers or the URL fragment (which carries E2E keys). See lib/theme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: themeScript() }} />

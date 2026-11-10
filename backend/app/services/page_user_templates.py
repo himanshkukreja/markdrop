@@ -516,8 +516,6 @@ async def save_as_template(db: AsyncIOMotorDatabase, user, actor: access.Actor, 
     level = "workspace" if ws_id else "private"
     base = {"editor": "blocks", "template": True, "workspace_id": ws_id, "folder_id": None, "folder_path": [],
             "access_level": level}
-    if ws_id:
-        base["allow_resharing"] = False
     extra = {**base, "template_description": _clean(description, DESCRIPTION_MAX), "template_icon": icon,
              "template_order": order, "template_saved_from": raw.get("slug"), "template_saved_at": now_utc()}
     doc, _secret = await doc_service.create_document(

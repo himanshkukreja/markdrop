@@ -1,7 +1,7 @@
 ---
 title: Share with specific people
 description: Add people by email with Can view or Can edit, email them a note, let them share it on, and remove them later.
-updated: 2026-11-04
+updated: 2026-11-10
 prerequisites: [/get-started/accounts]
 keywords: [share, invite, email, grant, collaborator, can view, can edit, reshare, notify people, notification, message, custom domain, share on domain]
 ---
@@ -72,11 +72,17 @@ People you added can take themselves off: they choose **Remove me** from the ite
 
 ## Let people share it on
 
-Turn on **Let people I share with add others** to let the people you added share it with others. They open **Share** the same way you do. They can never give more access than they have: someone with **Can view** can only add people with **Can view**.
+With **Let people I share with add others** on, the people you added can share it with others, including people outside your workspace. They open **Share** the same way you do. They can never give more access than they have: someone with **Can view** can only add people with **Can view**. Sharing it on never changes **Who can open it**, its password or its link.
+
+It's on by default, for documents, pages and files in a workspace and outside one. Turn it off in the item's **Share** dialog to keep sharing to yourself. Only the owner switches it, and their choice sticks.
+
+In a workspace, admins choose the default with **Let people share onward** on the **Advanced** tab of the workspace's settings. Turned off, only owners share items that don't have their own choice. Items whose owner switched it on or off keep that.
+
+The owner and workspace admins see who added whom: a person someone else added shows "Added by" and that person's address under their name.
 
 If you remove someone, everyone they added loses the access that came through them.
 
-It's on by default for documents outside a workspace, and off by default for documents filed in one.
+End-to-end encrypted documents in a workspace stay as they were: people you add can't share them on unless you turn it on.
 
 ## On a workspace's own domain
 

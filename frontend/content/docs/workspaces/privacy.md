@@ -60,6 +60,7 @@ The **Advanced** tab has the individual settings behind the presets. Most worksp
 
 - **New items start as**: a list with **Only people added**, **Acme team** and **Anyone with the link**. A starting point only; each item keeps its own setting.
 - **Members can share folders with a link**: on by default. Admins always can. See [Share a folder](/workspaces/share-a-folder).
+- **Let people share onward**: on by default. People an item is shared with can add others, including people outside the workspace, never with more access than they have. Items whose owner made their own choice keep it. See [Let people share it on](/sharing/share-with-people#let-people-share-it-on).
 - **Visitors must sign in to open anything**: the Locked switch. Enforced everywhere, including markdrop.in links.
 
 If these settings don't match a preset, no preset is selected and **Privacy** on the People tab gets a **Custom** badge. Pick a preset to replace them.

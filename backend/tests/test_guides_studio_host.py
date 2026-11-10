@@ -51,12 +51,37 @@ class StudioSettingTests(unittest.TestCase):
 
     def test_the_studio_origin_is_always_allowed(self):
         s = self.make(frontend_url="https://markdrop.in", cors_origins=["https://markdrop.in", "https://www.markdrop.in"])
-        self.assertEqual(s.cors_origins, ["https://markdrop.in", "https://www.markdrop.in", STUDIO])
+        self.assertEqual(s.cors_origins, ["https://markdrop.in", "https://www.markdrop.in", STUDIO, "https://next.markdrop.in"])
         # Already listed: not twice.
         s = self.make(frontend_url="https://markdrop.in", cors_origins=[STUDIO, "https://markdrop.in"])
         self.assertEqual(s.cors_origins.count(STUDIO), 1)
         # The running app's settings (tests pin frontend_url to production's).
         self.assertIn(STUDIO, settings.cors_origins)
+
+    def test_the_web_staging_origin_is_allowed(self):
+        # next.markdrop.in (the frontend's Cloudflare Workers staging) calls the API with a session like markdrop.in.
+        s = self.make(frontend_url="https://markdrop.in", cors_origins=["https://markdrop.in"])
+        self.assertIn("https://next.markdrop.in", s.cors_origins)
+        self.assertIn("https://next.markdrop.in", settings.cors_origins)
+        # Listed already (or with a trailing slash): once. Switched off: absent.
+        s = self.make(cors_origins=["https://next.markdrop.in"], web_staging_origins=["https://next.markdrop.in/"])
+        self.assertEqual(s.cors_origins.count("https://next.markdrop.in"), 1)
+        s = self.make(frontend_url="https://markdrop.in", cors_origins=["https://markdrop.in"], web_staging_origins=[])
+        self.assertNotIn("https://next.markdrop.in", s.cors_origins)
+
+    def test_the_api_answers_cors_for_the_staging_origin(self):
+        import asyncio
+
+        from httpx import ASGITransport, AsyncClient
+        from app.main import app
+
+        async def preflight():
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                return await c.options("/api/v1/auth/email/request", headers={"Origin": "https://next.markdrop.in", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type"})
+
+        r = asyncio.run(preflight())
+        self.assertEqual(r.headers.get("access-control-allow-origin"), "https://next.markdrop.in")
+        self.assertEqual(r.headers.get("access-control-allow-credentials"), "true")
 
     def test_unknown_setting_names_are_still_refused(self):
         with self.assertRaises(Exception):

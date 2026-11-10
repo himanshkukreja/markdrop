@@ -967,7 +967,7 @@ async def t_explain_access(ctx: ToolContext, args: dict) -> dict:
         "workspace_requires_sign_in": bool(f.require_auth),
         "password_protected": bool(f.has_password),
         "expiry": expiry,
-        "resharing_allowed": access.resharing_allowed(raw),
+        "resharing_allowed": access.resharing_allowed(raw, f.ws if f.ws_id else None),
         "who_can_open": who,
         "people_added": [{"email": g.email, "role": getattr(g, "effective_role", None) or g.role}
                          for g in active[:20]],
