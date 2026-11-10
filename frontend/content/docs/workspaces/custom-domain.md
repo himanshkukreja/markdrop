@@ -1,7 +1,7 @@
 ---
 title: Put your workspace on your own domain
 description: Serve a workspace's documents and folders from an address you own, like docs.acme.com. Two DNS records, then one check.
-updated: 2026-11-04
+updated: 2026-11-10
 prerequisites: [/workspaces/create, /workspaces/members-and-roles]
 keywords: [domain, custom domain, dns, cname, txt, a record, apex, cloudflare, godaddy, namecheap, route 53, verify, ssl, certificate]
 ---
@@ -132,6 +132,14 @@ DNS changes can take up to an hour to show up, sometimes longer. If **Check DNS*
 ![After Check DNS on help.acme.com: the Ownership record (TXT) shows Not found yet and the Routing record (CNAME) shows Found.](/docs-assets/workspaces/custom-domain/dns-check-partial.webp)
 
 Markdrop doesn't check a new domain on its own: choose **Check DNS** when you've added the records. A domain that's never verified is dropped after 7 days, and you can add it again.
+
+## Open on markdrop.in or on your domain
+
+Inside the app, items open on markdrop.in. Choosing a document, page or file in a workspace, on Home, in search, Recent or a notification opens it at `markdrop.in/<document>`, and you stay signed in where you are.
+
+To see it on your domain, choose **Open on docs.acme.com** in the item's **⋯** menu, or the **docs.acme.com** button in the bar at the top of the document (on a narrow screen it's in **⋯**). It opens in a new tab and signs you in there by itself; see [Sign in on your domain](/workspaces/sign-in-on-your-domain).
+
+When you share, the Share dialog offers both links; your domain's is the default. See [Two links, one setting](/sharing/who-can-open#two-links-one-setting). Emails and Slack messages about workspace items keep linking to your domain.
 
 ## Make it the default
 
