@@ -180,7 +180,7 @@ function Integrations({ ws, team, onSaved }: { ws: string; team: TeamFull; onSav
     <section className="tz-card" aria-labelledby="ts-int" data-testid="team-integrations">
       <h2 className="tz-h2 mb-3" id="ts-int">Slack, Jira and the weekly digest</h2>
       <div className="flex flex-col gap-5">
-        <Field label="Slack channel" hint="Its meeting posts, weekly brief and comment notices go here (else the workspace's channel).">
+        <Field label="Slack channel" hint="The team's meeting posts, weekly brief and comment notices go here.">
           {channels === null ? <Skeleton variant="rect" height={36} /> : channels === false || channels.length === 0 ? (
             <Input value={team.slack_channel?.name ? `#${team.slack_channel.name}` : ""} disabled placeholder="A workspace admin connects Slack in Workspace settings › Integrations" aria-label="Slack channel" />
           ) : (
@@ -189,6 +189,10 @@ function Integrations({ ws, team, onSaved }: { ws: string; team: TeamFull; onSav
               options={[{ value: "", label: "The workspace's channel" }, ...channels.map((c) => ({ value: c.id, label: `${c.private ? "🔒 " : "#"}${c.name}` }))]} />
           )}
         </Field>
+        {team.slack_channel && (
+          <Switch label="Post new and resolved comments on the team's pages" checked={team.slack_comments !== false} disabled={busy} data-testid="slack-comments"
+            onChange={(e) => void save({ slack_comments: e.target.checked }, e.target.checked ? "Comments go to the channel" : "Comments stay out of the channel")} />
+        )}
         <div className="flex flex-col gap-2">
           <span className="text-body font-medium">Jira projects</span>
           <p className="tz-muted">The team home shows these projects; issues created from its meetings go to the first one.</p>
