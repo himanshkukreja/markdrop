@@ -87,6 +87,7 @@ def _to_response(workspace: Workspace, role: str, counts: dict | None = None) ->
             team_memory=s.team_memory,
             timezone=s.timezone,
             comments_enabled=s.comments_enabled,
+            allow_resharing=s.allow_resharing,
         ),
         role=role,  # type: ignore[arg-type]
         default_access=s.default_access,

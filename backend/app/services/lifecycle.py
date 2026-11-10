@@ -915,16 +915,15 @@ async def reconcile_once(db: AsyncIOMotorDatabase, *, limit: int = 200, full: bo
 
 
 async def migrate(db: AsyncIOMotorDatabase) -> dict:
-    """1. filed docs with no stored ``allow_resharing`` ⇒ false;
+    """1. resharing on by default in workspaces (owner 2026-11-10): the stored
+       ``false`` the old default wrote on filed documents is cleared, so they
+       follow the workspace's "Let people share onward" (one-shot, counted);
     2. ``workspace`` level with no (or a dangling) workspace ⇒ private;
     3. dangling workspace refs released: whether that workspace required
        sign-in is unknown, so ``link`` ⇒ ``private`` too (C1 — never assume a
        deleted workspace was open); epoch bumped, left dirty for the bytes."""
     out = {}
-    res = await db["documents"].update_many(
-        {"workspace_id": {"$ne": None}, "allow_resharing": {"$exists": False}},
-        {"$set": {"allow_resharing": False}})
-    out["resharing_defaulted"] = res.modified_count
+    out["resharing_default_on"] = await _resharing_default_on(db)
     res = await db["documents"].update_many(
         {"access_level": "workspace", "workspace_id": None},
         {"$set": {"access_level": "private", "access_dirty": True}})
@@ -983,6 +982,36 @@ async def migrate(db: AsyncIOMotorDatabase) -> dict:
             {"$set": {"access_dirty": True}})
         out["require_auth_bytes_queued"] = res.modified_count
     return out
+
+
+async def _resharing_default_on(db: AsyncIOMotorDatabase) -> int:
+    """"Let people I share with add others" becomes on by default for items in
+    a workspace (owner 2026-11-10). Until now every filed document got a stored
+    ``allow_resharing: false`` — written when it was filed, made workspace-only,
+    created inside a workspace, or by this migration's old step 1 — which can't
+    be told apart from an owner switching it off. A stored ``false`` on a filed
+    document equals that old default, so it is treated as "no choice" and
+    cleared; the workspace's setting (on) applies from now on. Kept: ``true``
+    anywhere, ``false`` on personal (unfiled) documents (the old default there
+    was on, so it was chosen), and end-to-end encrypted documents (unchanged by
+    the new default). One-shot (``migrations``): after it, nothing writes the
+    field except the owner's switch, so a stored value is always a choice."""
+    marker = "resharing_default_on_v1"
+    if await db["migrations"].find_one({"_id": marker}):
+        return 0
+    res = await db["documents"].update_many(
+        {"workspace_id": {"$ne": None}, "allow_resharing": False, "encrypted": {"$ne": True}},
+        {"$unset": {"allow_resharing": ""}})
+    cleared = res.modified_count
+    # Documents waiting in the trash (services/trash.py) come back as they were stored.
+    res = await db["trash"].update_many(
+        {"doc.workspace_id": {"$ne": None}, "doc.allow_resharing": False, "doc.encrypted": {"$ne": True}},
+        {"$unset": {"doc.allow_resharing": ""}})
+    cleared += res.modified_count
+    await db["migrations"].update_one({"_id": marker}, {"$set": {"at": _now(), "cleared": cleared}},
+                                      upsert=True)
+    log.warning("resharing default on: cleared the old default (off) on %d filed document(s)", cleared)
+    return cleared
 
 
 async def _link_legacy_grants(db: AsyncIOMotorDatabase) -> int:

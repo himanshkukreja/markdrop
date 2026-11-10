@@ -503,12 +503,22 @@ async def facts(actor: Actor, doc: dict, ctx: Ctx) -> Facts:
     return f
 
 
-def resharing_allowed(doc: dict) -> bool:
-    """Stored value; absent ⇒ true for unfiled documents, false for filed ones."""
+def resharing_allowed(doc: dict, ws: Any) -> bool:
+    """"Let people I share with add others". A stored value is the owner's own
+    choice and always wins. Absent: unfiled ⇒ on (as ever); filed ⇒ the
+    workspace's "Let people share onward" setting (on by default, owner
+    2026-11-10) — ``ws`` is that workspace (``Facts.ws``). An end-to-end
+    encrypted document keeps the old filed default (off): the change leaves
+    encrypted documents as they were. A filed document whose workspace isn't
+    given (None) or no longer exists counts as unfiled."""
     stored = doc.get("allow_resharing")
-    if stored is None:
-        return not doc.get("workspace_id")
-    return bool(stored)
+    if stored is not None:
+        return bool(stored)
+    if not doc.get("workspace_id") or ws is None:
+        return True
+    if doc.get("encrypted"):
+        return False
+    return bool(getattr(ws.settings, "allow_resharing", True))
 
 
 # ── Password attempts (§2.6: 10/min, 50/h per slug + IP ⇒ 429) ────────────────
@@ -743,7 +753,7 @@ async def _action(actor: Actor, doc: dict, f: Facts, action: str, ctx: Ctx) -> D
             return _account()
         if owner:
             return allow
-        if f.role in ("viewer", "editor") and resharing_allowed(doc):
+        if f.role in ("viewer", "editor") and resharing_allowed(doc, f.ws if f.ws_id else None):
             return allow
         return _forbid("Only the owner can share this document.")
     if action == "revoke_grant":
@@ -1390,8 +1400,6 @@ async def set_level(db: AsyncIOMotorDatabase, raw_doc: dict, level: str, actor: 
         # Access set on a sub-page itself: from now on it has its own (keeping
         # the password it inherited, if any, until that is changed too).
         sets["access_inherit"] = False
-    if level == "workspace":
-        sets["allow_resharing"] = False
     after = await transitions.change(
         db, raw_doc, sets=sets, cas={"workspace_id": raw_doc.get("workspace_id")},
         narrows=LEVEL_RANK[level] < LEVEL_RANK[current],

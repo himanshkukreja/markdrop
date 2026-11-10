@@ -53,6 +53,8 @@ class SettingsPayload(BaseModel):
     timezone: str | None = Field(None, max_length=64)
     # Comments on this workspace's pages and documents (services/comments). Default on.
     comments_enabled: bool = True
+    # "Let people share onward": the default for items here without their own choice. Default on.
+    allow_resharing: bool = True
 
     @field_validator("timezone")
     @classmethod
