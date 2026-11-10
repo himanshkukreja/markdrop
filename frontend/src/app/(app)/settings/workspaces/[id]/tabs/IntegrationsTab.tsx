@@ -10,6 +10,7 @@ import {
 import { SlackMark } from "@/components/integrations/SlackMark";
 import { ActionItemsPreview } from "@/components/integrations/ActionItemsPreview";
 import { JiraWorkspaceCard } from "@/components/jira/JiraWorkspaceCard";
+import { ZoomWorkspaceCard } from "@/components/zoom/ZoomWorkspaceCard";
 import { SwitchRow, shortDate } from "../../../settings-shared";
 import { Locked, lockProps, lockSelectProps, type WsTabProps } from "../ws-shared";
 
@@ -26,6 +27,8 @@ export default function IntegrationsTab(props: WsTabProps) {
       <SlackSection {...props} />
       {/* Jira Cloud (components/jira/JiraWorkspaceCard.tsx, backend routers/jira.py). */}
       <JiraWorkspaceCard id={props.id} isAdmin={props.isAdmin} />
+      {/* Zoom (components/zoom/ZoomWorkspaceCard.tsx, backend routers/zoom.py). */}
+      <ZoomWorkspaceCard id={props.id} isAdmin={props.isAdmin} />
     </div>
   );
 }
