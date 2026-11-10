@@ -6,6 +6,17 @@ from pydantic import BaseModel, Field, model_validator
 from app.config import get_settings
 
 MAX_CONTENT = get_settings().max_content_chars
+
+
+def fill_addresses(m) -> None:
+    """markdrop_url (markdrop.in/<slug>) and domain_url (= workspace_url, the live workspace
+    domain's address, else None) on a response model, when the route didn't set them."""
+    from app.services.urls import markdrop_url
+
+    if getattr(m, "markdrop_url", None) is None and getattr(m, "slug", None):
+        m.markdrop_url = markdrop_url(m.slug)
+    if getattr(m, "domain_url", None) is None:
+        m.domain_url = getattr(m, "workspace_url", None)
 # Sync carries artifacts as well as markdown, and an HTML file is routinely
 # larger than a markdown note. The real limits are enforced in the sync handler
 # (markdown: max_content_chars; artifacts: artifact.MAX_SYNC_BYTES, 25 MB) with a
@@ -133,6 +144,11 @@ class DocumentResponse(BaseModel):
     # ── Access policy additions (additive) ───────────────────────────────────
     # The document's address on its workspace's live primary domain, else null.
     workspace_url: str | None = None
+    # Both addresses by name (2026-11-10): markdrop_url always opens it on
+    # markdrop.in; domain_url is its workspace domain address when that domain
+    # is live (the same as workspace_url), else null. `url` keeps its meaning.
+    markdrop_url: str | None = None
+    domain_url: str | None = None
     # How it is reachable ("link" | "private" | "workspace") and where it is filed.
     access_level: str = "link"
     workspace_id: str | None = None
@@ -193,6 +209,11 @@ class DocumentResponse(BaseModel):
     track: dict | None = None
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def _addresses(self):
+        fill_addresses(self)
+        return self
 
 
 class DocumentCreateResponse(DocumentResponse):

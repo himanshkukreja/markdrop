@@ -167,6 +167,8 @@ async def item_for(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx
         "original_filename": raw.get("original_filename") if raw.get("kind") == "artifact" else None,
         "url": workspace_url or urls.markdrop_url(raw["slug"]),
         "markdrop_url": urls.markdrop_url(raw["slug"]),
+        # The workspace domain's address when it is live, else None (url is that or markdrop.in).
+        "domain_url": workspace_url,
         "access": raw.get("access_level") or "link",
         "has_password": bool(raw.get("read_password_hash")),
         "encrypted": bool(raw.get("encrypted")),
@@ -207,7 +209,7 @@ def redacted_item(raw: dict, workspace_id: str, *, names: dict, folders: dict) -
     return {
         "redacted": True,
         "id_token": make_handle(workspace_id, str(raw["_id"])),
-        "slug": None, "title": None, "url": None, "markdrop_url": None,
+        "slug": None, "title": None, "url": None, "markdrop_url": None, "domain_url": None,
         "kind": raw.get("kind") or "markdown", "mime": None,
         "access": "private", "has_password": False, "encrypted": False,
         "folder": folder,
