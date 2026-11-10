@@ -43,7 +43,7 @@ const WORKSPACE: IntegrationInfo[] = [
       "Meetings hosted by anyone else are ignored.",
     ],
     steps: [
-      { title: "Create the Zoom app", body: "Your Zoom account admin creates the app in the Zoom App Marketplace, following the steps under Settings below." },
+      { title: "Create the Zoom app", body: "Your Zoom account admin creates the app in the Zoom App Marketplace, following the detailed steps in Settings below." },
       { title: "Connect it here", body: "A workspace admin pastes the app's details; Markdrop checks them with Zoom." },
       { title: "Pick the team", body: "Choose whose meetings come in. Make the team private so only its members see them." },
       { title: "Bring in past meetings", body: "Optional: Import past meetings picks recordings from a date range." },

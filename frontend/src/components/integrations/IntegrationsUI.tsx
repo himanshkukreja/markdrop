@@ -5,14 +5,14 @@ import { Anchor, Badge, Button, Icon, Skeleton, useToast } from "@/components/ui
 import { ReadMore } from "@/components/ReadMore";
 import { BrandMark } from "./BrandMark";
 import type { IntegrationStatus } from "./useIntegrationStatus";
-import { GROUP_ORDER, type IntegrationGroup, type IntegrationInfo } from "@/lib/integrations";
+import { GROUP_ORDER, type IntegrationInfo } from "@/lib/integrations";
 
 /**
  * The Integrations grid and detail page (owner, 2026-11-11: "every integration as a card with basic info,
  * keep a grid; clicking Details opens that integration's own page with all the details and steps").
  *
- *   <IntegrationGrid>     cards grouped by kind: mark, name, status, one line, one action + Details
- *   <IntegrationDetail>   back link, header, What it does, Settings (the existing component), Set up, Troubleshooting, docs
+ *   <IntegrationGrid>     one grid of cards in group order: mark, group, name, status, one line, one action + Details
+ *   <IntegrationDetail>   back link, header, What it does, Set up (numbered), Settings (the existing component), Troubleshooting, docs
  */
 
 export function StatusChip({ status }: { status: IntegrationStatus | undefined }) {
@@ -46,7 +46,8 @@ export function IntegrationCard({ info, status, href, action }: {
         <StatusChip status={status} />
       </div>
       <div className="min-w-0 flex-1">
-        <h3 id={titleId} className="m-0 text-body-strong text-text">{info.name}</h3>
+        <p className="m-0 text-eyebrow uppercase text-text-muted">{info.group}</p>
+        <h3 id={titleId} className="m-0 mt-0.5 text-body-strong text-text">{info.name}</h3>
         <p className="m-0 mt-1 text-[13px] leading-5 text-text-secondary">{info.blurb}</p>
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -75,20 +76,14 @@ export function IntegrationGrid({ items, statuses, hrefOf, actionOf }: {
   hrefOf: (i: IntegrationInfo) => string;
   actionOf: (i: IntegrationInfo, s: IntegrationStatus | undefined) => CardAction | null;
 }) {
-  const groups = GROUP_ORDER.map((g) => [g, items.filter((i) => i.group === g)] as [IntegrationGroup, IntegrationInfo[]]).filter(([, l]) => l.length);
+  // One dense grid, in group order; each card names its group (a header per group left half-empty rows).
+  const ordered = GROUP_ORDER.flatMap((g) => items.filter((i) => i.group === g));
   return (
-    <div className="flex min-w-0 flex-col gap-6" data-testid="integrations-grid">
-      {groups.map(([g, list]) => (
-        <section key={g} aria-labelledby={`int-group-${slug(g)}`} className="flex min-w-0 flex-col gap-3">
-          <h2 id={`int-group-${slug(g)}`} className="m-0 text-eyebrow uppercase text-text-muted">{g}</h2>
-          <ul className="m-0 grid min-w-0 list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-            {list.map((i) => (
-              <IntegrationCard key={i.id} info={i} status={statuses[i.id]} href={hrefOf(i)} action={actionOf(i, statuses[i.id])} />
-            ))}
-          </ul>
-        </section>
+    <ul className="m-0 grid min-w-0 list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4" data-testid="integrations-grid" aria-label="Integrations">
+      {ordered.map((i) => (
+        <IntegrationCard key={i.id} info={i} status={statuses[i.id]} href={hrefOf(i)} action={actionOf(i, statuses[i.id])} />
       ))}
-    </div>
+    </ul>
   );
 }
 
@@ -135,12 +130,6 @@ export function IntegrationDetail({ info, status, backHref, backLabel, actions, 
         </ul>
       </Section>
 
-      {children && (
-        <Section title="Settings" id="settings">
-          <div className="min-w-0" onClickCapture={touched} onSubmitCapture={touched} onChangeCapture={touched}>{children}</div>
-        </Section>
-      )}
-
       <Section title="Set up" id="setup">
         <ol className="m-0 flex list-none flex-col gap-3 p-0" data-testid="integration-steps">
           {info.steps.map((s, n) => (
@@ -154,6 +143,12 @@ export function IntegrationDetail({ info, status, backHref, backLabel, actions, 
           ))}
         </ol>
       </Section>
+
+      {children && (
+        <Section title="Settings" id="settings">
+          <div className="min-w-0" onClickCapture={touched} onSubmitCapture={touched} onChangeCapture={touched}>{children}</div>
+        </Section>
+      )}
 
       {info.troubleshooting.length > 0 && (
         <Section title="Troubleshooting">

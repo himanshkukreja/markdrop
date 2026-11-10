@@ -47,8 +47,8 @@ await step("workspace", async () => {
     const s = await statusOf(card);
     if (!["connected", "off", "attention", "admin", "unavailable"].includes(s)) fail(`${id}: status ${s}`);
   }
-  const groups = await grid.locator("h2").allTextContents();
-  if (groups.join(",") !== "Meetings,Chat,Work tracking") fail(`groups: ${groups.join(",")}`);
+  const order = await grid.locator("li[data-testid^=integration-card-]").evaluateAll((l) => l.map((e) => e.dataset.testid.replace("integration-card-", "")));
+  if (order.join(",") !== "zoom,google-meet,slack,jira") fail(`order: ${order.join(",")}`);
   await shot(p, "integrations-ws-grid");
 
   for (const [id, settings] of [["slack", "slack-card"], ["zoom", "zoom-card"], ["jira", "jira-card"]]) {
