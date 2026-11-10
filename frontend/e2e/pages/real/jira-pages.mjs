@@ -15,6 +15,10 @@
  *   select    Ada selects text → Create Jira issue → the text becomes the new issue's chip
  *   thread    a comment thread → Create Jira issue (draft, review, create) → the thread shows the issue
  *   mobile    at 390 px: chip, card and list fit (the list scrolls inside itself); light + dark shots
+ *   slashgate Wes (not connected): "/jira my issues" → the Connect Jira prompt → Atlassian (faked) → back in
+ *             Edit, and the list goes in where he typed it
+ *   presets   Ada: /jira my issues, sprint, bugs, recently updated, epic, card, create, from selection → saved
+ *             as ::jira-list{jql=…} / ::jira{…} / :jira[…]
  *
  *   PB_FAKE_JIRA=1 PB_FAKE_MEETINGS_AI=1 PB_STACK_ID=74 PB_WORK=… zsh up.sh start
  *   PB_STACK_ID=74 PB_WORK=… BROWSER=chromium|webkit [ONLY=reader,anon] node jira-pages.mjs
@@ -337,6 +341,145 @@ await step("mobile", async () => {
   const { p } = await open("member", { theme: "dark" });
   await card(p).locator('[data-testid="jira-status"]').waitFor({ timeout: 20000 });
   await shot(p, "jira-pages-dark");
+});
+
+/** A new empty line at the end of the page, with the caret in it. */
+async function newLine(p) {
+  await p.evaluate(() => {
+    const ed = document.querySelector('.pb-live .ProseMirror').editor;
+    ed.chain().insertContentAt(ed.state.doc.content.size, { type: "paragraph" }).focus("end").run();
+  });
+  await p.waitForTimeout(150);
+}
+/** Types a "/" command and picks the menu's first row (Enter). */
+async function slash(p, cmd, label) {
+  await p.keyboard.type(`/${cmd}`, { delay: 25 });
+  await p.locator(".dxe-slash [role=option]").first().filter({ hasText: label }).waitFor({ state: "attached", timeout: 8000 });
+  await p.keyboard.press("Enter");
+}
+
+await step("slashgate", async () => {
+  const slug = await newPage(`Jira connect ${run}`, "Start here\n");
+  const { p } = await ctx(browser, { token: T.admin });
+  // Atlassian's page, faked: straight back to the callback with Wes's code (the server checks the state).
+  await p.route("https://auth.jira.test/**", (r) => {
+    const state = new URL(r.request().url()).searchParams.get("state");
+    // A page that goes on (WebKit can't fulfill a request with a redirect).
+    const to = `${APP}/integrations/jira/callback?code=code-${ACC.admin}&state=${encodeURIComponent(state)}`;
+    return r.fulfill({ status: 200, contentType: "text/html", body: `<script>location.replace(${JSON.stringify(to)})</script>` });
+  });
+  await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
+  await editPage(p);
+  await p.waitForTimeout(1200);
+  await newLine(p);
+  // Every command is offered, connected or not.
+  await p.keyboard.type("/jira", { delay: 25 });
+  await p.locator(".dxe-slash [role=option]", { hasText: "Jira sprint" }).first().waitFor({ state: "attached", timeout: 8000 });
+  const n = await p.locator(".dxe-slash [role=option]").count();
+  if (n < 10) fail(`"/jira" lists ${n} commands`);
+  await shot(p, "jira-slash-menu");
+  await p.keyboard.type(" my issues", { delay: 25 });
+  await p.locator(".dxe-slash [role=option]").first().filter({ hasText: "My Jira issues" }).waitFor({ state: "attached", timeout: 8000 });
+  await p.keyboard.press("Enter");
+  const gate = p.getByTestId("jira-slash-gate");
+  await gate.waitFor({ timeout: 10000 });
+  if ((await gate.getAttribute("data-why")) !== "connect") fail(`gate: ${await gate.getAttribute("data-why")}`);
+  await shot(p, "jira-slash-connect");
+  await p.getByTestId("jira-slash-connect").click();
+  // Back on the page, in Edit, and the list goes in.
+  await p.waitForURL((u) => u.pathname === `/${slug}` && u.searchParams.get("jira") === "connected" || !u.searchParams.has("jira_add") && u.pathname === `/${slug}` && u.searchParams.has("edit"), { timeout: 30000 });
+  await p.locator('.pb-live [data-testid="jira-list"]').first().waitFor({ timeout: 30000 }).catch(async (e) => {
+    await shot(p, "jira-slash-connect-fail");
+    fail(`after connecting: ${p.url()} ${e.message.split("\n")[0]}`);
+  });
+  if (new URL(p.url()).searchParams.has("jira_add")) fail(`the command stays in the address: ${p.url()}`);
+  await waitSaved(p);
+  const md = ok(await api("GET", `/api/v1/documents/${slug}`, T.owner), "doc").content;
+  if (!md.includes('::jira-list{jql="assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC"')) fail(`saved: ${md}`);
+  if (md.indexOf("Start here") > md.indexOf("::jira-list")) fail(`not where he typed it: ${md}`);
+  await shot(p, "jira-slash-connected");
+  // Wes is "not connected" again for anything after this.
+  ok(await api("DELETE", "/api/v1/jira/me", T.admin), "disconnect");
+});
+
+await step("presets", async () => {
+  const slug = await newPage(`Jira presets ${run}`, "Start here\n");
+  const { p } = await ctx(browser, { token: T.owner });
+  await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
+  await editPage(p);
+  await p.waitForTimeout(1200);
+  const lists = p.locator('.pb-live [data-testid="jira-list"]');
+  const project = async (key) => {
+    const d = p.getByTestId("jira-slash-project");
+    await d.waitFor({ timeout: 10000 });
+    await d.getByTestId("jira-slash-project-key").fill(key);
+    await p.getByTestId("jira-slash-project-add").click();
+  };
+  let want = 0;
+  const added = async () => {
+    want += 1;
+    await p.waitForFunction((n) => document.querySelectorAll('.pb-live [data-testid="jira-list"]').length >= n, want, { timeout: 15000 });
+  };
+  await newLine(p);
+  await slash(p, "jira my issues", "My Jira issues");
+  await added();
+  await newLine(p);
+  await slash(p, "jira sprint", "Jira sprint");
+  await project("PAY");
+  await added();
+  await newLine(p);
+  await slash(p, "jira bugs", "Jira bugs");
+  await project("PAY");
+  await added();
+  await newLine(p);
+  await slash(p, "jira recently updated", "Jira recently updated");
+  await project("WEB");
+  await added();
+  // The epic: its card and its children's list.
+  await newLine(p);
+  await slash(p, "jira epic", "Jira epic");
+  const picker = p.getByTestId("jira-picker");
+  await picker.waitFor({ timeout: 10000 });
+  await picker.getByRole("textbox").fill("PAY-1");
+  // The search's own row (not one from the list shown before it answered).
+  await picker.getByTestId("jira-pick-row").filter({ has: p.locator(".jp-chip__key", { hasText: /^PAY-1$/ }) }).first().click();
+  await added();
+  await p.locator('.pb-live [data-testid="jira-card"][data-key="PAY-1"]').first().waitFor({ timeout: 15000 });
+  // A card, through its picker.
+  await newLine(p);
+  await slash(p, "jira card", "Jira card");
+  await picker.waitFor({ timeout: 10000 });
+  await picker.getByRole("textbox").fill("refund");
+  await picker.getByTestId("jira-pick-row").filter({ hasText: "Refund flow" }).first().click();
+  await p.locator('.pb-live [data-testid="jira-card"][data-key="PAY-2"]').first().waitFor({ timeout: 15000 });
+  await lists.last().locator('[data-testid="jira-list-row"]').first().waitFor({ timeout: 15000 });
+  await shot(p, "jira-slash-presets");
+  // "/jira create": the picker, ready to write the new issue.
+  await newLine(p);
+  await slash(p, "jira create", "New Jira issue");
+  await picker.waitFor({ timeout: 10000 });
+  await p.keyboard.press("Escape");
+  await picker.waitFor({ state: "detached", timeout: 10000 }).catch(() => {});
+  // "/jira from selection": the line becomes a new issue, and its chip takes the text's place.
+  await newLine(p);
+  await p.keyboard.type("Write the rollback runbook /jira from", { delay: 15 });
+  await p.locator(".dxe-slash [role=option]").first().filter({ hasText: "Jira issue from text" }).waitFor({ state: "attached", timeout: 8000 });
+  await p.keyboard.press("Enter");
+  await p.getByTestId("jira-create").waitFor({ timeout: 20000 });
+  await p.getByTestId("jira-create").click();
+  await waitSaved(p);
+  await p.waitForTimeout(1500);
+  await waitSaved(p);
+  const md = ok(await api("GET", `/api/v1/documents/${slug}`, T.owner), "doc").content;
+  for (const w of [
+    'jql="assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC"',
+    'jql="project = &quot;PAY&quot; AND sprint in openSprints() ORDER BY rank ASC"',
+    'jql="project = &quot;PAY&quot; AND issuetype = Bug AND resolution = Unresolved ORDER BY priority DESC, created DESC"',
+    'jql="project = &quot;WEB&quot; AND updated >= -7d ORDER BY updated DESC"',
+    '::jira{key="PAY-1"}', 'jql="parent = PAY-1 ORDER BY rank ASC"', '::jira{key="PAY-2"}',
+  ]) if (!md.includes(w)) fail(`saved Markdown lacks ${w}: ${md}`);
+  if (md.includes("Write the rollback runbook")) fail(`the line is still text: ${md}`);
+  if (!/\n:jira\[PAY-\d+\]\n/.test(md)) fail(`no chip for the new issue: ${md}`);
 });
 
 await browser.close();

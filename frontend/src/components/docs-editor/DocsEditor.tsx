@@ -192,6 +192,7 @@ export function DocsEditor({
   blocks,
   pages,
   darkImages,
+  jira,
   onEditor,
 }: DocsEditorProps) {
   const [own, setOwn] = useState<EditorMode>("visual");
@@ -547,6 +548,7 @@ export function DocsEditor({
             blocks={blocks}
             pages={pages}
             darkImages={darkImages}
+            jira={jira}
           />
         </>
       ) : (

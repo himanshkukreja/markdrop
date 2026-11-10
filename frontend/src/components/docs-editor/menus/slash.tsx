@@ -11,11 +11,11 @@
  */
 import { Extension, type Editor, type Range } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
-import Suggestion, { exitSuggestion, type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
+import Suggestion, { exitSuggestion, findSuggestionMatch, type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui";
-import { AI_ITEMS, BLOCK_ITEMS, GROUP_LABEL, cellItems, filterItems, type BlockItem } from "../blocks";
+import { AI_ITEMS, BLOCK_ITEMS, GROUP_LABEL, cellItems, filterItems, jiraQueryAt, type BlockItem } from "../blocks";
 import { aiHooks } from "./aiKeys";
 import { cx } from "../views/shared";
 import { reducedMotion, usePresence } from "./motion";
@@ -136,6 +136,19 @@ export function SuggestMenu({ name, key, char, store, listboxId, find, minQuery 
           allowSpaces: false,
           startOfLine: false,
           allowedPrefixes: [" ", " "],
+          // "/jira my issues": the Jira commands' words keep the menu open (blocks.ts jiraQueryAt).
+          findSuggestionMatch: (config) => {
+            if (blockMenu) {
+              const before = config.$position.nodeBefore;
+              const text = before?.isText ? before.text ?? "" : "";
+              const j = text ? jiraQueryAt(text) : null;
+              if (j) {
+                const from = config.$position.pos - text.length + j.index;
+                return { range: { from, to: config.$position.pos }, query: j.query, text: `/${j.query}` };
+              }
+            }
+            return findSuggestionMatch(config);
+          },
           items: ({ query, editor: e }) => (query.length < minQuery && !store.force ? [] : items.find(query, e)),
           allow: ({ state, range }) => {
             const $from = state.doc.resolve(range.from);

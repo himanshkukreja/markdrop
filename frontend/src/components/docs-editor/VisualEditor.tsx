@@ -72,6 +72,8 @@ export interface VisualEditorProps {
   blocks?: readonly string[];
   pages?: PagesEditorHost;
   darkImages?: boolean;
+  /** See DocsEditorProps.jira. */
+  jira?: import("./blocks").JiraSlash | null;
 }
 
 // The Markdown goes to the host after a pause in typing (the host re-reads it: refs, autosave, a
@@ -80,7 +82,7 @@ const EMIT_DELAY = 300;
 const identity = (s: string) => s;
 
 export default function VisualEditor(props: VisualEditorProps) {
-  const { value, readOnly = false, placeholder, onUploadImage, operations, accessRules, resolveAssetUrl, autoFocus, onRequestMarkdown, onReady, stickyTop, onHandle, assist, assistLanguages, ai = null, onComment, comments, onCommentClick, checkLink, flagImages = false, markdrop, blocks, pages, darkImages } = props;
+  const { value, readOnly = false, placeholder, onUploadImage, operations, accessRules, resolveAssetUrl, autoFocus, onRequestMarkdown, onReady, stickyTop, onHandle, assist, assistLanguages, ai = null, onComment, comments, onCommentClick, checkLink, flagImages = false, markdrop, blocks, pages, darkImages, jira = null } = props;
   const toast = useToast();
   const initial = useMemo(() => parseMarkdown(value), []); // eslint-disable-line react-hooks/exhaustive-deps -- parsed once; later values are synced below
   const meta = useRef<DocState>(initial);
@@ -332,6 +334,10 @@ export default function VisualEditor(props: VisualEditorProps) {
       openPeople: people ? (e: Editor, r: { from: number; to: number }) => openPeopleAt(e, people.store, r) : undefined,
     });
   }, [editor, pages, toast]);
+  // The "/jira …" commands (blocks.ts JIRA_ITEMS): offered while the host gives them.
+  useEffect(() => {
+    if (editor) services(editor).jira = jira;
+  }, [editor, jira]);
   useEditorAnchor(pages ? editor : null);
   useEffect(() => {
     altText.attach(editor ?? null);

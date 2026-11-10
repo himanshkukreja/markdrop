@@ -363,6 +363,8 @@ export interface DocsEditorProps {
   pages?: PagesEditorHost;
   /** Images may have a dark-theme version (default true; a page's images don't). */
   darkImages?: boolean;
+  /** The "/jira …" commands (components/jira/pages/slash.tsx): for signed-in editors; none hides them. */
+  jira?: import("./blocks").JiraSlash | null;
   /**
    * The Visual editor is ready (its TipTap editor), or gone (null: Markdown mode, unmount). A page
    * uses it to swap its server-rendered body for the editor without a flash, and for its phone
