@@ -136,6 +136,7 @@ export interface ResolvedEmbed {
   kind?: "document" | "artifact";
   renderer?: EmbedRenderer;
   title?: string | null;
+  slug?: string | null;
   /** The item's Markdrop link for this viewer (the custom domain when there is one). */
   url?: string | null;
   artifact_url?: string | null;

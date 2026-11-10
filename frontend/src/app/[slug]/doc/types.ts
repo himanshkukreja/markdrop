@@ -49,6 +49,8 @@ export interface PageFields {
   access_inherit?: boolean | null;
   assets?: Record<string, { url: string; expires_at?: string | null }>;
   workspace_id?: string | null;
+  /** Its address on its workspace's own domain when that domain is live (else null). */
+  workspace_url?: string | null;
   /** The workspace folders' slugs only (not the ancestors). */
   folder_path?: string[];
   /** Every ancestor page's slug, top first (readable or not). */
@@ -78,6 +80,7 @@ export function pageFieldsOf(doc: Record<string, unknown> | null | undefined): P
     access_inherit: typeof d.access_inherit === "boolean" ? d.access_inherit : null,
     assets: withPropAssets(d.assets && typeof d.assets === "object" ? d.assets : {}, d.page),
     workspace_id: typeof d.workspace_id === "string" ? d.workspace_id : null,
+    workspace_url: typeof d.workspace_url === "string" ? d.workspace_url : null,
     // The API's folder_path is the whole prefix (folders, then every ancestor's slug) and
     // page_path the ancestors alone; keep the folders here (links add the ancestors back).
     folder_path: foldersOnly(d.folder_path, (d as { page_path?: unknown }).page_path),

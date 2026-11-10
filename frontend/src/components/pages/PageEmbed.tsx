@@ -18,6 +18,7 @@ import { Button, FileIcon, Icon, Skeleton, cx, type FileRenderer } from "@/compo
 import { useTheme } from "@/lib/theme";
 import { lockedOf, type PageEmbedMode } from "@/lib/pageBlocks.mjs";
 import type { ResolvedEmbed } from "@/lib/pages";
+import { isPrimaryHost } from "@/components/tenant/hosts";
 
 /** ArtifactView's sandbox: scripts and forms in an opaque origin; never allow-same-origin. */
 export const EMBED_SANDBOX = "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads";
@@ -53,6 +54,14 @@ function safeUrl(u?: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+/** Where an embedded item opens: on markdrop.in its page here (never its workspace's own domain,
+ *  owner 2026-11-10); on a workspace's domain the address the server gave. */
+function itemUrl(u?: string | null, slug?: string | null): string | null {
+  const safe = safeUrl(u);
+  if (safe && slug && typeof window !== "undefined" && isPrimaryHost(window.location.host)) return `/${encodeURIComponent(slug)}`;
+  return safe;
 }
 
 /** A Worker viewer page (`/v/…`) follows the app theme; a raw page (`/r/…`) is left alone. */
@@ -130,7 +139,7 @@ function Chrome({ r, label, children, open }: { r: ResolvedEmbed; label?: string
 
 function Card({ r, label }: { r: ResolvedEmbed; label?: string | null }) {
   const title = label || r.title || "Untitled";
-  const href = safeUrl(r.url);
+  const href = itemUrl(r.url, r.slug);
   const meta = [TYPE_LABEL[r.renderer ?? ""] ?? (r.kind === "document" ? "Document" : "File"), r.preview?.author_name, ago(r.preview?.updated_at)].filter(Boolean).join(" · ");
   const body = (
     <>
@@ -156,7 +165,7 @@ function Card({ r, label }: { r: ResolvedEmbed; label?: string | null }) {
 
 function Live({ r, label }: { r: ResolvedEmbed; label?: string | null }) {
   const { resolved: theme } = useTheme();
-  const open = safeUrl(r.url);
+  const open = itemUrl(r.url, r.slug);
   const renderer = r.renderer ?? "";
   const raw = safeUrl(r.artifact_url);
   const title = label || r.title || "Untitled";
@@ -266,7 +275,7 @@ export function PageMention({ slug, resolved }: { slug: string | null; label?: s
   // The title is the item's own, as this viewer may see it (never the label written in the page,
   // which an author could have typed for an item this viewer can't open).
   const title = resolved.title || "Untitled";
-  const href = safeUrl(resolved.url) ?? `/${encodeURIComponent(slug)}`;
+  const href = itemUrl(resolved.url, slug) ?? `/${encodeURIComponent(slug)}`;
   return (
     <a className="pb-mention md-focus" href={href}>
       {resolved.kind === "document" || resolved.renderer === "markdown" ? <Icon name="lines" size={13} aria-hidden /> : <FileIcon renderer={fileRenderer(resolved.renderer)} size={13} />}

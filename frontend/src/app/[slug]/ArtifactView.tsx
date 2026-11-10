@@ -118,6 +118,8 @@ interface Props {
   /** The workspace it's filed in and its folders: they lead the bar's title for members. */
   workspaceId?: string | null;
   folderPath?: string[];
+  /** Its address on its workspace's own domain, when live (the API's workspace_url). */
+  domainUrl?: string | null;
 }
 
 const EMPTY_SETTINGS: ArtifactSettingsState = {
@@ -153,6 +155,7 @@ export default function ArtifactView({
   fileVersion: initialFileVersion = null,
   workspaceId: initialWorkspaceId = null,
   folderPath: initialFolderPath = [],
+  domainUrl: initialDomainUrl = null,
 }: Props) {
   useAnalyticsDoc({ ref: docRef, kind: "artifact", access: isPasswordProtected ? "protected" : "public" });
   const router = useRouter();
@@ -199,6 +202,7 @@ export default function ArtifactView({
   const [docId, setDocId] = useState<string | null>(null);
   // Where it's filed (the bar's workspace › folders for members); a signed-in read refreshes it.
   const [place, setPlace] = useState({ workspaceId: initialWorkspaceId, folderPath: initialFolderPath });
+  const [domainUrl, setDomainUrl] = useState<string | null>(initialDomainUrl);
   const toast = useToast();
   // Immersive mode: the artifact fills the viewport with all app chrome hidden,
   // so a published page reads as the content itself rather than something in a
@@ -467,6 +471,7 @@ export default function ArtifactView({
         setCanShare(!!doc.is_owner || !!doc.can?.share);
         setDocId(doc.id ?? null);
         setPlace({ workspaceId: doc.workspace_id ?? null, folderPath: doc.folder_path ?? [] });
+        setDomainUrl(doc.workspace_url ?? null);
         if (doc.is_owner && doc.artifact_url) applyDoc(doc, { remount: false });
         // Added to someone else's file? Then they may take themselves off it ("Remove me"). Not on
         // a workspace's own domain, whose session can only read.
@@ -872,6 +877,7 @@ export default function ArtifactView({
           typeLabel={typeLabel}
           url={url}
           addressing={{ tenant: !!tenant, folderPath: place.folderPath, workspaceId: place.workspaceId }}
+          domainUrl={domainUrl}
           gated={locked}
           canOpen={canOpen}
           downloading={downloading}

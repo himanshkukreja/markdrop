@@ -91,6 +91,8 @@ export interface PageChromeSlots {
    * page as it stands here (the reader shows it until its own read lands).
    */
   onDone?: ((latest: { title: string; content: string }) => void) | null;
+  /** Its address on its workspace's own domain ("Open on <host>" in the bar), when live. */
+  domainUrl?: string | null;
 }
 
 export interface PageEditorProps {
@@ -837,6 +839,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
           menu={menu}
           banner={banner}
           ask={chrome.ask}
+          domainUrl={chrome.domainUrl}
         />
       }
       head={

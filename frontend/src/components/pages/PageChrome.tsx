@@ -29,6 +29,7 @@ import { ThemeSegmented } from "@/components/theme/ThemeSegmented";
 import { useAuth } from "@/contexts/AuthContext";
 import { LIGHT_ENABLED } from "@/lib/theme";
 import { useWorkspaceTree } from "@/lib/workspaceStore";
+import { domainHref } from "@/lib/workspaces";
 import { listBacklinks, type ChildPage, type Crumb } from "@/lib/pages";
 import { fetchChildren } from "@/lib/navStore";
 import { pagePath } from "@/lib/pageBlocks.mjs";
@@ -503,6 +504,7 @@ export function PageTopBar({
   className,
   banner,
   ask,
+  domainUrl,
 }: {
   crumbs: Crumb[];
   title: string | null;
@@ -534,6 +536,9 @@ export function PageTopBar({
   banner?: ReactNode;
   /** ✦ Ask: "Ask this page" (components/assistant), for someone signed in. */
   ask?: boolean;
+  /** The item's address on its workspace's own domain (the API's workspace_url): on markdrop.in
+   *  the bar offers "Open on <host>" (a new tab), and ⋯ repeats it. Ignored on that domain. */
+  domainUrl?: string | null;
 }) {
   const scrolled = useScrolled();
   const phone = usePhone();
@@ -566,10 +571,15 @@ export function PageTopBar({
   ];
   const railOpen = rail.drawer || (wide && !rail.collapsed);
   // Phones: Share and ✦ Ask lead the ⋯ menu (the bar keeps its room for the title, Edit and ⋯).
+  // "Open on <host>": the same item on its workspace's own domain, which signs the reader in from
+  // markdrop.in by itself (components/tenant/handoff). Clicks in the app stay on markdrop.in.
+  const onDomain = addressing.tenant ? null : domainHref(domainUrl);
   const items = [
     ...(phone && onShare ? [{ label: "Share", icon: "share", onClick: onShare }] : []),
     ...(phone && ask && user ? [{ label: "Ask this page", icon: "sparkle", onClick: () => openAssistant() }] : []),
-    ...menu, ...extra,
+    ...menu,
+    ...(onDomain ? [{ label: `Open on ${onDomain.host}`, icon: "globe", href: onDomain.href, external: true, separated: menu.length > 0 }] : []),
+    ...extra,
   ];
   return (
     <header className={cx("pb-barwrap no-print", className)} data-scrolled={scrolled ? "" : undefined}>
@@ -597,6 +607,12 @@ export function PageTopBar({
           {status}
           {ask && !phone && <AssistantButton title="Ask this page" className="pb-bar__btn pb-bar__ask" />}
           {tools}
+          {onDomain && (
+            <Button variant="ghost" size="sm" iconLeft="globe" iconRight="external" href={onDomain.href} target="_blank" rel="noopener noreferrer"
+              className="pb-bar__btn pb-bar__domain" title={`Open on ${onDomain.host} (new tab)`} aria-label={`Open on ${onDomain.host} (opens in a new tab)`} data-testid="open-on-domain">
+              <span className="pb-bar__domainhost ph-sensitive ph-mask">{onDomain.host}</span>
+            </Button>
+          )}
           {onShare ? (
             // Under 1024 px the icon alone (pages.css .pb-bar__label); the name stays for screen readers.
             <Button variant="ghost" size="sm" iconLeft="share" className="pb-bar__btn pb-bar__share" aria-label="Share" title="Share" onClick={onShare}><span className="pb-bar__label">Share</span></Button>

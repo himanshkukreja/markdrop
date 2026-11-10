@@ -26,7 +26,7 @@ import {
 } from "@/lib/me";
 import { TYPE_META, typeChipsWorthShowing } from "@/lib/fileTypes";
 import { TypeChips, useTypeFilter, type ByType } from "@/components/dashboard/TypeChips";
-import { errorStatus, listWorkspaces, openHref } from "@/lib/workspaces";
+import { errorStatus, listWorkspaces, openHref, openOnDomainEntry } from "@/lib/workspaces";
 import { ItemRow } from "./folder/ItemRow";
 import { displayAddress, itemTitle, teamName } from "./folder/items";
 
@@ -136,6 +136,8 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
 
   const menu = (it: PersonalItem): MenuEntry[] => {
     const out: MenuEntry[] = [{ label: "Open", icon: "external", href: openHref(it.slug, it.url, it.encrypted), external: true }];
+    const onDomain = openOnDomainEntry(it.url, it.encrypted);
+    if (onDomain) out.push(onDomain);
     if (!it.encrypted) {
       out.push({ label: "Copy link", icon: "copy", onClick: () => { void copyText(it.url).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy the link"))); } });
     }
