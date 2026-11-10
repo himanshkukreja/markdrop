@@ -2139,18 +2139,28 @@
     },
     "GET /api/v1/zoom/status": {
       "title": "Zoom connection status",
-      "description": "What Workspace settings › Integrations › Zoom shows: whether Zoom works on this server (`configured`), whether the workspace is connected (`connected`), the team Zoom meetings go to (`team`, with its `visibility`), whether you can change it (`can_manage`: admins and owners) and import past meetings (`can_import`: admins, owners and the team's leads), counts and the latest imports (`connection`, `recent`). Admins also get the endpoint URL for Zoom's event subscription (`webhook_url`), the scopes the Zoom app needs (`scopes_needed`) and the ones it's missing (`connection.missing_scopes`). Never returns a secret. Members of the workspace only.",
+      "description": "What Workspace settings › Integrations › Zoom shows: whether Zoom works on this server (`configured`), whether the workspace is connected (`connected`), the team Zoom meetings go to (`team`, with its `visibility`), whether you can change it (`can_manage`: admins and owners) and import past meetings (`can_import`: admins, owners and the team's leads), counts and the latest imports (`connection`, `recent`). `app_available`: one-click connect (the Markdrop app for Zoom) is offered; `mode`: how the workspace is connected (`oauth`, the Markdrop app, or `s2s`, its own Server-to-Server app). Admins also get the endpoint URL for Zoom's event subscription (`webhook_url`), the scopes the Zoom app needs (`scopes_needed`) and the ones it's missing (`connection.missing_scopes`). Never returns a secret. Members of the workspace only.",
       "guide": {"label": "Zoom", "href": "/integrations/zoom"}
     },
+    "POST /api/v1/zoom/connect/start": {
+      "title": "Start connecting Zoom in one click",
+      "description": "Returns `url`, Zoom's consent screen for the Markdrop app for Zoom, where a Zoom account admin approves it for the whole account. Optional `team_id`: the team Zoom meetings go to. Admins and owners. 503 when one-click connect isn't available on this server.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom#connect-with-one-click"}
+    },
+    "POST /api/v1/zoom/connect/finish": {
+      "title": "Finish connecting Zoom",
+      "description": "Called by the page Zoom returns to, with Zoom's `code` and either the `state` from Start connecting (the workspace is in it) or, for an install started in the Zoom App Marketplace, the `workspace_id` to connect (and optionally `team_id`). Markdrop exchanges the code, finds the Zoom account and stores the tokens encrypted; the response is the connection status plus `workspace_id`. Admins and owners. 400 when the link expired or was used; 409 when that Zoom account is connected to another workspace.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom#connect-with-one-click"}
+    },
     "PUT /api/v1/zoom/connection": {
-      "title": "Connect Zoom",
-      "description": "Saves the workspace's Zoom Server-to-Server OAuth app: `account_id`, `client_id`, `client_secret` and `secret_token` (the event subscription's Secret Token; leave either secret out to keep the saved one), and optionally `team_id`. Markdrop checks them with Zoom first (an access token and a test call) and stores the secrets encrypted. Admins and owners. 400 when Zoom refuses the credentials; 409 when that Zoom account is connected to another workspace.",
+      "title": "Connect Zoom (your own app)",
+      "description": "Saves the workspace's Zoom Server-to-Server OAuth app: `account_id`, `client_id`, `client_secret` and `secret_token` (the event subscription's Secret Token; leave either secret out to keep the saved one), and optionally `team_id`. Markdrop checks them with Zoom first (an access token and a test call) and stores the secrets encrypted. Admins and owners. 400 when Zoom refuses the credentials; 409 when that Zoom account is connected to another workspace, or the workspace is connected with the Markdrop app for Zoom (disconnect it first).",
       "guide": {"label": "Zoom", "href": "/integrations/zoom"}
     },
     "DELETE /api/v1/zoom/connection": {
       "title": "Disconnect Zoom",
-      "description": "Deletes the Zoom app's credentials and the import log; meetings already imported stay. Admins and owners.",
-      "guide": {"label": "Zoom", "href": "/integrations/zoom"}
+      "description": "Deletes Zoom's tokens or the app's credentials and the import log, and with the Markdrop app for Zoom also removes the app from the Zoom account. Meetings already imported stay unless `delete_meetings=true` (they go to the Trash; the response's `deleted_meetings` counts them). Admins and owners.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom#removing-the-app"}
     },
     "PUT /api/v1/zoom/team": {
       "title": "Choose the Zoom team",
