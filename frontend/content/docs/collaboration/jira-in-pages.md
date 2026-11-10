@@ -1,9 +1,9 @@
 ---
 title: Jira in pages
 description: Put Jira issues anywhere in a page as live chips, cards or lists, change their status and assignee from the page, and turn a comment thread into an issue.
-updated: 2026-11-09
+updated: 2026-11-10
 prerequisites: [/pages/overview, /integrations/jira]
-keywords: [jira, jira in pages, jira chip, jira card, jira list, jql, saved filter, project, live list, issue card, paste jira link, /jira, at jira, status, transition, workflow, assignee, jira comment, edit issue, priority, due date, sprint, create jira issue, selected text, comment thread, thread to issue, resolve, connect jira, privacy, snapshot, insert_jira, update_jira_issue, list_jira_transitions, create_jira_issue, thread_to_jira, mcp]
+keywords: [jira, jira in pages, slash commands, /jira my issues, /jira sprint, /jira bugs, /jira epic, /jira recently updated, jira from text, my issues, open bugs, current sprint, epic children, jira chip, jira card, jira list, jql, saved filter, project, live list, issue card, paste jira link, /jira, at jira, status, transition, workflow, assignee, jira comment, edit issue, priority, due date, sprint, create jira issue, selected text, comment thread, thread to issue, resolve, connect jira, privacy, snapshot, insert_jira, update_jira_issue, list_jira_transitions, create_jira_issue, thread_to_jira, mcp]
 ---
 
 Jira issues can live anywhere in a page: in a sentence, as a card with their details, or as a live list from a project, a saved filter or a JQL query. People who are signed in and have connected their own Atlassian account see each issue's live status and can change it from the page. Everyone else sees the issue's key and title.
@@ -16,9 +16,42 @@ Jira in pages works with any Jira Cloud site your Atlassian account reaches. A w
 | --- | --- | --- |
 | **Chip**, inside text | The key and title, and the status for people whose Jira can open it. Select it to open the issue's card. | Paste a Jira link, type **/jira**, or type **@** and the key (for example **@PAY-12**) |
 | **Card**, a block | Title, status, assignee, priority, type, due date, sprint and when it was last updated, with buttons to change them | **/Jira card**, or select a chip and choose **Show as a card** |
-| **List**, a block | A table of issues, always current, with the status of each row ready to change | **/Jira list** |
+| **List**, a block | A table of issues, always current, with the status of each row ready to change | **/Jira list**, or one of the ready-made lists below |
 
 ![In a launch plan: the chip “PAY-1 Retry failed card payments, In Progress” inside a list item, and below the Risks paragraph a card for PAY-2 “Refund flow for annual plans”: status To Do, assignee Alex Chen, priority Medium, due Nov 15, updated Nov 9, with Comment and Edit.](/docs-assets/collaboration/jira-in-pages/chip-and-card.webp)
+
+## Slash commands
+
+Type **/jira** in a page to see every Jira command in the menu's **Jira** section. Keep typing to narrow it down, for example **/jira sprint** or **/bugs**.
+
+| Command | What it adds |
+| --- | --- |
+| **/jira issue** | A chip. Search by key, link or words from the title. |
+| **/jira card** | A card for one issue, with its status, assignee and actions. |
+| **/jira list** | A live list from a project, a saved filter or a JQL query. |
+| **/jira my issues** | A live list of open issues assigned to whoever is reading the page. Each reader sees their own. |
+| **/jira sprint** | A live list of a project's current sprint. Choose the project. |
+| **/jira bugs** | A live list of a project's open bugs, most urgent first. Choose the project. |
+| **/jira recently updated** | A live list of a project's issues changed in the last 7 days. Choose the project. |
+| **/jira epic** | Choose an epic: its card, and below it a live list of its child issues. |
+| **/jira create** | A new issue, drafted for you to check, then its chip. |
+| **/jira from selection** | The text on the line where you typed it becomes a new issue, and the text becomes the issue's chip. On an empty line, the block above is used. |
+
+Every ready-made list is an ordinary Jira list with a JQL query, such as `assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC`. Select **Edit list** on it to change the query, the title or the columns.
+
+### If you haven't connected Jira yet
+
+The commands are there for everyone signed in who can edit the page. If your own Atlassian account isn't connected yet, choosing one asks you to **Connect Jira**. You come back to the page in Edit, and what you chose goes in where you typed it.
+
+If the page's workspace isn't connected to a Jira site yet, the menu tells you so: a workspace admin connects it in **Settings › Workspaces › Integrations**. See [Jira](/integrations/jira).
+
+:::note[On your workspace's own domain]
+On a page opened on your workspace's own domain, readers see its issues as usual, but Jira is added and changed from markdrop.in. Choosing a Jira command offers **Open on markdrop.in**: the page opens there in Edit, and what you chose goes in where you typed it.
+:::
+
+### In a Markdown document
+
+In the block editor of a Markdown document (**Preview**), **/jira issue**, **/jira create** and **/jira from selection** add the issue as a link, `PAY-12 · Title`, that opens it in Jira. Cards and live lists are page blocks.
 
 ### Paste a Jira link
 
@@ -28,15 +61,15 @@ Paste a link such as `https://acme.atlassian.net/browse/PAY-12` on its own and i
 
 ### Add a chip or a card
 
-1. Type **/jira** (the chip) or **/Jira card** in a page.
+1. Type **/jira issue** (the chip) or **/jira card** in a page.
 2. Search your Jira by key or by words from the title. With nothing typed, the picker lists issues assigned to you or reported by you.
 3. Choose the issue, or paste its key or link.
 
-To start a new issue right there, type **/New Jira issue**, write what it's about and choose **Create**. Markdrop AI drafts the issue; you check every field, then it's created as you and its chip goes where you typed.
+To start a new issue right there, type **/jira create**, write what it's about and choose **Create**. Markdrop AI drafts the issue; you check every field, then it's created as you and its chip goes where you typed.
 
 ### Add a live list
 
-1. Type **/Jira list**.
+1. Type **/jira list**.
 2. Choose where the issues come from:
    - **Project**: every issue in a project, newest first. Enter its key, such as `PAY`.
    - **Saved filter**: a filter you saved in Jira. Enter its number, the one in the filter's address.

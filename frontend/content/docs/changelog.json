@@ -24,6 +24,18 @@
   "next": [],
   "entries": [
     {
+      "id": "jira-slash-commands",
+      "date": "2026-11-10",
+      "title": "Jira slash commands: my issues, sprint, bugs, epics and more",
+      "kind": "improved",
+      "area": "Pages",
+      "products": [
+        "web"
+      ],
+      "summary": "Type /jira in a page to add a chip, a card, a live list, or a ready-made list of your issues, a sprint, open bugs, recent changes or an epic's children. Without Jira yet, the command shows you how to connect, then carries on.",
+      "body": "- **Every Jira command under /jira.** Issue, card, list, my issues, sprint, bugs, recently updated, epic, create, and from selection, in their own **Jira** section of the menu. [Slash commands](/collaboration/jira-in-pages#slash-commands)\n- **Ready-made lists.** Each is a live Jira list with a JQL query you can change afterwards with **Edit list**.\n- **Always there for editors.** If you haven't connected Jira yet, choosing a command asks you to connect, then puts it in where you typed it. On your workspace's own domain it opens the page on markdrop.in to add it.\n- **In Markdown documents.** /jira issue, /jira create and /jira from selection add the issue as a link."
+    },
+    {
       "id": "teams-follow-ups",
       "date": "2026-11-10",
       "title": "Teams: comments in the team's Slack, company meetings, and live Jira lists",
