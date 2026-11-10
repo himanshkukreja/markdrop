@@ -16,9 +16,9 @@ import {
   Pencil, Pipette, Play, Plus, Presentation, Printer, QrCode, Redo2, RefreshCw, RotateCw, Search, Send, Server,
   Settings, Share2, Shield, ShieldCheck, Sigma, Smartphone, Smile, Sparkles, Square, SquareCheckBig, SquareStop, Sun,
   Table, Tablet, Trash2, Terminal, TextAlignStart, TriangleAlert, Type, Undo2, Upload, User, UserPlus, UserX, Users,
-  Activity, WifiOff, WrapText, X, Zap, ZoomIn, ZoomOut, ArrowUpDown, Rocket, Briefcase, Heart, Star, Target,
-  Wrench, Palmtree, Handshake, ChartLine, Scale, BookOpen, Cpu, Truck, ShoppingCart, Headphones, PenTool,
-  GraduationCap, FlaskConical, DollarSign, Code2, Camera, Coffee, Gift, Trophy, Plane, Leaf, Box, Database,
+  Activity, WifiOff, WrapText, X, Zap, ZoomIn, ZoomOut, ArrowUpDown, Star, Target,
+  ChartLine, PenTool,
+  Database,
   type LucideIcon,
 } from "lucide-react";
 
@@ -46,12 +46,3 @@ export const LUCIDE: Record<string, LucideIcon> = {
   star: Star, compass: Compass, building: Building2, help: CircleHelp, grid2: Grid2x2, chartLine: ChartLine,
 };
 
-/** Team icons (the New team dialog's "Icons" tab): stored on the team as `glyph:<name>`. */
-export const TEAM_GLYPHS: Record<string, LucideIcon> = {
-  building: Building2, rocket: Rocket, code: Code2, megaphone: Megaphone, handshake: Handshake, chart: ChartLine,
-  briefcase: Briefcase, users: Users, heart: Heart, star: Star, target: Target, wrench: Wrench, palette: Palette,
-  scale: Scale, book: BookOpen, cpu: Cpu, truck: Truck, cart: ShoppingCart, headphones: Headphones, pen: PenTool,
-  school: GraduationCap, lab: FlaskConical, money: DollarSign, camera: Camera, coffee: Coffee, gift: Gift,
-  trophy: Trophy, plane: Plane, leaf: Leaf, box: Box, database: Database, shield: Shield, globe: Globe, zap: Zap,
-  mic: Mic, palm: Palmtree,
-};

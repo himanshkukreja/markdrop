@@ -289,3 +289,7 @@ a.th-li:hover { background: var(--surface-hover); }
 .th-more { margin-top: 8px; border: 0; background: none; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; color: var(--accent-text); padding: 4px 0; }
 .th .tz-card.th-card .tz-sec__head { margin-bottom: 12px; }
 .th .tz-h2 { font-size: 14.5px; font-weight: 700; }
+.th-ch h2 { white-space: nowrap; flex: none; max-width: 100%; }
+.th-ch h2 + .th-chip { min-width: 0; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; display: inline-block; line-height: 22px; }
+@media (max-width: 1023.98px) { .th-ask__sug { display: none; } }
+@media (max-width: 519.98px) { .th-ch h2 + .th-chip:not(.th-chip--acc) { display: none; } }

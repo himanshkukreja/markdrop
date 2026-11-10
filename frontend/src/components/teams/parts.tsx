@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Avatar, Badge, Checkbox, Icon, Input, cx } from "@/components/ui";
 import { listMembers, type Member } from "@/lib/workspaces";
-import { TEAM_GLYPHS } from "@/components/ui/lucide";
+import { TEAM_GLYPHS } from "@/components/ui/teamGlyphs";
 import { TEAM_COLORS, teamTint, type TeamCard, type TeamColor, type Visibility } from "@/lib/teams";
 import "./teams.css";
 

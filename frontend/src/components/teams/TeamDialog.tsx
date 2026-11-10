@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, Button, ConfirmDialog, Dialog, Icon, cx, useToast } from "@/components/ui";
-import { TEAM_GLYPHS } from "@/components/ui/lucide";
+import { TEAM_GLYPHS } from "@/components/ui/teamGlyphs";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Member } from "@/lib/workspaces";
 import {

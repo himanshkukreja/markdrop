@@ -205,9 +205,9 @@ async def sidebar(request: Request, workspace_id: str, db: AsyncIOMotorDatabase 
     """``{my_role, can_create, teams (mine), projects (readable), browse {open, private}, suggested (admins), review}``."""
     actor, ctx, view, role = await _ctx(request, db, user, workspace_id)
     g = view.teams.get(view.general_id or "")
-    if g is None or user.id not in (g.get("member_ids") or []):
-        # The default team (General) exists and has everyone in it (it self-heals here; the sidebar asks often).
-        await T.ensure_general(db, workspace_id)
+    # The default team (General) exists and has everyone in it (it self-heals here; the sidebar asks often).
+    fresh = await T.ensure_general(db, workspace_id)
+    if fresh is not None and (g is None or fresh.get("member_ids") != g.get("member_ids") or fresh.get("lead_ids") != g.get("lead_ids")):
         view = await T.load_view(db, workspace_id, user.id, role)
     # General first (pinned), then the rest by name.
     mine = sorted((T.team_card(view, t) for tid, t in view.teams.items() if tid in view.member_teams),
@@ -384,6 +384,11 @@ async def get_team(request: Request, workspace_id: str, team: str, db: AsyncIOMo
                    user: User = Depends(require_user)):
     actor, ctx, view, _role = await _ctx(request, db, user, workspace_id)
     row = await _team(db, view, team)
+    if T.is_general(row):
+        fresh = await T.ensure_general(db, workspace_id)
+        if fresh is not None and fresh.get("member_ids") != row.get("member_ids"):
+            row = fresh
+            view = await T.load_view(db, workspace_id, user.id, _role)
     return jsonable_encoder(await team_home(db, actor, ctx, view, row))
 
 

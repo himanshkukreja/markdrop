@@ -15,7 +15,7 @@ import { childrenMap, descendants, refreshTree, useWorkspaceTrees } from "@/lib/
 import { childrenSlot, navSlot, navTeamKey, useNavRetain, type NavSlot } from "@/lib/navStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { TeamTile } from "@/components/teams/parts";
-import { TeamDialog } from "@/components/teams/TeamDialog";
+import dynamic from "next/dynamic";
 import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
 import { favoritesSlot, isFavorite, toggleFavorite, useFavorites, type Favorite, type FavoriteKind } from "@/lib/favorites";
 import {
@@ -23,6 +23,9 @@ import {
   teamSettingsHref, type TeamCard, type TeamsSidebar,
 } from "@/lib/teams";
 import type { FileRenderer } from "@/components/ui/markdrop";
+
+// The New team dialog loads when it opens (most visits never open it).
+const TeamDialog = dynamic(() => import("@/components/teams/TeamDialog").then((m) => m.TeamDialog), { ssr: false });
 
 /** A page's rail key (also its expand key). */
 export const railPageKey = (wsId: string, slug: string) => `ws:${wsId}:page:${slug}`;
