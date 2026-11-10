@@ -10,7 +10,7 @@
 //  5. A User-Agent on server-side fetches (Workers send none; some hosts refuse those).
 //  6. Test deploys (workers.dev, next.markdrop.in) are never indexed, and on them (STAGING_HOST_OVERRIDE=1) the
 //     x-md-host header picks the host Next sees, so the docs and workspace-domain paths can be tried on one URL.
-// @ts-expect-error built by `opennextjs-cloudflare build`
+// @ts-ignore built by `opennextjs-cloudflare build` (missing until then)
 import { default as handler } from "../.open-next/worker.js";
 
 type Env = { STAGING_HOST_OVERRIDE?: string; [k: string]: unknown };
@@ -90,5 +90,5 @@ function finish(res: Response, testHost: boolean): Response {
   return out;
 }
 
-// @ts-expect-error built by `opennextjs-cloudflare build`
+// @ts-ignore built by `opennextjs-cloudflare build` (missing until then)
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "../.open-next/worker.js";
