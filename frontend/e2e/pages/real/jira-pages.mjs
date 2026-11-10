@@ -362,16 +362,14 @@ await step("slashgate", async () => {
   const slug = await newPage(`Jira connect ${run}`, "Start here\n");
   const { p } = await ctx(browser, { token: T.admin });
   // Atlassian's page, faked: straight back to the callback with Wes's code (the server checks the state).
-  await p.route("https://auth.atlassian.com/**", (r) => {
+  await p.route("https://auth.jira.test/**", (r) => {
     const state = new URL(r.request().url()).searchParams.get("state");
     return r.fulfill({ status: 302, headers: { location: `${APP}/integrations/jira/callback?code=code-${ACC.admin}&state=${encodeURIComponent(state)}` } });
   });
   await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
   await editPage(p);
   await p.waitForTimeout(1200);
-  await p.locator(".pb-live .ProseMirror").getByText("Start here").first().click();
-  await p.keyboard.press("End");
-  await p.keyboard.press("Enter");
+  await newLine(p);
   // Every command is offered, connected or not.
   await p.keyboard.type("/jira", { delay: 25 });
   await p.locator(".dxe-slash [role=option]", { hasText: "Jira sprint" }).first().waitFor({ state: "attached", timeout: 8000 });
@@ -387,8 +385,11 @@ await step("slashgate", async () => {
   await shot(p, "jira-slash-connect");
   await p.getByTestId("jira-slash-connect").click();
   // Back on the page, in Edit, and the list goes in.
-  await p.waitForURL((u) => u.pathname === `/${slug}`, { timeout: 30000 });
-  await p.locator('.pb-live [data-testid="jira-list"]').first().waitFor({ timeout: 30000 });
+  await p.waitForURL((u) => u.pathname === `/${slug}` && u.searchParams.get("jira") === "connected" || !u.searchParams.has("jira_add") && u.pathname === `/${slug}` && u.searchParams.has("edit"), { timeout: 30000 });
+  await p.locator('.pb-live [data-testid="jira-list"]').first().waitFor({ timeout: 30000 }).catch(async (e) => {
+    await shot(p, "jira-slash-connect-fail");
+    fail(`after connecting: ${p.url()} ${e.message.split("\n")[0]}`);
+  });
   if (new URL(p.url()).searchParams.has("jira_add")) fail(`the command stays in the address: ${p.url()}`);
   await waitSaved(p);
   const md = ok(await api("GET", `/api/v1/documents/${slug}`, T.owner), "doc").content;
