@@ -7,7 +7,7 @@
  *              installer linked; pick the meetings channel (saved), a Slack Connect channel is marked
  *   member     a member sees the card read-only (no Add / Disconnect, the channel picker locked) and
  *              links their own Slack account (Sign in with Slack) → still "Slack notifications: Off"
- *   optin      Settings › Account › Slack notifications: off by default; Ben turns it on → found by his
+ *   optin      Settings › Integrations › Slack (Slack notifications): off by default; Ben turns it on → found by his
  *              email (Found, as "Ben in Slack"), per-kind switches; Wes isn't in Slack → Not found + the
  *              link fallback; a stranger (no workspace with Slack) never sees the card
  *   bell       Vic's bell (a mention, no push on this server): "Get these in Slack" → Turn on; Not now
@@ -159,7 +159,8 @@ if (FAKE) await step("member", async () => {
   if (r.status !== 403) fail(`member PATCH settings → ${r.status}`);
 });
 
-const ACCOUNT = `${APP}/settings/account`;
+// Settings › Integrations › Slack (was the Slack card on Settings › Account; #slack there redirects here).
+const ACCOUNT = `${APP}/settings/integrations/slack`;
 const meOf = async (who) => ok(await api("GET", "/api/v1/slack/me", T[who]), "slack me");
 
 if (FAKE) await step("optin", async () => {
@@ -173,13 +174,13 @@ if (FAKE) await step("optin", async () => {
   const card = p.getByTestId("slack-notify-card");
   await card.waitFor({ timeout: 30000 });
   await card.getByText("ben@acme.test").waitFor();
-  if (await card.getByRole("switch", { name: "Mentions" }).count()) fail("per-kind switches show while off");
+  if (await card.getByRole("switch", { name: "Mentions", exact: true }).count()) fail("per-kind switches show while off");
   await card.getByRole("switch", { name: "Get notifications in Slack" }).dispatchEvent("click");
   const teams = p.getByTestId("slack-teams");
   await teams.getByText("Found").waitFor({ timeout: 15000 });
   await teams.getByText("Ben in Slack").waitFor();
   await teams.getByText("(by your email)").waitFor();
-  await card.getByRole("switch", { name: "Mentions" }).waitFor({ state: "attached" });
+  await card.getByRole("switch", { name: "Mentions", exact: true }).waitFor({ state: "attached" });
   const me = await meOf("member");
   if (!me.on || me.teams[0]?.match !== "email" || !me.teams[0]?.linked) fail(`Ben after turning on: ${JSON.stringify(me)}`);
   // A kind off, saved.
@@ -211,7 +212,7 @@ if (FAKE) await step("optin", async () => {
   // Someone in no workspace with Slack: no card, and turning it on through the API is refused.
   const s = await ctx(browser, { token: T.stranger });
   await s.p.goto(ACCOUNT);
-  await s.p.getByRole("heading", { name: "Profile" }).waitFor({ timeout: 30000 });
+  await s.p.getByTestId("integration-detail-slack").getByTestId("integration-status").locator("[data-status]").waitFor({ timeout: 30000 });
   await s.p.waitForLoadState("networkidle");
   if (await s.p.getByTestId("slack-notify-card").count()) fail("the stranger sees the Slack notifications card");
   const r = await api("PUT", "/api/v1/slack/me/notifications", T.stranger, { on: true });
