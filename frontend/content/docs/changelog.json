@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "teams-follow-ups",
+      "date": "2026-11-10",
+      "title": "Teams: comments in the team's Slack, company meetings, and live Jira lists",
+      "kind": "improved",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "New and resolved comments on a team's pages post to its Slack channel, Company › Meetings shows company-wide meetings, profile lines show their team, and Jira lists refresh when Jira changes.",
+      "body": "- **Comments in the team's Slack channel.** New comments and resolved threads on a team's pages are posted to the team's channel, only when everyone in it can read them. Leads can turn this off in the team's settings. [How it works](/collaboration/notifications#in-a-teams-slack-channel)\n- **Company › Meetings is company-wide.** A team's meetings stay in the team. Turn on **Show all I can open** to see every meeting you can open.\n- **Which team a line came from.** Lines on people's profiles and project pages show a chip with their team.\n- **Live Jira lists follow Jira.** When an issue changes in Jira, pages with a list that could include it refresh, each reader through their own Jira.\n- **docs.markdrop.in/teams** now opens the Teams overview."
+    },
+    {
       "id": "teams",
       "date": "2026-11-10",
       "title": "Teams inside your workspace",

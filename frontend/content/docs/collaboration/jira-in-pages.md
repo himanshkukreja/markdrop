@@ -50,6 +50,8 @@ A list shows 25 issues at a time; **Load more** shows the next ones. Select **Ed
 
 :::note[Each reader sees their own list]
 A list's query runs as the person reading the page, through their own Jira. Nobody sees an issue their Jira wouldn't show them, even if the person who wrote the query can see more. Readers can only run the lists saved on the page.
+
+When an issue changes in Jira, open pages with a list that could include it run the list again, each reader through their own Jira. Markdrop only tells the page to refresh. It doesn't send the issue or its details.
 :::
 
 ## Create an issue from text on the page

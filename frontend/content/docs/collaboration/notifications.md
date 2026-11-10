@@ -60,6 +60,10 @@ With [Slack notifications](/integrations/slack#slack-notifications) on, comment 
 
 When a thread is resolved anywhere, the Slack messages about it say who resolved it. Choose which you get under Settings › Account › **Slack notifications**.
 
+### In a team's Slack channel
+
+On a [team's](/teams/overview) pages, new comments and resolved threads are also posted to the team's Slack channel, with a link to the thread. Replies stay in Markdrop. A post goes out only when everyone the channel stands for can read the page's comments: the page is open to the workspace or to anyone with the link, has no password and has comments on. A channel shared with another company gets a post only for a public page that shows its comments publicly. Team leads turn this off with **Post new and resolved comments on the team's pages** in the team's settings. Your own direct messages don't change.
+
 ## Turn each one off
 
 | What | Where |

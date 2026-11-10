@@ -36,7 +36,7 @@ Everything on these pages works from an AI app connected to Markdrop's [hosted M
 | `get_team_brief` | read | A team's weekly brief, this week's or an earlier one. Every workspace member can read it. | `workspace`, `team`, `week` |
 | `list_projects` | read | Cross-team projects you can open, or one team's. | `workspace`, `team` |
 | `create_team` | write | Workspace admins: a new open or private team, with its leads and members. | `workspace`, `name`, `visibility`, `description`, `leads`, `members` |
-| `update_team` | write | Leads and admins: name, description, Slack channel, Jira projects, digest; admins also open or private. | `workspace`, `team`, … |
+| `update_team` | write | Leads and admins: name, description, Slack channel, comment posts to the channel (`slack_comments`), Jira projects, digest; admins also open or private. | `workspace`, `team`, … |
 | `add_team_members` | write | Leads and admins add workspace members; anyone can add themselves to an open team. | `workspace`, `team`, `people` |
 | `remove_team_members` | write | Leads and admins remove people; anyone can remove themselves (`"me"`). | `workspace`, `team`, `people` |
 | `move_to_team` | write | Puts a document, page or file into one team, or back to company-wide (`team: "company"`). | `document`, `team` |

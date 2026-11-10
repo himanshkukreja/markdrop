@@ -3,7 +3,7 @@
   "info": {
     "title": "Markdrop",
     "version": "0.1.0",
-    "x-markdrop-exported": "2026-11-09"
+    "x-markdrop-exported": "2026-11-10"
   },
   "paths": {
     "/api/v1/trash": {
@@ -34918,6 +34918,18 @@
                 "type": "null"
               }
             ]
+          },
+          "slack_comments": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slack Comments",
+            "description": "Post new and resolved comments on the team's items to its Slack channel (default on)."
           },
           "jira_projects": {
             "anyOf": [

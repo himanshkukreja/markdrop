@@ -16,10 +16,12 @@ The importer shows the suggestion as ticked **Teams**. Change it before importin
 
 Meetings that arrive on their own (from Google Meet) use the suggestion. Each card in **Meetings** shows its teams; "Suggested" means nobody has confirmed them yet. To change a meeting's teams later, open it and use **Share › Teams**: its summary page and transcript move together.
 
+**Company › Meetings** lists only company-wide meetings, because a team's meetings live in that team. Turn on **Show all I can open** to see every meeting you can open in one list, including meetings from your teams and from open teams.
+
 ![The Meetings list: Sales pipeline review with the Sales chip, and Q4 launch sync with the Marketing and Engineering chips.](/docs-assets/teams/meetings-and-memory/team-meetings.webp)
 
 ## Team memory
 
 A team's **Memory** is [Team memory](/workspaces/team) for that team only: who's doing what, blockers, decisions and targets from the team's own meetings and pages. It's what the team's home and weekly brief are drawn from.
 
-On a person's profile, each line shows the team it came from. You see the lines from teams you can read (your teams and open teams), plus company-wide ones. Admins see all of them.
+On a person's profile and on a project's page, each line shows a chip with the team it came from. You see the lines from teams you can read (your teams and open teams), plus company-wide ones. Admins see all of them.

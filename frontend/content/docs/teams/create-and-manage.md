@@ -53,6 +53,7 @@ In a team's settings, leads choose **Add people** to add anyone in the workspace
 ## Slack, Jira and the weekly digest
 
 - **Slack channel**: the team's meeting posts, its weekly brief and comment notices on its pages go to this channel instead of the workspace's. The workspace needs Slack connected first. See [Slack](/integrations/slack).
+- **Post new and resolved comments on the team's pages**: on by default once the team has a channel. See [Comment notifications](/collaboration/notifications#in-a-teams-slack-channel).
 - **Jira projects**: the team home shows these projects, and issues created from the team's meetings go to the first one. See [Jira](/integrations/jira).
 - **Send the weekly brief to members**: by email, in the team's Slack channel, or both.
 
