@@ -14,10 +14,13 @@ interface BlockServices {
   ai?: (e: Editor, r: Range, command: "write" | "actions" | "summary") => void;
   /** "/meetings": the page's "From meetings" panel (components/pages/memory), when it is mounted. */
   openMeetings?: (e: Editor, r: Range) => void;
+  /** The "/jira …" commands (components/jira/pages/slash.tsx): for signed-in editors of a page or a document. */
+  jira?: JiraSlash | null;
 }
 const svc = (e: Editor) => (e.storage as unknown as { dxeServices?: BlockServices }).dxeServices ?? {};
-/** Jira in the page (components/jira/pages): the editor's host gives it when the person can use Jira here. */
-const jiraOn = (e: Editor) => !!(svc(e) as { pages?: { jiraPages?: unknown } }).pages?.jiraPages;
+/** The "/jira …" commands: offered to signed-in editors (the host gives `jira`); cards and lists only on pages. */
+const jiraOn = (e: Editor) => !!svc(e).jira;
+const jiraPageOn = (e: Editor) => svc(e).jira?.mode === "page";
 const insertColumns = (e: Editor, n: number, r: Range) => svc(e).insertColumns?.(e, n, r);
 const uploadMedia = (e: Editor, r: Range, kind: "video" | "audio" | "file") => svc(e).uploadMedia?.(e, r, kind);
 const openEmoji = (e: Editor, r: Range) => svc(e).openEmoji?.(e, r);
@@ -25,7 +28,7 @@ const peoplePicker = (e: Editor) => svc(e).openPeople;
 const runAi = (command: "write" | "actions" | "summary") => (e: Editor, r: Range) => svc(e).ai?.(e, r, command);
 
 /** The "/" menu's sections, in order. */
-export type BlockGroup = "ai" | "basic" | "media" | "markdrop" | "docs" | "advanced" | "inline";
+export type BlockGroup = "ai" | "basic" | "media" | "markdrop" | "jira" | "docs" | "advanced" | "inline";
 export const GROUPS: ReadonlyArray<readonly [BlockGroup, string]> = [
   // Only when the editor has AI (slash.tsx adds AI_ITEMS then): first, as in Notion.
   ["ai", "AI"],
@@ -34,6 +37,8 @@ export const GROUPS: ReadonlyArray<readonly [BlockGroup, string]> = [
   ["docs", "Guide blocks"],
   ["media", "Media"],
   ["markdrop", "Markdrop"],
+  // Pages and documents of people signed in (the host gives the "jira" service).
+  ["jira", "Jira"],
   ["advanced", "Advanced"],
   ["inline", "Inline"],
 ];
@@ -409,54 +414,170 @@ export const PAGE_ONLY_ITEMS: BlockItem[] = [
   },
 ];
 
-/** Jira inside pages (components/jira/pages/editor.tsx): an empty node opens the issue picker. */
+/**
+ * The "/jira …" commands (components/jira/pages/slash.tsx runs them). What each one is:
+ *   issue      the picker (search by key, link or words) → a live chip
+ *   card       the picker → a card (status, assignee, actions)
+ *   list       a list from a project, saved filter or JQL (its form)
+ *   mine/sprint/bugs/recent/epic   a list preset: a ::jira-list with a JQL (JIRA_PRESETS), editable afterwards
+ *   create     "New Jira issue": drafted for you, reviewed, created as you → its chip
+ *   from-text  the line's text (or the block above) becomes a new issue → its chip
+ * Someone without Jira yet (not connected, no site, on a workspace's own domain) gets the way to it, then it continues.
+ */
+export type JiraAction = "issue" | "card" | "list" | "mine" | "sprint" | "bugs" | "recent" | "epic" | "create" | "from-text";
+
+/** What the editor's host gives the "/jira" commands (VisualEditor puts it on the editor's storage). */
+export interface JiraSlash {
+  /** "page": chips, cards and lists; "doc" (a Markdown document): issues go in as links. */
+  mode: "page" | "doc";
+  run: (e: Editor, r: Range, action: JiraAction) => void;
+}
+
+/** A list preset's attributes for ::jira-list (the same ones its form writes). */
+export interface JiraPresetAttrs { jql: string; title: string; cols?: string }
+
+/** Project keys and issue keys, as Jira writes them. */
+export const JIRA_PROJECT_RX = /^[A-Z][A-Z0-9_]{0,19}$/;
+export const JIRA_KEY_RX = /^[A-Z][A-Z0-9_]{0,19}-[1-9][0-9]{0,8}$/;
+
+/**
+ * The list presets: each is a ::jira-list whose JQL runs as each reader (so "mine" is each reader's own).
+ * `arg` is the project key (sprint, bugs, recent) or the epic's key (epic); null when it isn't one.
+ */
+export const JIRA_PRESETS: {
+  mine: () => JiraPresetAttrs;
+  sprint: (project: string) => JiraPresetAttrs | null;
+  bugs: (project: string) => JiraPresetAttrs | null;
+  recent: (project: string) => JiraPresetAttrs | null;
+  epic: (key: string) => JiraPresetAttrs | null;
+} = {
+  mine: () => ({ jql: "assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC", title: "My open issues", cols: "status,priority,due,updated" }),
+  sprint: (p) => (JIRA_PROJECT_RX.test(p) ? { jql: `project = "${p}" AND sprint in openSprints() ORDER BY rank ASC`, title: `${p} · current sprint`, cols: "status,assignee,priority,type" } : null),
+  bugs: (p) => (JIRA_PROJECT_RX.test(p) ? { jql: `project = "${p}" AND issuetype = Bug AND resolution = Unresolved ORDER BY priority DESC, created DESC`, title: `${p} · open bugs`, cols: "status,assignee,priority,due" } : null),
+  recent: (p) => (JIRA_PROJECT_RX.test(p) ? { jql: `project = "${p}" AND updated >= -7d ORDER BY updated DESC`, title: `${p} · updated in the last 7 days`, cols: "status,assignee,updated" } : null),
+  epic: (k) => (JIRA_KEY_RX.test(k) ? { jql: `parent = ${k} ORDER BY rank ASC`, title: `${k} · child issues`, cols: "status,assignee,priority" } : null),
+};
+
+const jiraRun = (action: JiraAction) => (e: Editor, r: Range) => svc(e).jira?.run(e, r, action);
+
+/** The Jira section of the "/" menu ("/jira" lists them all; "/jira sprint", "/bugs"… find one). */
 export const JIRA_ITEMS: BlockItem[] = [
   {
     id: "jira",
     label: "Jira issue",
-    hint: "A live chip: status for people with Jira",
+    hint: "Search by key or words: a live chip",
     icon: "checkSquare",
-    keywords: "jira issue ticket task bug story atlassian chip link",
-    group: "inline",
+    keywords: "jira issue ticket task bug story atlassian chip link search key",
+    group: "jira",
     cell: true,
     available: jiraOn,
-    run: (e, r) => {
-      e.chain().focus().deleteRange(r).insertContent([{ type: "mention", attrs: { name: "jira", label: "", attributes: {} } }, { type: "text", text: " " }]).run();
-    },
+    run: jiraRun("issue"),
   },
   {
     id: "jira-card",
     label: "Jira card",
     hint: "An issue with its status, assignee and actions",
     icon: "checkSquare",
-    keywords: "jira issue card ticket status assignee atlassian block",
-    group: "markdrop",
-    available: jiraOn,
-    run: insert({ type: "directiveLeaf", attrs: { name: "jira", attributes: {} } }),
+    keywords: "jira card issue ticket status assignee atlassian block",
+    group: "jira",
+    available: jiraPageOn,
+    run: jiraRun("card"),
   },
   {
     id: "jira-list",
     label: "Jira list",
-    hint: "Live issues from a project, filter or JQL",
+    hint: "Live issues from a project, saved filter or JQL",
     icon: "list",
-    keywords: "jira list table issues jql filter project sprint board backlog atlassian",
-    group: "markdrop",
-    available: jiraOn,
-    run: insert({ type: "directiveLeaf", attrs: { name: "jira-list", attributes: {} } }),
+    keywords: "jira list table issues jql filter project board backlog atlassian query",
+    group: "jira",
+    available: jiraPageOn,
+    run: jiraRun("list"),
+  },
+  {
+    id: "jira-mine",
+    label: "My Jira issues",
+    hint: "Open issues assigned to whoever is reading",
+    icon: "user",
+    keywords: "jira my issues mine assigned to me todo open currentuser",
+    group: "jira",
+    available: jiraPageOn,
+    run: jiraRun("mine"),
+  },
+  {
+    id: "jira-sprint",
+    label: "Jira sprint",
+    hint: "A project's current sprint, live",
+    icon: "clock",
+    keywords: "jira sprint current active board scrum iteration",
+    group: "jira",
+    available: jiraPageOn,
+    run: jiraRun("sprint"),
+  },
+  {
+    id: "jira-bugs",
+    label: "Jira bugs",
+    hint: "Open bugs in a project, most urgent first",
+    icon: "bug",
+    keywords: "jira bugs bug defects open unresolved",
+    group: "jira",
+    available: jiraPageOn,
+    run: jiraRun("bugs"),
+  },
+  {
+    id: "jira-recent",
+    label: "Jira recently updated",
+    hint: "A project's issues changed in the last 7 days",
+    icon: "refresh",
+    keywords: "jira recently updated recent changes week activity latest",
+    group: "jira",
+    available: jiraPageOn,
+    run: jiraRun("recent"),
+  },
+  {
+    id: "jira-epic",
+    label: "Jira epic",
+    hint: "An epic's card and a live list of its child issues",
+    icon: "layers",
+    keywords: "jira epic children child issues parent stories initiative",
+    group: "jira",
+    available: jiraPageOn,
+    run: jiraRun("epic"),
   },
   {
     id: "jira-create",
     label: "New Jira issue",
-    hint: "Create one (drafted for you) and put its chip here",
+    hint: "Create one (drafted for you) and put it here",
     icon: "plus",
-    keywords: "jira create new issue ticket task bug atlassian",
-    group: "markdrop",
+    keywords: "jira create new issue ticket task bug atlassian add",
+    group: "jira",
     available: jiraOn,
-    run: (e, r) => {
-      e.chain().focus().deleteRange(r).insertContent([{ type: "mention", attrs: { name: "jira", label: "", attributes: { create: "1" } } }, { type: "text", text: " " }]).run();
-    },
+    run: jiraRun("create"),
+  },
+  {
+    id: "jira-from-text",
+    label: "Jira issue from text",
+    hint: "This line's text becomes a new issue",
+    icon: "sparkle",
+    keywords: "jira from selection text line convert turn into issue create",
+    group: "jira",
+    available: jiraOn,
+    run: jiraRun("from-text"),
   },
 ];
+
+/**
+ * "/jira my issues": the "/" menu's query may have spaces after "jira" (up to three more words), so
+ * the commands read the way they're named. `text` is the line before the caret; the match must end
+ * there. Null for anything else (the menu's usual one-word query then applies).
+ */
+export function jiraQueryAt(text: string): { index: number; query: string } | null {
+  const m = /(^|[\s\u00a0])\/(jira(?: [a-z]*){1,3})$/i.exec(text);
+  if (!m) return null;
+  return { index: m.index + m[1].length, query: m[2] };
+}
+
+/** The "/jira …" ids, in the menu's order. */
+export const JIRA_BLOCKS = JIRA_ITEMS.map((it) => it.id);
 
 /**
  * The page's "/" menu, in order within each section (GROUPS): text, headings, lists, toggles,
@@ -468,9 +589,10 @@ export const PAGE_BLOCKS = [
   "text", "h1", "h2", "h3", "tasks", "bullets", "numbers", "toggle", "toggle-h1", "toggle-h2", "toggle-h3",
   "quote", "divider", "callout-note", "callout-tip", "callout-warning", "callout-danger",
   "image", "page-video", "page-audio", "page-file", "bookmark", "web-embed",
-  "page-embed", "mention", "subpage", "signoff", "meetings", "jira-card", "jira-list", "jira-create",
+  "page-embed", "mention", "subpage", "signoff", "meetings",
+  "jira", "jira-card", "jira-list", "jira-mine", "jira-sprint", "jira-bugs", "jira-recent", "jira-epic", "jira-create", "jira-from-text",
   "table", "columns-2", "columns-3", "columns-4", "columns-5", "code", "math", "mermaid", "toc", "breadcrumb", "button",
-  "person", "date", "emoji", "jira",
+  "person", "date", "emoji",
 ] as const;
 
 /** Markdown shortcuts only pages have (pageKeys.ts), shown in the page's menu. */

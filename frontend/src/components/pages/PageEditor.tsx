@@ -57,6 +57,7 @@ import { useAssistantEditor } from "@/components/assistant/store";
 import { insertAfterCaret, insertAfterHeading } from "./editorInsert";
 import { sectionAround } from "./memory/memoryCore.mjs";
 import { useJiraEditorHost } from "@/components/jira/pages/editor";
+import { useJiraSlash } from "@/components/jira/pages/slash";
 import "./pages.css";
 import "./page-blocks.css";
 
@@ -477,6 +478,8 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
   const flush = session.flush;
   // Jira inside the page (components/jira/pages): chips, cards, lists; text made into an issue becomes its chip.
   const jiraEd = useJiraEditorHost({ slug, userId, subscribeLive, enabled: !!userId && !addressing.tenant, workspaceId: workspaceId ?? null });
+  // "/jira …": every signed-in editor sees them; without Jira yet they lead to it (connect, site, markdrop.in).
+  const jiraSlash = useJiraSlash({ mode: "page", slug, workspaceId: workspaceId ?? null, tenant: addressing.tenant, jira: jiraEd.host, editor, flush });
   const jiraReplace = useRef<((key: string, site: string | null) => void) | null>(null);
   const openJira = useCallback((ref: { block: string | null; selection: string | null; replace?: ((key: string, site: string | null) => void) | null }) => {
     jiraReplace.current = ref.replace ?? null;
@@ -931,6 +934,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
           blocks={PAGE_BLOCKS}
           pages={pages}
           darkImages={false}
+          jira={readOnly || !userId ? null : jiraSlash.slash}
           ai={readOnly ? null : ai}
           apiRef={api}
           onEditor={onEditor}
@@ -948,6 +952,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
           jiraReplace.current = null;
         }} />}
       {jiraEd.dialog}
+      {jiraSlash.dialog}
     </PageFrame>
   );
 }

@@ -20,6 +20,9 @@ import { DeleteItemDialog } from "@/components/trash/DeleteItemDialog";
 import type { useDocumentViewer, ViewMode } from "./useDocumentViewer";
 import { useAssistantEditor } from "@/components/assistant/store";
 import { insertAfterSection, insertAtCaret } from "@/components/assistant/assistantCore.mjs";
+import { useAuth } from "@/contexts/AuthContext";
+import { useJiraEditorHost } from "@/components/jira/pages/editor";
+import { useJiraSlash } from "@/components/jira/pages/slash";
 
 type Viewer = ReturnType<typeof useDocumentViewer>;
 
@@ -66,7 +69,7 @@ export function SecretUnlock({ v }: { v: Viewer }) {
  * What Preview's "/" menu offers: blocks a document renders. The docs engine's own (callouts, steps,
  * tabs, embeds…) would be saved as Markdown the document page shows as plain text.
  */
-const DOCUMENT_BLOCKS = ["text", "h2", "h3", "bullets", "numbers", "tasks", "quote", "code", "table", "math", "divider"];
+const DOCUMENT_BLOCKS = ["text", "h2", "h3", "bullets", "numbers", "tasks", "quote", "code", "table", "math", "divider", "jira", "jira-create", "jira-from-text"];
 
 const EXPIRY_OPTIONS: { value: ExpiresIn | ""; label: string }[] = [
   { value: "", label: "No change" },
@@ -95,6 +98,12 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
 }) {
   const phone = useMediaQuery(PHONE_QUERY);
   const router = useRouter();
+  // "/jira …" in Preview's block editor: issues go in as links (a document has no chips or lists).
+  const { user } = useAuth();
+  const workspaceId = (v.page as { workspace_id?: string | null } | null)?.workspace_id ?? null;
+  const jiraUsable = !!user && !encrypted && v.canEditContent;
+  const jiraEd = useJiraEditorHost({ slug, userId: user?.id ?? null, enabled: jiraUsable && !v.onTenantHost, workspaceId });
+  const jiraSlash = useJiraSlash({ mode: "doc", slug, workspaceId, tenant: v.onTenantHost, jira: jiraEd.host });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [confirmRotate, setConfirmRotate] = useState(false);
@@ -349,6 +358,7 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
                       showHeader={false}
                       showModeSwitch={false}
                       blocks={DOCUMENT_BLOCKS}
+                      jira={jiraUsable ? jiraSlash.slash : null}
                       placeholder="Start writing, or type / to add a heading, list, table or code"
                     />
                   </div>
@@ -363,6 +373,8 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
         </>
       )}
 
+      {jiraEd.dialog}
+      {jiraSlash.dialog}
       {/* Settings: password, expiry, a new key, and the danger zone. */}
       <Drawer
         open={settingsOpen}

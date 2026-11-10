@@ -28,6 +28,8 @@ export interface EditorServices {
    *  meetings" pill would show (the pill steps aside while that toolbar is up). Changes are announced
    *  with MEETINGS_BUTTON_EVENT on window. */
   meetingsButton?: { count: number; open: () => void };
+  /** The "/jira …" commands (blocks.ts JIRA_ITEMS, components/jira/pages/slash.tsx). */
+  jira?: import("../blocks").JiraSlash | null;
 }
 
 export const MEETINGS_BUTTON_EVENT = "md:meetings-button";
