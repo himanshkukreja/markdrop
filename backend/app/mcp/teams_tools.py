@@ -10,6 +10,9 @@ The same rules as the website (routers/teams.py): a private team's members, item
 its members and workspace admins; its brief for every workspace member. ``space`` on search,
 ask_documents, ask_meetings, list_team, get_person_profile, get_project_status, list_workspace_items and
 list_meetings narrows them to a team, a project or company-wide items (mcp/protocol.py).
+
+Every workspace has a default team, General (renameable): everyone is in it, it is always open, and its
+content is the company-wide content ("company" = General everywhere here).
 """
 
 from __future__ import annotations
@@ -32,7 +35,13 @@ _TEAM = {"type": "string", "description": "Team id, slug or name (list_teams)."}
 _LIST = {"type": "array", "items": {"type": "string"}, "maxItems": 200}
 SPACE = {"type": "string", "maxLength": 40,
          "description": "Teams: narrow to one space — \"team:<team id>\", \"project:<project id>\", \"company\" "
-                        "(company-wide items only) or \"all\" (default: everything the user can read)."}
+                        "(General: the default team, i.e. company-wide items) or \"all\" (default: everything the user can read)."}
+
+
+async def _general_name(ctx: Context, workspace_id: str | None) -> str:
+    """The default team's name (General unless renamed): where company-wide items live."""
+    row = await ctx.db[T.TEAMS].find_one({"workspace_id": workspace_id, "general": True}, {"name": 1}) if workspace_id else None
+    return (row or {}).get("name") or "General"
 
 
 def _abs(path: str) -> str:
@@ -71,7 +80,7 @@ def _refused(exc: T.Refused) -> ToolError:
 
 def _card(c: dict) -> dict:
     return {k: c.get(k) for k in ("id", "name", "slug", "visibility", "description", "member_count", "my_role", "can_read",
-                                  "can_manage", "project_ids")}
+                                  "can_manage", "project_ids", "general")}
 
 
 def _team_url(view: T.TeamView, t: dict) -> str:
@@ -80,12 +89,15 @@ def _team_url(view: T.TeamView, t: dict) -> str:
 
 async def list_teams(ctx: Context, args: dict) -> tuple[str, dict]:
     view, _actx, _role = await _view(ctx, args["workspace"])
-    teams = sorted((T.team_card(view, t) for t in view.teams.values()), key=lambda c: (c["name"] or "").casefold())
+    if view.general_id is None:
+        await T.ensure_general(ctx.db, view.workspace_id)
+        view, _actx, _role = await _view(ctx, args["workspace"])
+    teams = sorted((T.team_card(view, t) for t in view.teams.values()), key=lambda c: (not c["general"], (c["name"] or "").casefold()))
     out = {"teams": [{**_card(c), "url": _team_url(view, view.teams[c["id"]])} for c in teams],
            "can_create": view.admin}
     if not teams:
         return "No teams in this workspace yet." + (" As an admin you can create_team." if view.admin else ""), out
-    lines = [f"- {c['name']} ({c['visibility']}, {c['member_count']} people)"
+    lines = [f"- {c['name']} ({'default team, everyone' if c['general'] else c['visibility']}, {c['member_count']} people)"
              + (f" — you're {c['my_role']}" if c["my_role"] else "") + (" — private, only its brief is visible to you" if not c["can_read"] else "")
              for c in teams]
     return "Teams:\n" + "\n".join(lines), out
@@ -195,7 +207,7 @@ async def _set(ctx: Context, raw: dict, tids: list[str], pids: list[str]) -> tup
     except T.Refused as exc:
         raise _refused(exc)
     names = [x["name"] for x in got["teams"] + got["projects"]]
-    where = ", ".join(names) if names else "company-wide"
+    where = ", ".join(names) if names else await _general_name(ctx, raw.get("workspace_id"))
     return f"“{raw.get('title') or raw['slug']}” is now in: {where}.", {"slug": raw["slug"], "teams": names,
                                                                       "team_ids": got["team_ids"], "project_ids": got["project_ids"]}
 
@@ -203,7 +215,7 @@ async def _set(ctx: Context, raw: dict, tids: list[str], pids: list[str]) -> tup
 async def move_to_team(ctx: Context, args: dict) -> tuple[str, dict]:
     raw = await _doc(ctx, args["document"])
     target = (args.get("team") or "").strip()
-    if target.lower() in ("company", "company-wide", ""):
+    if target.lower() in ("company", "company-wide", "general", ""):
         return await _set(ctx, raw, [], [])
     view = await access_service.Ctx(ctx.db).team_view(raw["workspace_id"], ctx.user.id)
     t = await _team(ctx, view, target)
@@ -283,14 +295,15 @@ async def route_meeting(ctx: Context, args: dict) -> tuple[str, dict]:
     if raw is None or not (await access_service.can(actor_of(ctx), raw, "read", actx)).allowed:
         raise ToolError("Meeting not found.")
     view = await actx.team_view(row["workspace_id"], ctx.user.id)
-    tids = [] if [t for t in args["teams"] if t.lower() in ("company", "company-wide")] else \
+    tids = [] if [t for t in args["teams"] if t.lower() in ("company", "company-wide", "general")] else \
         [str((await _team(ctx, view, t))["_id"]) for t in args["teams"]]
     try:
         got = await routing.set_meeting_teams(ctx.db, actor_of(ctx), actx, row, tids, [])
     except T.Refused as exc:
         raise _refused(exc)
     names = [x["name"] for x in got["teams"]]
-    return f"“{row.get('title')}” is in: {', '.join(names) or 'company-wide'}.", {"teams": names, "state": got["state"]}
+    return (f"“{row.get('title')}” is in: {', '.join(names) or await _general_name(ctx, row.get('workspace_id'))}.",
+            {"teams": names, "state": got["state"]})
 
 
 _O = {"type": "object"}
@@ -358,7 +371,7 @@ TEAMS_TOOLS = [
          output_schema=_out({"member_count": {"type": "integer"}}), annotations=_ann(False, True, True), handler=remove_team_members),
     Tool(name="move_to_team", title="Move an item into a team", writes=True, scope=WRITE,
          description=("Put a document, page or file into one team's space (team: id, slug or name), or back to "
-                      "company-wide (team \"company\"). A private team's items are visible to its members and "
+                      "General, the default team everyone is in (team \"General\" or \"company\"). A private team's items are visible to its members and "
                       "workspace admins only (a link or people share keeps working). Needs edit on the item and "
                       "membership of the team."),
          input_schema={"type": "object", "properties": {"document": {"type": "string", "description": "Slug or link."},
@@ -390,7 +403,7 @@ TEAMS_TOOLS = [
          output_schema=_out({"project": _O}), annotations=_ann(False, False, False), handler=create_project),
     Tool(name="route_meeting", title="Put a meeting into teams", writes=True, scope=WRITE,
          description=("Say which team(s) a meeting belongs to (it was suggested from its attendees on import); "
-                      "[\"company\"] makes it company-wide. meeting: its id (list_meetings)."),
+                      "[\"General\"] (or [\"company\"]) puts it in General, the default team. meeting: its id (list_meetings)."),
          input_schema={"type": "object", "properties": {"meeting": {"type": "string", "maxLength": 40},
                                                         "teams": {"type": "array", "items": _STR, "maxItems": 20}},
                        "required": ["meeting", "teams"]},

@@ -197,12 +197,18 @@ async def sidebar(request: Request, workspace_id: str, db: AsyncIOMotorDatabase 
                   user: User = Depends(require_user)):
     """``{my_role, can_create, teams (mine), projects (readable), browse {open, private}, suggested (admins), review}``."""
     actor, ctx, view, role = await _ctx(request, db, user, workspace_id)
+    g = view.teams.get(view.general_id or "")
+    if g is None or user.id not in (g.get("member_ids") or []):
+        # The default team (General) exists and has everyone in it (it self-heals here; the sidebar asks often).
+        await T.ensure_general(db, workspace_id)
+        view = await T.load_view(db, workspace_id, user.id, role)
+    # General first (pinned), then the rest by name.
     mine = sorted((T.team_card(view, t) for tid, t in view.teams.items() if tid in view.member_teams),
-                  key=lambda c: (c["name"] or "").casefold())
+                  key=lambda c: (not c["general"], (c["name"] or "").casefold()))
     projects = sorted((T.project_card(view, p) for pid, p in view.projects.items()
                        if pid in view.readable_projects and (p.get("status") or "active") == "active"),
                       key=lambda c: (c["name"] or "").casefold())
-    vis = [t.get("visibility") for t in view.teams.values()]
+    vis = [t.get("visibility") for t in view.teams.values() if not T.is_general(t)]
     return jsonable_encoder({"my_role": role, "can_create": view.admin, "teams": mine, "projects": projects,
                              "browse": {"open": vis.count("open"), "private": vis.count("private")},
                              "suggested": await T.suggested(db, view), "review": await routing.pending(db, view)})
@@ -214,7 +220,7 @@ async def browse(request: Request, workspace_id: str, db: AsyncIOMotorDatabase =
                  user: User = Depends(require_user)):
     actor, ctx, view, _role = await _ctx(request, db, user, workspace_id)
     return jsonable_encoder({"teams": sorted((T.team_card(view, t) for t in view.teams.values()),
-                                             key=lambda c: (c["name"] or "").casefold())})
+                                             key=lambda c: (not c["general"], (c["name"] or "").casefold()))})
 
 
 @router.get("/{workspace_id}/teams-review", summary="Teams: the guided review (admins)")
@@ -320,12 +326,49 @@ async def team_home(db, actor: access.Actor, ctx: access.Ctx, view: T.TeamView, 
         except Exception:
             highlights = []
     members = team.get("member_ids") or []
-    return {"team": T.team_full(view, team, ppl), "brief": brief, "can_read": True, "recent": recent, "meetings": mt,
+    extra: dict = {}
+    if T.is_general(team):
+        extra = await _general_extras(db, actor, ctx, view, ppl)
+    return {**extra, "team": T.team_full(view, team, ppl), "brief": brief, "can_read": True, "recent": recent, "meetings": mt,
             "memory": {"enabled": bool(ws and ws.on), "highlights": highlights,
                        "people": [{**ppl[u], "status": None} for u in members if u in ppl]},
             "jira": {"projects": list(team.get("jira_projects") or [])},
             "projects": [T.project_card(view, view.projects[p]) for p in T.team_project_ids(view, tid)
                          if p in view.readable_projects]}
+
+
+async def _general_extras(db, actor: access.Actor, ctx: access.Ctx, view: T.TeamView, ppl: dict) -> dict:
+    """General's home adds: ``across`` (one line from each other team's latest brief; a private team you can't read:
+    its name only), ``activity`` (items + meetings from every team you can see, for "What's happening") and
+    ``new_people`` (joined the workspace in the last 30 days)."""
+    from datetime import timedelta
+
+    from app.services import meetings, workspace_items
+
+    across = []
+    for tid, t in sorted(view.teams.items(), key=lambda kv: (kv[1].get("name") or "").casefold()):
+        if T.is_general(t):
+            continue
+        card = T.team_card(view, t)
+        line = None
+        if card["can_read"] or t.get("visibility") == "open":
+            b = await briefs.get_brief(db, tid, "latest")
+            first = next((ln for ln in (b or {}).get("lines") or [] if not ln.get("hidden")), None)
+            line = first.get("text") if first else None
+        across.append({"team": card, "line": line})
+    try:
+        items = (await workspace_items.items(db, actor, ctx, view.workspace_id, limit=12))["items"]
+    except HTTPException:
+        items = []
+    try:
+        mts = (await meetings.list_meetings(db, view.workspace_id, actor, ctx, limit=6, overview=False))["meetings"]
+    except HTTPException:
+        mts = []
+    since = T.now_utc() - timedelta(days=30)
+    joined = await db["memberships"].find({"workspace_id": view.workspace_id, "created_at": {"$gte": since}},
+                                          {"user_id": 1, "created_at": 1}).sort("created_at", -1).limit(6).to_list(length=6)
+    return {"across": across, "activity": {"items": items, "meetings": mts},
+            "new_people": [{**ppl[m["user_id"]], "joined_at": m.get("created_at")} for m in joined if m.get("user_id") in ppl]}
 
 
 @router.get("/{workspace_id}/teams/{team}", summary="Teams: a team's home")
@@ -541,7 +584,7 @@ async def list_projects(request: Request, workspace_id: str, team: Optional[str]
         t = await _readable_team(db, view, team)
         rows = [p for p in rows if str(t["_id"]) in [str(x) for x in p.get("team_ids") or []]]
     return jsonable_encoder({"projects": sorted((T.project_card(view, p) for p in rows),
-                                                key=lambda c: (c["name"] or "").casefold())})
+                                                key=lambda c: (not c["general"], (c["name"] or "").casefold()))})
 
 
 @router.post("/{workspace_id}/projects", status_code=201, summary="Teams: create a project")

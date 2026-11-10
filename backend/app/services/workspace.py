@@ -212,6 +212,10 @@ async def create_workspace(db: AsyncIOMotorDatabase, name: str, owner: User) -> 
             "name": owner.name,
         }
     )
+    from app.services import teams as teams_service
+
+    # Its default team, everyone's (Teams: General).
+    await teams_service.ensure_general(db, workspace_id)
     doc["_id"] = result.inserted_id
     return _to_workspace(doc)
 

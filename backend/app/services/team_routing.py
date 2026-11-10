@@ -32,6 +32,8 @@ def _attendee_ids(row: dict) -> set[str]:
 async def suggest(db: AsyncIOMotorDatabase, workspace_id: str, row: dict, teams: list[dict] | None = None) -> list[dict]:
     """``[{team_id, name, reason: attendees|series, matched}]`` best first."""
     teams = teams if teams is not None else await db[T.TEAMS].find({"workspace_id": workspace_id}).to_list(length=T.MAX_TEAMS + 10)
+    # Never the default team (General: everyone is in it; unrouted meetings are its meetings anyway).
+    teams = [t for t in teams if not t.get("general")]
     if not teams:
         return []
     uids = _attendee_ids(row)
@@ -134,7 +136,7 @@ async def review(db: AsyncIOMotorDatabase, view: T.TeamView) -> dict:
     if not view.admin:
         raise T.Refused(403, "Only workspace admins can do the review.")
     ws = view.workspace_id
-    teams = list(view.teams.values())
+    teams = [t for t in view.teams.values() if not T.is_general(t)]
     state = await db[T.REVIEW].find_one({"workspace_id": ws}) or {}
     ppl = await T.people(db, ws)
     meetings_out = []

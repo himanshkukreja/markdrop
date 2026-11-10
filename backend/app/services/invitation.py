@@ -277,6 +277,13 @@ async def accept_invitation(
         }},
         upsert=True,
     )
+    from app.services import teams as teams_service
+
+    # New members join the workspace's default team (General) on their own.
+    try:
+        await teams_service.ensure_general(db, invite.workspace_id)
+    except Exception:  # pragma: no cover - the sidebar re-syncs it
+        pass
     return invite.workspace_id, invite.role
 
 

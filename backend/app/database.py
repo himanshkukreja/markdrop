@@ -290,6 +290,10 @@ async def connect() -> None:
         from app.services import teams as _teams
 
         await _teams.ensure_indexes(db)
+        # Every workspace's default "General" team (idempotent; nav redesign 2026-11-10).
+        made = await _teams.migrate_general(db)
+        if made:
+            print(f"[startup] General teams created: {made}")
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] meetings indexes skipped: {exc}")
     try:

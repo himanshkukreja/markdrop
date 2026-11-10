@@ -181,7 +181,7 @@ class Rule(TeamsWorld):
 
     async def test_sidebar_and_projects(self):
         side = (await self.http.get(f"{self.base}/teams", headers=self.session("wm"))).json()
-        self.assertEqual([t["name"] for t in side["teams"]], ["Sales"])
+        self.assertEqual([t["name"] for t in side["teams"]], ["General", "Sales"])   # the default team pinned first
         self.assertEqual(side["browse"], {"open": 1, "private": 1})
         r = await self.http.post(f"{self.base}/projects", headers=self.session("wm"), json={"name": "Q4", "team_ids": [self.sales]})
         self.assertEqual(r.status_code, 403)

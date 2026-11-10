@@ -71,6 +71,9 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[PROJECTS].create_index([("workspace_id", 1), ("slug", 1)], unique=True)
     await db[PROJECTS].create_index([("workspace_id", 1), ("team_ids", 1)])
     await db[BRIEFS].create_index([("team_id", 1), ("week", 1)], unique=True)
+    # One default "General" team per workspace (nav redesign 2026-11-10).
+    await db[TEAMS].create_index([("workspace_id", 1)], unique=True, name="one_general",
+                                 partialFilterExpression={"general": True})
     await db["documents"].create_index("team_ids", sparse=True)
     await db["documents"].create_index("project_ids", sparse=True)
 
@@ -85,6 +88,12 @@ def ids_of(doc: dict | None, key: str) -> list[str]:
 
 def company_wide(doc: dict | None) -> bool:
     return not ids_of(doc, "team_ids") and not ids_of(doc, "project_ids")
+
+
+def is_general(team: dict | None) -> bool:
+    """The workspace's default team (everyone is in it). Its content is the company-wide content: its id is
+    never stored on items, so the access rule is unchanged (General = company-wide visibility)."""
+    return bool((team or {}).get("general"))
 
 
 @dataclass
@@ -110,6 +119,10 @@ class TeamView:
 
     def team_readable(self, tid: str) -> bool:
         return tid in self.readable_teams
+
+    @property
+    def general_id(self) -> str | None:
+        return next((tid for tid, t in self.teams.items() if is_general(t)), None)
 
     def project_readable(self, pid: str) -> bool:
         return pid in self.readable_projects
@@ -238,7 +251,8 @@ def space_clause(view: TeamView, space: Space) -> dict | None:
     if space.kind == "project":
         return {"project_ids": space.id}
     pids = team_project_ids(view, space.id or "")
-    ors: list[dict] = [{"team_ids": space.id}]
+    # General: the company-wide items (+ its projects' items).
+    ors: list[dict] = [{"team_ids": None, "project_ids": None} if is_general(view.teams.get(space.id or "")) else {"team_ids": space.id}]
     if pids:
         ors.append({"project_ids": {"$in": pids}})
     return {"$or": ors}
@@ -251,7 +265,7 @@ def in_space(view: TeamView, space: Space, doc: dict | None) -> bool:
         return company_wide(doc)
     if space.kind == "project":
         return space.id in ids_of(doc, "project_ids")
-    if space.id in ids_of(doc, "team_ids"):
+    if space.id in ids_of(doc, "team_ids") or (is_general(view.teams.get(space.id or "")) and company_wide(doc)):
         return True
     pids = set(team_project_ids(view, space.id or ""))
     return bool(pids & set(ids_of(doc, "project_ids")))
@@ -295,7 +309,7 @@ def team_card(view: TeamView, t: dict) -> dict:
             "description": t.get("description") or "", "visibility": t.get("visibility") or "open",
             "member_count": len(t.get("member_ids") or []), "lead_ids": list(t.get("lead_ids") or []), "my_role": my_role,
             "can_read": readable, "can_manage": view.can_manage(tid), "can_admin": view.admin,
-            "project_ids": team_project_ids(view, tid) if readable else []}
+            "project_ids": team_project_ids(view, tid) if readable else [], "general": is_general(t)}
 
 
 def team_full(view: TeamView, t: dict, ppl: dict[str, dict]) -> dict:
@@ -391,7 +405,7 @@ async def create_team(db: AsyncIOMotorDatabase, view: TeamView, body: dict, *, f
     name = _clean(body.get("name"), NAME_MAX)
     if not name:
         raise Refused(422, "Give the team a name.")
-    if await db[TEAMS].count_documents({"workspace_id": ws}) >= MAX_TEAMS:
+    if await db[TEAMS].count_documents({"workspace_id": ws, "general": {"$ne": True}}) >= MAX_TEAMS:
         raise Refused(409, f"A workspace can have {MAX_TEAMS} teams.")
     await _name_free(db, TEAMS, ws, name)
     vis = body.get("visibility") or "open"
@@ -421,8 +435,76 @@ async def get_team(db: AsyncIOMotorDatabase, workspace_id: str, ref: str) -> dic
         row = await db[TEAMS].find_one({"_id": o, "workspace_id": workspace_id})
         if row is not None:
             return row
-    return (await db[TEAMS].find_one({"workspace_id": workspace_id, "slug": ref})
-            or await db[TEAMS].find_one({"workspace_id": workspace_id, "name_key": (ref or "").strip().casefold()}))
+    row = (await db[TEAMS].find_one({"workspace_id": workspace_id, "slug": ref})
+           or await db[TEAMS].find_one({"workspace_id": workspace_id, "name_key": (ref or "").strip().casefold()}))
+    if row is None and (ref or "").strip().casefold() in ("general", "company", "everyone"):
+        # Old Company links and "company" scopes (MCP) land on the default team, whatever it's called now.
+        row = await db[TEAMS].find_one({"workspace_id": workspace_id, "general": True})
+    return row
+
+
+GENERAL_NAME = "General"
+GENERAL_ICON = "🏛️"
+GENERAL_DESC = "Everyone in the workspace: company-wide pages, files, meetings and announcements."
+
+
+async def ensure_general(db: AsyncIOMotorDatabase, workspace_id: str) -> dict | None:
+    """The workspace's default team, created if missing and its members synced with the workspace's (idempotent).
+    Everyone is a member; leads default to the owner. Returns the row (None: no such workspace)."""
+    o = oid(workspace_id)
+    wsrow = await db["workspaces"].find_one({"_id": o}, {"owner_id": 1}) if o is not None else None
+    if wsrow is None:
+        return None
+    rows = await db["memberships"].find({"workspace_id": workspace_id}, {"user_id": 1, "role": 1, "created_at": 1}) \
+        .sort("created_at", 1).to_list(length=5000)
+    members = [m["user_id"] for m in rows if m.get("user_id")]
+    owner = wsrow.get("owner_id") if wsrow.get("owner_id") in members else next(
+        (m["user_id"] for m in rows if m.get("role") == "owner"), None)
+    row = await db[TEAMS].find_one({"workspace_id": workspace_id, "general": True})
+    if row is None:
+        name = GENERAL_NAME
+        for cand in (GENERAL_NAME, "Everyone", "General (everyone)"):
+            if await db[TEAMS].find_one({"workspace_id": workspace_id, "name_key": cand.casefold()}, {"_id": 1}) is None:
+                name = cand
+                break
+        now = now_utc()
+        new = {"workspace_id": workspace_id, "general": True, "name": name, "name_key": name.casefold(),
+               "slug": await _unique_slug(db, TEAMS, workspace_id, "general"), "icon": GENERAL_ICON, "color": "blue",
+               "description": GENERAL_DESC, "visibility": "open", "lead_ids": [owner] if owner else [],
+               "member_ids": members, "slack_channel": None, "jira_projects": [],
+               "digest": {"enabled": True, "email": False, "slack": True}, "from_group_id": None,
+               "created_by": owner, "created_at": now, "updated_at": now}
+        try:
+            await db[TEAMS].update_one({"workspace_id": workspace_id, "general": True}, {"$setOnInsert": new}, upsert=True)
+        except Exception:  # a racing create (unique index): the other one won
+            pass
+        row = await db[TEAMS].find_one({"workspace_id": workspace_id, "general": True})
+        if row is not None:
+            _changed(members)
+        return row
+    have = list(row.get("member_ids") or [])
+    want = set(members)
+    leads = [u for u in row.get("lead_ids") or [] if u in want] or ([owner] if owner else [])
+    if set(have) != want or leads != list(row.get("lead_ids") or []) or row.get("visibility") != "open":
+        merged = [u for u in have if u in want] + [u for u in members if u not in set(have)]
+        row = await db[TEAMS].find_one_and_update(
+            {"_id": row["_id"]}, {"$set": {"member_ids": merged, "lead_ids": leads, "visibility": "open", "updated_at": now_utc()}},
+            return_document=True)
+        _changed(want.symmetric_difference(have))
+    return row
+
+
+async def migrate_general(db: AsyncIOMotorDatabase) -> int:
+    """Startup (idempotent): every workspace gets its General team, members synced. Returns how many were created."""
+    have = {t["workspace_id"] async for t in db[TEAMS].find({"general": True}, {"workspace_id": 1})}
+    made = 0
+    async for w in db["workspaces"].find({}, {"_id": 1}):
+        wid = str(w["_id"])
+        if wid in have:
+            continue
+        if await ensure_general(db, wid) is not None:
+            made += 1
+    return made
 
 
 def _changed(user_ids) -> None:
@@ -453,6 +535,8 @@ async def update_team(db: AsyncIOMotorDatabase, view: TeamView, team: dict, body
             raise Refused(403, "Only workspace admins can change a team's visibility.")
         if body["visibility"] not in VISIBILITY:
             raise Refused(422, "visibility must be open or private")
+        if is_general(team) and body["visibility"] != "open":
+            raise Refused(409, f"{team.get('name') or 'General'} is the workspace's default team: everyone is in it, so it stays open.")
         sets["visibility"] = body["visibility"]
     if "slack_channel" in body:
         ch = body.get("slack_channel")
@@ -489,6 +573,8 @@ async def _items_access_changed(db: AsyncIOMotorDatabase, q: dict) -> None:
 async def delete_team(db: AsyncIOMotorDatabase, view: TeamView, team: dict) -> None:
     if not view.admin:
         raise Refused(403, "Only workspace admins can delete a team.")
+    if is_general(team):
+        raise Refused(409, f"{team.get('name') or 'General'} is the workspace's default team. You can rename it, not delete it.")
     tid = str(team["_id"])
     await _pull(db, "team_ids", tid)
     await db[PROJECTS].update_many({"workspace_id": view.workspace_id}, {"$pull": {"team_ids": tid}})
@@ -505,6 +591,9 @@ async def _pull(db: AsyncIOMotorDatabase, key: str, ident: str) -> None:
 
 
 async def add_members(db: AsyncIOMotorDatabase, view: TeamView, team: dict, user_ids: list[str]) -> dict:
+    if is_general(team):
+        # Everyone in the workspace is in General already (new members join it on their own).
+        return await ensure_general(db, view.workspace_id) or team
     # Anyone in the workspace may join an OPEN team themselves (Browse teams › Join); adding others is for leads/admins.
     self_join = team.get("visibility") == "open" and list(dict.fromkeys(user_ids)) == [view.uid]
     if not (view.can_manage(str(team["_id"])) or self_join):
@@ -523,6 +612,9 @@ async def remove_member(db: AsyncIOMotorDatabase, view: TeamView, team: dict, ui
     tid = str(team["_id"])
     if not (view.can_manage(tid) or uid == view.uid):
         raise Refused(403, "Only the team's leads and workspace admins can remove people.")
+    if is_general(team):
+        raise Refused(409, f"Everyone in the workspace is in {team.get('name') or 'General'}. "
+                           "Removing someone from the workspace takes them out of it.")
     if uid not in (team.get("member_ids") or []):
         raise Refused(404, "Not a member of this team.")
     leads = team.get("lead_ids") or []
@@ -681,7 +773,8 @@ def _norm_sets(view: TeamView, team_ids, project_ids) -> tuple[list[str], list[s
     pids = [p for p in dict.fromkeys(str(x) for x in project_ids or []) if p in view.projects]
     if len(tids) != len(set(str(x) for x in team_ids or [])) or len(pids) != len(set(str(x) for x in project_ids or [])):
         raise Refused(404, "Team or project not found.")
-    return tids, pids
+    # General is the company-wide content: in General (alone or with others) = no General id on the item.
+    return [t for t in tids if not is_general(view.teams[t])], pids
 
 
 def check_change(view: TeamView, before_t: list[str], before_p: list[str], tids: list[str], pids: list[str]) -> None:

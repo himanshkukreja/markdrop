@@ -173,7 +173,7 @@ async def label_of(db: AsyncIOMotorDatabase, scope: Scope, *, page_title: str | 
 async def _has_teams(db: AsyncIOMotorDatabase, workspace_id: str | None) -> bool:
     from app.services import teams as teams_service
 
-    return bool(workspace_id) and await db[teams_service.TEAMS].find_one({"workspace_id": workspace_id}, {"_id": 1}) is not None
+    return bool(workspace_id) and await db[teams_service.TEAMS].find_one({"workspace_id": workspace_id, "general": {"$ne": True}}, {"_id": 1}) is not None
 
 
 # ── Citations from the meetings engine ────────────────────────────────────────
