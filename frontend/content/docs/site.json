@@ -306,6 +306,7 @@
       "tab": "platform",
       "new": true,
       "pages": [
+        "/integrations/overview",
         "/integrations/slack",
         "/integrations/jira",
         "/integrations/zoom"

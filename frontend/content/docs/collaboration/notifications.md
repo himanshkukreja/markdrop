@@ -58,7 +58,7 @@ With [Slack notifications](/integrations/slack#slack-notifications) on, comment 
 - **Reply** opens a box in Slack. Your reply is posted to the thread as you, with the same rules as replying in Markdrop.
 - **Resolve** resolves the thread, if you can (you started it, it's assigned to you, or you can edit the page).
 
-When a thread is resolved anywhere, the Slack messages about it say who resolved it. Choose which you get under Settings › Account › **Slack notifications**.
+When a thread is resolved anywhere, the Slack messages about it say who resolved it. Choose which you get under Settings › Integrations › Slack › **Slack notifications**.
 
 ### In a team's Slack channel
 
@@ -72,7 +72,7 @@ On a [team's](/teams/overview) pages, new comments and resolved threads are also
 | Reply and new-comment email | Settings › Account › Email › **Replies and new comments** › **Off** |
 | The daily digest | Settings › Account › Email › **Daily comments digest**, or the link at the bottom of the digest |
 | Push | Settings › Account, push section › **Mentions in comments**, **Comments assigned to you** |
-| Slack | Settings › Account › Slack notifications › the same two switches, or turn Slack notifications off |
+| Slack | Settings › Integrations › Slack › the same two switches, or turn Slack notifications off |
 | Everything about one page | Its owner can [turn comments off](/collaboration/settings-and-privacy#turn-comments-off) |
 
 The bell always keeps a record; it isn't turned off.

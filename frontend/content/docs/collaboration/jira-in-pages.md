@@ -138,7 +138,7 @@ The two stay in step without surprises:
 
 The title readers see is the one saved when someone who can edit the page added the issue. It follows renames made in Jira. Lists show nothing to people without Jira, only **Connect Jira** or a note to sign in. Markdrop never asks Jira anything on behalf of someone who isn't signed in.
 
-To connect your account, select **Connect Jira** on any chip, card or list, or go to **Settings › Account › Jira**.
+To connect your account, select **Connect Jira** on any chip, card or list, or go to **Settings › Integrations › Jira**.
 
 ## In exports and AI apps
 

@@ -16,7 +16,7 @@ Markdrop for Slack connects one Slack workspace to one Markdrop workspace. It do
 
 ## Connect a Slack workspace
 
-Slack is set up from the Markdrop workspace's settings: open **Workspace settings** and choose the **Integrations** tab. The **Slack** card there shows one of three states:
+Slack is set up from the Markdrop workspace's settings: open **Workspace settings**, choose the **Integrations** tab, and choose **Details** on the **Slack** card ([how the Integrations pages work](/integrations/overview)). Slack's page shows one of three states:
 
 | The card shows | What it means |
 | --- | --- |
@@ -28,8 +28,8 @@ Only workspace **admins** and the **owner** connect Slack, choose the channel an
 
 To connect:
 
-1. On the **Integrations** tab, select **Add to Slack**.
-2. Pick the Slack workspace in Slack, and select **Allow**. You come back to the **Integrations** tab, and the card says **Connected**.
+1. On the **Integrations** tab, select **Connect** on the Slack card (or **Add to Slack** on Slack's page).
+2. Pick the Slack workspace in Slack, and select **Allow**. You come back to Slack's page, and it says **Connected**.
 3. Choose the **Meetings channel** (see the next section).
 
 Your own Slack account is linked as part of this. Everyone else links theirs once (see [Link your Slack account](#link-your-slack-account)).
@@ -123,14 +123,14 @@ An action item belongs to the person it starts with: someone @mentioned at its s
 Markdrop finds each person in Slack:
 
 1. by the Slack account they linked to Markdrop;
-2. by email: their Markdrop sign-in email, or the address Google's meeting notes gave for them. This needs the app's newer permissions; until an admin selects **Update permissions** on the **Integrations** tab, only people who linked their Slack account get one;
+2. by email: their Markdrop sign-in email, or the address Google's meeting notes gave for them. This needs the app's newer permissions; until an admin selects **Update permissions** on Slack's page under **Integrations**, only people who linked their Slack account get one;
 3. as a last resort, by their exact name, when exactly one person in the Slack workspace has it. Someone found only by name always gets the plain version (their items, no link), and never for a meeting [restricted to its attendees](/workspaces/meetings-privacy#restricted-meetings).
 
 Each person gets at most one message per meeting, about a minute after the summary is ready. An item ticked off in that minute is left out, and someone with nothing left gets no message. Meetings whose summaries are ready in that same minute share one message ("Your action items from 2 meetings"); a meeting after that gets a message of its own, so you notice it. Writing a meeting's summary again doesn't send it again. Past meetings brought in quietly and meetings held more than a day ago don't send any.
 
 ### Stop them
 
-Every message ends with "Sent after each meeting" and **Stop these**. **Stop these** stops them for that Slack account, whether or not the person uses Markdrop, and offers **Turn back on**. Members can also turn off **Action items after meetings** in **Settings › Account › Slack notifications**. It's separate from the other Slack notifications: it's on even while those are off, and **Stop these** in Slack turns that switch off too.
+Every message ends with "Sent after each meeting" and **Stop these**. **Stop these** stops them for that Slack account, whether or not the person uses Markdrop, and offers **Turn back on**. Members can also turn off **Action items after meetings** in **Settings › Integrations › Slack**. It's separate from the other Slack notifications: it's on even while those are off, and **Stop these** in Slack turns that switch off too.
 
 An admin can turn them off for the whole workspace: **Workspace settings › Integrations › Slack › Send each person their action items after meetings**. Under the switch, admins see a preview built from the newest meeting they can open: what the fullest message would read, everyone who'd get one, and how Markdrop would find them in Slack. Nothing is sent from the preview. After each meeting the card also says how many people were messaged and how many Markdrop couldn't find in Slack.
 
@@ -185,7 +185,7 @@ After you choose, the message changes to say what you did, like "Approved by you
 
 Slack notifications are **off** until you turn them on, even if your Slack account is linked. Only you can turn on your own.
 
-1. Open **Settings** › **Account**. The **Slack notifications** card appears once a workspace you're in is connected to Slack.
+1. Open **Settings** › **Integrations** › **Slack**. The **Slack notifications** card appears once a workspace you're in is connected to Slack.
 2. Turn on **Get notifications in Slack**.
 
 Markdrop looks you up in each Slack workspace connected to one of your Markdrop workspaces, by your Markdrop sign-in email. It looks up only your own email. Each Slack workspace then shows **Found**, with your Slack name, or **Not found**:
@@ -193,10 +193,10 @@ Markdrop looks you up in each Slack workspace connected to one of your Markdrop 
 | It says | What to do |
 | --- | --- |
 | "No one in *Slack workspace* uses *your email*." | Your Slack account uses another email. Select **Link my Slack account** to sign in with Slack instead. |
-| "Markdrop for Slack in *Slack workspace* needs an update…" | Ask a workspace admin to select **Update permissions** on the workspace's **Integrations** tab, or link your Slack account. |
+| "Markdrop for Slack in *Slack workspace* needs an update…" | Ask a workspace admin to select **Update permissions** on the workspace's Slack page under **Integrations**, or link your Slack account. |
 | "Your Slack account in *Slack workspace* is linked to another Markdrop account." | Link it here with **Link my Slack account**, or type `/markdrop unlink` in Slack first. |
 
-![The Slack notifications card in Settings › Account: Get notifications in Slack is on, Acme Slack shows Found as Ben in Slack (by your email), and Message me when lists Mentions, Sign-off requests, Shared with you and Access requests, all on.](/docs-assets/integrations/slack/notifications-card.webp)
+![The Slack notifications card in Settings › Integrations › Slack: Get notifications in Slack is on, Acme Slack shows Found as Ben in Slack (by your email), and Message me when lists Mentions, Sign-off requests, Shared with you and Access requests, all on.](/docs-assets/integrations/slack/notifications-card.webp)
 
 **Look again** searches once more, for example after you change your email in Slack. The bell also offers them: when a mention or a sign-off request is in the list, a **Get these in Slack** row with **Turn on** may show at the top (not while the [push notification](/pages/mentions-and-notifications#push-notifications) row is showing). **Not now** hides it on that device.
 
@@ -214,7 +214,7 @@ The bell doesn't change. A Slack message counts like a push notification for [em
 
 ## Disconnect
 
-An admin selects **Disconnect Slack…** on the **Integrations** tab. You can also remove the app in Slack. Either way, Markdrop forgets that Slack workspace and everyone's link to it. Messages already posted stay in Slack.
+An admin selects **Disconnect Slack…** on Slack's page under **Integrations**. You can also remove the app in Slack. Either way, Markdrop forgets that Slack workspace and everyone's link to it. Messages already posted stay in Slack.
 
 ## What Markdrop keeps
 

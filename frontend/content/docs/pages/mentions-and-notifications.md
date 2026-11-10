@@ -160,7 +160,7 @@ To stop them on a device, choose **Turn off** under **This device**, or block no
 
 When a workspace you're in is connected to [Slack](/integrations/slack), the same notifications can come as direct messages from the Markdrop app in Slack: mentions, sign-off requests (choose an option right there), shares and access requests (**Approve** or **Decline**).
 
-They're **off** until you turn them on: **Settings › Account › Slack notifications** › **Get notifications in Slack**. Markdrop finds you in Slack by your sign-in email, so there's nothing to link, and only you can turn yours on. The bell offers it too (**Get these in Slack**), but never at the same time as the push notification offer. Each message ends with **Turn off**. See [Slack notifications](/integrations/slack#slack-notifications) for what to do when Markdrop can't find you, and for choosing which kinds.
+They're **off** until you turn them on: **Settings › Integrations › Slack** › **Get notifications in Slack**. Markdrop finds you in Slack by your sign-in email, so there's nothing to link, and only you can turn yours on. The bell offers it too (**Get these in Slack**), but never at the same time as the push notification offer. Each message ends with **Turn off**. See [Slack notifications](/integrations/slack#slack-notifications) for what to do when Markdrop can't find you, and for choosing which kinds.
 
 ## From an AI app
 

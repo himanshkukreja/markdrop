@@ -18,7 +18,7 @@ Everything Markdrop does in Jira, it does **as the person doing it**, through th
 
 ## Connect your Jira site
 
-A workspace **admin** or the **owner** connects the workspace to one Jira site. Open **Workspace settings** and choose the **Integrations** tab. The **Jira** card shows one of three states:
+A workspace **admin** or the **owner** connects the workspace to one Jira site. Open **Workspace settings**, choose the **Integrations** tab, and choose **Details** on the **Jira** card ([how the Integrations pages work](/integrations/overview)). Jira's page shows one of three states:
 
 | The card shows | What it means |
 | --- | --- |
@@ -28,8 +28,8 @@ A workspace **admin** or the **owner** connects the workspace to one Jira site. 
 
 To connect:
 
-1. On the **Integrations** tab, select **Connect Jira site**.
-2. Atlassian asks you to allow Markdrop to use your Jira. Pick the site and select **Accept**. You come back to the **Integrations** tab.
+1. On the **Integrations** tab, select **Connect** on the Jira card (or **Connect Jira site** on Jira's page).
+2. Atlassian asks you to allow Markdrop to use your Jira. Pick the site and select **Accept**. You come back to Jira's page.
 3. Choose:
    - **Jira site**, when your Atlassian account reaches more than one.
    - **Default project for new issues** and **Default issue type**. People can pick another project when they create an issue.
@@ -52,13 +52,13 @@ If the card says **The admin connection stopped working**, the Atlassian account
 
 Markdrop creates and moves issues as you, so each person connects their own Atlassian account once:
 
-- **Settings** › **Account** › **Jira** › **Connect my Atlassian account**, or
-- **Workspace settings** › **Integrations** › **Your Atlassian account**, or
+- **Settings** › **Integrations** › **Jira** › **Connect my Atlassian account**, or
+- **Workspace settings** › **Integrations** › **Jira** › **Your Atlassian account**, or
 - the first time you create an issue: the dialog asks you to connect first.
 
-Atlassian asks you to allow access. You come back to where you started, connected. **Disconnect** in Settings › Account removes your connection. Issues you made stay in Jira.
+Atlassian asks you to allow access. You come back to where you started, connected. **Disconnect** in Settings › Integrations › Jira removes your connection. Issues you made stay in Jira.
 
-![Settings › Account › Jira: connected as Ben Member, with Disconnect.](/docs-assets/integrations/jira/account.webp)
+![Settings › Integrations › Jira: connected as Ben Member, with Disconnect.](/docs-assets/integrations/jira/account.webp)
 
 Markdrop finds who each workspace member is in Jira: by their own connection, otherwise by their Markdrop email address, when Jira shows emails. That's how a meeting's "Ben will…" becomes an issue assigned to Ben, and how Team knows whose tickets are whose.
 

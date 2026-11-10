@@ -24,6 +24,18 @@
   "next": [],
   "entries": [
     {
+      "id": "integrations-grid",
+      "date": "2026-11-11",
+      "title": "Integrations, one card each",
+      "kind": "improved",
+      "area": "Integrations",
+      "products": [
+        "web"
+      ],
+      "summary": "Both Integrations pages are now a grid of cards, one per app, with its logo, status and one action. Details opens each integration's own page with what it does, its settings, numbered setup steps and troubleshooting.",
+      "body": "- **A grid.** Settings › Integrations has your own connections (Claude, ChatGPT, Cursor, Slack notifications, Jira, Google Docs, GitHub, VS Code, the CLI). Workspace settings › Integrations has Zoom, Google Meet, Slack and Jira for the whole workspace. [How it works](/integrations/overview)\n- **A clear status.** Connected, Not connected, Needs attention or Admin only, on every card.\n- **One page per integration.** What it does, Settings (the same settings as before), Set up step by step, Troubleshooting, and a link to its guide.\n- **Old links still work.** Links to Slack or Jira in Settings › Account, or to a workspace's Slack or Jira settings, open that integration's page."
+    },
+    {
       "id": "zoom",
       "date": "2026-11-10",
       "title": "Zoom meetings come into a team on their own",

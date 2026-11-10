@@ -24,7 +24,7 @@ Zoom meetings come in for one Zoom account per Markdrop workspace. Zoom's Server
 
 ## Set up the Zoom app
 
-Open **Workspace settings › Integrations › Zoom** in Markdrop and keep it open: the card shows the same steps, the scopes with copy buttons, and your workspace's own endpoint URL.
+Open **Workspace settings › Integrations** in Markdrop, choose **Details** on the **Zoom** card, and keep that page open: it shows the same steps, the scopes with copy buttons, and your workspace's own endpoint URL.
 
 1. **Create the app.** Sign in to the [Zoom App Marketplace](https://marketplace.zoom.us) as a Zoom account admin. Choose **Develop › Build App**, pick **Server-to-Server OAuth App**, and name it "Markdrop".
 2. **Copy the credentials.** On **App Credentials**, copy the **Account ID**, **Client ID** and **Client Secret**.
