@@ -2771,6 +2771,42 @@
     "bytes": 26508,
     "kind": "image"
   },
+  "/docs-assets/integrations/overview/account-grid.dark.webp": {
+    "w": 1712,
+    "h": 1784,
+    "bytes": 94246,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/overview/account-grid.webp": {
+    "w": 1712,
+    "h": 1784,
+    "bytes": 95604,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/overview/detail.dark.webp": {
+    "w": 1704,
+    "h": 2122,
+    "bytes": 85246,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/overview/detail.webp": {
+    "w": 1704,
+    "h": 2122,
+    "bytes": 84830,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/overview/workspace-grid.dark.webp": {
+    "w": 1712,
+    "h": 904,
+    "bytes": 39550,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/overview/workspace-grid.webp": {
+    "w": 1712,
+    "h": 904,
+    "bytes": 40380,
+    "kind": "image"
+  },
   "/docs-assets/integrations/slack/card-connected.dark.webp": {
     "w": 1712,
     "h": 894,

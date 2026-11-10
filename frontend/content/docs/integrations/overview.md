@@ -10,6 +10,8 @@ Markdrop has two Integrations pages. Each shows its integrations as cards, and e
 - **Settings › Integrations** ([markdrop.in/settings/integrations](https://markdrop.in/settings/integrations)) has your own connections: AI apps like Claude, ChatGPT and Cursor, Slack notifications, your Atlassian account for Jira, Google Docs, GitHub, VS Code and the CLI.
 - **Workspace settings › Integrations** has what a workspace sets up once for everyone: Zoom, Google Meet, Slack and the Jira site. Open it from the workspace's menu in the sidebar, then the **Integrations** tab.
 
+![Workspace settings › Integrations: Zoom, Google Meet, Slack and Jira cards, each with its status and Details.](/docs-assets/integrations/overview/workspace-grid.webp)
+
 ## The cards
 
 Each card shows the app's logo and name, one line about what it does, and its status:
@@ -20,6 +22,8 @@ Each card shows the app's logo and name, one line about what it does, and its st
 | **Not connected** | Nothing is set up yet. |
 | **Needs attention** | It was set up, but something stopped working, like an expired permission. Open it to see what to fix. |
 | **Admin only** | A workspace admin sets this one up. You can still open it and read the steps. |
+
+![Settings › Integrations: cards for Slack, Jira, Claude, ChatGPT, Cursor, Other AI apps, Google Docs, GitHub, VS Code and the Markdrop CLI, each with its logo, group, a line about it, its status and Set up, Connect or Manage beside Details.](/docs-assets/integrations/overview/account-grid.webp)
 
 Below that, one button: **Manage** when it's connected, **Connect** when one click does it, or **Set up** when it takes a few steps. **Details** always opens the integration's page.
 
@@ -32,6 +36,8 @@ Each integration's page has:
 3. **Set up**: the steps, numbered.
 4. **Troubleshooting**: the common problems and what to do.
 5. A link to its full guide here, like [Slack](/integrations/slack), [Jira](/integrations/jira) or [Zoom](/integrations/zoom).
+
+![Claude's page: Connected, What it does, the four setup steps, Settings with the server URL and the approved Claude app with Disconnect, Troubleshooting, and Read the guide.](/docs-assets/integrations/overview/detail.webp)
 
 Choose **Integrations** at the top to go back to the grid.
 

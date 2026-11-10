@@ -166,7 +166,8 @@ async function connectSlack(h) {
   }
 }
 
-const settingsUrl = (fx) => `/settings/workspaces/${fx.workspace.id}?tab=integrations`;
+// Slack's own page (Workspace settings › Integrations › Details).
+const settingsUrl = (fx) => `/settings/workspaces/${fx.workspace.id}/integrations/slack`;
 
 export default [
   {

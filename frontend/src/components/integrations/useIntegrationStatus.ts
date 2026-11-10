@@ -78,7 +78,8 @@ export function useIntegrationStatus(scope: "workspace" | "account", id: string 
   const [apps, setApps] = useState<OAuthConnection[] | null>(null);
   const [loaded, setLoaded] = useState(false);
   const live = useRef(true);
-  useEffect(() => () => { live.current = false; }, []);
+  // Re-armed on mount: React dev (Strict Mode) mounts, unmounts and mounts again.
+  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
 
   const reload = useCallback(async () => {
     if (scope === "workspace") {

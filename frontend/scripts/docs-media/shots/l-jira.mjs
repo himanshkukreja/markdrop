@@ -16,7 +16,8 @@
 import { ok } from "./_demo.mjs";
 
 const PAGE = "/integrations/jira";
-const settings = (fx) => `/settings/workspaces/${fx.workspace.id}?tab=integrations`;
+// Jira's own page (Workspace settings › Integrations › Details).
+const settings = (fx) => `/settings/workspaces/${fx.workspace.id}/integrations/jira`;
 const team = (fx) => `/team/${encodeURIComponent(fx.workspace.id)}`;
 
 async function meeting(h, title) {
@@ -65,7 +66,7 @@ export default [
     name: "account",
     kind: "screenshot",
     auth: "member",
-    url: "/settings/account#jira",
+    url: "/settings/integrations/jira",
     prepare: async (h) => {
       await h.loc("[data-testid='jira-account']").waitFor({ timeout: 30000 });
       await h.loc("[data-testid='jira-account']").scrollIntoViewIfNeeded();
