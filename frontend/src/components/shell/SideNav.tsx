@@ -1,22 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Anchor, Dropdown, FileIcon, Icon, Skeleton, Tooltip, copyText, cx, useToast } from "@/components/ui";
+import { useRouter } from "next/navigation";
+import { Anchor, Dropdown, FileIcon, Icon, Skeleton, Tooltip, copyText, cx, useToast, type MenuEntry } from "@/components/ui";
 import { usePwa } from "@/components/pwa/PwaProvider";
 import { openNotifications, useUnreadCount } from "./NotificationBell";
+import { openCommandPalette } from "./commands";
 import { DOCS_URL } from "./links";
-import { isStudioHost, studioUrl } from "@/lib/studioHost";
+import { isStudioHost } from "@/lib/studioHost";
 import { TreeView, shareNodes, type TreeNode } from "@/components/workspace/FolderTree";
 import { useUploads } from "@/components/workspace/uploads/UploadProvider";
-import { can, type NavItem, type TreeFolder, type Workspace, type WorkspaceNav } from "@/lib/workspaces";
-import { childrenMap, descendants, refreshTree, useWorkspaceTrees, type TreeSlot } from "@/lib/workspaceStore";
-import { childrenSlot, navSlot, useNavRetain, type NavSlot } from "@/lib/navStore";
+import { can, type NavItem, type TreeFolder, type Workspace, type WorkspaceNav, type WorkspaceTree } from "@/lib/workspaces";
+import { childrenMap, descendants, refreshTree, useWorkspaceTrees } from "@/lib/workspaceStore";
+import { childrenSlot, navSlot, navTeamKey, useNavRetain, type NavSlot } from "@/lib/navStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { TeamTile } from "@/components/teams/parts";
+import { TeamDialog } from "@/components/teams/TeamDialog";
 import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
+import { favoritesSlot, isFavorite, toggleFavorite, useFavorites, type Favorite, type FavoriteKind } from "@/lib/favorites";
 import {
-  browseHref, projectHref as teamProjectHref, reviewHref, teamAskHref, teamHref as teamHomeHref, teamMeetingsHref, teamMemoryHref,
-  teamPagesHref, teamSettingsHref, type TeamsSidebar,
+  browseHref, projectHref as teamProjectHref, reviewHref, teamHref as teamHomeHref, teamMeetingsHref, teamMemoryHref,
+  teamSettingsHref, type TeamCard, type TeamsSidebar,
 } from "@/lib/teams";
 import type { FileRenderer } from "@/components/ui/markdrop";
 
@@ -35,39 +39,34 @@ export interface RailData {
 export const wsRootKey = (id: string) => `ws:${id}:root`;
 export const wsFolderKey = (id: string, folderId: string) => `ws:${id}:folder:${folderId}`;
 export const wsSettingsKey = (id: string) => `ws:${id}:settings`;
-/** The workspace's "Guides" link: it opens Markdrop Guides filtered to the workspace (never active here). */
-export const wsDocsKey = (id: string) => `ws:${id}:docs`;
-/** The workspace's Meetings hub (/meetings/<id>). */
+/** The workspace's Meetings hub (/meetings/<id>): General's Meetings row once teams are known. */
 export const wsMeetingsKey = (id: string) => `ws:${id}:meetings`;
-/** The workspace's Team board (/team/<id>). */
+/** The workspace's Team board (/team/<id>): General's "People & memory" row once teams are known. */
 export const wsTeamKey = (id: string) => `ws:${id}:team`;
-const teamHref = (id: string) => `/team/${encodeURIComponent(id)}`;
-/** Teams (lib/teams): the workspace's company Home, its Pages, Browse teams, the guided review, and each team's rows. */
-export const wsHomeKey = (id: string) => `ws:${id}:home`;
-export const wsPagesKey = (id: string) => `ws:${id}:pages`;
 export const wsBrowseKey = (id: string) => `ws:${id}:browse`;
 export const wsReviewKey = (id: string) => `ws:${id}:review`;
-/** A team's row (its expand key), or one of its rows: home | pages | meetings | memory | ask | project:<id>. */
+/** A team's row (its expand key, and its home), or one of its rows: meetings | memory | project:<id>. */
 export const wsTeamRowKey = (id: string, teamId: string, sub?: string) => `ws:${id}:team:${teamId}${sub ? `:${sub}` : ""}`;
-/** Company › Pages is open unless closed (it holds the tree everyone used to see at the top). */
+/** General (the default team) starts open: it is open unless "<key>!closed" is in the saved set. */
 const closedKey = (k: string) => `${k}!closed`;
-/** lib/meetings' meetingsHref, without loading the meetings client into the shell. */
+/** The workspace the rail shows when the URL names none (the last one you were in, on this device). */
+const WS_KEY = "md_rail_ws";
 const meetingsHref = (id: string) => `/meetings/${encodeURIComponent(id)}`;
 
 /**
  * Which rail item the URL points at. Keys: "home" | "search" | "ask" | "files" | "shared" | "recent" | "analytics" | "trash" |
- * "ws:<id>:root" | "ws:<id>:folder:<fid>" | "ws:<id>:meetings" | "ws:<id>:settings" | "ws:new" | "settings".
+ * "ws:<id>:root" | "ws:<id>:folder:<fid>" | "ws:<id>:meetings" | "ws:<id>:team" | "ws:<id>:settings" | "ws:new" | "settings",
+ * and raw team keys (`ws:<id>:tslug:<slug>`, `ws:<id>:pslug:<slug>`) that resolveRailKey turns into rows.
  */
 export function railKeyFor(pathname: string, search: string): string | null {
   const q = new URLSearchParams(search);
-  // Teams: raw keys by slug / space; resolveRailKey turns them into the rows' keys once the teams are known.
   const tw = pathname.match(/^\/w\/([^/]+)\/(home|teams|teams-review|teams\/([^/]+)(?:\/(pages|settings))?|projects\/([^/]+))\/?$/);
   if (tw) {
     const id = decodeURIComponent(tw[1]!);
-    if (tw[2] === "home") return wsHomeKey(id);
+    if (tw[2] === "home") return wsRootKey(id);
     if (tw[2] === "teams") return wsBrowseKey(id);
     if (tw[2] === "teams-review") return wsReviewKey(id);
-    if (tw[3]) return `ws:${id}:tslug:${decodeURIComponent(tw[3])}:${tw[4] === "pages" ? "pages" : "home"}`;
+    if (tw[3]) return `ws:${id}:tslug:${decodeURIComponent(tw[3])}`;
     if (tw[5]) return `ws:${id}:pslug:${decodeURIComponent(tw[5])}`;
   }
   const space = q.get("space") || "";
@@ -93,8 +92,8 @@ export function railKeyFor(pathname: string, search: string): string | null {
   if (tm) return spaceTeam ? wsTeamRowKey(decodeURIComponent(tm[1]!), spaceTeam, "memory") : wsTeamKey(decodeURIComponent(tm[1]!));
   if (pathname === "/search") return "search";
   if (pathname === "/ask") {
-    const ws = q.get("workspace"), team = q.get("team");
-    return ws && team ? wsTeamRowKey(ws, team, "ask") : "ask";
+    const ws = q.get("workspace");
+    return ws ? `ws:${ws}:ask` : "ask";
   }
   if (pathname === "/shared" || pathname.startsWith("/requests")) return "shared";
   if (pathname === "/recent") return "recent";
@@ -109,43 +108,66 @@ export function railKeyFor(pathname: string, search: string): string | null {
   return null;
 }
 
-/** The Ask page for where you are: in a workspace, Ask <Workspace> (?workspace=); else Ask. */
-export function askLinkFor(active: string | null): string {
-  const ws = workspaceOfKey(active);
+/** The Ask page for where you are: in a workspace, Ask <Workspace> (?workspace=, + &team= inside a team). */
+export function askLinkFor(active: string | null, wsFallback?: string | null): string {
+  const ws = workspaceOfKey(active) ?? wsFallback ?? null;
   const team = active?.match(/^ws:[^:]+:team:([^:]+)/)?.[1];
   if (ws && team) return `/ask?workspace=${encodeURIComponent(ws)}&team=${encodeURIComponent(team)}`;
   return ws ? `/ask?workspace=${encodeURIComponent(ws)}` : "/ask";
 }
 
+/** The workspace's default team (General) in a sidebar payload. */
+export const generalOf = (teams: TeamsSidebar | null | false | undefined): TeamCard | undefined =>
+  teams ? teams.teams.find((t) => t.general) : undefined;
+
 /**
  * The row a raw rail key (railKeyFor) lands on once the workspace's teams are known (lib/teamsStore), and the
- * rows to open so it shows: team slugs → ids, a project → its first team's row, the workspace's top level →
- * Company › Pages. Without teams (not loaded, failed, or none) keys stay as they are.
+ * team rows to open so it shows: team slugs → the team's row, a project → its row under its first team, the
+ * workspace's top level, its Meetings hub and Team board → General's rows. Without teams keys stay as they are.
  */
 export function resolveRailKey(active: string | null, teams: TeamsSidebar | null | false | undefined): { key: string | null; open: string[] } {
   const ws = workspaceOfKey(active);
   if (!active || !ws || !teams) return { key: active, open: [] };
-  const ts = active.match(/^ws:[^:]+:tslug:(.+):(home|pages)$/);
+  const g = generalOf(teams);
+  const row = (t: { id: string }, sub?: string) => ({ key: wsTeamRowKey(ws, t.id, sub), open: [wsTeamRowKey(ws, t.id)] });
+  const ts = active.match(/^ws:[^:]+:tslug:(.+)$/);
   if (ts) {
     const t = teams.teams.find((x) => x.slug === ts[1]);
-    return t ? { key: wsTeamRowKey(ws, t.id, ts[2]), open: [wsTeamRowKey(ws, t.id)] } : { key: wsBrowseKey(ws), open: [] };
+    return t ? row(t) : { key: wsBrowseKey(ws), open: [] };
   }
   const ps = active.match(/^ws:[^:]+:pslug:(.+)$/);
   if (ps) {
     const p = teams.projects.find((x) => x.slug === ps[1]);
     const t = p && teams.teams.find((x) => p.team_ids.includes(x.id));
-    return p && t ? { key: wsTeamRowKey(ws, t.id, `project:${p.id}`), open: [wsTeamRowKey(ws, t.id)] } : { key: null, open: [] };
+    return p && t ? row(t, `project:${p.id}`) : { key: null, open: [] };
   }
-  const tr = active.match(/^ws:[^:]+:team:([^:]+):/);
+  const tr = active.match(/^ws:[^:]+:team:([^:]+)(?::|$)/);
   if (tr) return teams.teams.some((x) => x.id === tr[1]) ? { key: active, open: [wsTeamRowKey(ws, tr[1]!)] } : { key: null, open: [] };
-  if (active === wsRootKey(ws)) return { key: wsPagesKey(ws), open: [] };
+  if (g && active === wsRootKey(ws)) return row(g);
+  if (g && active === wsMeetingsKey(ws)) return row(g, "meetings");
+  if (g && active === wsTeamKey(ws)) return row(g, "memory");
   return { key: active, open: [] };
 }
 
 /** The workspace an item key belongs to, if any. */
 export function workspaceOfKey(key: string | null): string | null {
   const m = key?.match(/^ws:([^:]+):/);
-  return m ? m[1]! : null;
+  return m && m[1] !== "new" ? m[1]! : null;
+}
+
+/** The workspace the rail shows: the URL's, else the last one shown on this device, else the first. */
+export function useRailWorkspace(workspaces: Workspace[] | undefined, urlWs: string | null): Workspace | null {
+  const [saved, setSaved] = useState<string | null>(null);
+  useEffect(() => {
+    try { setSaved(localStorage.getItem(WS_KEY)); } catch { /* storage off */ }
+  }, []);
+  useEffect(() => {
+    if (!urlWs || !workspaces?.some((w) => w.id === urlWs)) return;
+    setSaved(urlWs);
+    try { localStorage.setItem(WS_KEY, urlWs); } catch { /* storage off */ }
+  }, [urlWs, workspaces]);
+  if (!workspaces?.length) return null;
+  return workspaces.find((w) => w.id === urlWs) ?? workspaces.find((w) => w.id === saved) ?? workspaces[0]!;
 }
 
 function reducedMotion(): boolean {
@@ -268,8 +290,10 @@ interface Ctx {
   /** Open pages whose sub-pages the tree needs (collected while building). */
   want: string[];
   copy: (href: string, label: string) => void;
-  /** The workspace's teams (lib/teamsStore) once loaded; absent: the rail as before teams. */
+  /** The workspace's teams (lib/teamsStore). */
   teams?: TeamsSidebar | null;
+  /** "Add to / Remove from favorites" for a row's ⋯ menu. */
+  fav: (kind: FavoriteKind, ref: string, label: string, draft?: Partial<Favorite>) => MenuEntry;
 }
 
 /** A node's `sig` (see shareNodes): the values its row shows and its handlers use. */
@@ -298,7 +322,7 @@ function pageNode(c: Ctx, p: { slug: string; title: string | null; has_children?
   const isLeaf = !p.has_children || (children !== undefined && !children.length);
   return {
     key,
-    sig: sig("p", label, p.icon, p.icon_url, isLazy, isLeaf, c.member, at.folderId, at.parent, at.ancestors),
+    sig: sig("p", label, p.icon, p.icon_url, isLazy, isLeaf, c.member, at.folderId, at.parent, at.ancestors, isFavorite(wsId, "doc", p.slug)),
     label,
     icon: <PageIcon icon={p.icon} url={p.icon_url} />,
     href,
@@ -311,6 +335,7 @@ function pageNode(c: Ctx, p: { slug: string; title: string | null; has_children?
       add: c.member ? { href: `/pages/new?parent=${encodeURIComponent(p.slug)}`, label: `Add a page inside ${label}` } : null,
       menu: [
         ...(c.member ? [{ label: "Add a sub-page", icon: "plus", href: `/pages/new?parent=${encodeURIComponent(p.slug)}` }] : []),
+        c.fav("doc", p.slug, label, { href, icon: p.icon, doc_kind: "page", editor: "blocks" }),
         { label: "Copy link", icon: "link", onClick: () => c.copy(href, label) },
         { label: "Open in new tab", icon: "external", href, external: true },
       ],
@@ -323,7 +348,7 @@ function itemNode(c: Ctx, it: NavItem): TreeNode {
   const href = `/${encodeURIComponent(it.slug)}`;
   return {
     key: `ws:${c.ws.id}:item:${it.slug}`,
-    sig: sig("i", label, it.kind, it.renderer, it.mime, it.filename, it.folder_id, c.member),
+    sig: sig("i", label, it.kind, it.renderer, it.mime, it.filename, it.folder_id, c.member, isFavorite(c.ws.id, "doc", it.slug)),
     label,
     icon: <ItemIcon it={it} />,
     href,
@@ -331,6 +356,7 @@ function itemNode(c: Ctx, it: NavItem): TreeNode {
     drag: c.member ? { type: "items", workspaceId: c.ws.id, slugs: [it.slug], label, fromFolderId: it.folder_id ?? null } : null,
     actions: {
       menu: [
+        c.fav("doc", it.slug, label, { href, doc_kind: it.kind, renderer: it.renderer, mime: it.mime, filename: it.filename }),
         { label: "Copy link", icon: "link", onClick: () => c.copy(href, label) },
         { label: "Open in new tab", icon: "external", href, external: true },
       ],
@@ -360,40 +386,59 @@ function placeNodes(c: Ctx, nav: WorkspaceNav, folderId: string | null, href: st
   return out;
 }
 
-function workspaceNode(
-  c: Ctx,
-  slot: TreeSlot,
-  nav: NavSlot<WorkspaceNav> | undefined,
-  active: boolean,
+
+/* ── Teams: each team's row, its system rows and its pages / files tree ──────────────── */
+
+type TeamFolder = TreeFolder & { team_ids?: string[]; meetings?: boolean };
+
+/** One team: the row opens its home; open, it shows Meetings, People & memory, its projects, then its pages and
+ *  files (folders, pages with sub-pages, documents, files). General's tree is the company-wide content. */
+function teamNode(
+  c: Ctx, t: TeamCard, teams: TeamsSidebar, tree: WorkspaceTree | null, nav: NavSlot<WorkspaceNav> | undefined,
   onFiles: ((wsId: string, folderId: string | null, label: string, files: File[]) => void) | null,
 ): TreeNode {
   const { ws } = c;
-  const tree = slot || null;
+  const k = (sub?: string) => wsTeamRowKey(ws.id, t.id, sub);
+  const open = c.expanded.has(k());
+  const inTeam = !!t.my_role || t.can_admin;
   const admin = can(tree?.workspace.role ?? ws.role, "admin");
-  const member = c.member;
-  const filesTo = (folderId: string | null, label: string) =>
-    member && onFiles ? (files: File[]) => onFiles(ws.id, folderId, label, files) : undefined;
   const wsHref = `/w/${encodeURIComponent(ws.id)}`;
   const folderHref = (id: string) => `${wsHref}/f/${encodeURIComponent(id)}`;
-  // The outline loads with the tree; until both are here the open workspace shows placeholders.
-  const outline = nav || null;
-  let children: TreeNode[] | undefined;
-  if (tree && nav !== null) {
-    const kids = childrenMap(tree.folders);
+  const newPage = (folder?: string) => `/pages/new?workspace=${encodeURIComponent(ws.id)}${t.general ? "" : `&team=${encodeURIComponent(t.id)}`}${folder ? `&folder=${encodeURIComponent(folder)}` : ""}`;
+  const filesTo = (folderId: string | null, label: string) =>
+    c.member && inTeam && onFiles ? (files: File[]) => onFiles(ws.id, folderId, label, files) : undefined;
+  const projects = teams.projects.filter((pr) => pr.team_ids.includes(t.id) && pr.status !== "archived");
+  const system: TreeNode[] = [
+    { key: k("meetings"), sig: sig("tm", t.id, t.general), label: "Meetings", icon: <Icon name="mic" size={16} />, href: teamMeetingsHref(ws.id, t), leaf: true },
+    { key: k("memory"), sig: sig("tmem", t.id, t.general), label: "People & memory", icon: <Icon name="users" size={16} />,
+      href: t.general ? `/team/${encodeURIComponent(ws.id)}` : teamMemoryHref(ws.id, t), leaf: true },
+    ...projects.map((pr): TreeNode => ({
+      key: k(`project:${pr.id}`), sig: sig("pr", pr.name, pr.slug, isFavorite(ws.id, "project", pr.id)), label: pr.name,
+      icon: <Icon name="layers" size={16} />, href: teamProjectHref(ws.id, pr), leaf: true,
+      actions: { menu: [c.fav("project", pr.id, pr.name, { href: teamProjectHref(ws.id, pr) }), { label: "Copy link", icon: "link", onClick: () => c.copy(teamProjectHref(ws.id, pr), pr.name) }] },
+    })),
+  ];
+  // The pages / files tree: General's = folders without teams + company-wide items; a team's = its folders + its items.
+  let content: TreeNode[] = [];
+  if (open && tree && nav !== null) {
+    const folders = (tree.folders as TeamFolder[]).filter((f) => (t.general ? !f.team_ids?.length && !f.meetings : !!f.team_ids?.includes(t.id)));
+    const ids = new Set(folders.map((f) => f.id));
+    const kids = childrenMap(folders.map((f) => (f.parent_id && !ids.has(f.parent_id) ? { ...f, parent_id: null } : f)));
+    // An item filed in a folder the tree doesn't show sits at the team's top level.
+    const outline: WorkspaceNav | null = nav ? { ...nav, items: nav.items.map((it) => (it.folder_id && !ids.has(it.folder_id) ? { ...it, folder_id: null } : it)) } : null;
     const build = (f: TreeFolder, parentShown: boolean): TreeNode => {
       const shown = parentShown && c.expanded.has(wsFolderKey(ws.id, f.id));
-      const sub = (kids.get(f.id) ?? []).map((k) => build(k, shown));
+      const sub = (kids.get(f.id) ?? []).map((x) => build(x, shown));
       const items = outline ? placeNodes(c, outline, f.id, folderHref(f.id), shown) : [];
       const all = [...sub, ...items];
       const blocked = admin ? [...descendants(tree.folders, f.id)] : [];
       return {
         key: wsFolderKey(ws.id, f.id),
-        sig: sig("f", f.name, f.parent_id, f.share?.level ?? null, !all.length, member, admin, blocked),
+        sig: sig("f", f.name, f.parent_id, f.share?.level ?? null, !all.length, c.member, admin, blocked),
         label: f.name,
         icon: <Icon name="folder" size={16} />,
         href: folderHref(f.id),
         children: all.length ? all : undefined,
-        // Without an outline (it failed), a folder with items opens on the folder view instead.
         leaf: !all.length,
         marker: f.share ? (
           <span className="inline-flex shrink-0 text-text-muted" title={f.share.level === "link" ? "Shared by link" : "Shared with the team"}>
@@ -401,162 +446,70 @@ function workspaceNode(
             <span className="md-visually-hidden">, shared</span>
           </span>
         ) : undefined,
-        drop: member ? { workspaceId: ws.id, folderId: f.id, label: f.name, acceptsFolders: admin } : null,
-        drag: admin
-          ? { type: "folder", workspaceId: ws.id, folderId: f.id, label: f.name, parentId: f.parent_id, blocked }
-          : null,
+        drop: c.member ? { workspaceId: ws.id, folderId: f.id, label: f.name, acceptsFolders: admin } : null,
+        drag: admin ? { type: "folder", workspaceId: ws.id, folderId: f.id, label: f.name, parentId: f.parent_id, blocked } : null,
         onFiles: filesTo(f.id, f.name),
         actions: {
-          add: member ? { href: `/pages/new?workspace=${encodeURIComponent(ws.id)}&folder=${encodeURIComponent(f.id)}`, label: `New page in ${f.name}` } : null,
+          add: c.member && inTeam ? { href: newPage(f.id), label: `New page in ${f.name}` } : null,
           menu: [
-            ...(member ? [{ label: "New page here", icon: "plus", href: `/pages/new?workspace=${encodeURIComponent(ws.id)}&folder=${encodeURIComponent(f.id)}` }] : []),
+            ...(c.member && inTeam ? [{ label: "New page here", icon: "plus", href: newPage(f.id) }] : []),
             { label: "Copy link", icon: "link", onClick: () => c.copy(folderHref(f.id), f.name) },
           ],
         },
       };
     };
-    const open = c.expanded.has(wsRootKey(ws.id));
-    // Meetings first: the hub (/meetings/<id>) for members (they can import) and anyone once there are meetings.
-    // It stands for the Meetings folder too (one "Meetings" in the tree; the hub opens the folder).
-    const hub = member || tree.folders.some((f) => f.meetings);
-    const meetingsRow: TreeNode[] = hub ? [{
-      key: wsMeetingsKey(ws.id),
-      sig: sig("mt", ws.id),
-      label: "Meetings",
-      icon: <Icon name="mic" size={16} />,
-      href: meetingsHref(ws.id),
-      leaf: true,
-    }] : [];
-    // Team (who is doing what): every member (any role) once Team memory is on; admins also while it is off (to turn it on).
-    if (ws.settings?.team_memory === true || admin) {
-      meetingsRow.push({
-        key: wsTeamKey(ws.id),
-        sig: sig("tm", ws.id, ws.settings?.team_memory === true),
-        label: "Team",
-        icon: <Icon name="users" size={16} />,
-        href: teamHref(ws.id),
-        leaf: true,
-      });
-    }
-    const teams = c.teams;
-    if (teams) {
-      // Teams (owner 2026-11-09): COMPANY (Home · Pages · Meetings · People), then YOUR TEAMS (each: Home, Pages,
-      // Meetings, Memory, Ask <team>, its projects), Browse teams, and the admins' guided review.
-      const pagesOpen = open && c.expanded.has(wsPagesKey(ws.id));
-      const teamFolder = (f: TreeFolder) => !!(f as TreeFolder & { team_ids?: string[] }).team_ids?.length;
-      const pageKids = [
-        ...(kids.get(null) ?? []).filter((f) => !(hub && f.meetings) && !teamFolder(f)).map((f) => build(f, pagesOpen)),
-        ...(outline ? placeNodes(c, outline, null, wsHref, pagesOpen) : []),
-      ];
-      const company: TreeNode[] = [
-        { key: `ws:${ws.id}:h:company`, sig: sig("h", "c"), label: "Company", note: true, className: "md-tree__heading" },
-        { key: wsHomeKey(ws.id), sig: sig("ch", ws.id), label: "Home", icon: <Icon name="home" size={16} />, href: `${wsHref}/home`, leaf: true },
-        {
-          key: wsPagesKey(ws.id),
-          sig: sig("cp", ws.id, member, admin, !pageKids.length),
-          label: "Pages",
-          icon: <Icon name="doc" size={16} />,
-          href: wsHref,
-          children: pageKids.length ? pageKids : [{ key: `ws:${ws.id}:empty`, sig: sig("e", member), label: member ? "No pages yet. Use + to add one." : "Nothing here yet", note: true }],
-          drop: member ? { workspaceId: ws.id, folderId: null, label: `the top of ${ws.name}`, acceptsFolders: admin } : null,
-          onFiles: filesTo(null, ws.name),
-          actions: member ? { add: { href: `/pages/new?workspace=${encodeURIComponent(ws.id)}`, label: `New company page in ${ws.name}` } } : null,
-        },
-        // Company › Meetings: company-wide meetings only (a team's meetings live in that team; the hub can show all).
-        ...meetingsRow.map((r) => (r.key === wsTeamKey(ws.id) ? { ...r, label: "People", sig: `${r.sig}p` }
-          : r.key === wsMeetingsKey(ws.id) ? { ...r, href: `${meetingsHref(ws.id)}?space=company`, sig: `${r.sig}c` } : r)),
-      ];
-      const mine: TreeNode[] = teams.teams.filter((t) => t.my_role || t.can_admin).map((t) => {
-        const k = (sub?: string) => wsTeamRowKey(ws.id, t.id, sub);
-        const projects = teams.projects.filter((pr) => pr.team_ids.includes(t.id) && pr.status !== "archived");
-        return {
-          key: k(),
-          sig: sig("t", t.name, t.icon, t.color, t.visibility, t.slug, t.can_manage, projects.map((pr) => [pr.id, pr.name, pr.slug, pr.icon, pr.color])),
-          label: t.name,
-          icon: <TeamTile team={t} size={18} />,
-          href: teamHomeHref(ws.id, t),
-          marker: t.visibility === "private" ? (
-            <span className="inline-flex shrink-0 text-text-muted" title="Private team"><Icon name="lock" size={12} /><span className="md-visually-hidden">, private</span></span>
-          ) : undefined,
-          children: [
-            { key: k("home"), sig: sig("th", t.slug), label: "Home", icon: <Icon name="home" size={16} />, href: teamHomeHref(ws.id, t), leaf: true },
-            { key: k("pages"), sig: sig("tp", t.slug), label: "Pages", icon: <Icon name="doc" size={16} />, href: teamPagesHref(ws.id, t), leaf: true,
-              actions: t.my_role || t.can_admin ? { add: { href: `/pages/new?workspace=${encodeURIComponent(ws.id)}&team=${encodeURIComponent(t.id)}`, label: `New page in ${t.name}` } } : null },
-            { key: k("meetings"), sig: sig("tm", t.id), label: "Meetings", icon: <Icon name="mic" size={16} />, href: teamMeetingsHref(ws.id, t), leaf: true },
-            { key: k("memory"), sig: sig("tmem", t.id), label: "Memory", icon: <Icon name="users" size={16} />, href: teamMemoryHref(ws.id, t), leaf: true },
-            { key: k("ask"), sig: sig("ta", t.id, t.name), label: `Ask ${t.name}`, icon: <Icon name="sparkle" size={16} className="text-accent-text" />, href: teamAskHref(ws.id, t), leaf: true },
-            ...projects.map((pr): TreeNode => ({
-              key: k(`project:${pr.id}`), sig: sig("pr", pr.name, pr.icon, pr.color, pr.slug), label: pr.name,
-              icon: <TeamTile team={pr} size={16} />, href: teamProjectHref(ws.id, pr), leaf: true,
-            })),
-          ],
-          actions: {
-            add: t.my_role || t.can_admin ? { href: `/pages/new?workspace=${encodeURIComponent(ws.id)}&team=${encodeURIComponent(t.id)}`, label: `New page in ${t.name}` } : null,
-            menu: [
-              ...(t.my_role || t.can_admin ? [{ label: "New page", icon: "plus", href: `/pages/new?workspace=${encodeURIComponent(ws.id)}&team=${encodeURIComponent(t.id)}` }] : []),
-              ...(t.can_manage ? [{ label: "Team settings", icon: "settings", href: teamSettingsHref(ws.id, t) }] : []),
-              { label: "Copy link", icon: "link", onClick: () => c.copy(teamHomeHref(ws.id, t), t.name) },
-            ],
-          },
-        };
-      });
-      const extra = teams.browse.open + teams.browse.private;
-      const tail: TreeNode[] = [];
-      if (mine.length || extra || teams.can_create) {
-        tail.push({ key: `ws:${ws.id}:h:teams`, sig: sig("h", "t"), label: "Your teams", note: true, className: "md-tree__heading" });
-        if (!mine.length) tail.push({ key: `ws:${ws.id}:noteams`, sig: sig("nt"), label: "You're not in a team yet", note: true });
-        tail.push(...mine);
-        tail.push({
-          key: wsBrowseKey(ws.id), sig: sig("b", extra, teams.can_create), label: teams.can_create && !extra && !mine.length ? "Create a team" : "Browse teams",
-          icon: <Icon name={teams.can_create && !extra && !mine.length ? "plus" : "grid"} size={16} />, href: browseHref(ws.id), leaf: true, className: "text-text-muted",
-        });
-      }
-      if (teams.review?.pending) {
-        tail.push({
-          key: wsReviewKey(ws.id), sig: sig("rv", teams.review.pending), label: "Sort content into teams", icon: <Icon name="listTree" size={16} />,
-          href: reviewHref(ws.id), leaf: true,
-          marker: <span className="ml-auto shrink-0 rounded-full bg-accent-soft px-1.5 text-micro font-semibold text-accent-text" title={`${teams.review.pending} suggestions`}>{teams.review.pending}</span>,
-        });
-      }
-      children = [...company, ...tail];
-    } else {
-      children = [...meetingsRow, ...(kids.get(null) ?? []).filter((f) => !(hub && f.meetings)).map((f) => build(f, open)), ...(outline ? placeNodes(c, outline, null, wsHref, open) : [])];
-      if (children.length === meetingsRow.length) {
-        children = [...meetingsRow, { key: `ws:${ws.id}:empty`, sig: sig("e", member), label: member ? "No pages yet. Use + to add one." : "Nothing here yet", note: true }];
-      }
+    content = [...(kids.get(null) ?? []).map((f) => build(f, true)), ...(outline ? placeNodes(c, outline, null, wsHref, true) : [])];
+    if (!content.length && nav) {
+      content = [{ key: `${k()}:empty`, sig: sig("e", inTeam), label: inTeam ? "No pages yet. Use + to add one." : "Nothing here yet", note: true }];
     }
   }
-  const lazy = slot === null || (!!tree && nav === null);
+  const lazy = open && (!tree || nav === null);
+  const fav = isFavorite(ws.id, "team", t.id);
   return {
-    key: wsRootKey(ws.id),
-    sig: sig("w", ws.name, ws.branding?.logo_url, ws.branding?.site_name, active, lazy, slot === false, member, admin),
-    label: ws.name,
-    icon: <WorkspaceTile ws={ws} active={active} />,
-    href: c.teams ? `${wsHref}/home` : wsHref,
-    children,
-    // Not loaded yet: expandable, with placeholders when opened. Failed: a leaf (the folder view
-    // explains the error).
+    key: k(),
+    sig: sig("t", t.name, t.icon, t.color, t.visibility, t.slug, t.can_manage, t.general, inTeam, fav, lazy, projects.map((pr) => [pr.id, pr.name])),
+    label: t.name,
+    icon: <TeamTile team={t} size={18} />,
+    href: teamHomeHref(ws.id, t),
+    marker: t.general ? <span className="md-tree__tag" title="Everyone in the workspace is in it">Everyone</span>
+      : t.visibility === "private" ? (
+        <span className="inline-flex shrink-0 text-text-muted" title="Private team"><Icon name="lock" size={12} /><span className="md-visually-hidden">, private</span></span>
+      ) : undefined,
+    children: open ? [...system, ...(content.length ? [{ key: `${k()}:div`, sig: "d", label: "", note: true, className: "md-tree__divider" } as TreeNode, ...content] : [])] : [...system],
     lazy,
-    leaf: slot === false,
-    className: "font-semibold text-text",
-    drop: member ? { workspaceId: ws.id, folderId: null, label: `the top of ${ws.name}`, acceptsFolders: admin } : null,
-    onFiles: filesTo(null, ws.name),
+    drop: c.member && inTeam && t.general ? { workspaceId: ws.id, folderId: null, label: `${t.name}`, acceptsFolders: admin } : null,
+    onFiles: t.general ? filesTo(null, t.name) : undefined,
     actions: {
-      add: member ? { href: `/pages/new?workspace=${encodeURIComponent(ws.id)}`, label: `New page in ${ws.name}` } : null,
+      add: c.member && inTeam ? { href: newPage(), label: `New page in ${t.name}` } : null,
       menu: [
-        ...(member ? [{ label: "New page", icon: "plus", href: `/pages/new?workspace=${encodeURIComponent(ws.id)}` }] : []),
-        // The workspace's guides live in Markdrop Guides (its own area); this opens it filtered.
-        { label: "Open in Guides", icon: "layers", href: studioUrl(`/?ws=${encodeURIComponent(ws.id)}`) },
-        { label: "Workspace settings", icon: "settings", href: `/settings/workspaces/${encodeURIComponent(ws.id)}` },
+        ...(c.member && inTeam ? [{ label: "New page", icon: "plus", href: newPage() }] : []),
+        ...(t.can_manage ? [{ label: "Team settings", icon: "settings", href: teamSettingsHref(ws.id, t) }] : []),
+        c.fav("team", t.id, t.name, { href: teamHomeHref(ws.id, t), icon: t.icon, color: t.color, general: t.general }),
+        { label: "Copy link", icon: "link", onClick: () => c.copy(teamHomeHref(ws.id, t), t.name) },
       ],
     },
+  };
+}
+
+/** Favorites: one row each (a page, a file, a project or a team). */
+function favoriteNode(c: Ctx, f: Favorite): TreeNode {
+  const label = f.title?.trim() || "Untitled";
+  const icon = f.kind === "team" ? <TeamTile team={{ name: label, icon: f.icon ?? null, color: f.color ?? null }} size={16} />
+    : f.kind === "project" ? <Icon name="layers" size={16} />
+    : f.doc_kind === "page" || f.editor === "blocks" ? <PageIcon icon={f.icon} />
+    : <ItemIcon it={{ slug: f.ref, title: f.title, kind: (f.doc_kind ?? "markdown") as NavItem["kind"], folder_id: null, renderer: f.renderer, mime: f.mime, filename: f.filename } as NavItem} />;
+  return {
+    key: `ws:${c.ws.id}:fav:${f.kind}:${f.ref}`,
+    sig: sig("fav", label, f.icon, f.href, f.kind),
+    label, icon, href: f.href, leaf: true,
+    actions: { menu: [c.fav(f.kind, f.ref, label), { label: "Copy link", icon: "link", onClick: () => c.copy(f.href, label) }] },
   };
 }
 
 export interface SideNavProps {
   data: RailData;
   active: string | null;
-  /** Expanded tree keys (workspace roots and folders). */
+  /** Expanded tree keys (team rows, folders, pages). */
   expanded: Set<string>;
   onToggle: (key: string, open: boolean) => void;
   onNavigate?: () => void;
@@ -572,71 +525,82 @@ export interface SideNavProps {
   onCollapse?: () => void;
 }
 
+/** Section heading (FAVORITES, TEAMS, YOU) with an optional action on the right. */
+function Heading({ id, children, action }: { id: string; children: React.ReactNode; action?: React.ReactNode }) {
+  return (
+    <div className="mb-0.5 mt-1 flex h-7 items-center justify-between gap-2 px-2.5">
+      <h2 id={id} className="text-eyebrow uppercase text-text-muted">{children}</h2>
+      {action}
+    </div>
+  );
+}
+
 /**
- * The drive rail (simpler UI, Main board): My files · Shared with me ("N new") · Recent, then
- * WORKSPACES (each workspace › its folders › their pages (with sub-pages), documents and files),
- * "New workspace", then the quieter account links at the bottom. `nav aria-label="Your drive"`.
- * Files dropped on a folder upload there.
+ * The sidebar (nav redesign 2026-11-10, Option A "One tree"): the workspace switcher; Search ⌘K, Home, Inbox,
+ * Ask <workspace>; Favorites; Teams — General first (everyone), each team expanding inline to Meetings,
+ * People & memory, its projects and its pages / files tree — and Browse teams; "You" (My files, Shared, Recent,
+ * Analytics, Trash); then settings and help. `nav aria-label="Your drive"`. Files dropped on a folder upload there.
  *
- * Data: an open workspace costs two requests whatever is open inside it: its folder tree (the
- * shared workspaceStore copy the folder view uses too) and its outline (`/nav`, lib/navStore);
- * an open page asks for its sub-pages once (shared with the page tree). Both are cached and
- * refreshed in the background (on mount when older than 10 s, on window focus after a minute,
- * and whenever `workspaceChanged` / a page change says so), so moving around the app never
- * blanks or refetches the tree.
+ * Data: the workspace shown costs its folder tree (lib/workspaceStore), its teams (lib/teamsStore), favorites
+ * (lib/favorites) and one outline per open team (lib/navStore); all cached and refreshed in the background.
  */
 export function SideNav({ data, active, expanded: expandedRaw, onToggle: onToggleRaw, onNavigate, onFeedback, footer, className, collapsed, onExpand, onCollapse }: SideNavProps) {
-  // Company › Pages starts open (it holds the tree that used to sit at the top of a workspace): it is open
-  // unless "<key>!closed" is in the saved set.
+  const router = useRouter();
+  const urlWs = workspaceOfKey(active);
+  const ws = useRailWorkspace(data.workspaces, urlWs);
+  const wsId = ws?.id ?? null;
+  const teamsVersion = useTeamsSidebar(wsId ? [wsId] : [], active ?? "");
+  const favVersion = useFavorites(wsId, active ?? "");
+  const teams = wsId ? teamsSlot(wsId) : undefined;
+  const general = generalOf(teams);
+  // General starts open (it holds what everyone used to see at the top of a workspace): open unless "<key>!closed".
   const expanded = useMemo(() => {
     const out = new Set(expandedRaw);
-    for (const w of data.workspaces ?? []) if (!expandedRaw.has(closedKey(wsPagesKey(w.id)))) out.add(wsPagesKey(w.id));
+    if (wsId && general && !expandedRaw.has(closedKey(wsTeamRowKey(wsId, general.id)))) out.add(wsTeamRowKey(wsId, general.id));
     return out;
-  }, [expandedRaw, data.workspaces]);
+  }, [expandedRaw, wsId, general]);
   const onToggle = useCallback((key: string, open: boolean) => {
-    if (/^ws:[^:]+:pages$/.test(key)) onToggleRaw(closedKey(key), !open);
-    else onToggleRaw(key, open);
-  }, [onToggleRaw]);
+    if (general && wsId && key === wsTeamRowKey(wsId, general.id)) {
+      onToggleRaw(closedKey(key), !open);
+      if (!open) onToggleRaw(key, false);   // a folder link may have opened it explicitly
+    } else onToggleRaw(key, open);
+  }, [onToggleRaw, general, wsId]);
   const container = useRef<HTMLElement>(null);
   const pill = useRef<HTMLSpanElement>(null);
   const uid = useId();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  const [newTeam, setNewTeam] = useState(false);
   const uploads = useUploads();
   const toast = useToast();
   const { user, loading: authLoading } = useAuth();
   const viewer = user?.id ?? null;
-  const activeWs = workspaceOfKey(active);
   // The Admin link: the server decides (only admins get `admin` on /auth/me, never on the studio host).
   const showAdmin = !!user?.admin && mounted && !isStudioHost(window.location.hostname);
 
-  const openWs = useMemo(
-    () => (data.workspaces ?? []).filter((w) => expanded.has(wsRootKey(w.id))).map((w) => w.id),
-    [data.workspaces, expanded],
-  );
-  const trees = useWorkspaceTrees(openWs);
-  const teamsVersion = useTeamsSidebar(openWs, active ?? "");
-  // Coming back to the app (from a page, another tab) refreshes the open trees in the background.
-  const openSig = openWs.join(",");
+  const trees = useWorkspaceTrees(wsId ? [wsId] : []);
+  const tree = (wsId ? trees[wsId] : null) || null;
   useEffect(() => {
-    const ids = openSig ? openSig.split(",") : [];
-    for (const id of ids) refreshTree(id, 10_000);
-    const onFocus = () => { if (document.visibilityState !== "hidden") for (const id of ids) refreshTree(id, 60_000); };
+    if (!wsId) return;
+    refreshTree(wsId, 10_000);
+    const onFocus = () => { if (document.visibilityState !== "hidden") refreshTree(wsId, 60_000); };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onFocus);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus);
-    };
-  }, [openSig]);
+    return () => { window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onFocus); };
+  }, [wsId]);
 
-  // The open pages whose sub-pages are on screen (known after building the nodes).
+  // One outline per open team: General's is the workspace's ("company"), a team's is its space.
+  const myTeams = useMemo(() => (teams ? teams.teams.filter((t) => t.general || t.my_role || t.can_admin) : []), [teams]);
+  const navIds = useMemo(() => {
+    if (!wsId) return [];
+    return myTeams.filter((t) => expanded.has(wsTeamRowKey(wsId, t.id))).map((t) => (t.general ? wsId : navTeamKey(wsId, t.id)));
+  }, [wsId, myTeams, expanded]);
   const [wantPages, setWantPages] = useState<string[]>([]);
-  const navVersion = useNavRetain(openWs, wantPages);
+  const navVersion = useNavRetain(navIds, wantPages);
 
   const onFiles = useMemo(
     () => (uploads
-      ? (wsId: string, folderId: string | null, label: string, files: File[]) => uploads.upload(files, uploads.resolve(wsId, folderId, label))
+      ? (w: string, folderId: string | null, label: string, files: File[]) => uploads.upload(files, uploads.resolve(w, folderId, label))
       : null),
     [uploads],
   );
@@ -645,40 +609,40 @@ export function SideNav({ data, active, expanded: expandedRaw, onToggle: onToggl
   const copy = useCallback((href: string, label: string) => {
     void copyText(absolute(href)).then((ok) => (ok ? toastRef.current.success(`Link to “${label}” copied`) : toastRef.current.error("Couldn't copy")));
   }, []);
+  const fav = useCallback((w: string) => (kind: FavoriteKind, ref: string, label: string, draft?: Partial<Favorite>): MenuEntry => {
+    const on = isFavorite(w, kind, ref);
+    return {
+      label: on ? "Remove from favorites" : "Add to favorites", icon: "star",
+      onClick: () => {
+        toggleFavorite(w, kind, ref, !on, { title: label, ...draft }).then(
+          () => toastRef.current.success(on ? `Removed “${label}” from favorites` : `Added “${label}” to favorites`),
+          () => toastRef.current.error("Couldn't change your favorites"),
+        );
+      },
+    };
+  }, []);
 
-  // The previous build's nodes, for shareNodes (dropped when the handlers nodes close over change).
   const prevNodes = useRef<{ byKey: Map<string, TreeNode>; deps: unknown[] }>({ byKey: new Map(), deps: [] });
   const built = useMemo(() => {
     const want: string[] = [];
-    const fresh = (data.workspaces ?? []).map((ws) => {
-      const slot = trees[ws.id] ?? null;
-      const open = expanded.has(wsRootKey(ws.id));
-      const ts = open ? teamsSlot(ws.id) : undefined;
-      const c: Ctx = { ws, member: can((slot || null)?.workspace.role ?? ws.role, "member"), expanded, want, copy, teams: ts || null };
-      return workspaceNode(c, slot, open ? navSlot(ws.id) : undefined, ws.id === activeWs, onFiles);
-    });
-    const deps = [onFiles, copy];
+    if (!ws || !teams) return { teams: [] as TreeNode[], favs: [] as TreeNode[], want };
+    const c: Ctx = { ws, member: can(tree?.workspace.role ?? ws.role, "member"), expanded, want, copy, teams, fav: fav(ws.id) };
+    const fresh = myTeams.map((t) => teamNode(c, t, teams, tree, navSlot(t.general ? ws.id : navTeamKey(ws.id, t.id)), onFiles));
+    const favs = (favoritesSlot(ws.id) || []).map((f) => favoriteNode(c, f));
+    const deps = [onFiles, copy, fav];
     const prev = prevNodes.current.deps.every((d, i) => d === deps[i]) && prevNodes.current.deps.length ? prevNodes.current.byKey : new Map<string, TreeNode>();
-    const { nodes, byKey } = shareNodes(fresh, prev);
+    const { nodes, byKey } = shareNodes([...fresh, ...favs], prev);
     prevNodes.current = { byKey, deps };
-    return { nodes, want: [...new Set(want)].sort() };
-    // navVersion: the outlines and sub-page lists (read through navSlot / childrenSlot) changed.
-  }, [data.workspaces, trees, expanded, activeWs, onFiles, viewer, copy, navVersion, teamsVersion]); // eslint-disable-line react-hooks/exhaustive-deps
-  const nodes = built.nodes;
+    return { teams: nodes.slice(0, fresh.length), favs: nodes.slice(fresh.length), want: [...new Set(want)].sort() };
+  }, [ws, teams, tree, myTeams, expanded, onFiles, viewer, copy, fav, navVersion, teamsVersion, favVersion]); // eslint-disable-line react-hooks/exhaustive-deps
   const wantSig = built.want.join(",");
   useEffect(() => {
     setWantPages((w) => (w.join(",") === wantSig ? w : wantSig ? wantSig.split(",") : []));
   }, [wantSig]);
 
   const layoutKey = [
-    mounted,
-    data.workspaces?.length ?? -1,
-    [...expanded].join(","),
-    Object.entries(trees).map(([k, v]) => `${k}:${v ? v.folders.length : String(v)}`).join(","),
-    navVersion,
-    teamsVersion,
-    data.sharedNew ?? -1,
-    data.tokens ?? -1,
+    mounted, wsId, data.workspaces?.length ?? -1, [...expanded].join(","), tree ? tree.folders.length : String(tree),
+    navVersion, teamsVersion, favVersion, data.sharedNew ?? -1,
   ].join("|");
   useActivePill(container, pill, active, layoutKey);
 
@@ -690,88 +654,145 @@ export function SideNav({ data, active, expanded: expandedRaw, onToggle: onToggl
   if (collapsed) {
     return (
       <CollapsedRail
-        container={container} pill={pill} data={data} active={active} unread={unread} fresh={fresh}
+        container={container} pill={pill} data={data} ws={ws} general={general} active={active} unread={unread} fresh={fresh}
         onExpand={onExpand} onFeedback={onFeedback} canInstall={!!pwa.installPath} onInstall={pwa.install} admin={showAdmin}
       />
     );
   }
 
+  const extra = teams ? teams.browse.open + teams.browse.private - myTeams.filter((t) => !t.general).length : 0;
+  const askKey = wsId ? `ws:${wsId}:ask` : "ask";
+  const loadingWs = data.workspaces === undefined && (authLoading || !!user);
+  const switchTo = (w: Workspace) => {
+    try { localStorage.setItem(WS_KEY, w.id); } catch { /* storage off */ }
+    onNavigate?.();
+    router.push(`/w/${encodeURIComponent(w.id)}/teams/general`);
+  };
+
   return (
-    <nav ref={container} aria-label="Your drive" className={cx("relative flex min-h-full flex-col gap-4 px-3 py-3", className)}>
+    <nav ref={container} aria-label="Your drive" className={cx("relative flex min-h-full flex-col gap-3 px-3 py-3", className)}>
       <span ref={pill} aria-hidden className="pointer-events-none absolute rounded-lg bg-accent-soft opacity-0" />
 
+      {/* The workspace switcher: which workspace the sidebar shows (its teams, favorites and Ask). */}
+      {loadingWs ? (
+        <div aria-busy="true" className="flex h-12 items-center gap-2.5 px-2"><Skeleton width={30} height={30} variant="rect" /><Skeleton width="50%" height={12} /></div>
+      ) : ws ? (
+        <Dropdown
+          portal align="left" aria-label="Switch workspace" minWidth={260}
+          trigger={
+            <button type="button" className="md-focus flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-left hover:border-border hover:bg-surface-hover" data-testid="ws-switcher">
+              <WorkspaceTile ws={ws} active size={30} />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-body-strong text-text" dir="auto">{ws.name}</span>
+                <span className="truncate text-caption text-text-muted">{ws.member_count ? `${ws.member_count} ${ws.member_count === 1 ? "member" : "members"}` : "Workspace"}</span>
+              </span>
+              <Icon name="chevronDown" size={14} className="shrink-0 text-text-muted" />
+            </button>
+          }
+          items={[
+            { header: "Workspaces" },
+            ...(data.workspaces ?? []).map((w) => ({
+              label: w.name, tile: <WorkspaceTile ws={w} active={w.id === wsId} size={20} />, onClick: () => switchTo(w),
+              ...(w.id === wsId ? { icon: "check" } : {}),
+            })),
+            { label: "New workspace", icon: "plus", href: "/settings/workspaces", separated: true },
+            { label: "Workspace settings", icon: "settings", href: `/settings/workspaces/${encodeURIComponent(ws.id)}` },
+          ]}
+        />
+      ) : null}
+
       <div className="flex flex-col gap-0.5">
+        <button type="button" className={cx(ITEM, "w-full cursor-pointer border border-border bg-surface text-left")} onClick={go(openCommandPalette)} data-testid="rail-search"
+          aria-label="Search (⌘K)">
+          <Icon name="search" size={16} /> <span className="flex-1 truncate">Search</span>
+          <kbd className="shrink-0 rounded border border-border px-1 text-micro text-text-muted max-lg:hidden">⌘K</kbd>
+        </button>
         <RailLink k="home" href="/dashboard" active={active} onNavigate={onNavigate}>
           <Icon name="home" size={18} /> <span className="truncate">Home</span>
-        </RailLink>
-        <RailLink k="search" href="/search" active={active} onNavigate={onNavigate}>
-          <Icon name="search" size={18} /> <span className="truncate">Search</span>
-        </RailLink>
-        {/* Ask: the assistant's own page (⌘J still opens it as a side panel anywhere). */}
-        <RailLink k="ask" href={askLinkFor(active)} active={active} onNavigate={onNavigate} testId="rail-ask">
-          <Icon name="sparkle" size={18} className="text-accent-text" /> <span className="truncate">Ask</span>
         </RailLink>
         <button type="button" className={cx(ITEM, "w-full cursor-pointer bg-transparent text-left")} onClick={go(openNotifications)}
           aria-haspopup="dialog" aria-label={unread ? `Inbox, ${unread} unread` : "Inbox"} data-testid="rail-inbox">
           <Icon name="bell" size={18} /> <span className="truncate">Inbox</span>
           {unread > 0 && <span className="ml-auto shrink-0 rounded-full bg-accent px-1.5 text-micro font-semibold text-on-accent">{unread > 99 ? "99+" : unread}</span>}
         </button>
+        {/* Ask: the assistant's own page, about this workspace (⌘J still opens it as a side panel anywhere). */}
+        <RailLink k={active === "ask" ? "ask" : askKey} href={askLinkFor(active, wsId)} active={active} onNavigate={onNavigate} testId="rail-ask">
+          <Icon name="sparkle" size={18} className="text-accent-text" /> <span className="truncate">{ws ? `Ask ${ws.name}` : "Ask"}</span>
+        </RailLink>
       </div>
 
-      <div className="flex flex-col gap-0.5">
+      {built.favs.length > 0 && (
+        <section aria-labelledby={`${uid}-fav`} className="flex flex-col">
+          <Heading id={`${uid}-fav`}>Favorites</Heading>
+          <TreeView label="Favorites" nodes={built.favs} expanded={expanded} onToggle={onToggle} current={active} onNavigate={onNavigate}
+            itemClassName={TREE_ITEM} activeClassName={ACTIVE} />
+        </section>
+      )}
+
+      {ws && (
+        <section aria-labelledby={`${uid}-teams`} className="flex flex-col" data-testid="rail-teams">
+          <Heading id={`${uid}-teams`} action={teams && teams.can_create ? (
+            <Tooltip content="New team" side="right">
+              <button type="button" aria-label="New team" onClick={() => setNewTeam(true)} data-testid="rail-new-team"
+                className="md-focus grid size-6 cursor-pointer place-items-center rounded-md bg-transparent text-text-muted hover:bg-surface-hover hover:text-text pointer-coarse:size-9">
+                <Icon name="plus" size={14} />
+              </button>
+            </Tooltip>
+          ) : undefined}>Teams</Heading>
+          {teams === null || teams === undefined ? (
+            <div aria-busy="true" className="flex flex-col">
+              <span className="md-visually-hidden">Loading teams</span>
+              {["58%", "44%", "50%"].map((w) => (
+                <span key={w} aria-hidden className="flex h-[30px] items-center gap-2.5 px-2.5 max-lg:h-11">
+                  <Skeleton width={18} height={18} variant="rect" className="shrink-0" />
+                  <Skeleton width={w} height={10} />
+                </span>
+              ))}
+            </div>
+          ) : teams === false ? (
+            <p className="px-2.5 text-caption text-text-muted">Couldn&apos;t load the teams.</p>
+          ) : (
+            <TreeView label="Teams" nodes={built.teams} expanded={expanded} onToggle={onToggle} current={active} onNavigate={onNavigate}
+              itemClassName={TREE_ITEM} activeClassName={ACTIVE} />
+          )}
+          {teams && (
+            <RailLink k={wsBrowseKey(ws.id)} href={browseHref(ws.id)} active={active} onNavigate={onNavigate} className="text-text-muted" testId="rail-browse-teams">
+              <Icon name="compass" size={16} /> <span className="truncate">Browse teams{extra > 0 ? <span className="text-text-muted"> · {extra} more</span> : null}</span>
+            </RailLink>
+          )}
+          {teams && teams.review?.pending ? (
+            <RailLink k={wsReviewKey(ws.id)} href={reviewHref(ws.id)} active={active} onNavigate={onNavigate} className="text-text-muted">
+              <Icon name="listTree" size={16} /> <span className="truncate">Sort content into teams</span>
+              <span className="ml-auto shrink-0 rounded-full bg-accent-soft px-1.5 text-micro font-semibold text-accent-text" title={`${teams.review.pending} suggestions`}>{teams.review.pending}</span>
+            </RailLink>
+          ) : null}
+        </section>
+      )}
+
+      <section aria-labelledby={`${uid}-you`} className="flex flex-col gap-0.5">
+        <Heading id={`${uid}-you`}>You</Heading>
         <RailLink k="files" href="/dashboard/files" active={active} onNavigate={onNavigate}>
-          <Icon name="folder" size={18} /> <span className="truncate">My files</span>
+          <Icon name="folder" size={16} /> <span className="truncate">My files</span>
         </RailLink>
         <RailLink k="shared" href="/shared" active={active} onNavigate={onNavigate}>
-          <Icon name="inbox" size={18} /> <span className="truncate">Shared with me</span>
-          {fresh > 0 && (
-            <span className="ml-auto shrink-0 rounded-full bg-accent-soft px-1.5 text-micro font-semibold text-accent-text">
-              {fresh} new
-            </span>
-          )}
+          <Icon name="inbox" size={16} /> <span className="truncate">Shared with me</span>
+          {fresh > 0 && <span className="ml-auto shrink-0 rounded-full bg-accent-soft px-1.5 text-micro font-semibold text-accent-text">{fresh} new</span>}
         </RailLink>
         <RailLink k="recent" href="/recent" active={active} onNavigate={onNavigate}>
-          <Icon name="clock" size={18} /> <span className="truncate">Recent</span>
+          <Icon name="clock" size={16} /> <span className="truncate">Recent</span>
         </RailLink>
         <RailLink k="analytics" href="/dashboard/analytics" active={active} onNavigate={onNavigate}>
-          <Icon name="chart" size={18} /> <span className="truncate">Analytics</span>
+          <Icon name="chart" size={16} /> <span className="truncate">Analytics</span>
         </RailLink>
         {/* Trash: deleted items wait here for 30 days (components/trash). */}
         <RailLink k="trash" href="/trash" active={active} onNavigate={onNavigate}>
-          <Icon name="trash" size={18} /> <span className="truncate">Trash</span>
+          <Icon name="trash" size={16} /> <span className="truncate">Trash</span>
         </RailLink>
-      </div>
-
-      <section aria-labelledby={`${uid}-ws`} className="flex flex-col gap-0.5">
-        <div className="mb-1 flex items-center justify-between gap-2 px-2.5">
-          <h2 id={`${uid}-ws`} className="text-eyebrow uppercase text-text-muted">Workspaces</h2>
-        </div>
-        {data.workspaces === undefined && (authLoading || !!user) ? (
-          // Loading: rows the size of the real ones, so nothing below jumps when they arrive.
-          <div aria-busy="true" className="flex flex-col">
-            <span className="md-visually-hidden">Loading workspaces</span>
-            {["58%", "44%"].map((w) => (
-              <span key={w} aria-hidden className="flex h-[30px] items-center gap-2.5 px-2.5 max-lg:h-11">
-                <Skeleton width={18} height={18} variant="rect" className="shrink-0" />
-                <Skeleton width={w} height={10} />
-              </span>
-            ))}
-          </div>
-        ) : nodes.length > 0 && (
-          <TreeView
-            label="Workspaces"
-            nodes={nodes}
-            expanded={expanded}
-            onToggle={onToggle}
-            current={active}
-            onNavigate={onNavigate}
-            itemClassName={TREE_ITEM}
-            activeClassName={ACTIVE}
-          />
+        {!ws && !loadingWs && (
+          <RailLink k="ws:new" href="/settings/workspaces" active={active} onNavigate={onNavigate} className="text-text-muted">
+            <Icon name="plus" size={16} /> <span className="truncate">New workspace</span>
+          </RailLink>
         )}
-        <RailLink k="ws:new" href="/settings/workspaces" active={active} onNavigate={onNavigate} className="text-text-muted">
-          <Icon name="plus" size={16} /> <span className="truncate">New workspace</span>
-        </RailLink>
       </section>
 
       <div className="mt-auto flex flex-col gap-0.5 border-t border-border pt-3">
@@ -779,6 +800,11 @@ export function SideNav({ data, active, expanded: expandedRaw, onToggle: onToggl
           <button type="button" className={cx(ITEM, "w-full cursor-pointer bg-transparent text-left")} onClick={go(pwa.install)} data-testid="rail-install">
             <Icon name="download" size={16} /> <span className="truncate">Install app</span>
           </button>
+        )}
+        {ws && (
+          <RailLink k={wsSettingsKey(ws.id)} href={`/settings/workspaces/${encodeURIComponent(ws.id)}`} active={active} onNavigate={onNavigate}>
+            <Icon name="building" size={16} /> <span className="truncate">Workspace settings</span>
+          </RailLink>
         )}
         <RailLink k="settings" href="/settings/account" active={active} onNavigate={onNavigate}>
           <Icon name="settings" size={16} /> <span className="truncate">Settings</span>
@@ -790,7 +816,7 @@ export function SideNav({ data, active, expanded: expandedRaw, onToggle: onToggl
           </RailLink>
         )}
         <RailLink k="docs" href={DOCS_URL} active={active} onNavigate={onNavigate}>
-          <Icon name="doc" size={16} /> <span className="truncate">Help &amp; docs</span>
+          <Icon name="help" size={16} /> <span className="truncate">Help &amp; docs</span>
         </RailLink>
         <button type="button" className={cx(ITEM, "w-full cursor-pointer bg-transparent text-left")} onClick={onFeedback}>
           <Icon name="message" size={16} /> <span className="truncate">Send feedback</span>
@@ -803,6 +829,10 @@ export function SideNav({ data, active, expanded: expandedRaw, onToggle: onToggl
         )}
         {footer}
       </div>
+      {ws && newTeam && (
+        <TeamDialog ws={ws.id} wsName={ws.name} open={newTeam} onClose={() => setNewTeam(false)}
+          onSaved={(t) => { setNewTeam(false); onNavigate?.(); router.push(teamHomeHref(ws.id, t)); }} />
+      )}
     </nav>
   );
 }
@@ -830,8 +860,9 @@ function RailIcon({ k, href, label, icon, active, onClick, badge, testId }: {
  * tooltip; workspaces as their tiles; Meetings opens a workspace's hub (a menu when there are several).
  * "Expand" brings the full sidebar back (tablets: as a drawer over the page).
  */
-function CollapsedRail({ container, pill, data, active, unread, fresh, onExpand, onFeedback, canInstall, onInstall, admin }: {
-  container: React.RefObject<HTMLElement | null>; pill: React.RefObject<HTMLSpanElement | null>; data: RailData; active: string | null;
+function CollapsedRail({ container, pill, data, ws, general, active, unread, fresh, onExpand, onFeedback, canInstall, onInstall, admin }: {
+  container: React.RefObject<HTMLElement | null>; pill: React.RefObject<HTMLSpanElement | null>; data: RailData; ws: Workspace | null;
+  general?: TeamCard; active: string | null;
   unread: number; fresh: number; onExpand?: () => void; onFeedback: () => void; canInstall: boolean; onInstall: () => void; admin?: boolean;
 }) {
   const wss = data.workspaces ?? [];
@@ -847,8 +878,8 @@ function CollapsedRail({ container, pill, data, active, unread, fresh, onExpand,
       )}
       <div className="flex flex-col items-center gap-1">
         <RailIcon k="home" href="/dashboard" label="Home" icon={<Icon name="home" size={18} />} active={active} />
-        <RailIcon k="search" href="/search" label="Search" icon={<Icon name="search" size={18} />} active={active} />
-        <RailIcon k="ask" href={askLinkFor(active)} label="Ask" icon={<Icon name="sparkle" size={18} className="text-accent-text" />} active={active} testId="rail-ask" />
+        <RailIcon label="Search (⌘K)" icon={<Icon name="search" size={18} />} active={active} onClick={openCommandPalette} testId="rail-search" />
+        <RailIcon k={ws ? `ws:${ws.id}:ask` : "ask"} href={askLinkFor(active, ws?.id)} label={ws ? `Ask ${ws.name}` : "Ask"} icon={<Icon name="sparkle" size={18} className="text-accent-text" />} active={active} testId="rail-ask" />
         <RailIcon label="Inbox" icon={<Icon name="bell" size={18} />} active={active} onClick={openNotifications} badge={unread} testId="rail-inbox" />
       </div>
       <span className="h-px w-8 bg-border" aria-hidden />
@@ -876,8 +907,8 @@ function CollapsedRail({ container, pill, data, active, unread, fresh, onExpand,
           />
         ))}
         {wss.slice(0, 8).map((w) => (
-          <RailIcon key={w.id} k={wsRootKey(w.id)} href={`/w/${encodeURIComponent(w.id)}`} label={w.name}
-            icon={<WorkspaceTile ws={w} active={activeWs === w.id} size={22} />} active={active} />
+          <RailIcon key={w.id} k={w.id === ws?.id && general ? wsTeamRowKey(w.id, general.id) : wsRootKey(w.id)} href={`/w/${encodeURIComponent(w.id)}/teams/general`} label={w.name}
+            icon={<WorkspaceTile ws={w} active={(activeWs ?? ws?.id) === w.id} size={22} />} active={active} />
         ))}
         <RailIcon k="ws:new" href="/settings/workspaces" label="New workspace" icon={<Icon name="plus" size={18} />} active={active} />
       </div>

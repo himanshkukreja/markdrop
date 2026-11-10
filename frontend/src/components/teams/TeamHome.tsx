@@ -5,21 +5,24 @@
  * highlights, its Jira projects and members. A private team you're not in shows only its name and brief (the
  * bridge between teams). Everything arrives filtered for the viewer (contract §2).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Alert, Avatar, Button, Dropdown, EmptyState, FileIcon, Icon, IconButton, Input, Skeleton, Textarea, useToast } from "@/components/ui";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Alert, Avatar, Button, Dropdown, EmptyState, FileIcon, Icon, IconButton, Input, Skeleton, Textarea, cx, useToast } from "@/components/ui";
+import { useUploads } from "@/components/workspace/uploads/UploadProvider";
 import type { FileRenderer } from "@/components/ui/markdrop";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkspaceTree } from "@/lib/workspaceStore";
 import { useAssistantHere } from "@/components/assistant/store";
 import { jiraTeam, type JiraTeam } from "@/lib/jira";
 import {
-  addBriefLine, addTeamMembers, draftBrief, editBriefLine, getBrief, getTeamHome, listBriefs, projectHref, teamAskHref, teamMeetingsHref,
-  teamMemoryHref, teamPagesHref, teamSettingsHref,
-  type Brief, type BriefKind, type BriefSummary, type MemoryHighlights, type ProjectCard, type TeamHome as Home, type TeamHomeLocked, type TeamItem, type TeamMeetingCard,
+  addBriefLine, addTeamMembers, browseHref, draftBrief, editBriefLine, generalHref, getBrief, getTeamHome, listBriefs, projectHref, teamAskHref, teamHref, teamMeetingsHref,
+  teamMemoryHref, teamSettingsHref,
+  type Brief, type BriefKind, type BriefSummary, type MemoryHighlights, type ProjectCard, type TeamFull, type TeamHome as Home, type TeamHomeLocked, type TeamItem, type TeamMeetingCard,
 } from "@/lib/teams";
-import { AdminsNote, TeamTile, VisibilityBadge, fmtShortDate } from "./parts";
+import { AcrossCard, AskBar, FeedCard, MeetingsCard, NeedsYouCard, NewPeopleCard, RecentCard, WhoCard } from "./HomeCards";
+import { TeamDialog } from "./TeamDialog";
+import { AdminsNote, TeamTile, fmtShortDate } from "./parts";
 import { CreateProjectDialog } from "./TeamSpaces";
 import { teamsSlot } from "@/lib/teamsStore";
 import "./teams.css";
@@ -32,7 +35,7 @@ export function Crumbs({ ws, trail }: { ws: string; trail: { label: string; href
   const wsName = useWorkspaceTree(ws).tree?.workspace.name;
   return (
     <nav className="tz-crumbs" aria-label="Breadcrumb">
-      <Link href={`/w/${encodeURIComponent(ws)}/home`}>{wsName || "Company"}</Link>
+      <Link href={generalHref(ws)}>{wsName || "Workspace"}</Link>
       {trail.map((t, i) => (
         <span key={i} className="contents">
           <Icon name="chevronRight" />
@@ -43,16 +46,39 @@ export function Crumbs({ ws, trail }: { ws: string; trail: { label: string; href
   );
 }
 
-export default function TeamHome({ ws, team: teamRef }: { ws: string; team: string }) {
+/** A row of faces (+N). */
+function Faces({ people, total }: { people: { id: string; name: string; email?: string; picture?: string | null }[]; total: number }) {
+  return (
+    <span className="th-faces" aria-hidden>
+      {people.slice(0, 5).map((p) => <Avatar key={p.id} name={p.name || p.email || "?"} src={p.picture ?? undefined} size="sm" />)}
+      {total > 5 && <span className="th-faces__more">+{total - 5}</span>}
+    </span>
+  );
+}
+
+/**
+ * /w/<ws>/teams/<team> (and /settings, which opens Team settings over it): the team's front door — header
+ * (identity, Everyone/Open/Private, members, leads, actions), the Ask bar, then a dashboard that uses the width:
+ * this week's brief and Needs you; recently updated pages & files and meetings; What's happening; who's doing
+ * what and projects. General's home adds Across teams (one line from each team's brief) and New this month.
+ * A private team you're not in shows only its name and brief (the bridge between teams).
+ */
+export default function TeamHome({ ws, team: teamRef, settings }: { ws: string; team: string; settings?: boolean }) {
   const [data, setData] = useState<Home | TeamHomeLocked | null>(null);
   const [error, setError] = useState<{ msg: string; status: number } | null>(null);
+  const [dialog, setDialog] = useState(!!settings);
+  const router = useRouter();
   const params = useSearchParams();
   const briefId = params.get("brief");
+  const uploads = useUploads();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const wsName = useWorkspaceTree(ws).tree?.workspace.name;
   const load = useCallback(async () => {
     try { setData(await getTeamHome(ws, teamRef)); setError(null); }
     catch (e) { setError({ msg: e instanceof Error ? e.message : "Couldn't load this team.", status: (e as { status?: number }).status ?? 0 }); }
   }, [ws, teamRef]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => setDialog(!!settings), [settings]);
   const t = data?.team;
   useAssistantHere({ workspace: ws });
 
@@ -67,64 +93,94 @@ export default function TeamHome({ ws, team: teamRef }: { ws: string; team: stri
   }
   if (!data || !t) {
     return (
-      <div className="tz-page" aria-busy="true">
-        <Skeleton variant="text" width={220} height={32} />
-        <div className="tz-grid" style={{ marginTop: 24 }}>
-          <div className="tz-col"><Skeleton variant="rect" height={220} /><Skeleton variant="rect" height={160} /></div>
-          <div className="tz-col"><Skeleton variant="rect" height={180} /></div>
+      <div className="tz-page th" aria-busy="true">
+        <div className="flex items-center gap-4"><Skeleton variant="rect" width={52} height={52} /><Skeleton variant="text" width={220} height={32} /></div>
+        <div className="th-grid" style={{ marginTop: 24 }}>
+          <Skeleton variant="rect" height={240} className="th-span2" /><Skeleton variant="rect" height={240} />
+          <Skeleton variant="rect" height={200} className="th-span2" /><Skeleton variant="rect" height={200} />
         </div>
       </div>
     );
   }
   const locked = data.can_read === false;
   const home = locked ? null : (data as Home);
+  const g = !!t.general;
+  const member = !!t.my_role || t.can_admin;
+  const leads = home ? home.team.members.filter((m) => m.role === "lead") : [];
+  const closeSettings = () => { setDialog(false); if (settings) router.replace(teamHref(ws, t)); };
+  const chips = g ? ["What changed this week?", "Where is the expense policy?"] : ["What did we decide this week?", "What is blocked?"];
+  const meetingsHref = teamMeetingsHref(ws, t);
+  const importHref = `${meetingsHref}&import=1`;
+  const sidebar = teamsSlot(ws) || null;
   return (
-    <div className="tz-page" data-testid="team-home">
-      <Crumbs ws={ws} trail={[{ label: "Teams", href: `/w/${encodeURIComponent(ws)}/teams` }, { label: t.name }]} />
-      <header className="tz-head">
-        <div className="tz-head__main">
-          <TeamTile team={t} size={44} />
-          <div className="tz-head__titles">
-            <h1 className="tz-title" dir="auto">{t.name}</h1>
-            {t.description && <p className="tz-sub" dir="auto">{t.description}</p>}
-            <div className="tz-meta">
-              <VisibilityBadge v={t.visibility} />
-              <span>{t.member_count} {t.member_count === 1 ? "member" : "members"}</span>
-              {t.my_role === "lead" && <span>You lead this team</span>}
-              {t.my_role === "member" && <span>You&apos;re a member</span>}
-            </div>
+    <div className="tz-page th" data-testid={g ? "general-home" : "team-home"}>
+      <header className="th-head">
+        <TeamTile team={t} size={52} className="th-head__tile" />
+        <div className="th-head__main">
+          <h1 className="th-title" dir="auto">{t.name}</h1>
+          <div className="th-meta">
+            {g ? <span className="th-chip th-chip--acc"><Icon name="users" size={12} /> Everyone · default team</span>
+              : t.visibility === "private" ? <span className="th-chip"><Icon name="lock" size={12} /> Private</span>
+              : <span className="th-chip"><Icon name="globe" size={12} /> Open</span>}
+            <span>{t.member_count} {t.member_count === 1 ? "member" : "members"}</span>
+            {leads.length > 0 && <><span aria-hidden>·</span><span>Lead {leads.slice(0, 2).map((l) => (l.name || l.email).split(" ")[0]).join(", ")}</span></>}
+            {home && <Faces people={home.team.members} total={home.team.members.length} />}
           </div>
+          {t.description && <p className="th-desc" dir="auto">{t.description}</p>}
         </div>
-        <div className="tz-actions">
-          {!locked && <Button variant="secondary" iconLeft="sparkle" href={teamAskHref(ws, t)} aria-label={`Ask ${t.name}`}>Ask this team</Button>}
-          {!locked && (t.my_role || t.can_admin) && <Button iconLeft="plus" href={`/pages/new?workspace=${encodeURIComponent(ws)}&team=${encodeURIComponent(t.id)}`}>New page</Button>}
-          {!t.my_role && t.visibility === "open" && <JoinButton ws={ws} teamId={t.id} onJoined={load} />}
-          {t.can_manage && <IconButton icon="settings" label="Team settings" variant="secondary" href={teamSettingsHref(ws, t)} />}
+        <div className="th-acts">
+          {!t.my_role && t.visibility === "open" && !g && <JoinButton ws={ws} teamId={t.id} onJoined={load} />}
+          {!locked && <Button variant="secondary" iconLeft="sparkle" href={teamAskHref(ws, t)} aria-label={`Ask ${t.name}`}>Ask {t.name}</Button>}
+          {!locked && g && member && uploads && (
+            <>
+              <Button variant="secondary" iconLeft="upload" className="max-sm:hidden" onClick={() => fileInput.current?.click()}>Upload</Button>
+              <input ref={fileInput} type="file" multiple hidden onChange={(e) => {
+                const files = [...(e.currentTarget.files ?? [])];
+                if (files.length) uploads.upload(files, uploads.resolve(ws, null, t.name));
+                e.currentTarget.value = "";
+              }} />
+            </>
+          )}
+          {!locked && member && <Button iconLeft="plus" href={`/pages/new?workspace=${encodeURIComponent(ws)}${g ? "" : `&team=${encodeURIComponent(t.id)}`}`}>New page</Button>}
+          {t.can_manage && !locked && <IconButton icon="settings" label="Team settings" variant="ghost" onClick={() => setDialog(true)} data-testid="team-settings-open" />}
         </div>
       </header>
 
       {locked ? (
-        <div className="tz-col" style={{ maxWidth: 760 }}>
-          <Alert tone="neutral" icon="lock" title="This is a private team">
-            Only its members see its pages, meetings and memory. Ask one of its leads to add you. Here&apos;s what it shared this week.
-          </Alert>
-          <BriefCard ws={ws} teamId={t.id} initial={data.brief} briefId={briefId} />
+        <div className="th-grid">
+          <div className="th-span2 flex flex-col gap-4">
+            <Alert tone="neutral" icon="lock" title="This is a private team">
+              Only its members see its pages, meetings and memory. Ask one of its leads to add you. Here&apos;s what it shared this week.
+            </Alert>
+            <BriefCard ws={ws} teamId={t.id} teamName={t.name} initial={data.brief} briefId={briefId} />
+          </div>
         </div>
       ) : (
-        <div className="tz-grid">
-          <div className="tz-col">
-            <BriefCard ws={ws} teamId={t.id} initial={home!.brief} briefId={briefId} />
-            <RecentCard ws={ws} items={home!.recent} href={teamPagesHref(ws, t)} />
-            <MeetingsCard ws={ws} meetings={home!.meetings} href={teamMeetingsHref(ws, t)} />
+        <>
+          <AskBar href={teamAskHref(ws, t)} name={t.name} chips={chips} />
+          <div className="th-grid">
+            <BriefCard ws={ws} teamId={t.id} teamName={t.name} initial={home!.brief} briefId={briefId} className="th-span2" />
+            <NeedsYouCard />
+            {g && home!.across && <AcrossCard ws={ws} across={home!.across} browse={browseHref(ws)} className="th-span2" />}
+            {g ? <MeetingsCard meetings={home!.activity?.meetings?.length ? home!.activity.meetings : home!.meetings} href={meetingsHref} importHref={importHref} teams />
+              : <RecentCard items={home!.recent} href={`/w/${encodeURIComponent(ws)}/teams/${encodeURIComponent(t.slug)}/pages`} className="th-span2" empty="No pages in this team yet. Use New page, or move pages here from their Share menu." />}
+            {g ? <RecentCard items={home!.recent} href={`/w/${encodeURIComponent(ws)}`} className="th-span2" empty="No company-wide pages yet." />
+              : <MeetingsCard meetings={home!.meetings} href={meetingsHref} importHref={importHref} />}
+            {(home!.projects.length > 0 || t.can_manage || (g && (sidebar?.projects.length ?? 0) > 0)) && (
+              <ProjectsCard ws={ws} projects={g ? (sidebar?.projects ?? home!.projects) : home!.projects} team={home!.team} />
+            )}
+            <FeedCard className="th-span2" items={g ? home!.activity?.items ?? home!.recent : home!.recent} meetings={g ? home!.activity?.meetings ?? home!.meetings : home!.meetings} across={g} />
+            {g ? <NewPeopleCard people={home!.new_people ?? []} total={t.member_count} teams={(sidebar?.browse.open ?? 0) + (sidebar?.browse.private ?? 0) + 1} />
+              : home!.team.jira_projects.length > 0 ? <JiraCard ws={ws} keys={home!.team.jira_projects} /> : <MembersCard home={home!} ws={ws} onManage={() => setDialog(true)} />}
+            <WhoCard memory={home!.memory as MemoryHighlights & { enabled?: boolean }} href={g ? `/team/${encodeURIComponent(ws)}` : teamMemoryHref(ws, t)} className="th-span2" />
+            {!g && home!.team.jira_projects.length > 0 && <MembersCard home={home!} ws={ws} onManage={() => setDialog(true)} />}
           </div>
-          <div className="tz-col">
-            <MemoryCard memory={home!.memory} href={teamMemoryHref(ws, t)} />
-            {(home!.projects.length > 0 || t.can_manage) && <ProjectsCard ws={ws} projects={home!.projects} team={home!.team} />}
-            {home!.team.jira_projects.length > 0 && <JiraCard ws={ws} keys={home!.team.jira_projects} />}
-            <MembersCard home={home!} ws={ws} />
-            {t.visibility === "private" && <AdminsNote />}
-          </div>
-        </div>
+          {t.visibility === "private" && <div className="mt-4"><AdminsNote /></div>}
+        </>
+      )}
+      {home && t.can_manage && (
+        <TeamDialog ws={ws} wsName={wsName} open={dialog} team={home.team} onClose={closeSettings}
+          onSaved={(saved) => { closeSettings(); void load(); if ((saved as TeamFull).slug && (saved as TeamFull).slug !== t.slug) router.replace(teamHref(ws, saved as TeamFull)); }} />
       )}
     </div>
   );
@@ -147,7 +203,7 @@ function JoinButton({ ws, teamId, onJoined }: { ws: string; teamId: string; onJo
 
 /* ── the brief ── */
 
-function BriefCard({ ws, teamId, initial, briefId }: { ws: string; teamId: string; initial: Brief | null; briefId: string | null }) {
+function BriefCard({ ws, teamId, teamName, initial, briefId, className }: { ws: string; teamId: string; teamName: string; initial: Brief | null; briefId: string | null; className?: string }) {
   const toast = useToast();
   const [brief, setBrief] = useState<Brief | null>(initial);
   const [history, setHistory] = useState<BriefSummary[] | null>(null);
@@ -169,9 +225,9 @@ function BriefCard({ ws, teamId, initial, briefId }: { ws: string; teamId: strin
   };
   const canEdit = !!brief?.can_edit;
   return (
-    <section className="tz-card" aria-labelledby="tz-brief-h" data-testid="team-brief">
+    <section className={cx("tz-card th-card", className)} aria-labelledby="tz-brief-h" data-testid="team-brief">
       <div className="tz-sec__head">
-        <h2 className="tz-h2" id="tz-brief-h"><Icon name="megaphone" size={16} /> Weekly brief{brief?.label ? <span className="tz-muted">· {brief.label}</span> : null}</h2>
+        <h2 className="tz-h2" id="tz-brief-h"><Icon name="megaphone" size={16} /> This week in {teamName}{brief?.label ? <span className="th-chip">{brief.label}</span> : null}</h2>
         <div className="flex items-center gap-1">
           <Dropdown
             aria-label="Earlier briefs"
@@ -255,16 +311,6 @@ export function ItemRow({ it }: { it: TeamItem }) {
   );
 }
 
-function RecentCard({ ws, items, href }: { ws: string; items: TeamItem[]; href: string }) {
-  void ws;
-  return (
-    <section className="tz-card tz-card--flush" aria-labelledby="tz-recent-h" data-testid="team-recent">
-      <div className="tz-sec__head px-2.5 pt-2.5"><h2 className="tz-h2" id="tz-recent-h"><Icon name="doc" size={16} /> Recent pages</h2><Link href={href}>All pages</Link></div>
-      {items.length ? <ul className="tz-rows">{items.map((it) => <ItemRow key={it.slug} it={it} />)}</ul> : <p className="tz-empty">No pages in this team yet.</p>}
-    </section>
-  );
-}
-
 export function MeetingRow({ m }: { m: TeamMeetingCard }) {
   const title = m.page_title || m.title || "Meeting";
   return (
@@ -278,16 +324,6 @@ export function MeetingRow({ m }: { m: TeamMeetingCard }) {
         <span className="tz-row__end">{fmtShortDate(m.date)}</span>
       </Link>
     </li>
-  );
-}
-
-function MeetingsCard({ ws, meetings, href }: { ws: string; meetings: TeamMeetingCard[]; href: string }) {
-  void ws;
-  return (
-    <section className="tz-card tz-card--flush" aria-labelledby="tz-meet-h" data-testid="team-meetings">
-      <div className="tz-sec__head px-2.5 pt-2.5"><h2 className="tz-h2" id="tz-meet-h"><Icon name="mic" size={16} /> Meetings</h2><Link href={href}>All meetings</Link></div>
-      {meetings.length ? <ul className="tz-rows">{meetings.map((m) => <MeetingRow key={m.id} m={m} />)}</ul> : <p className="tz-empty">No meetings routed here yet. Import one and pick this team.</p>}
-    </section>
   );
 }
 
@@ -317,7 +353,7 @@ export function MemoryCard({ memory, href }: { memory: MemoryHighlights; href: s
 function ProjectsCard({ ws, projects, team }: { ws: string; projects: ProjectCard[]; team: Home["team"] }) {
   const [creating, setCreating] = useState(false);
   return (
-    <section className="tz-card tz-card--flush" aria-labelledby="tz-proj-h">
+    <section className="tz-card tz-card--flush th-card" aria-labelledby="tz-proj-h" data-testid="team-projects">
       <div className="tz-sec__head px-2.5 pt-2.5">
         <h2 className="tz-h2" id="tz-proj-h"><Icon name="layers" size={16} /> Projects</h2>
         {team.can_manage && <Button size="sm" variant="ghost" iconLeft="plus" onClick={() => setCreating(true)} data-testid="new-project">New project</Button>}
@@ -345,7 +381,7 @@ function JiraCard({ ws, keys }: { ws: string; keys: string[] }) {
   const rows = useMemo(() => (data && data.team ? data.team.projects.filter((p) => keys.includes(p.key)) : []), [data, keys]);
   const site = data ? data.site?.url : null;
   return (
-    <section className="tz-card" aria-labelledby="tz-jira-h" data-testid="team-jira">
+    <section className="tz-card th-card" aria-labelledby="tz-jira-h" data-testid="team-jira">
       <div className="tz-sec__head"><h2 className="tz-h2" id="tz-jira-h"><Icon name="checkSquare" size={16} /> Jira</h2>{site && <a href={site} target="_blank" rel="noreferrer">Open Jira</a>}</div>
       {data === null ? <Skeleton variant="rect" height={60} /> : rows.length ? (
         <ul className="tz-rows">
@@ -363,15 +399,15 @@ function JiraCard({ ws, keys }: { ws: string; keys: string[] }) {
   );
 }
 
-function MembersCard({ home, ws }: { home: Home; ws: string }) {
+function MembersCard({ home, ws, onManage }: { home: Home; ws: string; onManage?: () => void }) {
   const t = home.team;
   const people = home.memory.people;
   const statusOf = new Map(people.map((p) => [p.id, p.status]));
   return (
-    <section className="tz-card" aria-labelledby="tz-mem-people-h" data-testid="team-members">
+    <section className="tz-card th-card" aria-labelledby="tz-mem-people-h" data-testid="team-members">
       <div className="tz-sec__head">
         <h2 className="tz-h2" id="tz-mem-people-h"><Icon name="user" size={16} /> Members <span className="tz-muted">{t.members.length}</span></h2>
-        {t.can_manage && <Link href={teamSettingsHref(ws, t)}>Manage</Link>}
+        {t.can_manage && (onManage ? <button type="button" className="th-lnk" onClick={onManage}>Manage</button> : <Link href={teamSettingsHref(ws, t)}>Manage</Link>)}
       </div>
       <ul className="tz-rows">
         {t.members.slice(0, 12).map((m) => {

@@ -54,7 +54,8 @@ export default function MeetingsHub({ workspaceId, space: spaceParam }: { worksp
   // Ask Markdrop here (✦ Ask, ⌘J, the Ask box below): the Meetings scope of this workspace.
   useAssistantHere({ workspace: workspaceId, scope: "meetings" });
   const [error, setError] = useState<string | null>(null);
-  const [importing, setImporting] = useState(false);
+  // ?import=1 (the team home's "Import meeting") opens the importer at once.
+  const [importing, setImporting] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("import") === "1");
   // The filters (this tab's last ones on this workspace, for back navigation); the order is remembered on
   // this device (like a folder's listing view).
   const restoredQuery = useMemo(() => lastQuery(workspaceId), [workspaceId]);
@@ -269,8 +270,8 @@ export default function MeetingsHub({ workspaceId, space: spaceParam }: { worksp
       </nav>
       <header className="mt-hub__head">
         <div className="mt-hub__titles">
-          <h1 className="mt-hub__title">{spaceTeam ? `${spaceTeam.name} meetings` : spaceParam === "company" ? "Company meetings" : "Meetings"}</h1>
-          <p className="mt-hub__sub">{spaceParam === "company" ? "Company-wide calls. A team's meetings live in that team." : "Every call as a page — summary, decisions, action items and the transcript."}</p>
+          <h1 className="mt-hub__title">{spaceTeam ? `${spaceTeam.name} meetings` : spaceParam === "company" ? "General meetings" : "Meetings"}</h1>
+          <p className="mt-hub__sub">{spaceTeam?.general || spaceParam === "company" ? "Calls for everyone in the workspace. A team's meetings live in that team." : "Every call as a page — summary, decisions, action items and the transcript."}</p>
           {companyView && (
             <Switch label="Show all I can open" checked={spaceParam === "all"} data-testid="meetings-show-all"
               onChange={(e) => router.replace(`/meetings/${encodeURIComponent(workspaceId)}?space=${e.currentTarget.checked ? "all" : "company"}`)} />

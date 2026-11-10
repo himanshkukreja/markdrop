@@ -43,7 +43,7 @@ export const LUCIDE: Record<string, LucideIcon> = {
   palette: Palette, sparkle: Sparkles, layers: Layers, droplet: Droplet, undo: Undo2, redo: Redo2, type: Type,
   square: Square, pipette: Pipette, smile: Smile, at: AtSign, messagePlus: MessageSquarePlus,
   // New in the nav redesign (2026-11-10).
-  compass: Compass, building: Building2, help: CircleHelp, grid2: Grid2x2, chartLine: ChartLine,
+  star: Star, compass: Compass, building: Building2, help: CircleHelp, grid2: Grid2x2, chartLine: ChartLine,
 };
 
 /** Team icons (the New team dialog's "Icons" tab): stored on the team as `glyph:<name>`. */

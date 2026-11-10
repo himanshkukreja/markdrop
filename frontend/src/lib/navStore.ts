@@ -182,8 +182,14 @@ const who = () => getToken()?.slice(-24) || "anon";
 const keyOf = (id: string) => `${who()}${sep}${id}`;
 const idOf = (key: string) => key.slice(key.indexOf(sep) + 1);
 
-// Teams: the rail's outline is the company's; each team's pages are under the team (Team › Pages).
-const navCache = new Cache<WorkspaceNav>((key) => getWorkspaceNav(idOf(key), "company"));
+// Teams (nav redesign): the rail asks for one outline per team it shows. "<ws>" is General's (the company-wide
+// items); "<ws>#team:<id>" a team's (navTeamKey).
+const navCache = new Cache<WorkspaceNav>((key) => {
+  const [ws, space] = idOf(key).split("#");
+  return getWorkspaceNav(ws!, space || "company");
+});
+/** The outline id of a team's tree in the rail (navSlot / useNavRetain). */
+export const navTeamKey = (ws: string, teamId: string) => `${ws}#team:${teamId}`;
 const kidsCache = new Cache<ChildPage[]>((key) =>
   // An API without pages (404 on /children) is just "no sub-pages".
   listChildren(idOf(key)).catch((e) => {
@@ -219,7 +225,7 @@ function wire() {
     // Another tab's change: this tab's copy of the folder tree refreshes too (here,
     // workspaceChanged already did that).
     if (d?.remote && id) refreshTree(id, 0);
-    navCache.invalidate((k) => !id || idOf(k) === id);
+    navCache.invalidate((k) => !id || idOf(k).split("#")[0] === id);
     // Folder views on screen reload; the others are marked stale (shown, then refreshed).
     itemsCache.invalidate((k) => !id || itemsWs(k) === id);
     // Sub-pages aren't keyed by workspace: a move or delete anywhere may touch any of them.

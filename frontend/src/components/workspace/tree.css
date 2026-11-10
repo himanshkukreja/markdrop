@@ -108,3 +108,9 @@
 .md-tree__note.md-tree__heading { height: 26px; margin-top: 6px; }
 .md-tree__heading .md-tree__note-text { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
 @media (max-width: 1023.98px) { .md-tree--nav .md-tree__note.md-tree__heading { height: 32px; } }
+/* Teams (nav redesign): General's "Everyone" tag, and the line between a team's rows and its pages. */
+.md-tree__tag { flex: none; margin-left: 2px; padding: 0 5px; border-radius: 4px; font-size: 10px; line-height: 16px; font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent-text); background: var(--accent-soft); }
+.md-tree__note.md-tree__divider { height: 9px; position: relative; }
+.md-tree__note.md-tree__divider::after { content: ""; position: absolute; left: calc(var(--tree-base) + var(--tree-level, 0) * var(--tree-step) + var(--tree-chev)); right: 8px; top: 4px; height: 1px; background: var(--border); }
+@media (max-width: 1023.98px) { .md-tree--nav .md-tree__note.md-tree__divider { height: 9px; } }

@@ -164,7 +164,7 @@ function Members({ ws, team, onSaved }: { ws: string; team: TeamFull; onSaved: (
   );
 }
 
-function Integrations({ ws, team, onSaved }: { ws: string; team: TeamFull; onSaved: (t: TeamFull) => void }) {
+export function Integrations({ ws, team, onSaved, bare }: { ws: string; team: TeamFull; onSaved: (t: TeamFull) => void; bare?: boolean }) {
   const { busy, save } = useSave(ws, team, onSaved);
   const [channels, setChannels] = useState<SlackChannel[] | null | false>(null);
   const [projects, setProjects] = useState<JiraProject[] | null | false>(null);
@@ -177,8 +177,8 @@ function Integrations({ ws, team, onSaved }: { ws: string; team: TeamFull; onSav
   const digest = team.digest ?? { enabled: false, email: true, slack: false };
   const jiraDirty = (projects ? keys : keyText.split(/[\s,]+/).map((k) => k.trim().toUpperCase()).filter(Boolean)).join(",") !== team.jira_projects.join(",");
   return (
-    <section className="tz-card" aria-labelledby="ts-int" data-testid="team-integrations">
-      <h2 className="tz-h2 mb-3" id="ts-int">Slack, Jira and the weekly digest</h2>
+    <section className={bare ? undefined : "tz-card"} aria-labelledby={bare ? undefined : "ts-int"} aria-label={bare ? "Slack, Jira and the weekly digest" : undefined} data-testid="team-integrations">
+      {!bare && <h2 className="tz-h2 mb-3" id="ts-int">Slack, Jira and the weekly digest</h2>}
       <div className="flex flex-col gap-5">
         <Field label="Slack channel" hint="The team's meeting posts, weekly brief and comment notices go here.">
           {channels === null ? <Skeleton variant="rect" height={36} /> : channels === false || channels.length === 0 ? (

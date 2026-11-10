@@ -33,6 +33,9 @@ export interface TeamCard {
   id: string; name: string; slug: string; icon: string | null; color: TeamColor; description: string;
   visibility: Visibility; member_count: number; lead_ids: string[]; my_role: "lead" | "member" | null;
   can_read: boolean; can_manage: boolean; can_admin: boolean; project_ids: string[];
+  /** The workspace's default team (General): everyone is in it, always open, renameable, not deletable. Its
+   *  content is the company-wide content. */
+  general?: boolean;
 }
 export interface TeamFull extends TeamCard {
   members: (Person & { role: "lead" | "member" })[];
@@ -94,6 +97,12 @@ export interface TeamHome {
   jira: { projects: string[] };
   projects: ProjectCard[];
   can_read?: true;
+  /** General only: one line from each other team's latest brief (a private team you can't read: name only). */
+  across?: { team: TeamCard; line: string | null }[];
+  /** General only: items and meetings from every team you can see ("What's happening"). */
+  activity?: { items: TeamItem[]; meetings: TeamMeetingCard[] };
+  /** General only: joined the workspace in the last 30 days. */
+  new_people?: (Person & { joined_at: string | null })[];
 }
 export interface TeamHomeLocked { team: TeamCard; brief: Brief | null; can_read: false }
 
@@ -206,6 +215,8 @@ export const teamMemoryHref = (ws: string, t: Pick<TeamCard, "id">) => `/team/${
 export const teamAskHref = (ws: string, t: Pick<TeamCard, "id">) => `/ask?workspace=${enc(ws)}&team=${enc(t.id)}`;
 export const projectHref = (ws: string, p: Pick<ProjectCard, "slug">) => `/w/${enc(ws)}/projects/${enc(p.slug)}`;
 export const browseHref = (ws: string) => `/w/${enc(ws)}/teams`;
+/** The default team's home (the backend resolves "general" to it whatever it's called now). */
+export const generalHref = (ws: string) => `/w/${enc(ws)}/teams/general`;
 export const reviewHref = (ws: string) => `/w/${enc(ws)}/teams-review`;
 
 /** A space from a URL's ?space= (anything else: undefined = all). */

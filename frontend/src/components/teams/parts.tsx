@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Avatar, Badge, Checkbox, Icon, Input, cx } from "@/components/ui";
 import { listMembers, type Member } from "@/lib/workspaces";
+import { TEAM_GLYPHS } from "@/components/ui/lucide";
 import { TEAM_COLORS, teamTint, type TeamCard, type TeamColor, type Visibility } from "@/lib/teams";
 import "./teams.css";
 
@@ -11,11 +12,14 @@ type Tileable = { name: string; icon?: string | null; color?: TeamColor | string
 
 /** The team's tile: its emoji on its colour's wash, else its initial in its colour. */
 export function TeamTile({ team, size = 18, className }: { team: Tileable; size?: number; className?: string }) {
-  const emoji = team.icon?.trim();
+  const raw = team.icon?.trim() || "";
+  // "glyph:<name>": a Lucide icon from the New team dialog's Icons tab (components/ui/lucide TEAM_GLYPHS).
+  const Glyph = raw.startsWith("glyph:") ? TEAM_GLYPHS[raw.slice(6)] : undefined;
+  const emoji = Glyph ? "" : raw.startsWith("glyph:") ? "" : raw;
   const style = { width: size, height: size, fontSize: emoji ? Math.round(size * 0.68) : Math.max(10, Math.round(size * 0.56)), borderRadius: Math.max(4, Math.round(size * 0.28)), ["--tz-c" as string]: teamTint(team.color as TeamColor) };
   return (
-    <span className={cx("tz-tile", emoji && "tz-tile--emoji", className)} style={style} aria-hidden>
-      {emoji || (team.name.trim().charAt(0).toUpperCase() || "?")}
+    <span className={cx("tz-tile", emoji && "tz-tile--emoji", Glyph && "tz-tile--glyph", className)} style={style} aria-hidden>
+      {Glyph ? <Glyph size={Math.round(size * 0.58)} strokeWidth={2} aria-hidden /> : emoji || (team.name.trim().charAt(0).toUpperCase() || "?")}
     </span>
   );
 }

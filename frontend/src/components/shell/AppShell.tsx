@@ -16,7 +16,7 @@ import { teamName } from "@/components/workspace/folder/items";
 import { UserAvatar } from "./AccountMenu";
 import CommandPalette, { type PaletteAction } from "./CommandPalette";
 import { sendFolderCommand, usePaletteRequests, useBrowseRequests } from "./commands";
-import { SideNav, railKeyFor, resolveRailKey, workspaceOfKey, wsFolderKey, wsRootKey, type RailData } from "./SideNav";
+import { SideNav, generalOf, railKeyFor, resolveRailKey, workspaceOfKey, wsFolderKey, wsRootKey, wsTeamRowKey, type RailData } from "./SideNav";
 import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
 import { useLocationSearch } from "./useLocation";
 
@@ -113,6 +113,8 @@ const ASK = /^\/ask\/?$/;
 const ANALYTICS = /^\/dashboard\/(analytics(\/|$)|live$)/;
 /** Team (board, people, projects): uses the width — cards and the "This week" columns fill it (1480px cap). */
 const TEAM = /^\/team\//;
+/** A team's / project's home (3-column dashboard): uses the width up to 1560px. */
+const TEAM_HOME = /^\/w\/[^/]+\/(teams\/[^/]+(\/settings)?|projects\/[^/]+)\/?$/;
 
 /**
  * The account shell for /dashboard, /w/*, /shared, /recent and /settings/* (simpler UI, Main
@@ -141,7 +143,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!activeWs) return;
     const keys = [wsRootKey(activeWs), ...(openTeam ? openTeam.split(",") : [])];
     if (activeTree && activeFolderId) {
-      for (const f of ancestry(activeTree.folders, activeFolderId).slice(0, -1)) keys.push(wsFolderKey(activeWs, f.id));
+      const chain = ancestry(activeTree.folders, activeFolderId);
+      for (const f of chain.slice(0, -1)) keys.push(wsFolderKey(activeWs, f.id));
+      // The folder's team row opens too (General's when the folder is in no team).
+      const teams = teamsSlot(activeWs);
+      const owner = chain.map((f) => (f as { team_ids?: string[] }).team_ids?.[0]).find(Boolean) ?? (teams ? generalOf(teams)?.id : undefined);
+      if (owner) keys.push(wsTeamRowKey(activeWs, owner));
     }
     openAll(keys);
   }, [activeWs, activeTree, activeFolderId, openAll, openTeam]);
@@ -199,6 +206,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             "mx-auto w-full min-w-0 flex-1 px-4 py-6 outline-none sm:px-6",
             ASK.test(pathname) ? "max-w-none !p-0" : HOME.test(pathname) ? "max-w-[1160px] pt-5 lg:px-8 lg:pt-7 lg:pb-12"
               : ANALYTICS.test(pathname) ? "max-w-[1180px] lg:px-8 lg:py-7 lg:pb-12"
+              : TEAM_HOME.test(pathname) ? "max-w-[1560px] lg:px-8 lg:py-7 lg:pb-12 min-[1600px]:px-10"
               : TEAM.test(pathname) ? "max-w-[1480px] lg:px-8 lg:py-7 lg:pb-12" : WIDE.test(pathname) ? "max-w-[1024px] lg:px-8 lg:pb-10" : "max-w-app lg:py-8",
           )}
         >

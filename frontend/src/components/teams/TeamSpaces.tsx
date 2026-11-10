@@ -4,7 +4,6 @@
  * The other Teams screens:
  * - TeamPages   /w/<ws>/teams/<team>/pages — the team's pages, documents and files (items?space=team:<id>), searchable.
  * - ProjectHome /w/<ws>/projects/<project> — a cross-team project space: its pages, meetings, combined memory, linked teams.
- * - CompanyHome /w/<ws>/home — the company: your teams with this week's brief (the bridge), company pages and meetings.
  * - CreateProjectDialog (leads of a linked team, admins).
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -168,89 +167,5 @@ export function CreateProjectDialog({ ws, open, teams, initialTeam, onClose }: {
 }
 
 /* ── the company home ── */
-
-export function CompanyHome({ ws }: { ws: string }) {
-  const [wsInfo, setWsInfo] = useState<Workspace | null>(null);
-  const [side, setSide] = useState<TeamsSidebar | null | false>(null);
-  const [briefs, setBriefs] = useState<Record<string, Brief | null>>({});
-  const [items, setItems] = useState<TeamItem[] | null>(null);
-  const [meetings, setMeetings] = useState<TeamMeetingCard[] | null>(null);
-  const [projectFor, setProjectFor] = useState<string | null | undefined>(undefined);
-  useAssistantHere({ workspace: ws });
-  useEffect(() => {
-    getWorkspace(ws).then(setWsInfo).catch(() => undefined);
-    getTeams(ws).then((s) => {
-      setSide(s);
-      for (const t of s.teams) getBrief(ws, t.id).then((b) => setBriefs((m) => ({ ...m, [t.id]: b }))).catch(() => setBriefs((m) => ({ ...m, [t.id]: null })));
-    }).catch(() => setSide(false));
-    listWorkspaceItems(ws, { folder: "all", space: "company", limit: 8 }).then((r) => setItems(r.items)).catch(() => setItems([]));
-    listMeetings(ws, { space: "company", limit: 6 }).then((r) => setMeetings(r.meetings)).catch(() => setMeetings([]));
-  }, [ws]);
-  const teams = useMemo(() => (side ? side.teams : []), [side]);
-  const name = wsInfo?.name ?? "";
-  return (
-    <div className="tz-page" data-testid="company-home">
-      <header className="tz-head">
-        <div className="tz-head__titles">
-          <h1 className="tz-title">{name || " "}</h1>
-          <p className="tz-sub">The company: pages for everyone, and what each of your teams shipped, decided and is stuck on this week.</p>
-        </div>
-        <div className="tz-actions">
-          {side && side.review?.pending ? <Button variant="secondary" iconLeft="listTree" href={reviewHref(ws)}>Sort content into teams</Button> : null}
-          {side && side.can_create && <Button variant="secondary" iconLeft="layers" onClick={() => setProjectFor(null)}>New project</Button>}
-          <Button variant="secondary" iconLeft="grid" href={browseHref(ws)}>Browse teams</Button>
-        </div>
-      </header>
-      <div className="tz-grid">
-        <div className="tz-col">
-          <section aria-labelledby="ch-teams">
-            <div className="tz-sec__head"><h2 className="tz-h2" id="ch-teams">Your teams this week</h2><Link href={browseHref(ws)}>All teams</Link></div>
-            {side === null ? <Skeleton variant="rect" height={160} /> : teams.length === 0 ? (
-              <EmptyState icon="users" title="You're not in a team yet" description="Browse the open teams and join one, or ask an admin to add you." actions={<Button href={browseHref(ws)}>Browse teams</Button>} />
-            ) : (
-              <div className="tz-cards">
-                {teams.map((t) => {
-                  const b = briefs[t.id];
-                  const lines = b ? b.lines.filter((l) => !l.hidden).slice(0, 3) : [];
-                  return (
-                    <article key={t.id} className="tz-tcard" data-testid={`company-team-${t.slug}`}>
-                      <div className="tz-tcard__top">
-                        <TeamTile team={t} size={32} />
-                        <div className="min-w-0"><h3 className="tz-tcard__name"><Link href={teamHref(ws, t)}>{t.name}</Link></h3><p className="tz-muted">{b?.label ?? "Weekly brief"}</p></div>
-                      </div>
-                      {b === undefined ? <Skeleton variant="text" width="80%" /> : lines.length ? (
-                        <ul className="flex flex-col gap-1 text-body text-text-secondary">{lines.map((l) => <li key={l.id} className="min-w-0" style={{ overflowWrap: "anywhere" }}>• {l.text}</li>)}</ul>
-                      ) : <p className="tz-muted">No brief yet.</p>}
-                      <div className="tz-tcard__foot"><Link className="text-small" href={teamPagesHref(ws, t)}>Pages</Link><Link className="text-small" href={teamHref(ws, t)}>Open team</Link></div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-          <section className="tz-card tz-card--flush" aria-labelledby="ch-pages">
-            <div className="tz-sec__head px-2.5 pt-2.5"><h2 className="tz-h2" id="ch-pages">Company pages</h2><Link href={`/w/${encodeURIComponent(ws)}`}>All company pages</Link></div>
-            {items === null ? <div className="p-3"><Skeleton variant="rect" height={120} /></div> : items.length ? <ul className="tz-rows">{items.map((it) => <ItemRow key={it.slug} it={it} />)}</ul> : <p className="tz-empty">No company-wide pages yet.</p>}
-          </section>
-        </div>
-        <div className="tz-col">
-          <section className="tz-card tz-card--flush" aria-labelledby="ch-meet">
-            <div className="tz-sec__head px-2.5 pt-2.5"><h2 className="tz-h2" id="ch-meet">Company meetings</h2><Link href={`/meetings/${encodeURIComponent(ws)}?space=company`}>All company meetings</Link></div>
-            {meetings === null ? <div className="p-3"><Skeleton variant="rect" height={120} /></div> : meetings.length ? <ul className="tz-rows">{meetings.map((m) => <MeetingRow key={m.id} m={m} />)}</ul> : <p className="tz-empty">No company-wide meetings.</p>}
-          </section>
-          {side && side.projects.length > 0 && (
-            <section className="tz-card tz-card--flush" aria-labelledby="ch-proj">
-              <div className="tz-sec__head px-2.5 pt-2.5"><h2 className="tz-h2" id="ch-proj">Projects</h2></div>
-              <ul className="tz-rows">{side.projects.map((p) => (
-                <li key={p.id}><Link className="tz-row md-focus" href={projectHref(ws, p)}><TeamTile team={p} size={20} /><span className="tz-row__main"><span className="tz-row__title">{p.name}</span></span></Link></li>
-              ))}</ul>
-            </section>
-          )}
-        </div>
-      </div>
-      {side && <CreateProjectDialog ws={ws} open={projectFor !== undefined} teams={side.teams} initialTeam={projectFor ?? undefined} onClose={() => setProjectFor(undefined)} />}
-    </div>
-  );
-}
 
 export type { THome, TeamHomeLocked };

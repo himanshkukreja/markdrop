@@ -79,7 +79,7 @@ function Head({ name, wsId, children }: { name: string; wsId: string; children?:
     return (
       <header className="tm-head">
         <nav className="tm-crumbs" aria-label="Breadcrumb">
-          <Link href={`/w/${encodeURIComponent(wsId)}/home`}>{name}</Link><Icon name="chevronRight" /><Link href={sp.href}>{sp.name}</Link><Icon name="chevronRight" /><span>Memory</span>
+          <Link href={`/w/${encodeURIComponent(wsId)}/teams/general`}>{name}</Link><Icon name="chevronRight" /><Link href={sp.href}>{sp.name}</Link><Icon name="chevronRight" /><span>Memory</span>
         </nav>
         <div className="tm-head__row">
           <div className="tm-head__titles">
