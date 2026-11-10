@@ -12,6 +12,7 @@ import { APP, TENANT, BROWSER, log, fail, reseed, api, launch, ctx, shot, steppe
 const S = reseed();
 const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token]));
 const WS = S.ws;
+const FOLDER_URL = `${APP}/w/${WS}/f/${S.folder}`;
 const SLUG = "launch-plan";
 const BODY = "We ship the page builder";
 
@@ -43,7 +44,7 @@ await step("api", async () => {
 
 await step("listing", async () => {
   const { p } = await ctx(browser, { token: T.member });
-  await p.goto(`${APP}/w/${WS}`, { waitUntil: "load" });
+  await p.goto(FOLDER_URL, { waitUntil: "load" });
   const link = p.locator("#main a.wl-name").filter({ hasText: "Launch plan" }).first();
   await link.waitFor({ timeout: 30000 });
   const hrefs = await p.locator("#main a.wl-name").evaluateAll((as) => as.map((a) => a.getAttribute("href")));
@@ -55,7 +56,7 @@ await step("listing", async () => {
 
 await step("menu", async () => {
   const { p } = await ctx(browser, { token: T.member });
-  await p.goto(`${APP}/w/${WS}`, { waitUntil: "load" });
+  await p.goto(FOLDER_URL, { waitUntil: "load" });
   await p.getByRole("button", { name: /^Actions for Launch plan$/ }).first().click({ timeout: 30000 });
   const open = p.getByRole("menuitem", { name: /^Open$/ }).first();
   if ((await open.getAttribute("href")) !== `/${SLUG}`) fail(`⋯ Open → ${await open.getAttribute("href")}`);
@@ -70,6 +71,7 @@ await step("viewer", async () => {
   const { c, p } = await ctx(browser, { token: T.member });
   await p.goto(`${APP}/${SLUG}`, { waitUntil: "networkidle" });
   await p.getByText(BODY).first().waitFor({ timeout: 30000 });
+  await p.getByRole("button", { name: "Show details" }).click({ timeout: 25000 });
   // Signed in on markdrop.in: it stays here (no jump to the workspace's domain).
   await p.waitForTimeout(2500);
   if (new URL(p.url()).host !== new URL(APP).host) fail(`markdrop.in sent the reader to ${p.url()}`);
@@ -95,6 +97,7 @@ await step("share", async () => {
   const { c, p } = await ctx(browser, { token: T.owner });
   if (BROWSER === "chromium") await c.grantPermissions(["clipboard-read", "clipboard-write"], { origin: APP });
   await p.goto(`${APP}/${SLUG}`, { waitUntil: "networkidle" });
+  await p.getByRole("button", { name: "Show details" }).click({ timeout: 25000 });
   await p.getByRole("button", { name: "Share", exact: true }).first().click({ timeout: 30000 });
   const links = p.getByTestId("share-links");
   await links.waitFor({ timeout: 15000 });

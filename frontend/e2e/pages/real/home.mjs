@@ -235,7 +235,7 @@ await step("continue", async () => {
   // (WebKit can't resolve acme.localhost: take an item that opens on this host.)
   const card = p.locator('[data-testid="home-continue-card"][href^="/"]').first();
   const href = await card.getAttribute("href");
-  // An item in a workspace with a live domain opens there (openHref, like Recent); the rest here.
+  // Every item opens here on markdrop.in (openHref, like Recent), even one with a live workspace domain.
   const slug = new URL(href, APP).pathname;
   await card.click();
   await p.waitForURL((u) => u.pathname !== "/dashboard", { timeout: 15000 });
