@@ -8,6 +8,10 @@
 name: cf-deploy
 
 on:
+  # A manual run needs this file on main; until the branch merges, a push to it deploys staging (frontend changes only).
+  push:
+    branches: [feat/cf-workers]
+    paths: ["frontend/**", ".github/workflows/cf-deploy.yml"]
   workflow_dispatch:
     inputs:
       target:
@@ -17,7 +21,7 @@ on:
         default: staging
 
 concurrency:
-  group: cf-${{ inputs.target }}
+  group: cf-${{ inputs.target || 'staging' }}
   cancel-in-progress: false
 
 permissions:
