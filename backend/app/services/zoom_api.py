@@ -3,6 +3,9 @@
 * Server-to-Server OAuth: :func:`token` (``POST <auth>/oauth/token?grant_type=account_credentials``,
   HTTP Basic with the app's Client ID and Secret). An hour-long access token; there is no refresh
   token (a new one is fetched the same way).
+* OAuth (Markdrop's Zoom Marketplace app, admin-managed): :func:`authorize_url` → Zoom's consent
+  screen → :func:`oauth_token` (``authorization_code``, then ``refresh_token``: Zoom rotates the refresh
+  token on every refresh) and :func:`revoke` (Disconnect also removes the app from the Zoom account).
 * REST v2: :func:`api` (``<api>/<path>``) and :func:`download` (a recording file's ``download_url``,
   with the access token as a Bearer).
 
@@ -16,7 +19,7 @@ from __future__ import annotations
 import base64
 import logging
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 import httpx
 
@@ -105,6 +108,35 @@ async def token(account_id: str, client_id: str, client_secret: str) -> dict:
     if r.status_code >= 400:
         raise _error(r)
     return r.json()
+
+
+def authorize_url(state: str, redirect_uri: str) -> str:
+    q = {"response_type": "code", "client_id": get_settings().zoom_client_id, "redirect_uri": redirect_uri, "state": state}
+    return auth_base() + "/oauth/authorize?" + urlencode(q)
+
+
+def _app_basic() -> str:
+    s = get_settings()
+    return "Basic " + base64.b64encode(f"{s.zoom_client_id}:{s.zoom_client_secret}".encode()).decode()
+
+
+async def oauth_token(grant_type: str, **params: str) -> dict:
+    """Markdrop's app: ``{access_token, refresh_token, expires_in, scope}`` for an authorization code
+    (``code``, ``redirect_uri``) or a refresh token (``refresh_token``)."""
+    async with _client() as c:
+        r = await c.post(auth_base() + "/oauth/token", data={"grant_type": grant_type, **params},
+                         headers={"Authorization": _app_basic()})
+    if r.status_code >= 400:
+        raise _error(r)
+    return r.json()
+
+
+async def revoke(token_: str) -> None:
+    """Revoke Markdrop's app's token: Zoom removes the app from the account."""
+    async with _client() as c:
+        r = await c.post(auth_base() + "/oauth/revoke", data={"token": token_}, headers={"Authorization": _app_basic()})
+    if r.status_code >= 400:
+        raise _error(r)
 
 
 async def api(method: str, path: str, access_token: str, *, params: dict | None = None, json: Any = None) -> Any:

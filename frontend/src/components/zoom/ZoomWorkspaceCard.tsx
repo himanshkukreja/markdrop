@@ -7,12 +7,14 @@ import {
 } from "@/components/ui";
 import { updateTeam } from "@/lib/teams";
 import {
-  zoomConnect, zoomDisconnect, zoomImport, zoomRecordings, zoomSetTeam, zoomStatus,
+  zoomConnect, zoomConnectStart, zoomDisconnect, zoomImport, zoomRecordings, zoomSetTeam, zoomStatus,
   type ZoomRecording, type ZoomResult, type ZoomStatus,
 } from "@/lib/zoom";
 
 /**
- * Workspace settings › Integrations › Zoom. The workspace's Zoom admin makes a Server-to-Server OAuth app
+ * Workspace settings › Integrations › Zoom. One click (when Markdrop's Zoom Marketplace app is set up on the
+ * server, `app_available`): Connect Zoom → Zoom's consent screen (a Zoom admin approves) → /integrations/zoom/callback.
+ * Advanced, or when the app isn't available: the workspace's Zoom admin makes a Server-to-Server OAuth app
  * in their own Zoom account (the steps are right here) and a workspace admin pastes its Account ID,
  * Client ID, Client Secret and Secret Token; Markdrop checks them with Zoom and lists missing scopes.
  * Recorded meetings hosted by members of the chosen team come in on their own, visible to that team;
@@ -26,6 +28,8 @@ export function ZoomWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolea
   const [confirm, setConfirm] = useState(false);
   const [importing, setImporting] = useState(false);
   const [busy, setBusy] = useState("");
+  const [advanced, setAdvanced] = useState(false);
+  const [dropMeetings, setDropMeetings] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -49,7 +53,18 @@ export function ZoomWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolea
     );
   }
   const c = st.connection;
-  const showSetup = isAdmin && st.configured && (editing || !st.connected);
+  const oneClick = !!st.app_available && st.mode !== "s2s";
+  const showOneClick = isAdmin && st.configured && !st.connected && !!st.app_available && !advanced;
+  const showSetup = isAdmin && st.configured && (editing || (!st.connected && (!st.app_available || advanced)));
+  const reconnect = async () => {
+    setBusy("reconnect");
+    try {
+      window.location.href = (await zoomConnectStart(id, st.team?.id)).url;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "That didn't work.");
+      setBusy("");
+    }
+  };
 
   return (
     <section aria-labelledby="zoom-h" data-testid="zoom-card" className="flex min-w-0 flex-col gap-4 rounded-xl border border-border bg-surface p-5">
@@ -95,7 +110,12 @@ export function ZoomWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolea
                     : <span className="text-text-muted">Zoom hasn&apos;t checked the endpoint yet (step 6 below)</span>}
                 </dd>
                 <dt className="text-text-muted">Zoom app</dt>
-                <dd className="text-text">Account {c.account_id} · Client {c.client_id}{c.connected_by ? ` · connected by ${c.connected_by}` : ""}</dd>
+                {st.mode === "oauth" ? (
+                  <dd className="text-text" data-testid="zoom-app-row">Markdrop app for Zoom · account {c.account_id}
+                    {c.approved_by ? ` · approved by ${c.approved_by}` : ""}{c.connected_by ? ` · connected by ${c.connected_by}` : ""}</dd>
+                ) : (
+                  <dd className="text-text">Your Server-to-Server app · Account {c.account_id} · Client {c.client_id}{c.connected_by ? ` · connected by ${c.connected_by}` : ""}</dd>
+                )}
               </>
             )}
           </dl>
@@ -124,8 +144,11 @@ export function ZoomWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolea
             </Alert></div>
           )}
           {isAdmin && c.broken && (
-            <div data-testid="zoom-broken"><Alert tone="danger" title="The Zoom connection needs attention">
-              {c.broken === "credentials" ? "Zoom no longer accepts the app's credentials. Check that the app is still activated in Zoom, then paste them again."
+            <div data-testid="zoom-broken"><Alert tone="danger" title="The Zoom connection needs attention"
+              actions={st.mode === "oauth" ? <Button size="sm" loading={busy === "reconnect"} onClick={() => void reconnect()} data-testid="zoom-reconnect">Reconnect Zoom</Button> : undefined}>
+              {c.broken === "reauthorize" ? "Zoom no longer accepts Markdrop's connection (the app was removed or its approval expired). Reconnect Zoom."
+                : c.broken === "missing_scopes" && st.mode === "oauth" ? "Zoom didn't grant everything Markdrop needs. Reconnect Zoom and approve all the permissions."
+                : c.broken === "credentials" ? "Zoom no longer accepts the app's credentials. Check that the app is still activated in Zoom, then paste them again."
                 : c.broken === "deauthorized" ? "The Zoom app was removed or deactivated, so its credentials were deleted. Paste them again to reconnect."
                 : c.broken === "missing_scopes" ? "The Zoom app is missing scopes Markdrop needs (below)." : c.test_error || c.broken}
             </Alert></div>
@@ -163,16 +186,28 @@ export function ZoomWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolea
             {st.can_import && (
               <Button size="sm" iconLeft="history" onClick={() => setImporting(true)} data-testid="zoom-import-open">Import past meetings</Button>
             )}
-            {isAdmin && <Button size="sm" variant="secondary" iconLeft="key" onClick={() => setEditing(true)} data-testid="zoom-edit">Change credentials</Button>}
+            {isAdmin && st.mode !== "oauth" && <Button size="sm" variant="secondary" iconLeft="key" onClick={() => setEditing(true)} data-testid="zoom-edit">Change credentials</Button>}
             {isAdmin && <Button size="sm" variant="secondary" iconLeft="logOut" onClick={() => setConfirm(true)}>Disconnect Zoom…</Button>}
           </div>
         </>
       )}
 
       {!st.connected && isAdmin && c?.broken && (
-        <Alert tone="danger" title="Zoom was disconnected">
-          {c.broken === "deauthorized" ? "The Zoom app was removed or deactivated, so its credentials were deleted. Paste them again to reconnect." : "Paste the app's credentials again to reconnect."}
-        </Alert>
+        <div data-testid="zoom-disconnected"><Alert tone="danger" title="Zoom was disconnected">
+          {c.broken === "deauthorized"
+            ? (oneClick ? "The Markdrop app was removed from your Zoom account, so Markdrop deleted its access and the Zoom import log. Meetings already imported stay. Connect Zoom again to bring new ones in."
+              : "The Zoom app was removed or deactivated, so its credentials were deleted. Paste them again to reconnect.")
+            : "Connect Zoom again to bring new meetings in."}
+        </Alert></div>
+      )}
+
+      {showOneClick && (
+        <OneClick id={id} st={st} onAdvanced={() => setAdvanced(true)} />
+      )}
+      {isAdmin && advanced && !st.connected && (
+        <button type="button" className="self-start text-[13px] text-accent-text hover:underline" onClick={() => setAdvanced(false)}>
+          Back to Connect Zoom in one click
+        </button>
       )}
 
       {showSetup && (
@@ -184,12 +219,27 @@ export function ZoomWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolea
         open={confirm}
         onClose={() => setConfirm(false)}
         title="Disconnect Zoom?"
-        description={<>Markdrop deletes the Zoom app&apos;s credentials and stops bringing in meetings. Meetings already imported stay. You can also delete the app in Zoom.</>}
+        description={(
+          <>
+            {st.mode === "oauth"
+              ? <>Markdrop deletes its access to your Zoom account, removes the Markdrop app from it, and stops bringing in meetings.</>
+              : <>Markdrop deletes the Zoom app&apos;s credentials and stops bringing in meetings. You can also delete the app in Zoom.</>}
+            {" "}Meetings already imported stay unless you delete them here.
+          </>
+        )}
+        body={(
+          <div data-testid="zoom-drop-meetings">
+            <Checkbox label={`Also delete the ${c?.imported ? `${c.imported} ` : ""}meetings imported from Zoom (they go to the Trash)`}
+              checked={dropMeetings} onChange={(e) => setDropMeetings(e.target.checked)} />
+          </div>
+        )}
         confirmLabel="Disconnect"
         onConfirm={async () => {
-          setSt(await zoomDisconnect(id));
+          const out = await zoomDisconnect(id, dropMeetings);
+          setSt(out);
           setConfirm(false);
-          toast.success("Zoom is disconnected.");
+          setDropMeetings(false);
+          toast.success(out.deleted_meetings ? `Zoom is disconnected and ${out.deleted_meetings} imported meetings are in the Trash.` : "Zoom is disconnected.");
         }}
       />
       {importing && <Importer id={id} st={st} onClose={() => { setImporting(false); void load(); }} />}
@@ -232,6 +282,52 @@ function TeamPicker({ id, st, onSaved }: { id: string; st: ZoomStatus; onSaved: 
           ...teams.map((t) => ({ value: t.id, label: `${t.name}${t.visibility === "private" ? " (private)" : " (open)"}` }))]} />
       {busy && <Spinner size={14} />}
     </span>
+  );
+}
+
+/** Connect Zoom in one click: Markdrop's app on the Zoom App Marketplace (a Zoom admin approves it). */
+function OneClick({ id, st, onAdvanced }: { id: string; st: ZoomStatus; onAdvanced: () => void }) {
+  const [team, setTeam] = useState(st.team?.id ?? "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const teams = st.teams ?? [];
+  return (
+    <div className="flex min-w-0 flex-col gap-3 border-t border-border pt-4" data-testid="zoom-one-click">
+      <ol className="m-0 flex list-none flex-col gap-3 p-0">
+        <Step n={1} title="Pick the team">
+          <span className="mt-1 block max-w-[320px]">
+            <Select aria-label="Team for Zoom meetings" value={team} onChange={(e) => setTeam(e.target.value)} data-testid="zoom-team-oneclick"
+              options={[{ value: "", label: teams.length ? "Pick later" : "No teams yet" },
+                ...teams.map((t) => ({ value: t.id, label: `${t.name}${t.visibility === "private" ? " (private)" : " (open)"}` }))]} />
+          </span>
+          <span className="mt-1 block">Only meetings hosted by this team&apos;s members come in, and only this team sees them.</span>
+        </Step>
+        <Step n={2} title="Connect Zoom">
+          You go to Zoom and a <strong>Zoom account admin</strong> (you, or send them this page) approves the Markdrop app for the whole
+          Zoom account. Markdrop only reads users, cloud recordings&apos; transcripts and who joined; it never changes anything in Zoom.
+        </Step>
+        <Step n={3} title="Turn on transcripts in Zoom">
+          In the Zoom web portal (Account Management › Account Settings › Recording), turn on <strong>Cloud recording</strong> and
+          <strong> Create audio transcript</strong>, and lock both. Only recorded meetings with a transcript come in.
+        </Step>
+      </ol>
+      {err && <Alert tone="danger">{err}</Alert>}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button loading={busy} iconLeft="link" data-testid="zoom-connect-app" onClick={async () => {
+          setBusy(true);
+          setErr("");
+          try {
+            window.location.href = (await zoomConnectStart(id, team || null)).url;
+          } catch (e) {
+            setErr(e instanceof Error ? e.message : "That didn't work.");
+            setBusy(false);
+          }
+        }}>Connect Zoom</Button>
+        <button type="button" className="text-[13px] text-text-secondary underline-offset-2 hover:underline" onClick={onAdvanced} data-testid="zoom-advanced">
+          Advanced: use your own Server-to-Server app
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -22889,7 +22889,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/StartIn"
+                "$ref": "#/components/schemas/app__routers__jira__StartIn"
               }
             }
           },
@@ -25116,8 +25116,110 @@
               "pattern": "^[0-9a-f]{24}$",
               "title": "Workspace Id"
             }
+          },
+          {
+            "name": "delete_meetings",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Also delete the meetings imported from Zoom (to the Trash).",
+              "default": false,
+              "title": "Delete Meetings"
+            },
+            "description": "Also delete the meetings imported from Zoom (to the Trash)."
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/zoom/connect/start": {
+      "post": {
+        "tags": [
+          "zoom"
+        ],
+        "summary": "Start connecting Zoom (Markdrop's Marketplace app)",
+        "operationId": "connect_start_api_v1_zoom_connect_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__routers__zoom__StartIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/zoom/connect/finish": {
+      "post": {
+        "tags": [
+          "zoom"
+        ],
+        "summary": "Finish connecting Zoom (Markdrop's Marketplace app)",
+        "operationId": "connect_finish_api_v1_zoom_connect_finish_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinishIn"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -31263,6 +31365,59 @@
         ],
         "title": "FileVersionsResponse"
       },
+      "FinishIn": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Code"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State",
+            "description": "From Markdrop's Connect Zoom; absent for installs started in the Zoom App Marketplace."
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{24}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id",
+            "description": "Without a state: the workspace to connect (admins)."
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^([0-9a-f]{24})?$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "FinishIn"
+      },
       "FocusBody": {
         "properties": {
           "text": {
@@ -35224,44 +35379,6 @@
         "type": "object",
         "title": "SourceIn"
       },
-      "StartIn": {
-        "properties": {
-          "kind": {
-            "type": "string",
-            "pattern": "^(site|me)$",
-            "title": "Kind"
-          },
-          "workspace_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9a-f]{24}$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Workspace Id"
-          },
-          "back": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Back"
-          }
-        },
-        "type": "object",
-        "required": [
-          "kind"
-        ],
-        "title": "StartIn"
-      },
       "Subscription": {
         "properties": {
           "endpoint": {
@@ -37414,6 +37531,44 @@
         ],
         "title": "CodeIn"
       },
+      "app__routers__jira__StartIn": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "pattern": "^(site|me)$",
+            "title": "Kind"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{24}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          },
+          "back": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Back"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "StartIn"
+      },
       "app__routers__jira_pages__AssigneeIn": {
         "properties": {
           "site": {
@@ -37821,6 +37976,32 @@
         },
         "type": "object",
         "title": "StatusBody"
+      },
+      "app__routers__zoom__StartIn": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{24}$",
+            "title": "Workspace Id"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^([0-9a-f]{24})?$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id"
+        ],
+        "title": "StartIn"
       }
     }
   }

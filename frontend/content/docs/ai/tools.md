@@ -304,7 +304,7 @@ Recorded Zoom meetings hosted by members of one team come in on their own; these
 
 | Tool | Permission | What it does | Main inputs |
 |---|---|---|---|
-| `zoom_status` | read | Whether a workspace is connected to its Zoom account, the team Zoom meetings go to (and whether it's open or private), scopes the Zoom app is missing, how many meetings came in, how many had no transcript, and the latest imports (for admins and the team's leads). Never returns a credential. | `workspace` |
+| `zoom_status` | read | Whether a workspace is connected to its Zoom account, the team Zoom meetings go to (and whether it's open or private), scopes the Zoom app is missing, how many meetings came in, how many had no transcript, and the latest imports (for admins and the team's leads). For an admin of a workspace that isn't connected, a one-click link to connect the Markdrop app for Zoom (`connect_url`). Never returns a credential. | `workspace` |
 | `import_zoom_meetings` | write | Past recorded meetings of the Zoom team's members. `action: "list"` (the default) lists them for `days` (30 or 90) or `from`/`to`, with host, date, duration, whether Zoom made a transcript, and whether it's already imported; `action: "import"` imports the chosen `uuids` (up to 50) into the team as past meetings, with a summary, decisions and action items; nobody is notified. Workspace admins and the team's leads. | `workspace`, `action`, `days`, `from`, `to`, `uuids` |
 
 ### Peer-to-peer shares

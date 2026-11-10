@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacy" },
 };
 
-const UPDATED = "7 November 2026";
+const UPDATED = "11 November 2026";
 
 function H2({ id, children }: { id: string; children: React.ReactNode }) {
   return <h2 id={id} className="mt-12 mb-3 scroll-mt-24 text-h3 text-text">{children}</h2>;
@@ -114,10 +114,42 @@ export default function PrivacyPage() {
         details (route, timing, browser), for 90 days.
       </P>
 
+      <H2 id="zoom">Zoom meetings</H2>
+      <P>
+        A workspace admin can connect the company&rsquo;s Zoom account, with the Markdrop app for Zoom or with an app the
+        company creates in Zoom. A Zoom account admin approves it. Markdrop then reads, with read-only access:
+      </P>
+      <ul className="mb-4 list-disc pl-5">
+        <Li><strong className="text-text">Who the users are.</strong> The Zoom account&rsquo;s users (name, email, Zoom user ID), to know
+          who hosted a meeting and whether they belong to the team the admin picked. The list is used and not kept.</Li>
+        <Li><strong className="text-text">Recordings of the team&rsquo;s meetings.</strong> For cloud-recorded meetings hosted by a member
+          of that team: the topic, start time, duration and the list of recording files, and the audio transcript (a text file).
+          Markdrop never downloads the audio or video.</Li>
+        <Li><strong className="text-text">Who joined.</strong> The names of the people who joined those meetings, to list them as attendees.</Li>
+        <Li><strong className="text-text">Who connected it.</strong> The Zoom account&rsquo;s ID and the name and email of the Zoom admin who
+          approved the Markdrop app.</Li>
+      </ul>
+      <P>
+        <strong className="text-text">How it&rsquo;s used.</strong> Each transcript becomes a meeting page in that team in the workspace,
+        visible to the team&rsquo;s members and the workspace&rsquo;s admins, with a summary, decisions and action items written from it by
+        AI (see Anthropic below) and the other things meetings do in Markdrop. Meetings hosted by anyone else are skipped, and nothing about
+        them is stored, not even the topic. Zoom data is used only to provide this feature to that workspace: it isn&rsquo;t sold, used for
+        advertising, used to train AI models, or shared beyond the processors listed below.
+      </P>
+      <P>
+        <strong className="text-text">Kept and deleted.</strong> Zoom&rsquo;s access and refresh tokens (and an app&rsquo;s secrets, when the company
+        uses its own) are stored encrypted until Zoom is disconnected. When a workspace admin disconnects Zoom in Markdrop, or a Zoom admin
+        removes the Markdrop app from the Zoom App Marketplace, Markdrop deletes the tokens and secrets, the Zoom account&rsquo;s ID and the
+        approving admin&rsquo;s name and email, and the import log (topics, dates, hosts and states of the meetings it handled) right away.
+        Meetings already imported are the workspace&rsquo;s own pages: they stay until a workspace admin or their owner deletes them (Disconnect
+        can delete them all at once), and are deleted with the workspace. How to remove the app:{" "}
+        <a className={link} href="https://docs.markdrop.in/integrations/zoom#removing-the-app">Removing the app</a>.
+      </P>
+
       <H2 id="processors">Who processes data for us</H2>
       <ul className="mb-4 list-disc pl-5">
         <Li>Vercel (website hosting) and Amazon Web Services in Mumbai (our API).</Li>
-        <Li>MongoDB Atlas (database) and Cloudflare (file storage, the file viewer and the Share relay).</Li>
+        <Li>MongoDB Atlas (database, including connected integrations&rsquo; encrypted tokens and imported meetings) and Cloudflare (file storage, the file viewer and the Share relay).</Li>
         <Li>Resend (sign-in and notification email).</Li>
         <Li>PostHog and Google (analytics, as above).</Li>
         <Li>Anthropic (AI in pages, guides, search, Ask, meetings, Team, analytics and Jira drafts, which are powered by Anthropic&rsquo;s Claude models): when you use an AI feature, the text it needs is sent to Anthropic&rsquo;s API to answer. For AI search and Ask, that is your question (and earlier questions in the same conversation) and short excerpts of the matching items you can open; for a workspace's Ask suggestions, the meeting topics, decisions and action items and the page titles and headings every member of it can open (never encrypted items, and only the title of a password-protected one). Nothing sent is used to train models: Anthropic doesn&rsquo;t train on data sent through its commercial API. Encrypted items are never sent. We keep only usage counts (tokens, cost, which feature), not the text sent. The one exception: your Ask conversations (questions, answers and their sources) are kept for you alone, so you can return to them, and deleted 90 days after the last question or when you clear them.</Li>

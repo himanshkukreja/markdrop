@@ -5,6 +5,9 @@ e2e stack (frontend/e2e/pages/real/api_run.py, PB_FAKE_ZOOM=1). Nothing leaves t
   Client ID and Secret) → an hour-long token with :attr:`FakeZoom.scopes`.
 * ``https://api.zoom.test/v2/``: ``users``, ``users/{email}/recordings`` (from/to, one month at most),
   ``meetings/{uuid}/recordings``, ``past_meetings/{uuid}/participants``.
+* Markdrop's Marketplace app (OAuth): ``POST /oauth/token`` (form ``grant_type=authorization_code`` with a
+  code from :meth:`FakeZoom.authorize`, or ``refresh_token``: rotated, the old one stops working),
+  ``POST /oauth/revoke`` (the app is removed), ``GET users/me`` (the approving admin, with ``account_id``).
 * ``https://zoom.test/rec/download/<uuid>``: the meeting's transcript (WebVTT).
 
 :meth:`event` builds the webhook body Zoom would send; :meth:`limit` makes the next calls answer 429.
@@ -25,6 +28,9 @@ ACCOUNT = "acct-ZOOM1"
 CLIENT_ID = "zoom-client-1"
 CLIENT_SECRET = "zoom-client-secret-1"
 SECRET_TOKEN = "zoom-secret-token-1"
+APP_CLIENT_ID = "mdapp-client"
+APP_CLIENT_SECRET = "mdapp-client-secret"
+APP_SECRET_TOKEN = "mdapp-secret-token"
 ALL_SCOPES = ["user:read:list_users:admin", "cloud_recording:read:list_user_recordings:admin",
               "cloud_recording:read:list_recording_files:admin", "meeting:read:list_past_participants:admin"]
 
@@ -50,6 +56,18 @@ class FakeZoom:
         self.n = 0
         self.ttl = 3600
         self.limited = 0                          # the next n API calls answer 429
+        self.codes: dict[str, str] = {}           # code → redirect_uri
+        self.refresh: set[str] = set()            # live refresh tokens (the app)
+        self.revoked: list[str] = []
+        self.app_scopes = ["user:read:user:admin", *ALL_SCOPES]
+        self.admin_email = "zoomadmin@acme.test"
+        self.app_account = ACCOUNT                # the account users/me reports (the app's installs)
+
+    def authorize(self, redirect_uri: str) -> str:
+        """An admin approved Markdrop's app: the code Zoom puts on the redirect."""
+        code = f"code-{len(self.codes) + 1}"
+        self.codes[code] = redirect_uri
+        return code
 
     # ── World building ──
 
@@ -119,6 +137,8 @@ class FakeZoom:
     def _handle(self, req: httpx.Request) -> httpx.Response:
         url = str(req.url)
         self.calls.append((req.method, url))
+        if url.startswith(AUTH + "/oauth/") and req.method == "POST" and not req.url.params.get("grant_type"):
+            return self._app_oauth(req)
         if url.startswith(AUTH + "/oauth/token"):
             basic = req.headers.get("authorization", "")[6:]
             try:
@@ -151,6 +171,9 @@ class FakeZoom:
         path = raw[len("/v2/"):]
         parts = path.split("/")
         q = req.url.params
+        if path == "users/me":
+            return self._json(200, {"id": "zu-admin", "account_id": self.app_account, "email": self.admin_email,
+                                    "first_name": "Zed", "last_name": "Admin", "type": 2, "role_name": "Owner"})
         if path == "users":
             if "user:read:list_users:admin" not in self.scopes:
                 return self._json(400, {"code": 4711, "message": "Invalid access token, does not contain scopes."})
@@ -181,6 +204,45 @@ class FakeZoom:
             return self._json(200, {"participants": [{"id": f"p{i}", "name": n} for i, n in enumerate(self.participants[uuid])],
                                     "next_page_token": ""})
         return self._json(404, {"code": 404, "message": f"No route {path}"})
+
+
+def _form(req: httpx.Request) -> dict:
+    from urllib.parse import parse_qsl
+
+    return dict(parse_qsl(req.content.decode()))
+
+
+def _app_oauth(self, req: httpx.Request) -> httpx.Response:
+    basic = req.headers.get("authorization", "")[6:]
+    try:
+        cid, sec = base64.b64decode(basic).decode().split(":", 1)
+    except Exception:
+        cid, sec = "", ""
+    if cid != APP_CLIENT_ID or sec != APP_CLIENT_SECRET:
+        return self._json(401, {"reason": "Invalid client_id or client_secret", "error": "invalid_client"})
+    f = _form(req)
+    if str(req.url).startswith(AUTH + "/oauth/revoke"):
+        self.revoked.append(f.get("token", ""))
+        self.refresh.discard(f.get("token", ""))
+        return self._json(200, {"status": "success"})
+    if f.get("grant_type") == "authorization_code":
+        if self.codes.pop(f.get("code", ""), None) != f.get("redirect_uri"):
+            return self._json(400, {"reason": "Invalid authorization code", "error": "invalid_grant"})
+    elif f.get("grant_type") == "refresh_token":
+        if f.get("refresh_token") not in self.refresh:
+            return self._json(400, {"reason": "Invalid Token!", "error": "invalid_grant"})
+        self.refresh.discard(f["refresh_token"])
+    else:
+        return self._json(400, {"reason": "Unsupported grant type", "error": "unsupported_grant_type"})
+    self.n += 1
+    tok, ref = f"atok-{self.n}", f"rtok-{self.n}"
+    self.tokens[tok] = datetime.now(timezone.utc).timestamp() + self.ttl
+    self.refresh.add(ref)
+    return self._json(200, {"access_token": tok, "token_type": "bearer", "refresh_token": ref, "expires_in": self.ttl,
+                            "scope": " ".join(self.app_scopes), "api_url": "https://api.zoom.us"})
+
+
+FakeZoom._app_oauth = _app_oauth
 
 
 def iso_days_ago(days: int, hour: int = 9) -> str:

@@ -13,6 +13,19 @@ listed) and a test call (the account's users). The secrets and the access token 
 (utils/crypto, MARKDROP_TOKEN_ENCRYPTION_KEY); the access token lasts an hour and a new one is
 fetched the same way (S2S apps have no refresh token), once at a time per workspace.
 
+**One click (the Zoom App Marketplace, 2026-11-11).** Markdrop's own admin-managed, account-level
+*General app* (settings.zoom_client_id/secret/webhook_secret): a workspace admin chooses **Connect
+Zoom**, a Zoom admin approves it on Zoom's consent screen (:func:`start` → Zoom → the frontend's
+/integrations/zoom/callback → :func:`finish`), and the tokens (access + rotating refresh token) are
+stored encrypted with the Zoom account's id (``GET users/me``). Installs that start in the Zoom App
+Marketplace come back without our ``state``: the callback page asks which workspace (admins only).
+Both kinds share the import, routing and privacy below; ``mode`` says which ("oauth" | "s2s").
+The app's events all reach ONE endpoint (``POST /api/v1/zoom/webhook``, signed with the app's Secret
+Token) and are routed by the payload's ``account_id``. ``app_deauthorized`` (the app was removed in
+Zoom) deletes the tokens, the Zoom account's identifiers and the import log at once
+(:func:`forget`); meetings already imported are the workspace's own pages and stay until an admin
+deletes them (Disconnect › "Also delete the meetings imported from Zoom" does it in one go).
+
 **Which meetings.** Only recorded meetings whose *host* is a member of the team the admin picked
 (matched by email: the Zoom user's address is the Markdrop account's). Others are ignored and never
 stored (not even their topic). A meeting lands in that team (``team_routing.chosen``), visible to the
@@ -34,21 +47,25 @@ the chosen ones as history (nobody is notified).
 ``no_transcript`` (with how to turn on Zoom's Audio transcript) until a transcript arrives.
 
 Collections
-    zoom_connections  _id = workspace id: account_id, client_id, client_secret_enc, webhook_secret_enc,
+    zoom_connections  _id = workspace id: mode (oauth | s2s), account_id, client_id, client_secret_enc,
+                      webhook_secret_enc (s2s), refresh_enc + zoom_user {id, email, name} (oauth),
                       access_enc, expires_at, scopes, team_id, connected_by, connected_at, verified_at,
                       broken, last_event_at, last_import_at, last_error, stats {imported, ignored, …}
     zoom_meetings     _id = "<workspace>:<uuid>": state, uuid, topic, host {user_id, name, email},
                       start_time, meeting_id, slug, via (webhook | backfill), reason, at
+    zoom_seen         _id = "state:<…>", expires_at (TTL): one-click connect states already used
 """
 
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import hmac
 import json
 import logging
 import re
+import secrets
 import time as _time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -67,6 +84,7 @@ log = logging.getLogger("markdrop.zoom")
 
 CONNS = "zoom_connections"
 MEETINGS = "zoom_meetings"
+SEEN = "zoom_seen"
 
 # The scopes Markdrop needs (granular scope, then the classic scope that also covers it).
 SCOPES: list[dict] = [
@@ -79,6 +97,13 @@ SCOPES: list[dict] = [
     {"scope": "meeting:read:list_past_participants:admin", "also": ["meeting:read:admin"], "required": False,
      "why": "Who joined each meeting (its attendees); without it, the transcript's speakers are used"},
 ]
+# Markdrop's Marketplace app also asks who approved it, for the Zoom account's id (one account ↔ one workspace).
+OAUTH_SCOPES: list[dict] = [
+    {"scope": "user:read:user:admin", "also": ["user:read:admin"], "required": True,
+     "why": "Identify the Zoom account that added the app (GET /users/me), so its events reach the right workspace"},
+    *SCOPES,
+]
+STATE_TTL = 15 * 60
 EVENTS = ("recording.transcript_completed", "recording.completed")
 NO_TRANSCRIPT = ("Zoom made no transcript for this meeting. In the Zoom web portal, an account admin turns on "
                  "Settings › Recording › Cloud recording › Advanced cloud recording settings › Create audio transcript "
@@ -117,9 +142,26 @@ def configured() -> bool:
     return crypto.is_configured()
 
 
+def app_configured() -> bool:
+    """Markdrop's Zoom Marketplace app is set up here: "Connect Zoom" (one click) is offered."""
+    return get_settings().zoom_app_configured and crypto.is_configured()
+
+
+def is_connected(conn: dict | None) -> bool:
+    """Credentials Markdrop can use: a Server-to-Server app's secret, or the Marketplace app's refresh token."""
+    return bool(conn and (conn.get("client_secret_enc") or conn.get("refresh_enc")))
+
+
+def mode_of(conn: dict | None) -> str | None:
+    if not conn:
+        return None
+    return conn.get("mode") or ("oauth" if conn.get("refresh_enc") else "s2s")
+
+
 async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[CONNS].create_index("account_id", unique=True, sparse=True)
     await db[MEETINGS].create_index([("workspace_id", 1), ("at", -1)])
+    await db[SEEN].create_index("expires_at", expireAfterSeconds=0)
 
 
 # ── Background work ───────────────────────────────────────────────────────────
@@ -198,7 +240,7 @@ async def require_import(db: AsyncIOMotorDatabase, user, workspace_id: str) -> d
     conn = await get(db, workspace_id)
     if not await can_import(db, user, workspace_id, conn):
         raise HTTPException(status_code=403, detail="Workspace admins and the team's leads import Zoom meetings.")
-    if conn is None or not conn.get("client_secret_enc"):
+    if not is_connected(conn):
         raise HTTPException(status_code=404, detail="This workspace isn't connected to Zoom.")
     if not conn.get("team_id"):
         raise HTTPException(status_code=409, detail="Pick the team Zoom meetings go to first (Integrations › Zoom).")
@@ -216,13 +258,13 @@ class ZoomUnavailable(Exception):
     """Zoom can't be reached with this workspace's app (wrong or deactivated credentials, missing scope)."""
 
 
-def missing_scopes(granted: list[str] | None) -> list[dict]:
+def missing_scopes(granted: list[str] | None, mode: str | None = "s2s") -> list[dict]:
     """The scopes the app lacks (None: Zoom didn't say which it has; nothing is reported missing)."""
     if granted is None:
         return []
     have = set(granted)
     return [{"scope": s["scope"], "why": s["why"], "required": s["required"]}
-            for s in SCOPES if s["scope"] not in have and not have.intersection(s["also"])]
+            for s in (OAUTH_SCOPES if mode == "oauth" else SCOPES) if s["scope"] not in have and not have.intersection(s["also"])]
 
 
 def _scopes_of(tok: dict) -> list[str] | None:
@@ -258,6 +300,9 @@ async def connect(db: AsyncIOMotorDatabase, user, workspace_id: str, *, account_
     other = await db[CONNS].find_one({"account_id": account_id, "_id": {"$ne": str(workspace_id)}}, {"_id": 1})
     if other is not None:
         raise HTTPException(status_code=409, detail="That Zoom account is connected to another Markdrop workspace. Disconnect it there first.")
+    if mode_of(old) == "oauth" and is_connected(old):
+        raise HTTPException(status_code=409, detail="This workspace is connected with the Markdrop app for Zoom. Disconnect it first "
+                                                    "to use your own Server-to-Server app instead.")
     if team_id is not None and team_id != "":
         await _check_team(db, workspace_id, team_id)
     try:
@@ -278,6 +323,7 @@ async def connect(db: AsyncIOMotorDatabase, user, workspace_id: str, *, account_
     now = now_utc()
     same_secret = bool(old and old.get("webhook_secret_enc") and crypto.decrypt(old["webhook_secret_enc"]) == token_)
     sets: dict[str, Any] = {
+        "mode": "s2s", "refresh_enc": None, "zoom_user": None,
         "account_id": account_id, "client_id": client_id, "client_secret_enc": crypto.encrypt(secret),
         "webhook_secret_enc": crypto.encrypt(token_), "access_enc": crypto.encrypt(tok["access_token"]),
         "expires_at": now + timedelta(seconds=int(tok.get("expires_in") or 3600)), "scopes": granted,
@@ -310,20 +356,57 @@ async def _check_team(db: AsyncIOMotorDatabase, workspace_id: str, team_id: str)
 async def set_team(db: AsyncIOMotorDatabase, user, workspace_id: str, team_id: str) -> dict:
     await require_admin(db, user, workspace_id)
     conn = await get(db, workspace_id)
-    if conn is None or not conn.get("client_secret_enc"):
+    if not is_connected(conn):
         raise HTTPException(status_code=404, detail="This workspace isn't connected to Zoom.")
     await _check_team(db, workspace_id, team_id)
     await db[CONNS].update_one({"_id": str(workspace_id)}, {"$set": {"team_id": team_id, "updated_at": now_utc()}})
     return await status(db, user, workspace_id)
 
 
-async def disconnect(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
-    """Forget the app's credentials and token, and the import log. Meetings already imported stay."""
+async def disconnect(db: AsyncIOMotorDatabase, user, workspace_id: str, *, delete_meetings: bool = False,
+                     actor=None, ctx=None) -> dict:
+    """Forget the credentials and tokens, and the import log. With the Marketplace app, its token is
+    revoked too (Zoom removes the app from the account). Meetings already imported stay, unless
+    ``delete_meetings`` (they go to the Trash, like deleting each one)."""
     await require_admin(db, user, workspace_id)
+    conn = await get(db, workspace_id)
+    if conn is not None and mode_of(conn) == "oauth" and conn.get("refresh_enc") and app_configured():
+        try:
+            await zoom_api.revoke(crypto.decrypt(conn["refresh_enc"]))
+        except Exception as exc:  # Zoom may already have removed it; Markdrop forgets it either way
+            log.info("zoom: revoking the app's token for %s: %r", workspace_id, exc)
     await db[CONNS].delete_one({"_id": str(workspace_id)})
     await db[MEETINGS].delete_many({"workspace_id": str(workspace_id)})
-    log.info("zoom: workspace %s disconnected Zoom", workspace_id)
-    return await status(db, user, workspace_id)
+    deleted = await delete_imported(db, workspace_id, actor, ctx) if delete_meetings else 0
+    log.info("zoom: workspace %s disconnected Zoom (%d imported meetings deleted)", workspace_id, deleted)
+    out = await status(db, user, workspace_id)
+    out["deleted_meetings"] = deleted
+    return out
+
+
+async def delete_imported(db: AsyncIOMotorDatabase, workspace_id: str, actor, ctx) -> int:
+    """Every meeting imported from Zoom in the workspace: to the Trash (pages) and gone (rows)."""
+    from app.services import meetings
+
+    n = 0
+    async for row in db[meetings.COLL].find({"workspace_id": str(workspace_id), "sources.file_id": {"$regex": "^zoom:"}}):
+        try:
+            await meetings.delete_meeting(db, row, actor, ctx)
+            n += 1
+        except HTTPException as exc:
+            log.info("zoom: deleting meeting %s: %s", row.get("_id"), exc.detail)
+    return n
+
+
+async def forget(db: AsyncIOMotorDatabase, workspace_id: str, why: str = "deauthorized") -> None:
+    """The app was removed in Zoom: delete the tokens and secrets, the Zoom account's identifiers and the
+    import log now. The row stays (team, counts, ``broken``) so the card says what happened."""
+    await db[CONNS].update_one({"_id": str(workspace_id)}, {"$set": {
+        "access_enc": None, "refresh_enc": None, "client_secret_enc": None, "webhook_secret_enc": None,
+        "expires_at": None, "zoom_user": None, "client_id": None, "scopes": None, "broken": why,
+        "deauthorized_at": now_utc()}, "$unset": {"account_id": ""}})
+    await db[MEETINGS].delete_many({"workspace_id": str(workspace_id)})
+    log.info("zoom: the Zoom app was removed for %s; its tokens and Zoom data are deleted", workspace_id)
 
 
 async def _mark_broken(db: AsyncIOMotorDatabase, ws: str, why: str) -> None:
@@ -337,11 +420,13 @@ async def access_token(db: AsyncIOMotorDatabase, conn: dict, *, fresh: bool = Fa
         return crypto.decrypt(conn["access_enc"])
     async with _lock(ws):
         row = await get(db, ws)
-        if row is None or not row.get("client_secret_enc"):
+        if not is_connected(row):
             raise ZoomUnavailable("This workspace isn't connected to Zoom.")
         exp = _aware(row.get("expires_at"))
         if row.get("access_enc") and exp and exp - TOKEN_EARLY > now_utc() and (not fresh or row.get("access_enc") != conn.get("access_enc")):
             return crypto.decrypt(row["access_enc"])
+        if mode_of(row) == "oauth":
+            return await _refresh(db, row, conn)
         try:
             tok = await zoom_api.token(row["account_id"], row["client_id"], crypto.decrypt(row["client_secret_enc"]))
         except zoom_api.ZoomError as exc:
@@ -355,6 +440,30 @@ async def access_token(db: AsyncIOMotorDatabase, conn: dict, *, fresh: bool = Fa
             "expires_at": now + timedelta(seconds=int(tok.get("expires_in") or 3600))}})
         conn["access_enc"] = None
         return tok["access_token"]
+
+
+async def _refresh(db: AsyncIOMotorDatabase, row: dict, conn: dict) -> str:
+    """The Marketplace app's token, refreshed (the caller holds the workspace's lock). Zoom rotates the
+    refresh token: the new one is stored before the access token is used."""
+    ws = row["_id"]
+    if not app_configured():
+        raise ZoomUnavailable("Zoom isn't available on this Markdrop server.")
+    try:
+        tok = await zoom_api.oauth_token("refresh_token", refresh_token=crypto.decrypt(row["refresh_enc"]))
+    except zoom_api.ZoomError as exc:
+        if exc.status in (400, 401, 403) or exc.reason in ("invalid_grant", "invalid_token"):
+            await _mark_broken(db, ws, "reauthorize")
+            raise ZoomUnavailable("Zoom no longer accepts Markdrop's connection. A workspace admin reconnects Zoom "
+                                  "(Integrations › Zoom › Reconnect).")
+        raise
+    now = now_utc()
+    sets: dict[str, Any] = {"access_enc": crypto.encrypt(tok["access_token"]), "scopes": _scopes_of(tok) or row.get("scopes"),
+                            "expires_at": now + timedelta(seconds=int(tok.get("expires_in") or 3600)), "refreshed_at": now}
+    if tok.get("refresh_token"):
+        sets["refresh_enc"] = crypto.encrypt(tok["refresh_token"])
+    await db[CONNS].update_one({"_id": ws}, {"$set": sets})
+    conn["access_enc"] = None
+    return tok["access_token"]
 
 
 async def _sleep(seconds: float) -> None:
@@ -396,6 +505,136 @@ async def download(db: AsyncIOMotorDatabase, conn: dict, url: str, download_toke
     raise zoom_api.ZoomError(429, "Zoom asked Markdrop to slow down.")
 
 
+# ── One click: Markdrop's Zoom Marketplace app ────────────────────────────────
+
+
+def _b64(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).decode().rstrip("=")
+
+
+def _unb64(v: str) -> bytes:
+    return base64.urlsafe_b64decode(v + "=" * (-len(v) % 4))
+
+
+def _state_key() -> bytes:
+    st = get_settings()
+    return hmac.new(st.auth_secret.encode(), b"markdrop-zoom|state|" + st.zoom_client_secret.encode(), hashlib.sha256).digest()
+
+
+def sign_state(user_id: str, workspace_id: str, team_id: str | None = None, *, at: float | None = None) -> str:
+    raw = json.dumps({"u": user_id, "w": workspace_id, "tm": team_id or None, "t": int(at if at is not None else _time.time()),
+                      "n": secrets.token_hex(8)}, separators=(",", ":"))
+    body = _b64(raw.encode())
+    return body + "." + _b64(hmac.new(_state_key(), body.encode(), hashlib.sha256).digest())
+
+
+def read_state(state: str, user_id: str, *, at: float | None = None) -> dict | None:
+    """The state's fields when it's ours, for this person, and recent; else None."""
+    try:
+        body, sig = (state or "").split(".", 1)
+        if not hmac.compare_digest(sig, _b64(hmac.new(_state_key(), body.encode(), hashlib.sha256).digest())):
+            return None
+        data = json.loads(_unb64(body))
+    except (ValueError, TypeError):
+        return None
+    now = at if at is not None else _time.time()
+    if not isinstance(data, dict) or data.get("u") != user_id or not (0 <= now - int(data.get("t", 0)) <= STATE_TTL):
+        return None
+    return data
+
+
+def redirect_uri() -> str:
+    """The Marketplace app's OAuth redirect URL (and its allow list entry)."""
+    return get_settings().frontend_url.rstrip("/") + "/integrations/zoom/callback"
+
+
+def _need_app() -> None:
+    if not app_configured():
+        raise HTTPException(status_code=503, detail="Connecting Zoom in one click isn't available on this Markdrop server yet.")
+
+
+async def start(db: AsyncIOMotorDatabase, user, workspace_id: str, team_id: str | None = None) -> str:
+    """Zoom's consent screen for Markdrop's app (a workspace admin starts it; a Zoom admin approves)."""
+    await require_admin(db, user, workspace_id)
+    _need_app()
+    if team_id:
+        await _check_team(db, workspace_id, team_id)
+    return zoom_api.authorize_url(sign_state(user.id, workspace_id, team_id), redirect_uri())
+
+
+async def _once(db: AsyncIOMotorDatabase, key: str) -> bool:
+    try:
+        await db[SEEN].insert_one({"_id": key[:200], "expires_at": now_utc() + timedelta(seconds=STATE_TTL * 2)})
+        return True
+    except DuplicateKeyError:
+        return False
+
+
+async def finish(db: AsyncIOMotorDatabase, user, code: str, state: str | None, workspace_id: str | None = None,
+                 team_id: str | None = None) -> dict:
+    """Zoom came back with a code. From Markdrop (``state``: signed, this person's, recent, used once) the
+    workspace is the state's; from the Zoom App Marketplace (no state) the person picked it on the
+    callback page. Exchange the code, find the Zoom account (``users/me``), store the tokens encrypted.
+    A workspace on a Server-to-Server app switches to the Marketplace app (its secrets are deleted)."""
+    _need_app()
+    if state:
+        data = read_state(state, user.id)
+        if data is None:
+            raise HTTPException(status_code=400, detail="This Zoom link expired or isn't yours. Start again from Integrations › Zoom.")
+        if not await _once(db, "state:" + state[-40:]):
+            raise HTTPException(status_code=400, detail="This Zoom link was already used. Start again from Integrations › Zoom.")
+        workspace_id, team_id = data.get("w") or "", data.get("tm") or team_id
+    if not workspace_id:
+        raise HTTPException(status_code=422, detail="Pick the Markdrop workspace to connect Zoom to.")
+    await require_admin(db, user, workspace_id)
+    if team_id:
+        await _check_team(db, workspace_id, team_id)
+    try:
+        tok = await zoom_api.oauth_token("authorization_code", code=code, redirect_uri=redirect_uri())
+    except zoom_api.ZoomError as exc:
+        log.info("zoom connect (app): token %s %s", exc.status, exc.reason)
+        raise HTTPException(status_code=400, detail="Zoom didn't accept the sign-in (the link may have expired). Connect Zoom again.")
+    if not tok.get("refresh_token"):
+        raise HTTPException(status_code=502, detail="Zoom didn't send everything Markdrop needs. Connect Zoom again.")
+    try:
+        me = await zoom_api.api("GET", "users/me", tok["access_token"]) or {}
+    except zoom_api.ZoomError as exc:
+        log.info("zoom connect (app): users/me %s %s", exc.status, exc.reason)
+        raise HTTPException(status_code=502, detail="Zoom didn't say which account approved the app. Try again in a minute.")
+    account_id = str(me.get("account_id") or "")
+    if not account_id:
+        raise HTTPException(status_code=502, detail="Zoom didn't say which account approved the app. Try again in a minute.")
+    other = await db[CONNS].find_one({"account_id": account_id, "_id": {"$ne": str(workspace_id)}}, {"_id": 1})
+    if other is not None:
+        raise HTTPException(status_code=409, detail="That Zoom account is connected to another Markdrop workspace. Disconnect it there first.")
+    old = await get(db, workspace_id)
+    now = now_utc()
+    granted = _scopes_of(tok)
+    missing = missing_scopes(granted, "oauth")
+    name = " ".join(x for x in (me.get("first_name"), me.get("last_name")) if x) or me.get("display_name") or None
+    sets: dict[str, Any] = {
+        "mode": "oauth", "account_id": account_id, "client_id": None, "client_secret_enc": None, "webhook_secret_enc": None,
+        "access_enc": crypto.encrypt(tok["access_token"]), "refresh_enc": crypto.encrypt(tok["refresh_token"]),
+        "expires_at": now + timedelta(seconds=int(tok.get("expires_in") or 3600)), "scopes": granted,
+        "zoom_user": {"id": str(me.get("id") or "") or None, "email": (me.get("email") or "").lower() or None, "name": name},
+        "broken": "missing_scopes" if [m for m in missing if m["required"]] else None, "test_error": None,
+        "updated_at": now, "checked_at": now, "verified_at": now, "connected_by": user.id, "connected_at": now,
+        "deauthorized_at": None,
+    }
+    if not old or not is_connected(old) or mode_of(old) != "oauth":
+        sets["stats"] = (old or {}).get("stats") or {}
+    if team_id:
+        sets["team_id"] = team_id
+    try:
+        await db[CONNS].update_one({"_id": str(workspace_id)}, {"$set": sets}, upsert=True)
+    except DuplicateKeyError:
+        raise HTTPException(status_code=409, detail="That Zoom account is connected to another Markdrop workspace.")
+    log.info("zoom: workspace %s connected Zoom account %s (Marketplace app)", workspace_id, account_id)
+    out = await status(db, user, workspace_id)
+    out["workspace_id"] = str(workspace_id)
+    return out
+
+
 # ── The webhook ───────────────────────────────────────────────────────────────
 
 
@@ -423,22 +662,76 @@ def validation_answer(secret: str, plain: str) -> dict:
     return {"plainToken": plain, "encryptedToken": hmac.new(secret.encode(), plain.encode(), hashlib.sha256).hexdigest()}
 
 
-def webhook_url(workspace_id: str) -> str:
-    return get_settings().api_base_url.rstrip("/") + f"/api/v1/zoom/webhook/{workspace_id}"
+def webhook_url(workspace_id: str | None = None) -> str:
+    """The event notification endpoint: a workspace's own (Server-to-Server) or the Marketplace app's (None)."""
+    base = get_settings().api_base_url.rstrip("/") + "/api/v1/zoom/webhook"
+    return f"{base}/{workspace_id}" if workspace_id else base
+
+
+def _parse(body: bytes) -> dict | None:
+    try:
+        payload = json.loads(body or b"{}")
+    except ValueError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+async def handle_app_webhook(db: AsyncIOMotorDatabase, headers, body: bytes) -> tuple[int, dict]:
+    """Every event of Markdrop's Marketplace app, for every customer: Zoom's signature with the app's
+    Secret Token, then routed to the workspace connected to the payload's ``account_id``."""
+    if not app_configured():
+        return 404, {"detail": "Not found"}
+    secret = get_settings().zoom_webhook_secret
+    why = verify(secret, headers, body)
+    if why:
+        log.info("zoom: refused an app webhook (%s)", why)
+        return 401, {"detail": "Bad signature"}
+    payload = _parse(body)
+    if payload is None:
+        return 400, {"detail": "Bad JSON"}
+    event = str(payload.get("event") or "")
+    inner = payload.get("payload") or {}
+    if event == "endpoint.url_validation":
+        plain = str(inner.get("plainToken") or "")
+        if not plain or len(plain) > 256:
+            return 400, {"detail": "No plainToken"}
+        return 200, validation_answer(secret, plain)
+    account = str(inner.get("account_id") or "")
+    conn = await db[CONNS].find_one({"account_id": account, "mode": "oauth"}) if account else None
+    if conn is None:
+        log.info("zoom: an app event (%s) for an account no workspace has", event or "?")
+        return 200, {"ok": True, "ignored": "account"}
+    if event == "app_deauthorized":
+        if inner.get("client_id") and inner.get("client_id") != get_settings().zoom_client_id:
+            return 200, {"ok": True, "ignored": "client"}
+        await forget(db, conn["_id"])
+        return 200, {"ok": True}
+    return await _dispatch(db, conn, event, payload)
+
+
+async def _dispatch(db: AsyncIOMotorDatabase, conn: dict, event: str, payload: dict) -> tuple[int, dict]:
+    inner = payload.get("payload") or {}
+    await db[CONNS].update_one({"_id": conn["_id"]}, {"$set": {"last_event_at": now_utc(), "verified_at": conn.get("verified_at") or now_utc()}})
+    if event in EVENTS:
+        obj = inner.get("object") or {}
+        if obj.get("uuid"):
+            spawn(handle_recording(db, conn["_id"], obj, event=event, download_token=payload.get("download_token"),
+                                   via="webhook"))
+        return 200, {"ok": True}
+    return 200, {"ok": True, "ignored": "event"}
 
 
 async def handle_webhook(db: AsyncIOMotorDatabase, workspace_id: str, headers, body: bytes) -> tuple[int, dict]:
     conn = await get(db, workspace_id) if ObjectId.is_valid(workspace_id or "") else None
-    if conn is None or not conn.get("webhook_secret_enc"):
+    if conn is None or not conn.get("webhook_secret_enc") or mode_of(conn) != "s2s":
         return 404, {"detail": "Not found"}
     secret = crypto.decrypt(conn["webhook_secret_enc"])
     why = verify(secret, headers, body)
     if why:
         log.info("zoom: refused a webhook for %s (%s)", workspace_id, why)
         return 401, {"detail": "Bad signature"}
-    try:
-        payload = json.loads(body or b"{}")
-    except ValueError:
+    payload = _parse(body)
+    if payload is None:
         return 400, {"detail": "Bad JSON"}
     event = str(payload.get("event") or "")
     inner = payload.get("payload") or {}
@@ -451,19 +744,13 @@ async def handle_webhook(db: AsyncIOMotorDatabase, workspace_id: str, headers, b
     if inner.get("account_id") and inner.get("account_id") != conn.get("account_id"):
         log.info("zoom: a webhook for another account reached %s", workspace_id)
         return 200, {"ok": True, "ignored": "account"}
-    await db[CONNS].update_one({"_id": conn["_id"]}, {"$set": {"last_event_at": now_utc(), "verified_at": conn.get("verified_at") or now_utc()}})
     if event == "app_deauthorized":
         await db[CONNS].update_one({"_id": conn["_id"]}, {"$set": {"access_enc": None, "client_secret_enc": None,
-                                                                  "expires_at": None, "broken": "deauthorized"}})
+                                                                  "expires_at": None, "broken": "deauthorized",
+                                                                  "last_event_at": now_utc()}})
         log.info("zoom: the app was deauthorized for %s; its credentials are deleted", workspace_id)
         return 200, {"ok": True}
-    if event in EVENTS:
-        obj = inner.get("object") or {}
-        if obj.get("uuid"):
-            spawn(handle_recording(db, conn["_id"], obj, event=event, download_token=payload.get("download_token"),
-                                   via="webhook"))
-        return 200, {"ok": True}
-    return 200, {"ok": True, "ignored": "event"}
+    return await _dispatch(db, conn, event, payload)
 
 
 # ── One recorded meeting → a Markdrop meeting ─────────────────────────────────
@@ -602,7 +889,7 @@ async def handle_recording(db: AsyncIOMotorDatabase, workspace_id: str, obj: dic
     from app.services import user as user_service
 
     conn = await get(db, workspace_id)
-    if conn is None or not conn.get("client_secret_enc"):
+    if not is_connected(conn):
         return {"status": "ignored", "reason": "not_connected"}
     if not conn.get("team_id"):
         await _count(db, workspace_id, "ignored")
@@ -859,10 +1146,12 @@ async def status(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
     role = await role_of(db, user, workspace_id)
     admin = role_allows(role, "admin")
     conn = await get(db, workspace_id)
-    connected = bool(conn and conn.get("client_secret_enc"))
+    connected = is_connected(conn)
+    mode = mode_of(conn) if conn else None
     team = await _team(db, workspace_id, (conn or {}).get("team_id")) if conn else None
     out: dict[str, Any] = {
         "configured": configured(), "can_manage": admin, "connected": connected,
+        "app_available": app_configured(), "mode": mode,
         "webhook_url": webhook_url(workspace_id) if admin else None,
         "scopes_needed": [{"scope": s["scope"], "why": s["why"], "required": s["required"]} for s in SCOPES] if admin else None,
         "events": list(EVENTS) if admin else None,
@@ -883,9 +1172,11 @@ async def status(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
         if admin:
             u = await db["users"].find_one({"_id": ObjectId(conn["connected_by"])}, {"name": 1, "email": 1}) \
                 if ObjectId.is_valid(str(conn.get("connected_by") or "")) else None
+            zu = conn.get("zoom_user") or {}
             c.update(account_id=_mask(conn.get("account_id")), client_id=_mask(conn.get("client_id")),
                      connected_by=(u or {}).get("name") or ((u or {}).get("email") or "").split("@")[0] or None,
-                     missing_scopes=missing_scopes(conn.get("scopes")), test_error=conn.get("test_error"),
+                     approved_by=(zu.get("name") or zu.get("email")) if mode == "oauth" else None,
+                     missing_scopes=missing_scopes(conn.get("scopes"), mode), test_error=conn.get("test_error"),
                      last_error=st.get("last_error"))
         out["connection"] = c
     if admin:
