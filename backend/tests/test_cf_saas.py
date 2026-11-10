@@ -227,6 +227,9 @@ class CloudflareProvider(CfCase):
         self.cf.hostnames["help.acme.com"] = {"id": "ch-guide", "hostname": "help.acme.com"}
         self.assertTrue(await cf_saas.remove("help.acme.com", db=self.db))
         self.assertIn("help.acme.com", self.cf.hostnames)
+        # through the domain service too (no db in hand: the app's database is used)
+        self.assertTrue(await domain_service.detach_from_hosting("help.acme.com"))
+        self.assertIn("help.acme.com", self.cf.hostnames)
 
     async def test_own_names_are_refused_before_any_call(self):
         for host in ("markdrop.in", "edge.markdrop.in", "1.2.3.4", "nodot"):

@@ -112,6 +112,13 @@ def checked(host: Any) -> str:
 async def _guides_host(db, host: str) -> bool:
     """A guide's own domain (docs_custom_domains): its custom hostname and route are the Guides'."""
     if db is None:
+        try:
+            from app.database import get_database
+
+            db = get_database()
+        except Exception:
+            db = None
+    if db is None:
         return False
     from app.services.docs_jobs import SITES
 
