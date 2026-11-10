@@ -35,6 +35,7 @@ from pymongo.errors import DuplicateKeyError, OperationFailure
 
 from app.config import get_settings
 from app.models.domain import Domain, DomainKind
+from app.services import cf_saas
 from app.utils.http import shared_ssl
 
 settings = get_settings()
@@ -90,6 +91,8 @@ def _to_domain(raw: dict) -> Domain:
         routing_ok=raw.get("routing_ok"),
         txt_ok=raw.get("txt_ok", True if raw.get("status") == "verified" else None),
         expires_at=raw.get("expires_at"),
+        attached_via=raw.get("attached_via"),
+        cf_saas=raw.get("cf_saas") if isinstance(raw.get("cf_saas"), dict) else None,
     )
 
 
@@ -277,7 +280,17 @@ async def add_domain(
 
 
 async def detach_from_hosting(host: str) -> bool:
-    """Release a host from the hosting project. Best effort, never raises.
+    """Release a host from every hosting provider that may hold it (Vercel, and Cloudflare for SaaS
+    whenever its credentials are set: a custom hostname made ahead of the move is released too).
+    Best effort, never raises; True when no provider holds it any more."""
+    ok = await _vercel_detach(host)
+    if cf_saas.configured():
+        ok = await cf_saas.remove(host) and ok
+    return ok
+
+
+async def _vercel_detach(host: str) -> bool:
+    """Release a host from the Vercel project. Best effort, never raises.
 
     Forgetting this is worse than it looks: Vercel refuses to add a domain that
     is already on another project, so a host left attached after its Markdrop
@@ -579,6 +592,51 @@ async def _vercel_attach(host: str) -> tuple[bool, str | None]:
     return False, detail
 
 
+def hosting_configured() -> bool:
+    """The selected provider (MARKDROP_DOMAIN_PROVIDER) has its credentials."""
+    return cf_saas.configured() if cf_saas.is_provider() else settings.vercel_domains_configured
+
+
+async def _attach(db: AsyncIOMotorDatabase, raw: dict) -> tuple[bool, str | None, dict]:
+    """Register the host with the selected provider: (ok, error detail, row updates)."""
+    if cf_saas.is_provider():
+        try:
+            st = await cf_saas.ensure(raw["host"], db=db)
+        except (cf_saas.CfSaasError, cf_saas.CfSaasRefused) as exc:
+            return False, str(exc), {}
+        return True, None, {"attached_via": "cloudflare_saas", "cf_saas": st}
+    ok, detail = await _vercel_attach(raw["host"])
+    return ok, detail, ({"attached_via": "vercel"} if ok else {})
+
+
+async def refresh_cloudflare(db: AsyncIOMotorDatabase, raw: dict, *, nudge: bool = False) -> None:
+    """Read the host's Cloudflare for SaaS custom hostname into `cf_saas` (the pre-validation records the
+    Domains card shows, and whether the certificate is ready). Under the Vercel provider only rows that
+    already have one (scripts/cf_saas_migrate.py made it) are read; under cloudflare_saas a verified,
+    attached row whose hostname is missing gets it again. Best effort: never raises."""
+    if not cf_saas.configured():
+        return
+    cur = raw.get("cf_saas") if isinstance(raw.get("cf_saas"), dict) else {}
+    serving = raw.get("status") == "verified" and raw.get("attached")
+    if not cur.get("id") and not (cf_saas.is_provider() and serving):
+        return
+    try:
+        st = await cf_saas.refresh(raw["host"], cur.get("id"), nudge=nudge)
+        if st is None and cf_saas.is_provider() and serving:
+            st = await cf_saas.ensure(raw["host"], db=db)
+        elif st is not None and "routed" in cur:
+            st["routed"] = cur["routed"]
+    except Exception as exc:
+        log.warning("cloudflare state for %s: %s", raw.get("host"), str(exc)[:200])
+        return
+    if st is None:
+        await db["domains"].update_one({"_id": raw["_id"]}, {"$unset": {"cf_saas": ""}})
+        raw.pop("cf_saas", None)
+        return
+    await db["domains"].update_one({"_id": raw["_id"]}, {"$set": {"cf_saas": st}})
+    raw["cf_saas"] = st
+
+
 async def _ensure_attached(db: AsyncIOMotorDatabase, raw: dict, routing_state: str | None) -> None:
     """Bring a verified host on the air, if it isn't already.
 
@@ -590,10 +648,10 @@ async def _ensure_attached(db: AsyncIOMotorDatabase, raw: dict, routing_state: s
     if raw.get("attached") or raw.get("status") != "verified":
         return
     now = _now()
-    if settings.vercel_domains_configured:
-        ok, detail = await _vercel_attach(raw["host"])
+    if hosting_configured():
+        ok, detail, extra = await _attach(db, raw)
         updates = (
-            {"attached": True, "attached_via": "vercel", "last_error": None}
+            {"attached": True, "last_error": None, **extra}
             if ok else {"last_error": f"Hosting provider refused the domain: {detail}"}
         )
     elif routing_state == "ok":
@@ -619,14 +677,14 @@ async def attach_to_hosting(db: AsyncIOMotorDatabase, workspace_id: str, domain_
             detail="Prove ownership first — the DNS record has to be visible before "
             "the domain can be attached.",
         )
-    if not settings.vercel_domains_configured:
+    if not hosting_configured():
         raise AttachUnavailable(
             "No hosting credentials are configured, so this domain has to be attached by hand."
         )
-    ok, detail = await _vercel_attach(raw["host"])
+    ok, detail, extra = await _attach(db, raw)
     now = _now()
     if ok:
-        updates = {"attached": True, "attached_via": "vercel", "last_error": None, "last_checked_at": now}
+        updates = {"attached": True, "last_error": None, "last_checked_at": now, **extra}
         await db["domains"].update_one({"_id": raw["_id"]}, {"$set": updates})
         raw.update(updates)
         await _purge_host(db, raw)
@@ -662,9 +720,11 @@ async def detach_domain(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: 
 
     now = _now()
     await db["domains"].update_one(
-        {"_id": raw["_id"]}, {"$set": {"attached": False, "last_error": None, "last_checked_at": now}}
+        {"_id": raw["_id"]},
+        {"$set": {"attached": False, "last_error": None, "last_checked_at": now}, "$unset": {"cf_saas": ""}},
     )
     raw.update(attached=False, last_error=None, last_checked_at=now)
+    raw.pop("cf_saas", None)
     await _purge_host(db, raw)
     return _to_domain(raw)
 
@@ -729,8 +789,9 @@ async def _unverify(db: AsyncIOMotorDatabase, raw: dict, now: datetime, reason: 
         "last_error": reason, "last_checked_at": now, "expires_at": _pending_expiry(now),
         "failures": 0, "first_failed_at": None,
     }
-    await db["domains"].update_one({"_id": raw["_id"]}, {"$set": updates})
+    await db["domains"].update_one({"_id": raw["_id"]}, {"$set": updates, "$unset": {"cf_saas": ""}})
     raw.update(updates)
+    raw.pop("cf_saas", None)
     await _purge_host(db, raw)
 
 
@@ -745,10 +806,13 @@ async def lapse(db: AsyncIOMotorDatabase, raw: dict, now: datetime, reason: str)
     # It is chosen again automatically if it comes back and no other was.
     updates: dict = {"status": "lapsed", "lapsed_at": now, "last_checked_at": now,
                      "last_error": reason, "is_primary": False}
+    change: dict = {"$set": updates}
     if raw.get("attached"):
         if await detach_from_hosting(raw["host"]):
             updates["attached"] = False
-    await db["domains"].update_one({"_id": raw["_id"]}, {"$set": updates})
+            change["$unset"] = {"cf_saas": ""}
+            raw.pop("cf_saas", None)
+    await db["domains"].update_one({"_id": raw["_id"]}, change)
     raw.update(updates)
     await _purge_host(db, raw)
     log.warning("domain %s lapsed: %s", raw["host"], reason)
@@ -792,6 +856,7 @@ async def verify_domain(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: 
         await db["domains"].update_one({"_id": raw["_id"]}, {"$set": updates})
         raw.update(updates)
         await _ensure_attached(db, raw, routing)
+        await refresh_cloudflare(db, raw, nudge=True)
         return _to_domain(raw)
 
     if txt == "ok" and (status != "lapsed" or routing == "ok"):
@@ -836,6 +901,7 @@ async def recheck(db: AsyncIOMotorDatabase, raw: dict, now: datetime | None = No
         await db["domains"].update_one({"_id": raw["_id"]}, {"$set": updates})
         raw.update(updates)
         await _ensure_attached(db, raw, routing)
+        await refresh_cloudflare(db, raw)
         return "ok"
 
     first = _aware(raw.get("first_failed_at")) or now

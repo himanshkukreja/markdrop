@@ -6,8 +6,10 @@ otherwise anyone could claim a hostname they don't control.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import PlainTextResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from starlette.concurrency import run_in_threadpool
+from urllib.parse import urlparse
 
 from app.config import get_settings
 from app.database import get_database
@@ -22,6 +24,7 @@ from app.schemas.domain import (
     DomainCreate,
     DomainListResponse,
     DomainResponse,
+    HostingRecord,
     HostResolution,
 )
 from app.services import dns_provider as dns_provider_service
@@ -105,7 +108,27 @@ def _to_response(domain: Domain) -> DomainResponse:
         expires_at=domain.expires_at if domain.status != "verified" else None,
         apex_certain=certain,
         dns_routing_options=options,
+        **_hosting_fields(domain),
     )
+
+
+def _hosting_fields(domain: Domain) -> dict:
+    """The Cloudflare for SaaS state of a domain that has a custom hostname (admins only)."""
+    cf = domain.cf_saas or {}
+    if not cf.get("id"):
+        return {}
+    records = []
+    for r in cf.get("records") or []:
+        try:
+            records.append(HostingRecord(**{k: r.get(k) for k in ("type", "name", "value", "purpose", "needed")}))
+        except Exception:
+            continue
+    return {
+        "hosting_provider": "cloudflare_saas",
+        "hosting_ready": bool(cf.get("ready")),
+        "hosting_message": cf.get("message"),
+        "hosting_records": records,
+    }
 
 
 @router.get("/workspaces/{workspace_id}/domains", response_model=DomainListResponse)
@@ -317,3 +340,37 @@ async def resolve_host(
         viewer_chrome=s.viewer_chrome,
         require_auth_to_view=s.require_auth_to_view,
     )
+
+
+_CHALLENGE_PREFIX = "/.well-known/cf-custom-hostname-challenge/"
+
+
+@router.get("/host/challenge", response_class=PlainTextResponse, include_in_schema=False)
+@limiter.limit("120/minute")
+async def hostname_challenge(
+    request: Request,
+    host: str,
+    path: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Cloudflare for SaaS hostname ownership, proven over HTTP on the host itself.
+
+    Before a workspace host moves to Cloudflare, Cloudflare checks
+    `http://<host>/.well-known/cf-custom-hostname-challenge/<id>` for a token. The host is still served
+    by the web app (its middleware sends that path here, with the Host it was asked on), so the
+    customer needn't add the `_cf-custom-hostname` TXT record. The token is meant to be public at that
+    URL; only the exact path Cloudflare gave for this host answers.
+    """
+    clean = domain_service.clean_host(host)
+    if not clean or not path.startswith(_CHALLENGE_PREFIX) or len(path) > 200:
+        raise HTTPException(status_code=404, detail="Not found")
+    raw = await db["domains"].find_one(
+        {"host": clean, "status": "verified", "cf_saas.http_body": {"$type": "string"}},
+        {"cf_saas": 1},
+    )
+    cf = (raw or {}).get("cf_saas") or {}
+    url = str(cf.get("http_url") or "")
+    expected = urlparse(url).path if url else ""
+    if not expected or expected != path or (urlparse(url).hostname or "").lower() != clean:
+        raise HTTPException(status_code=404, detail="Not found")
+    return PlainTextResponse(str(cf["http_body"]), headers={"Cache-Control": "no-store"})

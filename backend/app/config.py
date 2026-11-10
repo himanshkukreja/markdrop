@@ -292,6 +292,22 @@ class Settings(BaseSettings):
     # An unverified claim holds nothing and expires: without this a typed-in
     # hostname squatted it for every other workspace forever.
     domain_pending_ttl_days: int = 7
+    # Who serves workspace custom domains (services/cf_saas.py, .work/cf-audit/SAAS-OWNER-STEPS.md):
+    #   "vercel"          — the Vercel Domains API above (today);
+    #   "cloudflare_saas" — Cloudflare for SaaS custom hostnames on the markdrop.in zone, each with a
+    #                       Worker route `<host>/*` → `cf_saas_worker`.
+    # Flip to cloudflare_saas only after edge.markdrop.in points at Cloudflare. While cf_zone_id and
+    # cf_saas_token are set, a domain's Cloudflare state (pre-validation records) is read and shown
+    # under either provider, so a host can be validated on Cloudflare before its traffic moves.
+    domain_provider: Literal["vercel", "cloudflare_saas"] = "vercel"
+    cf_zone_id: str = ""
+    # Zone › SSL and Certificates › Edit + Zone › Workers Routes › Edit on markdrop.in.
+    cf_saas_token: str = ""
+    cf_saas_worker: str = "markdrop-web"
+    # How certificates are validated: "txt" (pre-validation: an _acme-challenge TXT record the customer
+    # adds while their traffic is still elsewhere) or "http" (Cloudflare answers it at the edge once the
+    # host's CNAME reaches the zone: nothing to add — the default for new domains after the cutover).
+    cf_saas_ssl_method: Literal["txt", "http"] = "txt"
 
     # Weekly analytics digest (services/analytics_digest.py): on Mondays from
     # 03:30 UTC, one email per owner whose links were viewed last week. Off
