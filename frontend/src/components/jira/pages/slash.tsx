@@ -16,7 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Editor, Range } from "@tiptap/core";
-import type { Transaction } from "@tiptap/pm/state";
+import { Selection, TextSelection, type Transaction } from "@tiptap/pm/state";
 import { Button, Dialog, Field, Input, Select } from "@/components/ui";
 import { JIRA_PRESETS, JIRA_PROJECT_RX, type JiraAction, type JiraPresetAttrs, type JiraSlash } from "@/components/docs-editor/blocks";
 import { PRIMARY_HOST } from "@/lib/hosts";
@@ -70,7 +70,7 @@ function hrefWithAdd(base: string, action: JiraAction | null, pos: number): stri
   return `${u.pathname}${u.search}`;
 }
 
-export function useJiraSlash({ mode, slug, workspaceId, tenant, jira, editor, flush }: {
+export function useJiraSlash({ mode, slug, workspaceId, tenant, jira, editor, flush, ready = true }: {
   mode: "page" | "doc";
   slug: string;
   workspaceId: string | null;
@@ -82,6 +82,8 @@ export function useJiraSlash({ mode, slug, workspaceId, tenant, jira, editor, fl
   editor?: Editor | null;
   /** Saves what's pending before leaving the page. */
   flush?: (() => Promise<unknown>) | null;
+  /** The editor can be changed (a command waiting from ?jira_add goes in only then). */
+  ready?: boolean;
 }): { slash: JiraSlash; dialog: ReactNode } {
   const [ask, setAsk] = useState<Ask | null>(null);
   const jiraRef = useRef(jira);
@@ -115,8 +117,8 @@ export function useJiraSlash({ mode, slug, workspaceId, tenant, jira, editor, fl
   const put = useCallback((editor: Editor, at: Spot, content: object | object[]) => {
     at.stop();
     if (editor.isDestroyed) return;
-    const pos = Math.max(0, Math.min(at.pos, editor.state.doc.content.size));
-    editor.chain().focus().setTextSelection(pos).insertContent(content).run();
+    const sel = caretAt(editor.state.doc, at.pos, false);
+    editor.chain().focus().command(({ tr }) => { tr.setSelection(sel); return true; }).insertContent(content).run();
   }, []);
 
   const putLink = useCallback(async (editor: Editor, at: Spot | null, key: string, site: string | null, range?: { from: Spot; to: Spot; text: string } | null) => {
@@ -208,7 +210,7 @@ export function useJiraSlash({ mode, slug, workspaceId, tenant, jira, editor, fl
     return () => { off(); };
   }, [state]);
   useEffect(() => {
-    if (resumed.current || !editor || editor.isDestroyed || !loaded || typeof window === "undefined") return;
+    if (resumed.current || !editor || editor.isDestroyed || !loaded || !ready || typeof window === "undefined") return;
     const q = new URLSearchParams(window.location.search);
     const add = readJiraAdd(q.get("jira_add"));
     if (!q.has("jira_add")) return;
@@ -217,11 +219,14 @@ export function useJiraSlash({ mode, slug, workspaceId, tenant, jira, editor, fl
     q.delete("jira");
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${q.size ? `?${q}` : ""}${window.location.hash}`);
     if (!add || mode !== "page" || whyNow(add.action) !== null) return;
-    const size = editor.state.doc.content.size;
-    const pos = add.pos === null ? size : Math.max(0, Math.min(add.pos, size));
-    // Typed at the end of a line: the end of that line (a position between blocks is moved inside one).
-    window.setTimeout(() => void go(editor, add.action, spot(editor, pos), null), 300);
-  }, [editor, loaded, mode, whyNow, go]);
+    // The page as saved may differ a little from the editor it was typed in (an empty line isn't kept):
+    // the end of the line that position is in, never the middle of someone's sentence.
+    window.setTimeout(() => {
+      if (editor.isDestroyed) return;
+      const pos = caretAt(editor.state.doc, add.pos ?? editor.state.doc.content.size, true).from;
+      void go(editor, add.action, spot(editor, pos), null);
+    }, 300);
+  }, [editor, loaded, ready, mode, whyNow, go]);
 
   const close = useCallback(() => {
     setAsk((a) => {
@@ -279,6 +284,13 @@ export function useJiraSlash({ mode, slug, workspaceId, tenant, jira, editor, fl
     );
   }
   return { slash, dialog };
+}
+
+/** A caret at `pos` (clamped); not in text: the nearest text before it. `lineEnd`: the end of its line. */
+function caretAt(doc: import("@tiptap/pm/model").Node, pos: number, lineEnd: boolean): Selection {
+  const $p = doc.resolve(Math.max(0, Math.min(pos, doc.content.size)));
+  if ($p.parent.inlineContent) return TextSelection.create(doc, lineEnd ? $p.end() : $p.pos);
+  return Selection.findFrom($p, -1, true) ?? Selection.findFrom($p, 1, true) ?? Selection.atEnd(doc);
 }
 
 const listAttrs = (p: JiraPresetAttrs): Record<string, string> => ({ jql: p.jql, title: p.title, ...(p.cols ? { cols: p.cols } : {}) });

@@ -479,7 +479,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
   // Jira inside the page (components/jira/pages): chips, cards, lists; text made into an issue becomes its chip.
   const jiraEd = useJiraEditorHost({ slug, userId, subscribeLive, enabled: !!userId && !addressing.tenant, workspaceId: workspaceId ?? null });
   // "/jira …": every signed-in editor sees them; without Jira yet they lead to it (connect, site, markdrop.in).
-  const jiraSlash = useJiraSlash({ mode: "page", slug, workspaceId: workspaceId ?? null, tenant: addressing.tenant, jira: jiraEd.host, editor, flush });
+  const jiraSlash = useJiraSlash({ mode: "page", slug, workspaceId: workspaceId ?? null, tenant: addressing.tenant, jira: jiraEd.host, editor, flush, ready: !readOnly });
   const jiraReplace = useRef<((key: string, site: string | null) => void) | null>(null);
   const openJira = useCallback((ref: { block: string | null; selection: string | null; replace?: ((key: string, site: string | null) => void) | null }) => {
     jiraReplace.current = ref.replace ?? null;
