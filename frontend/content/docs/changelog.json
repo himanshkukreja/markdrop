@@ -24,6 +24,19 @@
   "next": [],
   "entries": [
     {
+      "id": "zoom",
+      "date": "2026-11-10",
+      "title": "Zoom meetings come into a team on their own",
+      "kind": "new",
+      "area": "Integrations",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "Connect your company's Zoom account and every recorded Zoom meeting hosted by one team's members becomes a meeting in that team, with a summary, decisions and action items. Bring in past ones too.",
+      "body": "- **Connect once.** Your Zoom admin creates a Server-to-Server OAuth app in Zoom and a workspace admin pastes its details into **Workspace settings › Integrations › Zoom**, which lists every step. [Set up Zoom](/integrations/zoom#set-up-the-zoom-app)\n- **One team, and only that team.** Pick the team, such as Sales: only meetings its members host come in, visible to that team (and workspace admins). The card suggests making an open team private.\n- **Everything meetings do.** The transcript, who joined, a summary, decisions and action items, the Slack post, Team briefs and Jira drafts.\n- **Import past meetings.** List the last 30 or 90 days, or your own dates, with host, duration and whether there's a transcript, and import the ones you pick. [Import past meetings](/integrations/zoom#import-past-meetings)\n- **From an AI app.** `zoom_status` and `import_zoom_meetings`. [Tools](/ai/tools#zoom)"
+    },
+    {
       "id": "home-redirect",
       "date": "2026-11-10",
       "title": "Signed in, markdrop.in opens your dashboard",

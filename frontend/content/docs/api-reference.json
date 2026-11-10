@@ -22,7 +22,7 @@
     { "id": "team", "title": "Team", "tags": ["team"] },
     { "id": "teams", "title": "Teams", "tags": ["teams"] },
     { "id": "slack", "title": "Slack", "tags": ["slack"] },
-    { "id": "jira", "title": "Jira", "tags": ["jira"] },
+    { "id": "jira", "title": "Jira", "tags": ["jira"] }, {"id": "zoom", "title": "Zoom", "tags": ["zoom"]},
     { "id": "domains", "title": "Custom domains", "tags": ["domains"] },
     { "id": "analytics", "title": "Analytics", "tags": ["creator-analytics", "analytics-ai", "analytics-settings"] },
     { "id": "account", "title": "Account", "tags": ["auth", "me", "personal", "oauth"] }
@@ -2136,6 +2136,36 @@
       "title": "A person's Jira issues",
       "description": "One member's issues grouped as overdue, blocked, in progress, to do and done lately (details), or their counts (no connection).",
       "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "GET /api/v1/zoom/status": {
+      "title": "Zoom connection status",
+      "description": "What Workspace settings › Integrations › Zoom shows: whether Zoom works on this server (`configured`), whether the workspace is connected (`connected`), the team Zoom meetings go to (`team`, with its `visibility`), whether you can change it (`can_manage`: admins and owners) and import past meetings (`can_import`: admins, owners and the team's leads), counts and the latest imports (`connection`, `recent`). Admins also get the endpoint URL for Zoom's event subscription (`webhook_url`), the scopes the Zoom app needs (`scopes_needed`) and the ones it's missing (`connection.missing_scopes`). Never returns a secret. Members of the workspace only.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom"}
+    },
+    "PUT /api/v1/zoom/connection": {
+      "title": "Connect Zoom",
+      "description": "Saves the workspace's Zoom Server-to-Server OAuth app: `account_id`, `client_id`, `client_secret` and `secret_token` (the event subscription's Secret Token; leave either secret out to keep the saved one), and optionally `team_id`. Markdrop checks them with Zoom first (an access token and a test call) and stores the secrets encrypted. Admins and owners. 400 when Zoom refuses the credentials; 409 when that Zoom account is connected to another workspace.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom"}
+    },
+    "DELETE /api/v1/zoom/connection": {
+      "title": "Disconnect Zoom",
+      "description": "Deletes the Zoom app's credentials and the import log; meetings already imported stay. Admins and owners.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom"}
+    },
+    "PUT /api/v1/zoom/team": {
+      "title": "Choose the Zoom team",
+      "description": "The team Zoom meetings go to (`team_id`): only meetings hosted by its members come in, visible to that team. Not the company-wide team. Admins and owners.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom"}
+    },
+    "GET /api/v1/zoom/recordings": {
+      "title": "List past Zoom meetings",
+      "description": "The recorded Zoom meetings hosted by the Zoom team's members, newest first, for `days` (default 30) or `from`/`to` (YYYY-MM-DD, up to a year): `uuid`, `topic`, `date`, `time`, `duration_min`, `host`, whether there's a `transcript`, and whether it's `imported` (with its `slug`). `not_in_zoom`: team members Zoom doesn't know by their email. Admins, owners and the team's leads.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom"}
+    },
+    "POST /api/v1/zoom/import": {
+      "title": "Import past Zoom meetings",
+      "description": "Imports the chosen meetings (`uuids`, up to 50) into the Zoom team as past meetings: nobody is notified. Each result has a `status`: `imported`, `duplicate`, `no_transcript`, `ignored` (not hosted by the team's members) or `failed` (with a `reason`). Admins, owners and the team's leads.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom"}
     },
     "GET /api/v1/slack/status": {
       "title": "Slack connection status",
