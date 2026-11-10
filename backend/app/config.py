@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     page_lock_gone_s: float = 8.0
 
     cors_origins: list[str] = ["http://localhost:3000"]
+    # The web app's test deployments that talk to this API with a session, like markdrop.in does (CORS, added to
+    # cors_origins below): next.markdrop.in is the Cloudflare Workers staging of the frontend (2026-11).
+    # MARKDROP_WEB_STAGING_ORIGINS='[]' turns it off.
+    web_staging_origins: list[str] = ["https://next.markdrop.in"]
 
     # Public URL of the frontend — used for OAuth/email redirect links.
     frontend_url: str = "http://localhost:3000"
@@ -393,6 +397,11 @@ class Settings(BaseSettings):
         origin = self.studio_origin
         if origin and origin not in self.cors_origins:
             self.cors_origins = [*self.cors_origins, origin]
+        # So are the web app's staging deployments (web_staging_origins).
+        for o in self.web_staging_origins:
+            o = o.strip().rstrip("/")
+            if o and o not in self.cors_origins:
+                self.cors_origins = [*self.cors_origins, o]
         return self
 
     @property
