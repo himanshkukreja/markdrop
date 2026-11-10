@@ -969,6 +969,63 @@ if os.environ.get("PB_FAKE_MEET_SCRIPT"):
         return {"held": len(_held)}
 
 
+# Zoom against a fake Zoom (PB_FAKE_ZOOM=1, zoom.mjs): backend/tests/_zoom_fake.FakeZoom answers the Server-to-Server
+# OAuth token, the REST calls and the transcript downloads in process (credentials: tests/_zoom_fake ACCOUNT,
+# CLIENT_ID, CLIENT_SECRET, SECRET_TOKEN). Zoom users: Ada, Ben and Vic (the seed's emails). Recordings: one
+# live (Ada, today), two past with a transcript (Ben 12 days ago, Ada 40 days ago), one without (Ben), one
+# hosted by Vic. POST /__sandbox/zoom/reset rebuilds it; /__sandbox/zoom/event {workspace_id, event, uuid}
+# delivers Zoom's signed webhook to /api/v1/zoom/webhook/<ws>. Nothing leaves the machine.
+if os.environ.get("PB_FAKE_ZOOM"):
+    import json as _zjson
+    import time as _ztime
+
+    from app.services import zoom as _zoom, zoom_api as _zoom_api
+    from app.utils import crypto as _zcrypto
+    from tests._zoom_fake import API as _ZAPI, AUTH as _ZAUTH, SECRET_TOKEN as _ZSECRET, FakeZoom as _FakeZoom, \
+        iso_days_ago as _zago
+
+    mod.settings.zoom_auth_base, mod.settings.zoom_api_base = _ZAUTH, _ZAPI
+    if not mod.settings.token_encryption_key:
+        mod.settings.token_encryption_key = "8Kq0Qb3oQ1n3yYbqQh1w8sV9t6rXo5Wm2Zc4Jd7Lp0E="
+    _zcrypto._fernet.cache_clear()
+    _zoom.SLEEP_CAP = 0.5
+
+    def _zoom_world() -> _FakeZoom:
+        f = _FakeZoom()
+        f.add_user("ada@acme.test", "Ada", "Owner")
+        f.add_user("ben@acme.test", "Ben", "Member")
+        f.add_user("vic@acme.test", "Vic", "Viewer")
+        talk = [("Ada Owner", "Thanks for joining, Acme team."), ("Ben Member", "I will send the revised quote by Friday."),
+                ("Priya Raman", "We need SSO before we sign."), ("Ada Owner", "We agree to start the pilot on the first.")]
+        f.add_meeting("z-live", "Acme renewal call", "ada@acme.test", _zago(0, 6), lines=talk,
+                      participants=["Ada Owner", "Ben Member", "Priya Raman"])
+        f.add_meeting("z-past-1", "Globex discovery", "ben@acme.test", _zago(12), duration=45, lines=talk)
+        f.add_meeting("z-past-2", "Initech pricing review", "ada@acme.test", _zago(40), duration=30, lines=talk)
+        f.add_meeting("z-quiet", "Umbrella intro (no transcript)", "ben@acme.test", _zago(5), transcript=False)
+        f.add_meeting("z-vic", "Vic's private sync", "vic@acme.test", _zago(3))
+        return f
+
+    _ZOOM = {"fake": _zoom_world()}
+    _zoom_api.TRANSPORT = httpx.MockTransport(lambda req: _ZOOM["fake"]._handle(req))
+
+    @mod.app.post("/__sandbox/zoom/reset", include_in_schema=False)
+    async def _zoom_reset():
+        _ZOOM["fake"] = _zoom_world()
+        return {"ok": True}
+
+    @mod.app.post("/__sandbox/zoom/event", include_in_schema=False)
+    async def _zoom_event(body: dict):
+        payload = _ZOOM["fake"].event(body.get("event") or "recording.transcript_completed", body["uuid"])
+        raw = _zjson.dumps(payload).encode()
+        ts = str(int(_ztime.time()))
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(f"http://127.0.0.1:{8180 + 10 * STACK_ID}/api/v1/zoom/webhook/{body['workspace_id']}",
+                                  content=raw, headers={"Content-Type": "application/json", "x-zm-request-timestamp": ts,
+                                                        "x-zm-signature": _zoom.sign(_ZSECRET, ts, raw)})
+        await _zoom.drain()
+        return {"status": r.status_code}
+
+
 import uvicorn  # noqa: E402
 
 # Keep idle connections open well past the client's own idle limit (Node's fetch drops one after 4 s).
