@@ -400,6 +400,14 @@ jobs:
         working-directory: frontend/e2e/pages/real
         run: node ${{ matrix.script }}.mjs
 
+      # Signed in, markdrop.in/ is the dashboard (lib/homeRedirect): the md_si hint, the middleware's 307,
+      # the boot script with nothing of the landing page painted, ?home=1, sign-out, an expired session,
+      # a workspace's domain untouched. ~1 min, on the real job.
+      - name: home-redirect.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'real' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: node home-redirect.mjs
+
       # Admin roles: the Admin link for admins only (account menu, sidebar, phone drawer), and an owner
       # adding and removing an admin in Admin › Admins, ~40 s, on the real job.
       - name: admin-roles.mjs on ${{ matrix.browser }}
