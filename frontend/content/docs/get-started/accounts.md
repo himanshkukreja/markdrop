@@ -43,6 +43,8 @@ There is no password to remember. Go to [markdrop.in/login](https://markdrop.in/
 
 Your first sign-in creates the account. You stay signed in on that browser for 30 days, or until you choose **Sign out**.
 
+While you're signed in, [markdrop.in](https://markdrop.in) opens your dashboard. To see the home page instead, choose **Home page** in your account menu.
+
 :::note
 Sign in with the address people share things with. Markdrop matches shared documents to the email address of the account you're signed in with. Letter case doesn't matter, but `alice+docs@acme.com` and `alice@acme.com` are different addresses.
 :::

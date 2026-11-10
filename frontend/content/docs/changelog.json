@@ -24,6 +24,18 @@
   "next": [],
   "entries": [
     {
+      "id": "home-redirect",
+      "date": "2026-11-10",
+      "title": "Signed in, markdrop.in opens your dashboard",
+      "kind": "improved",
+      "area": "Web app",
+      "products": [
+        "web"
+      ],
+      "summary": "When you're signed in, markdrop.in goes straight to your dashboard, with no stop at the home page. Signed out, you see the home page as before.",
+      "body": "- **Straight to work.** Opening markdrop.in while signed in takes you to your dashboard right away. [Sign in](/get-started/accounts#sign-in)\n- **The home page is still there.** Choose **Home page** in your account menu to see it while signed in.\n- **The logo goes home too.** Inside the app, the Markdrop logo opens your dashboard.\n- **Only the front door.** Other pages such as Enterprise, Privacy and the Markdrop Guides page open as usual, and your workspace's own domain is unchanged."
+    },
+    {
       "id": "nav-general",
       "date": "2026-11-10",
       "title": "A new sidebar, General for everyone, and team homes that use the width",

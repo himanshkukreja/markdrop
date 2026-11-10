@@ -9,7 +9,7 @@
  *
  *   - middleware: GET "/" on the app host (markdrop.in, www, localhost, Vercel previews; never a
  *     workspace's domain, the docs site or the Guides studio) with md_si=1 answers 307 → /dashboard
- *     (query kept) before any HTML. Only "/": /pricing, /privacy, /guides… stay put for everyone.
+ *     (query kept) before any HTML. Only "/": /enterprise, /privacy, /guides… stay put for everyone.
  *     The redirect is a middleware response marked no-store, so the prerendered "/" that anonymous
  *     visitors get is untouched (Vercel runs middleware in front of its cache: no Vary needed).
  *   - the boot script (HOME_BOOT_SCRIPT, first in <head> of every page, a no-op off "/"): a session

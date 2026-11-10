@@ -18,7 +18,7 @@ test("host matrix × cookie × path", () => {
   for (const host of app) assert.ok(isAppHomeHost(host), host);
   for (const host of never) assert.ok(!isAppHomeHost(host), String(host));
 
-  const paths = ["/", "/pricing", "/privacy", "/guides", "/enterprise", "/dashboard", "/abc123", "/login"];
+  const paths = ["/", "/enterprise", "/privacy", "/guides", "/enterprise", "/dashboard", "/abc123", "/login"];
   for (const host of [...app, ...never]) {
     for (const cookie of ["1", undefined, "", "0", "yes"]) {
       for (const pathname of paths) {

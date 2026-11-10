@@ -3,7 +3,7 @@
  *
  *   anon        "/" is the landing page, painted (first-contentful-paint), no md_si cookie
  *   signin      signing in (/auth/callback) sets md_si; "/" then answers 307 → /dashboard in the
- *               middleware (query kept, no-store), before any HTML; /pricing and /guides stay put
+ *               middleware (query kept, no-store), before any HTML; /enterprise, /guides and /privacy stay put
  *   escape      /?home=1 shows the landing page while signed in; the account menu's "Home page" goes
  *               there; the header logo goes to /dashboard
  *   logout      Sign out clears md_si: "/" is the landing page again
@@ -108,7 +108,7 @@ await step("signin", async () => {
   await p.waitForURL(/\/dashboard\?utm_source=x/, { timeout: 30000 });
   await p.locator("main#main").first().waitFor({ timeout: 30000 });
   // Only "/": other landing pages stay put.
-  for (const other of ["/pricing", "/guides", "/privacy"]) {
+  for (const other of ["/enterprise", "/guides", "/privacy"]) {
     const r = await c.request.get(`${APP}${other}`, { maxRedirects: 0 });
     if (r.status() === 307 && /dashboard/.test(r.headers().location || "")) fail(`${other} redirected to the dashboard`);
   }
