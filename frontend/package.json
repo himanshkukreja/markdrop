@@ -18,7 +18,8 @@
     "docs:openapi": "node scripts/docs-openapi.mjs",
     "docs:mcp-test": "node scripts/docs-mcp-test.mjs",
     "docs:media": "node scripts/docs-media/capture.mjs",
-    "docs:scenes": "node scripts/docs-media/scenes/render.mjs"
+    "docs:scenes": "node scripts/docs-media/scenes/render.mjs",
+    "cf:build": "bash scripts/cf/build.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -66,6 +67,7 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.20.16",
     "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.0.0",
@@ -75,6 +77,7 @@
     "eslint-config-next": "^15.5.29",
     "postcss": "^8.5.0",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "wrangler": "^4.158.0"
   }
 }

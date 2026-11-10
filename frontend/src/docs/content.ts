@@ -11,7 +11,7 @@
  * left out (production) and skipped by the build; malformed JSON reads as empty. `npm run
  * docs:check` reports all of it.
  */
-import fs from "node:fs";
+import * as fs from "./contentFs";
 import path from "node:path";
 import { parseFrontmatter } from "./frontmatter";
 import { introOf, plainText, readingMinutes, scanHeadings, snippet, splitSections, toPlainMarkdown } from "./markdown";
@@ -40,7 +40,7 @@ function memo<T>(fn: () => T): () => T {
 
 function walk(dir: string, rel = ""): string[] {
   let out: string[] = [];
-  let entries: fs.Dirent[] = [];
+  let entries: fs.DirEntry[] = [];
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
   } catch {

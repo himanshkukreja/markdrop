@@ -1,0 +1,19 @@
+# Cloudflare static assets never reach Next, so next.config.ts headers() for public files live here too
+# (copied to .open-next/assets/_headers by scripts/cf/postbuild.mjs). Keep in step with next.config.ts.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+/studio-signout.html
+  Content-Security-Policy: frame-ancestors https://markdrop.in https://www.markdrop.in http://localhost:*
+  Cache-Control: public, max-age=3600
+/guides-demo/*
+  Content-Security-Policy: sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; frame-ancestors 'self'
+  X-Content-Type-Options: nosniff
+  Cache-Control: public, max-age=3600
+/landing-demo/:page.html
+  Content-Security-Policy: sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src blob:; img-src 'self' data: blob:; media-src 'self'; style-src 'unsafe-inline'; font-src data:; frame-ancestors 'self'
+  X-Content-Type-Options: nosniff
+  Cache-Control: public, max-age=3600
+/landing-demo/files/*
+  Access-Control-Allow-Origin: *
+  X-Content-Type-Options: nosniff
+  Cache-Control: public, max-age=86400

@@ -32,9 +32,9 @@ export function isPrimaryHost(raw: string): boolean {
   if (PRIMARY_HOSTS.has(host)) return true;
   // Markdrop Guides' studio (guides.markdrop.in): ours, never a customer's domain.
   if (STUDIO_HOSTS.has(host)) return true;
-  // Vercel preview deployments get a generated hostname per build; treating
-  // them as customer domains would make every preview 404.
-  if (host.endsWith(".vercel.app")) return true;
+  // Vercel preview deployments get a generated hostname per build, and Cloudflare test
+  // deploys live on workers.dev; treating them as customer domains would make every preview 404.
+  if (host.endsWith(".vercel.app") || host.endsWith(".workers.dev")) return true;
   if (host === "127.0.0.1" || host === "localhost") return true;
   return false;
 }

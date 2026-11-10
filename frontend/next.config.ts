@@ -53,8 +53,35 @@ function cspReportOnly(): string {
 process.env.MARKDROP_BUILD_ID ||=
   (process.env.MARKDROP_DOCS_BUILD_ID || process.env.VERCEL_DEPLOYMENT_ID || process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || `local-${Date.now().toString(36)}`).replace(/[^\w.-]/g, "");
 
+/** The Cloudflare Workers build (scripts/cf/build.sh); Vercel builds never set it. */
+const CF_BUILD = process.env.MARKDROP_CF_BUILD === "1";
+
+/**
+ * Cloudflare build only (a Worker has a 10 MiB compressed size limit and no disk):
+ * - browser-only libraries are compiled into the server chunks even though they only load inside effects
+ *   (dynamic imports in DiagramFrame, thirdPartyAnalytics, the admin replay player); the server gets an empty
+ *   module instead. Exact package entry points only ($).
+ * - the docs content the server reads at request time (src/docs/contentFs.ts) comes from a build-time snapshot
+ *   (scripts/cf/docs-snapshot.mjs) instead of the disk.
+ */
+const cfWebpack: NextConfig["webpack"] = (config, { isServer, webpack }) => {
+  if (isServer) {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      mermaid$: false,
+      "posthog-js$": false,
+      "@posthog/rrweb$": false,
+      "@vercel/analytics/next$": false,
+      "@vercel/speed-insights/next$": false,
+    };
+    config.plugins.push(new webpack.NormalModuleReplacementPlugin(/[\\/]contentSnapshot$/, path.join(process.cwd(), ".cf", "docs-snapshot.mjs")));
+  }
+  return config;
+};
+
 const nextConfig: NextConfig = {
   env: { NEXT_PUBLIC_BUILD_ID: process.env.MARKDROP_BUILD_ID },
+  ...(CF_BUILD ? { webpack: cfWebpack } : {}),
   // Lets a dev server (NEXT_DIST_DIR=.next-dev) run alongside `next build` without the two
   // overwriting each other's output. Vercel builds use the default.
   distDir: process.env.NEXT_DIST_DIR || ".next",
