@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { Play } from "lucide-react";
 import type { Trailer } from "./TrailerButton";
 import p from "./PosterPlayer.module.css";
 
@@ -25,9 +26,7 @@ export default function PosterPlayer({ video, alt, cta, className }: { video: Tr
         <button type="button" className={p.poster} onClick={() => setPlaying(true)} onPointerEnter={warm} onFocus={warm} data-cta={cta}>
           <img src={video.poster} alt={alt} width={video.w ?? 1600} height={video.h ?? 900} loading="lazy" decoding="async" />
           <span className={p.play} aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor">
-              <path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14z" />
-            </svg>
+            <Play aria-hidden size={30} strokeWidth={0} fill="currentColor" />
           </span>
           <span className={p.chip}>
             <span className="sr-only">Play the video: {video.title}, </span>

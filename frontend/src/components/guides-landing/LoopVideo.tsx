@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Pause, Play } from "lucide-react";
 import s from "./LoopVideo.module.css";
 
 /**
@@ -32,8 +33,6 @@ export interface LoopProps {
   className?: string;
 }
 
-const PLAY = "M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14z";
-const PAUSE = "M7 4h2a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm8 0h2a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z";
 
 function isDark(): boolean {
   return document.documentElement.getAttribute("data-theme") === "dark";
@@ -160,7 +159,7 @@ export default function LoopVideo({ src, w, h, label, dark, priority, className 
         onClick={toggle}
         aria-label={mode === "auto" ? "Pause the animation" : "Play the animation"}
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" fill="currentColor"><path d={mode === "auto" ? PAUSE : PLAY} /></svg>
+        {mode === "auto" ? <Pause aria-hidden size={14} strokeWidth={0} fill="currentColor" /> : <Play aria-hidden size={14} strokeWidth={0} fill="currentColor" />}
       </button>
     </div>
   );

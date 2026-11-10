@@ -9,6 +9,7 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, createContext, useContext } from "react";
 import { createPortal } from "react-dom";
 import { ICONS } from "./icons";
+import { LUCIDE } from "./lucide";
 import { useLinkComponent } from "./link";
 import { PortalScope } from "./scope";
 import { initialsOf } from "@/lib/initials.mjs";
@@ -37,6 +38,12 @@ function useControllable(value: boolean | undefined, defaultValue: boolean, onCh
 /* ── Icon ─────────────────────────────────────────────────────────────── */
 export interface IconProps extends React.SVGProps<SVGSVGElement> { name: string; size?: number | string; }
 export function Icon({ name, size, className, style, ...rest }: IconProps) {
+  // Lucide (./lucide) for every UI glyph; the hand-drawn set (./icons) only for brand marks and unknown names.
+  const L = LUCIDE[name];
+  if (L) {
+    return <L aria-hidden size="1em" strokeWidth={1.75} className={cx("md-icon", className)} style={size ? { fontSize: size, ...style } : style}
+      {...(rest as Record<string, unknown>)} />;
+  }
   const d = ICONS[name] ?? "";
   return (
     <svg viewBox="0 0 24 24" aria-hidden className={cx("md-icon", className)} style={size ? { fontSize: size, ...style } : style} {...rest}>

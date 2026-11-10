@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState, type ReactNode } from "react";
+import { Play } from "lucide-react";
 
 /**
  * A button that opens a video in the docs player: "Watch the overview" in the landing hero, "Watch
@@ -29,9 +30,7 @@ export default function TrailerButton({ trailer, className, label, cta = "guides
   return (
     <>
       <button type="button" className={className} onClick={() => setOpen(true)} onPointerEnter={warm} onFocus={warm} data-cta={cta} aria-haspopup="dialog">
-        <svg viewBox="0 0 24 24" aria-hidden width="16" height="16" fill="currentColor">
-          <path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14z" />
-        </svg>
+        <Play aria-hidden size={16} strokeWidth={0} fill="currentColor" />
         {label}
         <span className="sr-only"> ({trailer.duration} video)</span>
       </button>

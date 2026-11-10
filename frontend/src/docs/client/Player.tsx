@@ -21,6 +21,7 @@
  * the browser), so they look the same everywhere and sit above the bar.
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { Captions, Check, ListOrdered, Maximize, Minimize, Pause, PictureInPicture2, Play, RotateCcw, Volume1, Volume2, VolumeX, X, type LucideIcon } from "lucide-react";
 import { cx } from "../cx";
 import {
   SPEEDS,
@@ -113,35 +114,17 @@ function fullscreenElement(): Element | null {
 }
 
 /* ── icons (filled glyphs read better on video than the UI's stroked set) ── */
-const GLYPHS: Record<string, string> = {
-  play: "M8 5.14v13.72a1 1 0 0 0 1.52.85l10.9-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14z",
-  pause: "M7 4.5h3a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1zm7 0h3a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1z",
-  replay: "M12 5V2L7.5 6 12 10V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z",
-};
-const STROKES: Record<string, string> = {
-  volume: "M11 5 6 9H3v6h3l5 4V5zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13",
-  volumeLow: "M11 5 6 9H3v6h3l5 4V5zM15.5 8.5a5 5 0 0 1 0 7",
-  muted: "M11 5 6 9H3v6h3l5 4V5zM16 9l6 6M22 9l-6 6",
-  captions: "M3 6.5A1.5 1.5 0 0 1 4.5 5h15A1.5 1.5 0 0 1 21 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-11zM10.5 10.2a2.4 2.4 0 1 0 0 3.6M17 10.2a2.4 2.4 0 1 0 0 3.6",
-  chapters: "M4 6h2M4 12h2M4 18h2M9 6h11M9 12h11M9 18h11",
-  pip: "M3 6.5A1.5 1.5 0 0 1 4.5 5h15A1.5 1.5 0 0 1 21 6.5V11M3 6.5v11A1.5 1.5 0 0 0 4.5 19H10M13 14h8v6h-8z",
-  fullscreen: "M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4",
-  exitFullscreen: "M9 4v4a1 1 0 0 1-1 1H4M20 9h-4a1 1 0 0 1-1-1V4M15 20v-4a1 1 0 0 1 1-1h4M4 15h4a1 1 0 0 1 1 1v4",
-  check: "M5 12.5l4.5 4.5L19 7.5",
-  close: "M6 6l12 12M18 6 6 18",
+// Lucide (ISC) glyphs, the same set as the app's Icon. Play / pause are drawn filled.
+const FILLED: Record<string, LucideIcon> = { play: Play, pause: Pause };
+const STROKED: Record<string, LucideIcon> = {
+  replay: RotateCcw, volume: Volume2, volumeLow: Volume1, muted: VolumeX, captions: Captions, chapters: ListOrdered,
+  pip: PictureInPicture2, fullscreen: Maximize, exitFullscreen: Minimize, check: Check, close: X,
 };
 function Glyph({ name }: { name: string }) {
-  if (GLYPHS[name])
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden className="dx-vp__icon dx-vp__icon--fill">
-        <path d={GLYPHS[name]} />
-      </svg>
-    );
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden className="dx-vp__icon">
-      <path d={STROKES[name] ?? ""} />
-    </svg>
-  );
+  const F = FILLED[name];
+  if (F) return <F aria-hidden size="1em" strokeWidth={0} fill="currentColor" className="dx-vp__icon dx-vp__icon--fill" />;
+  const S = STROKED[name];
+  return S ? <S aria-hidden size="1em" strokeWidth={1.75} className="dx-vp__icon" /> : null;
 }
 
 type Menu = null | "speed" | "chapters";

@@ -37,7 +37,7 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 }
 
 /* ── Icon ───────────────────────────────────────────────────────────────── */
-.md-icon { width: 1em; height: 1em; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.md-icon { width: 1em; height: 1em; flex: none; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
 
 /* ── Button ─────────────────────────────────────────────────────────────── */
 .md-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); border: 1px solid transparent; border-radius: var(--radius-lg); font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; user-select: none; transition: background-color var(--duration-fast), border-color var(--duration-fast), color var(--duration-fast), box-shadow var(--duration-fast), transform var(--duration-instant); }
