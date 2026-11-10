@@ -314,6 +314,10 @@ const ROUTES = [
   ["settings-account", "owner", `${APP}/settings/account`],
   ["settings-connections", "owner", `${APP}/settings/connections`],
   ["settings-tokens", "owner", `${APP}/settings/tokens`],
+  // Integrations: the account grid and pages, each workspace integration's page.
+  ["settings-integrations", "owner", `${APP}/settings/integrations`],
+  ...["claude", "slack", "jira", "google-docs", "vscode", "cli"].map((i) => [`settings-integration-${i}`, "owner", `${APP}/settings/integrations/${i}`]),
+  ...["zoom", "google-meet", "slack", "jira"].map((i) => [`settings-ws-integration-${i}`, "owner", `${APP}/settings/workspaces/${WS}/integrations/${i}`]),
   ["settings-workspaces", "owner", `${APP}/settings/workspaces`],
   ...["people", "look", "integrations", "advanced"].map((t) => [`settings-ws-${t}`, "owner", `${APP}/settings/workspaces/${WS}?tab=${t}`]),
   // Analytics

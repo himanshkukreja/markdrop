@@ -307,6 +307,8 @@ const STATES = [
   ["settings-look", ["owner"], () => `${APP}/settings/workspaces/${WS}?tab=look`, (p) => p.locator("main h1").first()],
   // Integrations (Markdrop for Slack): set up with PB_FAKE_SLACK=1 (Add to Slack), else "Not set up yet".
   ["settings-integrations", ["owner", "member"], () => `${APP}/settings/workspaces/${WS}?tab=integrations`, (p) => p.locator("main h1").first()],
+  ["settings-integration-slack", ["owner", "member"], () => `${APP}/settings/workspaces/${WS}/integrations/slack`, (p) => p.locator("main h1").first()],
+  ["settings-my-integrations", ["owner"], () => `${APP}/settings/integrations`, (p) => p.locator("main h1").first()],
   ["settings-advanced", ["owner"], () => `${APP}/settings/workspaces/${WS}?tab=advanced`, (p) => p.locator("main h1").first()],
   ["settings-tokens", ["owner"], () => `${APP}/settings/tokens`, (p) => p.locator("main h1").first()],
   ["settings-connections", ["owner"], () => `${APP}/settings/connections`, (p) => p.locator("main h1").first()],

@@ -24,7 +24,8 @@ const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token
 const U = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.id]));
 const WS = S.ws;
 const ok = (r, what) => { if (r.status >= 300) fail(`${what} → ${r.status} ${JSON.stringify(r.body).slice(0, 300)}`); return r.body; };
-const TAB = `${APP}/settings/workspaces/${WS}?tab=integrations`;
+// Zoom's own page under Workspace settings › Integrations (the grid's Details).
+const TAB = `${APP}/settings/workspaces/${WS}/integrations/zoom`;
 const CREDS = { account: "acct-ZOOM1", client: "zoom-client-1", secret: "zoom-client-secret-1", token: "zoom-secret-token-1" };
 
 ok(await api("POST", "/__sandbox/zoom/reset"), "reset the fake Zoom");

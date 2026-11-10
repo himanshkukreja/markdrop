@@ -39,7 +39,8 @@ const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token
 const WS = S.ws;
 const OUT = process.env.SLACK_SHOTS || path.resolve(WORK, "..", "shots");
 fs.mkdirSync(OUT, { recursive: true });
-const TAB = `${APP}/settings/workspaces/${WS}?tab=integrations`;
+// Slack's own page under Workspace settings › Integrations (the grid's Details).
+const TAB = `${APP}/settings/workspaces/${WS}/integrations/slack`;
 const ok = (r, what) => { if (r.status >= 300) fail(`${what} → ${r.status} ${JSON.stringify(r.body).slice(0, 300)}`); return r.body; };
 const status = async (who) => ok(await api("GET", `/api/v1/slack/status?workspace_id=${WS}`, T[who]), "status");
 
@@ -72,7 +73,7 @@ async function connect() {
   const card = p.getByTestId("slack-card");
   await card.waitFor({ timeout: 30000 });
   await card.getByRole("button", { name: "Add to Slack" }).click();
-  await p.waitForURL(/tab=integrations/, { timeout: 30000 });
+  await p.waitForURL(/\/integrations\/slack\?slack=connected/, { timeout: 30000 });
   await card.locator(".md-badge", { hasText: "Connected" }).waitFor({ timeout: 20000 });
   await p.getByTestId("slack-team").getByText("Acme Slack").waitFor();
   return { c, p };

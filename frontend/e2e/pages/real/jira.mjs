@@ -34,7 +34,8 @@ const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token
 const U = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.id]));
 const WS = S.ws;
 const ok = (r, what) => { if (r.status >= 300) fail(`${what} → ${r.status} ${JSON.stringify(r.body).slice(0, 300)}`); return r.body; };
-const TAB = `${APP}/settings/workspaces/${WS}?tab=integrations`;
+// Jira's own page under Workspace settings › Integrations (the grid's Details).
+const TAB = `${APP}/settings/workspaces/${WS}/integrations/jira`;
 const teamUrl = `${APP}/team/${encodeURIComponent(WS)}`;
 const ACC = { owner: "acc-ada", member: "acc-ben", admin: "acc-wes", reader: "acc-vic" };
 const issue = async (key) => ok(await api("GET", `/__sandbox/jira/issue/${key}`), `issue ${key}`);
@@ -176,7 +177,7 @@ await step("me", async () => {
   await ensureSite();
   const { c, p } = await ctx(browser, { token: T.member });
   await fakeAtlassian(c, "member");
-  await p.goto(`${APP}/settings/account#jira`);
+  await p.goto(`${APP}/settings/integrations/jira`);
   const card = p.getByTestId("jira-account");
   await card.waitFor({ timeout: 30000 });
   await card.getByTestId("jira-account-connect").click();
