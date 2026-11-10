@@ -282,9 +282,17 @@ const ROUTES = [
   ["team-project", "owner", X.project ? `${APP}/team/${WS}/projects/${encodeURIComponent(X.project)}` : null, null, { team: true }],
   // Teams (a long-named private team, its project, the review)
   ...(X.teams ? [
-    ["teams-company", "owner", `${APP}/w/${WS}/home`],
+    ["teams-general", "owner", `${APP}/w/${WS}/teams/general`, null, { team: true }],
+    ["teams-new-dialog", "owner", `${APP}/w/${WS}/teams/general`, async (p) => {
+      const b = p.locator('[data-testid="rail-new-team"]:visible').first();
+      if (!(await b.isVisible().catch(() => false))) return "skip";
+      await click(p, b);
+      await p.getByTestId("team-name").fill(WORD.slice(0, 60));
+      await click(p, p.getByTestId("team-icon"));
+      await p.waitForTimeout(300);
+    }],
     ["teams-browse", "owner", `${APP}/w/${WS}/teams`],
-    ["teams-home", "owner", `${APP}/w/${WS}/teams/${X.teams.aSlug}`],
+    ["teams-home", "owner", `${APP}/w/${WS}/teams/${X.teams.aSlug}`, null, { team: true }],
     ["teams-locked", "member", `${APP}/w/${WS}/teams/${X.teams.bSlug}`],
     ["teams-pages", "owner", `${APP}/w/${WS}/teams/${X.teams.aSlug}/pages`],
     ["teams-settings", "owner", `${APP}/w/${WS}/teams/${X.teams.aSlug}/settings`],

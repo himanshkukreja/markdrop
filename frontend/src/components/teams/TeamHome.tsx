@@ -130,7 +130,7 @@ export default function TeamHome({ ws, team: teamRef, settings }: { ws: string; 
         </div>
         <div className="th-acts">
           {!t.my_role && t.visibility === "open" && !g && <JoinButton ws={ws} teamId={t.id} onJoined={load} />}
-          {!locked && <Button variant="secondary" iconLeft="sparkle" href={teamAskHref(ws, t)} aria-label={`Ask ${t.name}`}>Ask {t.name}</Button>}
+          {!locked && <Button variant="secondary" iconLeft="sparkle" href={teamAskHref(ws, t)} aria-label={`Ask ${t.name}`} className="th-ask-btn"><span className="truncate">Ask {t.name}</span></Button>}
           {!locked && g && member && uploads && (
             <>
               <Button variant="secondary" iconLeft="upload" className="max-sm:hidden" onClick={() => fileInput.current?.click()}>Upload</Button>

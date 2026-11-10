@@ -293,3 +293,9 @@ a.th-li:hover { background: var(--surface-hover); }
 .th-ch h2 + .th-chip { min-width: 0; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; display: inline-block; line-height: 22px; }
 @media (max-width: 1023.98px) { .th-ask__sug { display: none; } }
 @media (max-width: 519.98px) { .th-ch h2 + .th-chip:not(.th-chip--acc) { display: none; } }
+.th-acts { min-width: 0; max-width: 100%; }
+.th-acts .md-btn { min-width: 0; max-width: 100%; }
+.th-ask-btn { max-width: min(260px, 100%) !important; }
+.th-head__main, .th-title { min-width: 0; }
+.th-ch { flex-wrap: wrap; row-gap: 4px; }
+.th-ch h2 { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }

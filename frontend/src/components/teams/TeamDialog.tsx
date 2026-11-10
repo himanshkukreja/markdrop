@@ -114,6 +114,18 @@ export function TeamDialog({ ws, wsName, open, team, onClose, onSaved }: {
     }
   };
 
+  // ⌘↵ / Ctrl+Enter saves from anywhere in the dialog (captured first, so a focused button isn't pressed too).
+  const submitRef = useRef(submit);
+  submitRef.current = submit;
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); e.stopPropagation(); void submitRef.current(); }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [open]);
+
   const preview = { name: name.trim() || "New team", icon, color };
   const glyphs = Object.keys(TEAM_GLYPHS);
   const memberCount = members?.length ?? team?.member_count ?? 0;
@@ -132,9 +144,7 @@ export function TeamDialog({ ws, wsName, open, team, onClose, onSaved }: {
           <Button onClick={() => void submit()} loading={busy} disabled={!name.trim()} data-testid={edit ? "save-team" : "create-team"}>{edit ? "Save changes" : "Create team"}</Button>
         </>
       }>
-      <div className="tz-dlg__body" onKeyDown={(e) => {
-        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void submit(); }
-      }}>
+      <div className="tz-dlg__body">
         <div className="tz-fld">
           <label htmlFor="tz-name" className="tz-lb">Icon &amp; name</label>
           <div className="tz-namerow">
