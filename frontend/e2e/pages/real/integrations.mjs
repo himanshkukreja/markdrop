@@ -14,7 +14,7 @@
  *   PB_FAKE_SLACK=1 PB_FAKE_JIRA=1 PB_FAKE_ZOOM=1 PB_STACK_ID=72 PB_WORK=… zsh up.sh start
  *   PB_STACK_ID=72 PB_WORK=… BROWSER=chromium [ONLY=workspace,redirects] node integrations.mjs
  */
-import { APP, ctx, fail, launch, reseed, seedNow, shot, stepper } from "./lib.mjs";
+import { APP, BROWSER, ctx, fail, launch, reseed, seedNow, shot, stepper } from "./lib.mjs";
 
 const browser = await launch();
 const { step, results } = stepper(browser);
@@ -104,8 +104,10 @@ await step("keyboard", async () => {
   // Walk the focus order from the card's action to its Details.
   await p.getByTestId("integration-card-zoom").locator("[data-status]").waitFor();
   await details.focus();
-  await p.keyboard.press("Shift+Tab");
-  await p.keyboard.press("Tab");
+  // WebKit (Safari) moves focus to links with Option+Tab; Tab alone skips them.
+  const tab = BROWSER === "webkit" ? "Alt+Tab" : "Tab";
+  await p.keyboard.press(`Shift+${tab}`);
+  await p.keyboard.press(tab);
   const focused = await p.evaluate(() => document.activeElement?.getAttribute("data-testid"));
   if (focused !== "integration-details-zoom") fail(`focus after Tab: ${focused}`);
   await p.keyboard.press("Enter");
