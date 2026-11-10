@@ -102,8 +102,9 @@ async def add_document(
 ) -> Document:
     """D1: file the caller's own document into a workspace (member+ there).
 
-    CAS on ``{_id, owner_id, workspace_id ∈ {null, W}}``; resharing switches off
-    (A2); the level only changes when ``level`` is given. Filing a link
+    CAS on ``{_id, owner_id, workspace_id ∈ {null, W}}``; the owner's own
+    resharing choice is kept (none ⇒ the workspace's "Let people share onward",
+    owner 2026-11-10); the level only changes when ``level`` is given. Filing a link
     document into a sign-in-required workspace guards its bytes (epoch bump).
     """
     from app.services import folder as folder_service
@@ -136,7 +137,7 @@ async def add_document(
     current = raw.get("access_level") or "link"
     new_level = level or current
     sets = {"workspace_id": workspace_id, "folder_id": folder_id or None, "folder_path": path,
-            "allow_resharing": False, "updated_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
             "access_level": new_level}
     narrows = (access.LEVEL_RANK[new_level] < access.LEVEL_RANK[current]
                or (require_auth and new_level == "link" and existing != workspace_id))

@@ -89,6 +89,9 @@ export interface WorkspaceSettings {
   auto_covers?: boolean;
   /** Comments on this workspace's pages and documents (default on). */
   comments_enabled?: boolean;
+  /** "Let people share onward": people an item is shared with may add others. The default for items
+   *  without their own choice; admins change it. Absent on older backends (= true). */
+  allow_resharing?: boolean;
   /** Team memory (Team board: who is doing what, from meetings and pages). Default off; admins turn it on. */
   team_memory?: boolean;
   /** IANA timezone for Team's weekly summary (Monday 9 am). Set from an admin's browser when Team memory is turned on. */

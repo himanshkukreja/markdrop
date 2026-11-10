@@ -121,7 +121,7 @@ async def get_access(
     can = await access_service.can_flags(actor, raw, ctx)
     return AccessResponse(
         level=raw.get("access_level") or "link",
-        allow_resharing=access_service.resharing_allowed(raw),
+        allow_resharing=access_service.resharing_allowed(raw, f.ws if f.ws_id else None),
         is_password_protected=bool(raw.get("read_password_hash")),
         encrypted=bool(raw.get("encrypted")),
         in_workspace=bool(f.ws_id),

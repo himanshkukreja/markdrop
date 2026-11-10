@@ -1396,7 +1396,6 @@ async def create_page(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: 
             "read_password_hash": parent_raw.get("read_password_hash"),
         })
         if ws_id:
-            extra["allow_resharing"] = False
             if slug:
                 from app.services import folder as folder_service
 

@@ -77,6 +77,10 @@ class WorkspaceSettings:
     timezone: str | None = None
     # Comments (services/comments) on this workspace's pages and documents. Default on; admins turn it off.
     comments_enabled: bool = True
+    # "Let people share onward" (owner 2026-11-10): people a document is shared with may add others
+    # (never with more access than they have). The default for every item filed here that has no
+    # choice of its own (`access.resharing_allowed`); admins change it. Default on.
+    allow_resharing: bool = True
 
     @classmethod
     def from_dict(cls, raw: dict | None) -> "WorkspaceSettings":
@@ -94,6 +98,7 @@ class WorkspaceSettings:
             team_memory=raw.get("team_memory") is True,
             timezone=raw.get("timezone") if isinstance(raw.get("timezone"), str) else None,
             comments_enabled=raw.get("comments_enabled") is not False,
+            allow_resharing=raw.get("allow_resharing") is not False,
         )
 
 

@@ -1098,8 +1098,31 @@ def _decode_cursor(cursor: str | None) -> int:
 
 
 async def set_access(ctx: Context, args: dict) -> tuple[str, dict]:
-    raw = await load_for(ctx, args["document"], "change_access", "change access to")
+    reshare = args.get("allow_resharing")
+    if reshare is not None and not isinstance(reshare, bool):
+        raise ToolError("allow_resharing is true or false.")
+    if not args.get("access") and reshare is None:
+        raise ToolError("Give access, allow_resharing, or both.")
+    raw = await load_for(ctx, args["document"], "change_access" if args.get("access") else "set_resharing",
+                         "change access to")
     slug = raw["slug"]
+    if reshare is not None:
+        try:
+            await access_service.set_resharing(ctx.db, raw, reshare, actor_of(ctx),
+                                               access_service.Ctx(ctx.db, surface="mcp"))
+        except HTTPException as exc:
+            raise ToolError(http_message(exc))
+    if not args.get("access"):
+        final = await load_raw(ctx.db, slug)
+        f = await access_service.facts(actor_of(ctx), final, access_service.Ctx(ctx.db, surface="mcp"))
+        out = {
+            **await url_pair(ctx, final),
+            "access": access_of(final.get("access_level"), bool(final.get("read_password_hash"))),
+            "expires_at": iso(final.get("expires_at")),
+            "allow_resharing": access_service.resharing_allowed(final, f.ws if f.ws_id else None),
+        }
+        return (f"People {out['url']} is shared with can {'now' if reshare else 'no longer'} add others"
+                + (" (never with more access than they have)." if reshare else "; only you can share it.")), out
     access = args["access"]
     password = args.get("password") or None
     if access == "password" and not password:
@@ -1145,10 +1168,12 @@ async def set_access(ctx: Context, args: dict) -> tuple[str, dict]:
         raise ToolError(http_message(exc))
 
     final = await load_raw(ctx.db, slug)
+    f = await access_service.facts(actor_of(ctx), final, access_service.Ctx(ctx.db, surface="mcp"))
     out = {
         **await url_pair(ctx, final),
         "access": access_of(final.get("access_level"), bool(final.get("read_password_hash"))),
         "expires_at": iso(final.get("expires_at")),
+        "allow_resharing": access_service.resharing_allowed(final, f.ws if f.ws_id else None),
     }
     text = f"{out['url']} is now visible to {await audience(ctx, final)}."
     from app.services import publicity
@@ -1824,6 +1849,7 @@ async def list_workspaces(ctx: Context, args: dict) -> tuple[str, dict]:
                                 "live": urls_service.is_live(r), "default": r["host"] == primary}
                                for r in rows if r.get("kind") == "app"],
             "default_access": ws.settings.default_access,
+            "allow_resharing": ws.settings.allow_resharing,
         })
     if not out:
         return "The user isn't in any workspace.", {"workspaces": []}
@@ -2712,7 +2738,12 @@ TOOLS: list[Tool] = [
             "'private' (only the user), 'password' (anyone with the link and the password) or "
             "'workspace' (members of the workspace it is in). A document has one access level for "
             "every address it has — markdrop.in and its workspace's custom domains alike — so 'link' "
-            "on a workspace document makes it public everywhere. Optionally set when the link expires."
+            "on a workspace document makes it public everywhere. Optionally set when the link expires. "
+            "allow_resharing (owner only) is the Share dialog's 'Let people I share with add others': "
+            "true lets people it's shared with add others, including people outside the workspace, "
+            "never with more access than they have and never changing who can open it by link; false "
+            "means only the owner shares it. Not given: unchanged (a workspace item without its own "
+            "choice follows the workspace's setting, on by default). Give access, allow_resharing, or both."
         ),
         scope=WRITE,
         writes=True,
@@ -2729,11 +2760,15 @@ TOOLS: list[Tool] = [
                                                    "applies again."},
                 "expires": {"type": "string", "enum": EXPIRY_CHOICES,
                             "description": "Optional: when the link stops working, counted from now."},
+                "allow_resharing": {"type": "boolean",
+                                    "description": "Optional: let people it's shared with add others "
+                                                   "(true) or not (false)."},
             },
-            "required": ["document", "access"],
+            "required": ["document"],
         },
-        output_schema=_out({**_URL_PROPS, "access": _ACCESS_OUT, "expires_at": _NULLABLE_STR},
-                           ["url", "markdrop_url", "access", "expires_at"]),
+        output_schema=_out({**_URL_PROPS, "access": _ACCESS_OUT, "expires_at": _NULLABLE_STR,
+                            "allow_resharing": {"type": "boolean"}},
+                           ["url", "markdrop_url", "access", "expires_at", "allow_resharing"]),
         annotations=_ann(False, False, True),
         handler=set_access,
     ),
@@ -3413,13 +3448,16 @@ TOOLS += [
         name="list_workspaces",
         title="List my workspaces",
         description=("The workspaces the user belongs to: id, name, their role, custom domains (and "
-                     "whether each is live) and the default access for new documents. Use the id, "
-                     "name or a domain as `workspace` in the other tools."),
+                     "whether each is live), the default access for new documents and allow_resharing "
+                     "(whether people a document is shared with may share it onward, for items without their "
+                     "own choice; admins change it in workspace settings). Use the id, name or a domain as "
+                     "`workspace` in the other tools."),
         scope=READ,
         input_schema={"type": "object", "properties": {}},
         output_schema=_out({"workspaces": {"type": "array", "items": _out({
             "workspace_id": {"type": "string"}, "name": {"type": "string"}, "role": {"type": "string"},
             "custom_domains": {"type": "array"}, "default_access": {"type": "string"},
+            "allow_resharing": {"type": "boolean"},
         })}}),
         annotations=_ann(True, False, True),
         handler=list_workspaces,

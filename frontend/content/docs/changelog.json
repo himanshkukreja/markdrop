@@ -117,6 +117,20 @@
       "body": "- **Items open on markdrop.in.** Choosing an item in a workspace, on Home, in search or Recent keeps you on markdrop.in. [How it works](/workspaces/custom-domain#open-on-markdropin-or-on-your-domain)\n- **Open on your domain.** The item's **⋯** menu and the document's top bar open it on the workspace's domain in a new tab, signed in.\n- **Both links in Share.** The workspace domain's link (the default) and the markdrop.in link, each with **Copy**. One access setting covers both. [Two links, one setting](/sharing/who-can-open#two-links-one-setting)\n- **API and MCP name both.** Responses add `markdrop_url` and `domain_url` beside `url`."
     },
     {
+      "id": "reshare-default-on",
+      "date": "2026-11-10",
+      "title": "People you share with can share it on, by default",
+      "kind": "improved",
+      "area": "Sharing",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Let people I share with add others is now on by default for documents, pages and files in a workspace, and admins set the default with Let people share onward.",
+      "body": "- **On by default in workspaces.** People an item is shared with can add others, including people outside the workspace, never with more access than they have. Who can open it, its password and its link don't change. An owner's own choice is kept. [Let people share it on](/sharing/share-with-people#let-people-share-it-on)\n- **A workspace default.** Admins turn **Let people share onward** off on the **Advanced** tab to keep sharing with owners. [The switches behind the presets](/workspaces/privacy#the-switches-behind-the-presets)\n- **Who added whom.** Owners and admins see \"Added by\" under people someone else added.\n- **MCP.** `set_access` takes `allow_resharing`, and `list_workspaces` shows the workspace's default."
+    },
+    {
       "id": "comments",
       "date": "2026-11-09",
       "title": "Comments on pages and documents, and Jira inside your pages",
