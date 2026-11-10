@@ -763,14 +763,14 @@ class Concurrency(AccessWorld):
 
 class Migrations(AccessWorld):
     async def test_startup_migrations_idempotent(self):
-        filed = await self.mkdoc("L")
-        await self.db["documents"].update_one({"_id": filed["_id"]}, {"$unset": {"allow_resharing": ""}})
+        filed = await self.mkdoc("L")  # stored false: the old filed default
         orphan_w = await self.mkdoc("W", ws=None)          # workspace level, no workspace
         dangling = await self.mkdoc("W", workspace_id=str(ObjectId()))
         ra_art = await self.mkdoc("RL", kind="artifact")
         self.r2.objects[ra_art["blob_key"]]["public"] = True  # pre-D3 state
         out = await lifecycle.migrate(self.db)
-        self.assertFalse((await self.doc(filed["slug"]))["allow_resharing"])
+        self.assertNotIn("allow_resharing", await self.doc(filed["slug"]))
+        self.assertEqual(out["resharing_default_on"], 3)  # filed, dangling, ra_art (all filed, stored false)
         self.assertEqual((await self.doc(orphan_w["slug"]))["access_level"], "private")
         raw = await self.doc(dangling["slug"])
         self.assertEqual((raw["workspace_id"], raw["access_level"]), (None, "private"))
@@ -778,7 +778,7 @@ class Migrations(AccessWorld):
         await lifecycle.reconcile_once(self.db)
         self.assertFalse(self.r2.objects[ra_art["blob_key"]]["public"])
         again = await lifecycle.migrate(self.db)
-        self.assertEqual((again["resharing_defaulted"], again["workspace_level_released"],
+        self.assertEqual((again["resharing_default_on"], again["workspace_level_released"],
                           again["dangling_released"]), (0, 0, 0))
         self.assertNotIn("require_auth_bytes_queued", again)
 

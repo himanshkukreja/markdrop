@@ -272,19 +272,24 @@ class Grants(AccessWorld):
         d = await self.mkdoc("P", ws=None, allow_resharing=False)
         self.assertEqual((await self._share("ge", d["slug"], "y@example.com")).status_code, 403)
 
-    async def test_c034_filing_sets_resharing_false(self):
+    async def test_c034_filing_keeps_the_owners_resharing_choice(self):
+        # Owner 2026-11-10: filing no longer switches resharing off; the owner's choice is kept and
+        # no choice follows the workspace's "Let people share onward" (on).
         d = await self.mkdoc("L", ws=None, allow_resharing=True)
-        r = await self.http.post(f"/api/v1/workspaces/{self.ws['W1']}/items/add", json={"slugs": [d["slug"]]},
-                                 headers=self.session("owner"))
+        e = await self.mkdoc("L", ws=None)
+        await self.db["documents"].update_one({"_id": e["_id"]}, {"$unset": {"allow_resharing": ""}})
+        r = await self.http.post(f"/api/v1/workspaces/{self.ws['W1']}/items/add",
+                                 json={"slugs": [d["slug"], e["slug"]]}, headers=self.session("owner"))
         self.assertEqual(r.status_code, 200, r.text)
-        self.assertFalse((await self.doc(d["slug"]))["allow_resharing"])
+        self.assertTrue((await self.doc(d["slug"]))["allow_resharing"])
+        self.assertNotIn("allow_resharing", await self.doc(e["slug"]))
 
-    async def test_c035_workspace_level_sets_resharing_false(self):
+    async def test_c035_workspace_level_keeps_resharing(self):
         d = await self.mkdoc("L", allow_resharing=True)
         r = await self.http.put(f"/api/v1/documents/{d['slug']}/access/level", json={"level": "workspace"},
                                 headers=self.session("owner"))
         self.assertEqual(r.status_code, 204, r.text)
-        self.assertFalse((await self.doc(d["slug"]))["allow_resharing"])
+        self.assertTrue((await self.doc(d["slug"]))["allow_resharing"])
 
     async def test_c036_owner_email_409(self):
         d = await self.mkdoc("P", ws=None)
