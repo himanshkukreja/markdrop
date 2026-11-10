@@ -15,6 +15,7 @@ import {
 } from "@/lib/teams";
 import { AdminsNote, ColorSwatches, PeoplePicker, TeamTile, VISIBILITY_OPTIONS, VisibilityBadge, useWorkspaceMembers } from "./parts";
 import { Crumbs } from "./TeamHome";
+import { TeamDialog } from "./TeamDialog";
 import "./teams.css";
 
 export default function BrowseTeams({ ws }: { ws: string }) {
@@ -92,8 +93,11 @@ export default function BrowseTeams({ ws }: { ws: string }) {
           )}
         </>
       )}
-      <CreateTeamDialog ws={ws} open={!!creating} from={creating?.from} onClose={() => setCreating(null)}
+      <CreateTeamDialog ws={ws} open={!!creating?.from} from={creating?.from} onClose={() => setCreating(null)}
         onCreated={(t) => { setCreating(null); router.push(teamHref(ws, t)); }} />
+      {creating && !creating.from && (
+        <TeamDialog ws={ws} open onClose={() => setCreating(null)} onSaved={(t) => { setCreating(null); router.push(teamHref(ws, t)); }} />
+      )}
     </div>
   );
 }
@@ -124,7 +128,7 @@ function TeamCardView({ ws, t, onChange }: { ws: string; t: TeamCard; onChange: 
       </div>
       {t.description && <p className="tz-tcard__desc" dir="auto">{t.description}</p>}
       <div className="tz-tcard__foot">
-        <VisibilityBadge v={t.visibility} />
+        <VisibilityBadge v={t.visibility} general={t.general} />
         {!t.my_role && t.visibility === "open" && user ? (
           <Button size="sm" variant="secondary" loading={busy} onClick={async () => {
             setBusy(true);

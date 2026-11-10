@@ -66,13 +66,13 @@ export default function TeamsReview({ ws }: { ws: string }) {
       <header className="tz-head">
         <div className="tz-head__titles">
           <h1 className="tz-title">Sort content into teams</h1>
-          <p className="tz-sub">Everything stayed company-wide when teams arrived. These are suggestions from who attended, who wrote it and where it&apos;s filed. Change or untick any row; nothing moves until you apply.</p>
+          <p className="tz-sub">Everything stayed in General when teams arrived. These are suggestions from who attended, who wrote it and where it&apos;s filed. Change or untick any row; nothing moves until you apply.</p>
         </div>
       </header>
       {teams.length === 0 ? (
         <EmptyState icon="users" title="Create a team first" description="Suggestions point at teams. Make one, then come back." actions={<Button href={`${browseHref(ws)}?create=1`}>New team</Button>} />
       ) : total === 0 ? (
-        <EmptyState icon="checkCircle" title="Nothing to sort" description="No company-wide meetings, pages or folders look like they belong to a team."
+        <EmptyState icon="checkCircle" title="Nothing to sort" description="Nothing in General looks like it belongs to another team."
           actions={<Button onClick={done}>Finish review</Button>} />
       ) : (
         <div className="tz-review">
@@ -92,7 +92,7 @@ export default function TeamsReview({ ws }: { ws: string }) {
                       {teamOf(r) && <TeamTile team={teams.find((t) => t.id === teamOf(r)) ?? { name: "?" }} size={18} />}
                       <Select aria-label={`Team for ${r.title}`} value={teamOf(r)} className="min-w-0"
                         onChange={(e) => { const v = e.target.value; setPicked((p) => ({ ...p, [key(r)]: v })); setOn((o) => ({ ...o, [key(r)]: !!v })); }}
-                        options={[{ value: "", label: "Keep company-wide" }, ...teams.map((t) => ({ value: t.id, label: t.name }))]} />
+                        options={[{ value: "", label: "Keep in General" }, ...teams.map((t) => ({ value: t.id, label: t.name }))]} />
                     </div>
                   </li>
                 ))}

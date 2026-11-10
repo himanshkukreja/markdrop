@@ -6,12 +6,12 @@ nav: Share and projects
 keywords: [team pages, move to team, share to team, several teams, company-wide, new page in team, team folder, cross-team project, project space, q4 launch, private team sharing, link sharing, share dialog teams]
 ---
 
-Every page, document and file in a workspace is either **company-wide** (in no team) or in one or more teams. A team's **Pages** lists what's in it.
+Every page, document and file in a workspace is either in **General** (the team everyone is in) or in one or more other teams. A team's pages and files are under it in the sidebar.
 
 ## Put something in a team
 
-- **New page in a team**: choose **+** next to the team in the sidebar, or **New page** on its home or Pages.
-- **Move or share an existing item**: open it, choose **Share**, and under **Teams** choose **Add to a team**. An item can be in several teams: each sees it in its own space. Choose **×** on a team to take it out; with no teams left, it's company-wide again.
+- **New page in a team**: choose **+** next to the team in the sidebar, or **New page** on its home.
+- **Move or share an existing item**: open it, choose **Share**, and under **Teams** choose **Add to a team**. An item can be in several teams: each sees it in its own space. Choose **×** on a team to take it out; with no teams left, it's back in General.
 
 ::clip{src="/docs-assets/teams/share-and-projects/share-flow" alt="Alex opens Company holidays 2026, chooses Share, then Add to a team under Teams, and picks Engineering. Engineering appears as a chip under Teams."}
 
@@ -37,4 +37,4 @@ A project is a space that several teams work on together, like "Q4 launch": its 
 
 ![The Q4 launch project: its pages and meetings, and the memory of the Sales, Marketing and Engineering teams it belongs to.](/docs-assets/teams/share-and-projects/project.webp)
 
-Admins and the leads of a team create a project from the team's home (**Projects › New project**) or the company home. Choose its teams, and add people from outside them if you need to. Put pages in it from their **Share** dialog, like a team.
+Admins and the leads of a team create a project from the team's home (**Projects › New project**). Choose its teams, and add people from outside them if you need to. Put pages in it from their **Share** dialog, like a team.

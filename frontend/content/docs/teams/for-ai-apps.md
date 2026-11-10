@@ -4,7 +4,7 @@ description: Let Claude, ChatGPT or Cursor list teams, read a team's home and br
 updated: 2026-11-10
 nav: For AI apps
 prerequisites: [/ai/hosted-mcp]
-keywords: [mcp, teams mcp, list_teams, get_team, create_team, update_team, add_team_members, remove_team_members, move_to_team, share_to_team, get_team_brief, edit_team_brief, list_projects, create_project, route_meeting, space, team scope, ai apps]
+keywords: [mcp, teams mcp, list_teams, get_team, create_team, update_team, add_team_members, remove_team_members, move_to_team, share_to_team, get_team_brief, edit_team_brief, list_projects, create_project, route_meeting, list_favorites, set_favorite, general, space, team scope, ai apps]
 ---
 
 Everything on these pages works from an AI app connected to Markdrop's [hosted MCP server](/ai/hosted-mcp). The app acts as you, with your access: it sees the teams and content you can see, and can only change what you could on the website.
@@ -39,10 +39,12 @@ Everything on these pages works from an AI app connected to Markdrop's [hosted M
 | `update_team` | write | Leads and admins: name, description, Slack channel, comment posts to the channel (`slack_comments`), Jira projects, digest; admins also open or private. | `workspace`, `team`, … |
 | `add_team_members` | write | Leads and admins add workspace members; anyone can add themselves to an open team. | `workspace`, `team`, `people` |
 | `remove_team_members` | write | Leads and admins remove people; anyone can remove themselves (`"me"`). | `workspace`, `team`, `people` |
-| `move_to_team` | write | Puts a document, page or file into one team, or back to company-wide (`team: "company"`). | `document`, `team` |
+| `move_to_team` | write | Puts a document, page or file into one team, or back to General, the team everyone is in (`team: "General"` or `"company"`). | `document`, `team` |
 | `share_to_team` | write | Adds a team to an item's teams, or takes one off (`remove: true`). | `document`, `team`, `remove` |
 | `edit_team_brief` | write | Leads and admins: change, hide or add a line of the brief. | `workspace`, `team`, `line_id`, `text`, `hidden`, `add` |
 | `create_project` | write | A project shared by several teams. | `workspace`, `name`, `teams` |
 | `route_meeting` | write | Says which teams a meeting belongs to (its page and transcript follow). | `meeting`, `teams` |
+| `list_favorites` | read | The pages, files, teams and projects you starred in a workspace (the sidebar's Favorites). | `workspace` |
+| `set_favorite` | write | Stars or unstars a page or file (`kind: "doc"`), a team or a project. | `workspace`, `kind`, `item`, `on` |
 
-`search`, `ask_documents`, `ask_meetings`, `list_team`, `get_person_profile`, `get_project_status`, `list_workspace_items` and `list_meetings` take a `space`: `team:<id>`, `project:<id>`, `company` (company-wide only) or `all` (the default: everything you can read). See [All tools](/ai/tools#teams).
+`search`, `ask_documents`, `ask_meetings`, `list_team`, `get_person_profile`, `get_project_status`, `list_workspace_items` and `list_meetings` take a `space`: `team:<id>`, `project:<id>`, `company` (General: items in no other team) or `all` (the default: everything you can read). See [All tools](/ai/tools#teams).

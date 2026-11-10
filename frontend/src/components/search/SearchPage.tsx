@@ -70,7 +70,7 @@ export default function SearchPage() {
   const [space, setSpace] = useState(initial.space);
   useTeamsSidebar(scope !== "all" ? [scope] : []);
   const wsTeams = scope !== "all" ? teamsSlot(scope) : undefined;
-  const teamChoices = wsTeams ? wsTeams.teams : [];
+  const teamChoices = wsTeams ? wsTeams.teams.filter((t) => !t.general) : [];
   const [owner, setOwner] = useState(initial.owner);
   const [updated, setUpdated] = useState(initial.updated);
   const [res, setRes] = useState<SearchResponse | null>(null);
@@ -232,7 +232,7 @@ export default function SearchPage() {
             options={[{ value: "all", label: "Everywhere" }, ...workspaces.map((w) => ({ value: w.id, label: w.name }))]} />
           {teamChoices.length > 0 && (
             <Select aria-label="Team" value={space} onChange={(e) => setSpace(e.target.value)} data-testid="search-team"
-              options={[{ value: "", label: "All teams" }, { value: "company", label: "Company-wide only" }, ...teamChoices.map((t) => ({ value: `team:${t.id}`, label: t.name }))]} />
+              options={[{ value: "", label: "All teams" }, { value: "company", label: "General (company-wide)" }, ...teamChoices.map((t) => ({ value: `team:${t.id}`, label: t.name }))]} />
           )}
           <Select aria-label="Owner" value={owner} onChange={(e) => setOwner(e.target.value as "me" | "anyone")}
             options={[{ value: "anyone", label: "Anyone's" }, { value: "me", label: "Mine" }]} />

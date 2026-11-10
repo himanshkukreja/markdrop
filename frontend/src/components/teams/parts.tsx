@@ -25,7 +25,8 @@ export function TeamTile({ team, size = 18, className }: { team: Tileable; size?
 }
 
 /** "Open" / "Private" with its glyph (never colour alone). */
-export function VisibilityBadge({ v, size = "sm" }: { v: Visibility; size?: "sm" | "md" }) {
+export function VisibilityBadge({ v, size = "sm", general }: { v: Visibility; size?: "sm" | "md"; general?: boolean }) {
+  if (general) return <Badge size={size} tone="info" icon="users">Everyone</Badge>;
   return v === "private"
     ? <Badge size={size} tone="neutral" icon="lock">Private</Badge>
     : <Badge size={size} tone="info" icon="globe">Open</Badge>;

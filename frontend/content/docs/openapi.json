@@ -21961,6 +21961,106 @@
         }
       }
     },
+    "/api/v1/workspaces/{workspace_id}/favorites": {
+      "get": {
+        "tags": [
+          "teams"
+        ],
+        "summary": "Favorites: your starred pages, files, projects and teams",
+        "operationId": "get_favorites_api_v1_workspaces__workspace_id__favorites_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      },
+      "put": {
+        "tags": [
+          "teams"
+        ],
+        "summary": "Favorites: star or unstar",
+        "operationId": "put_favorite_api_v1_workspaces__workspace_id__favorites_put",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Favorite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/meetings/{meeting_id}/teams": {
       "get": {
         "tags": [
@@ -30322,6 +30422,36 @@
           "endpoint"
         ],
         "title": "Endpoint"
+      },
+      "Favorite": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "doc",
+              "project",
+              "team"
+            ],
+            "title": "Kind"
+          },
+          "ref": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Ref"
+          },
+          "on": {
+            "type": "boolean",
+            "title": "On",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "title": "Favorite"
       },
       "FeedbackCreate": {
         "properties": {

@@ -6,7 +6,7 @@ nav: Set up
 keywords: [set up teams, migrate to teams, existing content, company-wide, team groups, suggested teams, guided review, sort into teams, move meetings, move pages, move folders, admins]
 ---
 
-Everything in your workspace stays **company-wide** when you start using teams: nobody loses access to anything, and nothing changes until an admin says so.
+Everything in your workspace stays in **General**, the team everyone is in, when you start using teams: nobody loses access to anything, and nothing changes until an admin says so.
 
 ## 1. Create your teams
 
@@ -22,7 +22,7 @@ Admins see **Sort content into teams** in the sidebar until they finish it. It s
 - **Pages**: by who wrote them, or the folder they're in.
 - **Folders**: by who files in them.
 
-Each row starts on its suggestion. Change the team, choose **Keep company-wide**, or untick it. Nothing moves until you choose **Apply**; the count next to it says how many items will move. Choose **Finish without moving** when you're done, and the suggestions go away.
+Each row starts on its suggestion. Change the team, choose **Keep in General**, or untick it. Nothing moves until you choose **Apply**; the count next to it says how many items will move. Choose **Finish without moving** when you're done, and the suggestions go away.
 
 ![Sort content into teams: Pages tab with rows like "Q4 pricing playbook, Riya Sharma, from who wrote it" set to Sales, and Apply 4 at the bottom.](/docs-assets/teams/set-up/review.webp)
 

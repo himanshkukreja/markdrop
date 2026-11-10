@@ -41,7 +41,7 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported, 
   // none ticked = company-wide. Shown only when the workspace has teams you can add to.
   useTeamsSidebar([workspaceId]);
   const teamsData = teamsSlot(workspaceId);
-  const teamOptions = teamsData ? teamsData.teams.filter((t) => t.my_role || t.can_admin) : [];
+  const teamOptions = teamsData ? teamsData.teams.filter((t) => !t.general && (t.my_role || t.can_admin)) : [];
   const [teamIds, setTeamIds] = useState<string[]>(team ? [team] : []);
   const [suggested, setSuggested] = useState<string[]>([]);
   const teamsTouched = useRef(false);
@@ -342,7 +342,7 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported, 
           <legend className="mb-1 text-body font-medium">Teams</legend>
           <p className="text-small text-text-secondary">
             {suggested.length ? "Suggested from who attended and earlier meetings in the series. " : ""}
-            A meeting with several teams goes to each. None ticked: company-wide.
+            A meeting with several teams goes to each. None ticked: General (everyone).
           </p>
           <TeamChecklist teams={teamOptions} value={teamIds} onChange={(v) => { teamsTouched.current = true; setTeamIds(v); }} label="Teams for this meeting" />
         </fieldset>

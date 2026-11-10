@@ -63,10 +63,26 @@ export default [
       await h.loc(`[data-rail-key="ws:${h.fx.workspace.id}:team:${h.fx.teams.sales.id}:project:${h.fx.teams.q4.id}"]`).waitFor({ timeout: 15000 });
     },
     crop: async (h) => {
-      const b = await h.page.locator(`aside[data-rail="full"] [data-rail-key="ws:${h.fx.workspace.id}:root"]`).first().boundingBox();
-      const end = await h.page.locator(`aside[data-rail="full"] [data-rail-key="ws:${h.fx.workspace.id}:browse"]`).first().boundingBox();
-      return { box: { x: 0, y: b.y - 4, width: 248, height: end.y + end.height - b.y + 16 } };
+      const b = await h.page.locator(`aside[data-rail="full"] [data-testid="ws-switcher"]`).first().boundingBox();
+      const end = await h.page.locator(`aside[data-rail="full"] [data-testid="rail-browse-teams"]`).first().boundingBox();
+      return { box: { x: 0, y: b.y - 8, width: 248, height: end.y + end.height - b.y + 16 } };
     },
+  },
+  {
+    id: "teams-general",
+    page: OVERVIEW,
+    name: "general",
+    kind: "screenshot",
+    auth: "owner",
+    url: "/dashboard",
+    viewport: { width: 1600, height: 1000 },
+    prepare: async (h) => {
+      await h.goto(`/w/${W(h.fx)}/teams/general`);
+      await h.loc("[data-testid='general-home']").waitFor({ timeout: 30000 });
+      await h.loc("[data-testid='general-across']").waitFor({ timeout: 30000 });
+      await still(h);
+    },
+    crop: { box: { x: 0, y: 56, width: 1600, height: 900 } },
   },
 
   // ── Team home ───────────────────────────────────────────────────────────────
@@ -157,10 +173,17 @@ export default [
     steps: async (h) => {
       await h.click("[data-testid='new-team']");
       await h.type("[data-testid='team-name']", "Customer Success", { speed: 2.4 });
-      await h.click(h.page.getByRole("radio", { name: "pink" }));
-      await h.click(h.page.getByRole("dialog").locator("label", { hasText: "Only members see" }));
+      await h.click("[data-testid='team-icon']");
+      await h.sleep(500);
+      await h.click(h.page.getByRole("button", { name: "🤝" }));
+      await h.click(h.page.getByRole("radio", { name: "Colour pink" }));
+      await h.sleep(500);
+      await h.click(h.page.getByRole("dialog").getByRole("button", { name: "Done" }));
+      await h.click("[data-testid='vis-private']");
       await h.sleep(900);
-      await h.click(h.page.getByRole("dialog").locator(".tz-picklist label", { hasText: "Maya Patel" }).last());
+      await h.type("[data-testid='team-add-people']", "Maya", { speed: 2.4 });
+      await h.sleep(500);
+      await h.page.keyboard.press("Enter");
       await h.sleep(500);
       await h.click("[data-testid='create-team']");
       await h.loc("[data-testid='team-home']").waitFor({ timeout: 20000 });
@@ -177,10 +200,10 @@ export default [
     viewport: WIDE,
     prepare: async (h) => {
       await h.goto(teamUrl(h.fx, "sales", "/settings"));
-      await h.loc("[data-testid='team-visibility']").waitFor({ timeout: 30000 });
+      await h.loc("[data-testid='vis-private']").waitFor({ timeout: 30000 });
       await still(h);
     },
-    crop: { union: ["[data-testid='team-visibility']", "[data-testid='team-members-settings']"], pad: 12 },
+    crop: { selector: "[role='dialog']", pad: 0 },
   },
 
   // ── Share and projects ──────────────────────────────────────────────────────
@@ -324,8 +347,8 @@ export default [
     url: "/dashboard",
     viewport: { width: 390, height: 844 },
     prepare: async (h) => {
-      await h.goto(`/w/${W(h.fx)}/home`);
-      await h.loc("[data-testid='company-home']").waitFor({ timeout: 30000 });
+      await h.goto(`/w/${W(h.fx)}/teams/general`);
+      await h.loc("[data-testid='general-home']").waitFor({ timeout: 30000 });
       await h.page.getByRole("button", { name: "Menu" }).first().click();
       await h.loc(`[role="dialog"] [data-rail-key="ws:${h.fx.workspace.id}:team:${h.fx.teams.sales.id}"]`).waitFor({ timeout: 10000 });
       await h.settle(700);

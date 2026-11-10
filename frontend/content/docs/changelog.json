@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "nav-general",
+      "date": "2026-11-10",
+      "title": "A new sidebar, General for everyone, and team homes that use the width",
+      "kind": "new",
+      "area": "Teams",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "One sidebar for a workspace: switcher, Favorites, Teams with General first, and each team's meetings, people and pages in one tree. Every workspace has a General team everyone is in.",
+      "body": "- **One tree.** The sidebar shows one workspace: Search, Home, Inbox and Ask, then **Favorites**, then **Teams**: each opens to its Meetings, People & memory, projects and its pages and files. [The sidebar](/teams/overview#the-sidebar)\n- **General.** Every workspace has a team everyone is in, for what's company-wide. It replaces the separate Company section; old links open it. Admins can rename it. [General](/teams/overview#general-the-team-everyone-is-in)\n- **Team homes that use the width.** The brief, Needs you, recently updated pages and files with previews, meetings, **What's happening** and who's doing what, in three columns. General adds Across teams. [A team's home](/teams/team-home)\n- **New team and Team settings, redone.** Icon and name on one row, emoji or icons with colours, Open or Private as cards, people as chips; ⌘↵ saves. [Create a team](/teams/create-and-manage#create-a-team)\n- **Favorites.** Star pages, files, teams and projects from their ⋯ menu; also `list_favorites` and `set_favorite` for AI apps.\n- **Cleaner, consistent icons across Markdrop.**"
+    },
+    {
       "id": "dual-links",
       "date": "2026-11-10",
       "title": "Workspace items open on markdrop.in, with both links to share",

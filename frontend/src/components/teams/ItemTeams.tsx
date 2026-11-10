@@ -30,7 +30,7 @@ export default function ItemTeams({ ws, item, onChanged }: { ws: string; item: s
     catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't change its teams"); }
     finally { setBusy(false); }
   };
-  const addT = options.teams.filter((t) => !data.team_ids.includes(t.id));
+  const addT = options.teams.filter((t) => !t.general && !data.team_ids.includes(t.id));
   const addP = options.projects.filter((p) => !data.project_ids.includes(p.id));
   const privateIn = teams.filter((t) => t.visibility === "private");
   return (
@@ -51,7 +51,7 @@ export default function ItemTeams({ ws, item, onChanged }: { ws: string; item: s
           {teams.map((t) => <TeamChip key={t.id} team={t} onRemove={data.can_change && !busy ? () => void save(data.team_ids.filter((x) => x !== t.id), data.project_ids, `Removed from ${t.name}`) : undefined} />)}
           {projects.map((p) => <TeamChip key={p.id} team={p} onRemove={data.can_change && !busy ? () => void save(data.team_ids, data.project_ids.filter((x) => x !== p.id), `Removed from ${p.name}`) : undefined} />)}
         </div>
-      ) : <p className="text-caption text-text-muted">Company-wide: in no team. Add it to a team to put it in that team&apos;s space.</p>}
+      ) : <p className="text-caption text-text-muted">In General: everyone in the workspace can find it. Add it to a team to put it in that team&apos;s space.</p>}
       {privateIn.length > 0 && (
         <p className="text-caption text-text-muted">
           {privateIn.map((t) => t.name).join(", ")} {privateIn.length === 1 ? "is" : "are"} private: it shows only in {privateIn.length === 1 ? "that team's" : "those teams'"} space and search.

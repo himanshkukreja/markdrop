@@ -6,14 +6,18 @@ nav: Team home
 keywords: [team home, weekly brief, team brief, edit brief, hide line, recent pages, team meetings, team memory, members, jira projects, private team, brief only]
 ---
 
-Open a team from **Your teams** in the sidebar, or from **Browse teams**. Its home has everything the team is working on in one place:
+Open a team from **Teams** in the sidebar, or from **Browse teams**. Its home has everything the team is working on in one place, laid out in three columns on a wide screen (two on a laptop, one on a phone):
 
-- **Weekly brief**: what the team shipped, decided, is blocked on and is focusing on.
-- **Recent pages** and **Meetings**: the newest in the team's space, with links to all of them.
-- **Memory**: who's doing what, from the team's meetings and pages.
-- **Projects**: the cross-team projects the team is part of.
-- **Jira**: open, overdue and recently done issues in the team's Jira projects.
-- **Members**, with the team's leads marked.
+- **Ask** *team*: a question box that answers from the team's pages, files and meetings.
+- **This week in** *team*: the weekly brief, what the team shipped, decided, is blocked on and is focusing on.
+- **Needs you**: your unread sign-offs, mentions and requests, with a link to your Inbox.
+- **Recently updated**: the team's newest pages and files, each with a preview of its type.
+- **Meetings**: the newest in the team's space, with **Import meeting**.
+- **What's happening**: who created, updated or uploaded what, and which meetings were summarised, by day.
+- **Who's doing what**: from the team's meetings and pages (with Team memory on).
+- **Projects**, **Jira** (open, overdue and recently done issues) and **Members**, with the team's leads marked.
+
+[General](/teams/overview#general-the-team-everyone-is-in) adds **Across teams** and **New this month**, and its **What's happening** covers every team you can see.
 
 ![The Sales team's weekly brief, "Week of Nov 10": a shipped line, a decision, a blocker and a focus, each with its icon, and Earlier and Re-draft above them.](/docs-assets/teams/team-home/brief.webp)
 

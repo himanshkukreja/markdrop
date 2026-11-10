@@ -10,13 +10,13 @@ keywords: [team meetings, meeting routing, suggested team, attendees, meeting se
 
 When you import a meeting, Markdrop suggests its team from who was there: a team that most of the attendees are in, or the team that earlier meetings of the same series went to. A meeting with people from several teams goes to each of them.
 
-The importer shows the suggestion as ticked **Teams**. Change it before importing, or untick them all to keep the meeting company-wide. Importing from a team's **Meetings** starts on that team.
+The importer shows the suggestion as ticked **Teams**. Change it before importing, or untick them all to keep the meeting in General. Importing from a team's **Meetings** starts on that team.
 
 ![Import a meeting from Sales's meetings: a pasted transcript with Riya, Alex and Hana, and under Teams, Sales ticked.](/docs-assets/teams/meetings-and-memory/import-teams.webp)
 
 Meetings that arrive on their own (from Google Meet) use the suggestion. Each card in **Meetings** shows its teams; "Suggested" means nobody has confirmed them yet. To change a meeting's teams later, open it and use **Share › Teams**: its summary page and transcript move together.
 
-**Company › Meetings** lists only company-wide meetings, because a team's meetings live in that team. Turn on **Show all I can open** to see every meeting you can open in one list, including meetings from your teams and from open teams.
+**General › Meetings** lists only the meetings that are in no other team, because a team's meetings live in that team. Turn on **Show all I can open** to see every meeting you can open in one list, including meetings from your teams and from open teams.
 
 ![The Meetings list: Sales pipeline review with the Sales chip, and Q4 launch sync with the Marketing and Engineering chips.](/docs-assets/teams/meetings-and-memory/team-meetings.webp)
 
@@ -24,4 +24,4 @@ Meetings that arrive on their own (from Google Meet) use the suggestion. Each ca
 
 A team's **Memory** is [Team memory](/workspaces/team) for that team only: who's doing what, blockers, decisions and targets from the team's own meetings and pages. It's what the team's home and weekly brief are drawn from.
 
-On a person's profile and on a project's page, each line shows a chip with the team it came from. You see the lines from teams you can read (your teams and open teams), plus company-wide ones. Admins see all of them.
+On a person's profile and on a project's page, each line shows a chip with the team it came from. You see the lines from teams you can read (your teams and open teams), plus General's. Admins see all of them.

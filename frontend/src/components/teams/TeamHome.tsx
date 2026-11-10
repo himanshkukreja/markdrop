@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Alert, Avatar, Button, Dropdown, EmptyState, FileIcon, Icon, IconButton, Input, Skeleton, Textarea, cx, useToast } from "@/components/ui";
+import { Alert, Avatar, Button, ConfirmDialog, Dropdown, EmptyState, FileIcon, Icon, IconButton, Input, Skeleton, Textarea, cx, useToast } from "@/components/ui";
 import { useUploads } from "@/components/workspace/uploads/UploadProvider";
 import type { FileRenderer } from "@/components/ui/markdrop";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,7 +16,7 @@ import { useWorkspaceTree } from "@/lib/workspaceStore";
 import { useAssistantHere } from "@/components/assistant/store";
 import { jiraTeam, type JiraTeam } from "@/lib/jira";
 import {
-  addBriefLine, addTeamMembers, browseHref, draftBrief, editBriefLine, generalHref, getBrief, getTeamHome, listBriefs, projectHref, teamAskHref, teamHref, teamMeetingsHref,
+  addBriefLine, addTeamMembers, removeTeamMember, browseHref, draftBrief, editBriefLine, generalHref, getBrief, getTeamHome, listBriefs, projectHref, teamAskHref, teamHref, teamMeetingsHref,
   teamMemoryHref, teamSettingsHref,
   type Brief, type BriefKind, type BriefSummary, type MemoryHighlights, type ProjectCard, type TeamFull, type TeamHome as Home, type TeamHomeLocked, type TeamItem, type TeamMeetingCard,
 } from "@/lib/teams";
@@ -142,6 +142,7 @@ export default function TeamHome({ ws, team: teamRef, settings }: { ws: string; 
             </>
           )}
           {!locked && member && <Button iconLeft="plus" href={`/pages/new?workspace=${encodeURIComponent(ws)}${g ? "" : `&team=${encodeURIComponent(t.id)}`}`}>New page</Button>}
+          {t.my_role && !g && <LeaveButton ws={ws} team={t} />}
           {t.can_manage && !locked && <IconButton icon="settings" label="Team settings" variant="ghost" onClick={() => setDialog(true)} data-testid="team-settings-open" />}
         </div>
       </header>
@@ -164,7 +165,7 @@ export default function TeamHome({ ws, team: teamRef, settings }: { ws: string; 
             {g && home!.across && <AcrossCard ws={ws} across={home!.across} browse={browseHref(ws)} className="th-span2" />}
             {g ? <MeetingsCard meetings={home!.activity?.meetings?.length ? home!.activity.meetings : home!.meetings} href={meetingsHref} importHref={importHref} teams />
               : <RecentCard items={home!.recent} href={`/w/${encodeURIComponent(ws)}/teams/${encodeURIComponent(t.slug)}/pages`} className="th-span2" empty="No pages in this team yet. Use New page, or move pages here from their Share menu." />}
-            {g ? <RecentCard items={home!.recent} href={`/w/${encodeURIComponent(ws)}`} className="th-span2" empty="No company-wide pages yet." />
+            {g ? <RecentCard items={home!.recent} href={`/w/${encodeURIComponent(ws)}`} className="th-span2" empty="Nothing in General yet. New pages and uploads here are for everyone in the workspace." />
               : <MeetingsCard meetings={home!.meetings} href={meetingsHref} importHref={importHref} />}
             {(home!.projects.length > 0 || t.can_manage || (g && (sidebar?.projects.length ?? 0) > 0)) && (
               <ProjectsCard ws={ws} projects={g ? (sidebar?.projects ?? home!.projects) : home!.projects} team={home!.team} />
@@ -183,6 +184,26 @@ export default function TeamHome({ ws, team: teamRef, settings }: { ws: string; 
           onSaved={(saved) => { closeSettings(); void load(); if ((saved as TeamFull).slug && (saved as TeamFull).slug !== t.slug) router.replace(teamHref(ws, saved as TeamFull)); }} />
       )}
     </div>
+  );
+}
+
+/** Leave a team (not General: leaving the workspace does that). */
+function LeaveButton({ ws, team }: { ws: string; team: { id: string; name: string; visibility: string } }) {
+  const { user } = useAuth();
+  const toast = useToast();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  if (!user) return null;
+  return (
+    <>
+      <Button variant="ghost" onClick={() => setOpen(true)} data-testid="leave-team">Leave</Button>
+      <ConfirmDialog open={open} onClose={() => setOpen(false)} title={`Leave ${team.name}?`} confirmLabel="Leave team"
+        description={team.visibility === "private" ? "You'll lose access to its pages and meetings, unless something was shared with you directly." : "You can join again from Browse teams."}
+        onConfirm={async () => {
+          try { await removeTeamMember(ws, team.id, user.id); toast.success(`You left ${team.name}`); router.push(generalHref(ws)); }
+          catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't leave"); }
+        }} />
+    </>
   );
 }
 

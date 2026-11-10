@@ -208,7 +208,7 @@ export default function AskPage() {
   const enabled = status?.enabled !== false;
   const sub = [
     kind === "team" ? `${team?.name ?? "This team"}'s meetings, pages, files and memory. Turn on "Ask the whole company" to widen it.` :
-    kind === "workspace" && myTeams.length ? "Everything in the company you can open: your teams, open teams, company pages and every team's weekly brief." :
+    kind === "workspace" && myTeams.length ? "Everything in the company you can open: General, your teams, open teams and every team's weekly brief." :
     kind === "workspace" ? "The meetings, docs, pages and files of this workspace that you can open." :
       kind === "mine" ? "Your own documents, pages and files outside any workspace." :
         "Your meetings, documents, pages, files and Guides — only what you can open.",
