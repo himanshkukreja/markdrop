@@ -37,10 +37,21 @@ async def zoom_status(ctx: Context, args: dict) -> tuple[str, dict]:
            "imported": c.get("imported", 0), "no_transcript": c.get("no_transcript", 0),
            "last_import_at": c.get("last_import_at"), "last_event_at": c.get("last_event_at"),
            "recent": [{**r, "url": urls.markdrop_url(r["slug"]) if r.get("slug") else None} for r in st.get("recent") or []]}
+    out["mode"] = st.get("mode") if st["connected"] else None
+    out["one_click_available"] = bool(st.get("app_available"))
     if not st["connected"]:
+        if st["can_manage"] and st.get("app_available"):
+            try:
+                out["connect_url"] = await zoom.start(ctx.db, ctx.user, ws_id)
+            except HTTPException:
+                out["connect_url"] = None
+        if out.get("connect_url"):
+            return (f"{name} isn't connected to Zoom. Open this link in the browser where you're signed in to Markdrop and "
+                    f"approve the Markdrop app as a Zoom admin (it works for 15 minutes): {out['connect_url']}"), out
         return (f"{name} isn't connected to Zoom. " + (f"Connect it on the website: {_SETUP}." if st["can_manage"]
                                                        else f"A workspace admin connects it in {_SETUP}.")), out
-    lines = [f"{name} is connected to Zoom."]
+    lines = [f"{name} is connected to Zoom" + (" with the Markdrop app for Zoom." if out["mode"] == "oauth"
+                                               else " with its own Server-to-Server app.")]
     if team:
         lines.append(f"Recorded Zoom meetings hosted by members of the {team['name']} team come in on their own, "
                      f"visible to that team{' (the team is open: everyone in the workspace can read them)' if team.get('visibility') == 'open' else ''}.")
@@ -92,11 +103,14 @@ ZOOM_TOOLS: list[Tool] = [
         description=("Whether a workspace is connected to its Zoom account, which team recorded Zoom meetings go to (only "
                      "meetings hosted by that team's members come in, visible to that team), and how imports are going: "
                      "the latest ones and meetings that had no transcript. Read-only: connecting is done on the website "
-                     f"({_SETUP})."),
+                     f"({_SETUP}); for an admin of a workspace that isn't connected, it also returns connect_url, a "
+                     "one-click link to approve the Markdrop app for Zoom (opened in the person's browser)."),
         scope=READ,
         input_schema={"type": "object", "properties": {"workspace": _WORKSPACE_ARG}, "required": ["workspace"]},
         output_schema=_out({"workspace_id": {"type": "string"}, "connected": {"type": "boolean"},
                             "can_manage": {"type": "boolean"}, "can_import": {"type": "boolean"},
+                            "mode": {"type": ["string", "null"]}, "one_click_available": {"type": "boolean"},
+                            "connect_url": {"type": ["string", "null"]},
                             "team": {"type": ["object", "null"]}, "broken": {"type": ["string", "null"]},
                             "missing_scopes": {"type": "array", "items": {"type": "string"}},
                             "imported": {"type": "integer"}, "no_transcript": {"type": "integer"},

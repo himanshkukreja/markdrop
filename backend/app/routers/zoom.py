@@ -2,17 +2,22 @@
 
 Settings (signed in, markdrop.in only):
     GET    /status?workspace_id=            the Integrations card: connected?, the team, counts, recent imports
+    POST   /connect/start {workspace_id, team_id?}   → {url}: Zoom's consent screen for Markdrop's
+                                            Marketplace app (one click; admins)
+    POST   /connect/finish {code, state? | workspace_id}   the end of it (tokens stored encrypted)
     PUT    /connection                      {workspace_id, account_id, client_id, client_secret?, secret_token?, team_id?}
                                             save the workspace's Server-to-Server OAuth app (admins; checked with Zoom)
     PUT    /team                            {workspace_id, team_id}: where Zoom meetings go (admins)
-    DELETE /connection?workspace_id=        disconnect (admins): the credentials are deleted
+    DELETE /connection?workspace_id=&delete_meetings=   disconnect (admins): the credentials are deleted
+                                            (and the Marketplace app removed from the Zoom account)
 
 Import past meetings (admins and the team's leads):
     GET    /recordings?workspace_id=&days=|from=&to=   the team members' recorded meetings
     POST   /import {workspace_id, uuids}    import the chosen ones
 
-From Zoom (no session; Zoom's signature with the workspace's Secret Token; out of the public schema):
-    POST   /webhook/{workspace_id}
+From Zoom (no session; Zoom's signature; out of the public schema):
+    POST   /webhook                         Markdrop's Marketplace app, every customer (routed by account_id)
+    POST   /webhook/{workspace_id}          a workspace's own Server-to-Server app (its Secret Token)
 """
 
 # No `from __future__ import annotations`: slowapi wraps these routes (see routers/docs_ai.py).
@@ -28,6 +33,8 @@ from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import is_tenant_request, require_user
+from app.services import access
+from app.utils.net import get_client_ip
 from app.services import zoom
 
 log = logging.getLogger("markdrop.zoom")
@@ -53,6 +60,18 @@ class ConnectionIn(BaseModel):
     client_id: str = Field(..., min_length=1, max_length=128)
     client_secret: Optional[str] = Field(None, max_length=256, description="Blank: keep the saved one.")
     secret_token: Optional[str] = Field(None, max_length=256, description="The event subscription's Secret Token. Blank: keep the saved one.")
+    team_id: Optional[str] = Field(None, pattern=r"^([0-9a-f]{24})?$")
+
+
+class StartIn(BaseModel):
+    workspace_id: str = Field(..., pattern=_WS)
+    team_id: Optional[str] = Field(None, pattern=r"^([0-9a-f]{24})?$")
+
+
+class FinishIn(BaseModel):
+    code: str = Field(..., min_length=1, max_length=2000)
+    state: Optional[str] = Field(None, max_length=1000, description="From Markdrop's Connect Zoom; absent for installs started in the Zoom App Marketplace.")
+    workspace_id: Optional[str] = Field(None, pattern=_WS, description="Without a state: the workspace to connect (admins).")
     team_id: Optional[str] = Field(None, pattern=r"^([0-9a-f]{24})?$")
 
 
@@ -83,6 +102,22 @@ async def put_connection(request: Request, body: ConnectionIn, db: AsyncIOMotorD
                               client_secret=body.client_secret, secret_token=body.secret_token, team_id=body.team_id)
 
 
+@router.post("/connect/start", summary="Start connecting Zoom (Markdrop's Marketplace app)")
+@limiter.limit("20/minute")
+async def connect_start(request: Request, body: StartIn, db: AsyncIOMotorDatabase = Depends(get_db),
+                        user: User = Depends(require_user)):
+    _app_only(request)
+    return {"url": await zoom.start(db, user, body.workspace_id, body.team_id or None)}
+
+
+@router.post("/connect/finish", summary="Finish connecting Zoom (Markdrop's Marketplace app)")
+@limiter.limit("20/minute")
+async def connect_finish(request: Request, body: FinishIn, db: AsyncIOMotorDatabase = Depends(get_db),
+                         user: User = Depends(require_user)):
+    _app_only(request)
+    return await zoom.finish(db, user, body.code, body.state or None, body.workspace_id, body.team_id or None)
+
+
 @router.put("/team", summary="The team Zoom meetings go to")
 @limiter.limit("30/minute")
 async def put_team(request: Request, body: TeamIn, db: AsyncIOMotorDatabase = Depends(get_db),
@@ -94,9 +129,11 @@ async def put_team(request: Request, body: TeamIn, db: AsyncIOMotorDatabase = De
 @router.delete("/connection", summary="Disconnect Zoom")
 @limiter.limit("20/minute")
 async def delete_connection(request: Request, workspace_id: str = Query(..., pattern=_WS),
+                            delete_meetings: bool = Query(False, description="Also delete the meetings imported from Zoom (to the Trash)."),
                             db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
     _app_only(request)
-    return await zoom.disconnect(db, user, workspace_id)
+    return await zoom.disconnect(db, user, workspace_id, delete_meetings=delete_meetings,
+                                 actor=access.actor_from_request(request, user), ctx=access.Ctx(db, surface="rest", ip=get_client_ip(request)))
 
 
 @router.get("/recordings", summary="Recorded Zoom meetings to import")
@@ -116,6 +153,16 @@ async def import_(request: Request, body: ImportIn, db: AsyncIOMotorDatabase = D
                   user: User = Depends(require_user)):
     _app_only(request)
     return await zoom.import_recordings(db, user, body.workspace_id, body.uuids)
+
+
+@router.post("/webhook", include_in_schema=False)
+@limiter.limit("1200/minute")
+async def app_webhook(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
+    body = await request.body()
+    if len(body) > MAX_BODY:
+        return JSONResponse({"detail": "Too large"}, status_code=413)
+    code, out = await zoom.handle_app_webhook(db, request.headers, body)
+    return JSONResponse(out, status_code=code)
 
 
 @router.post("/webhook/{workspace_id}", include_in_schema=False)

@@ -675,10 +675,19 @@ class Settings(BaseSettings):
     atlassian_auth_base: str = "https://auth.atlassian.com"
     atlassian_api_base: str = "https://api.atlassian.com"
     # ── Zoom (services/zoom*.py, routers/zoom.py) ────────────────────────────
-    # No Markdrop-wide Zoom app: each workspace's Zoom admin makes a Server-to-Server OAuth app in their
-    # own Zoom account and pastes its Account ID, Client ID, Client Secret and Secret Token into
-    # Workspace settings › Integrations › Zoom (stored encrypted with token_encryption_key). These are
-    # only Zoom's hosts (tests point them elsewhere).
+    # Two ways to connect a workspace's Zoom account, side by side:
+    # * One click (the Zoom App Marketplace): Markdrop's own admin-managed, account-level "General app"
+    #   (marketplace.zoom.us › Develop › Build App; .work/zoom-marketplace/SUBMISSION.md). Its Client ID
+    #   and Client Secret (App Credentials) and the Secret Token of its event subscription (Features ›
+    #   Access) go here. Until all three are set (and token_encryption_key), the one-click option is
+    #   hidden. Its OAuth redirect URL is <frontend_url>/integrations/zoom/callback; its event
+    #   notification endpoint is <api_base_url>/api/v1/zoom/webhook (one for every customer).
+    # * Advanced: a Server-to-Server OAuth app the customer's Zoom admin makes in their own account and a
+    #   workspace admin pastes in (stored encrypted with token_encryption_key); needs nothing here.
+    zoom_client_id: str = ""
+    zoom_client_secret: str = ""
+    zoom_webhook_secret: str = ""
+    # Zoom's hosts (tests point them elsewhere).
     zoom_auth_base: str = "https://zoom.us"
     zoom_api_base: str = "https://api.zoom.us/v2"
     # Jira AI (services/jira_ai.py, ledger feature "jira_ai"): drafting issues from meetings, Team and
@@ -715,6 +724,11 @@ class Settings(BaseSettings):
     @property
     def jira_configured(self) -> bool:
         return bool(self.atlassian_client_id and self.atlassian_client_secret and self.token_encryption_key)
+
+    @property
+    def zoom_app_configured(self) -> bool:
+        """Markdrop's Zoom Marketplace app is set up: "Connect Zoom" (one click) is offered."""
+        return bool(self.zoom_client_id and self.zoom_client_secret and self.zoom_webhook_secret and self.token_encryption_key)
 
     @property
     def docs_r2_configured(self) -> bool:
