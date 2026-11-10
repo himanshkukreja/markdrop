@@ -84,7 +84,7 @@ function RailNav({ section, counts, onSelect, idPrefix }: {
 function Brand() {
   return (
     <div className="flex items-center gap-2">
-      <MarkdropLogo size={26} href="/" label="Markdrop home" />
+      <MarkdropLogo size={26} href="/dashboard" label="Markdrop home" />
       <Badge size="sm" tone="neutral" variant="outline">Admin</Badge>
     </div>
   );

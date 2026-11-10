@@ -8,6 +8,7 @@ import { identifyUser, resetIdentity } from "@/lib/thirdPartyAnalytics";
 import { forgetAllKeys, rememberedKeyCount } from "@/lib/e2e";
 import { clearStudioSession } from "@/lib/studioSession";
 import { forgetThisDevice } from "@/lib/push";
+import { forgetSignedIn, rememberSignedIn } from "@/lib/homeRedirect";
 import { Checkbox, ConfirmDialog } from "@/components/ui";
 
 interface AuthModalOptions {
@@ -45,6 +46,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (!getToken()) {
+      // No session here: drop a leftover md_si hint so "/" shows the landing page (lib/homeRedirect).
+      forgetSignedIn();
       setUser(null);
       setLoading(false);
       return;
@@ -52,6 +55,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     for (let attempt = 0; ; attempt++) {
       try {
         setUser(await fetchMe());
+        // A confirmed session (every sign-in path ends here or in login → setToken): "/" now opens
+        // the dashboard. Also brings sessions from before the hint existed up to date.
+        rememberSignedIn(getToken());
         break;
       } catch (e) {
         // Only a 401 means the token is no good. Anything else keeps the token

@@ -341,10 +341,10 @@ await step("standalone", async () => {
     await p.waitForURL(/\/login\?next=%2Fdashboard/, { timeout: 20000 });
     await c.close();
   }
-  // In a browser tab "/" stays the landing page.
+  // In a browser tab, signed in, "/" is the dashboard too (lib/homeRedirect); /?home=1 stays the landing page.
   const { c, p } = await ctx(browser, { token: T.owner });
-  await p.goto(`${APP}/`, { waitUntil: "networkidle" });
-  if (new URL(p.url()).pathname !== "/") fail(`browser "/" moved to ${p.url()}`);
+  await p.goto(`${APP}/?home=1`, { waitUntil: "networkidle" });
+  if (new URL(p.url()).pathname !== "/") fail(`browser "/?home=1" moved to ${p.url()}`);
   await c.close();
 });
 
