@@ -233,3 +233,20 @@ class AppWebhook(AppWorld):
         self.assertIn(refresh, self.fz.revoked)
         self.assertIsNone(await self.db[zoom.CONNS].find_one({"_id": self.W}))
         self.assertEqual(await self.db["meetings"].count_documents({"workspace_id": self.W}), 0)
+
+
+class Mcp(AppWorld):
+    async def test_zoom_status_offers_a_connect_link_to_admins(self):
+        token = await self.mcp_token("wa")
+        code, res = await self.mcp_call(token, "zoom_status", {"workspace": self.W})
+        self.assertEqual(code, 200)
+        out = res["structuredContent"]
+        self.assertFalse(out["connected"])
+        self.assertTrue(out["one_click_available"])
+        self.assertIn("/oauth/authorize?", out["connect_url"])
+        token = await self.mcp_token("wm")
+        code, res = await self.mcp_call(token, "zoom_status", {"workspace": self.W})
+        self.assertIsNone(res["structuredContent"].get("connect_url"))
+        await self.install()
+        code, res = await self.mcp_call(await self.mcp_token("wa"), "zoom_status", {"workspace": self.W})
+        self.assertEqual((res["structuredContent"]["mode"], res["structuredContent"]["connected"]), ("oauth", True))
