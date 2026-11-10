@@ -103,7 +103,23 @@ for l in b["lines"]:
     seen.add(t.lower()); l["text"] = t; lines.append(l)
 c["team_briefs"].update_one({"_id": b["_id"]}, {"$set": {"lines": lines}})`);
 ok(await api("POST", `${base}/teams/${sales.id}/briefs/${br.id}/lines`, T.owner, { text: "Brief the top 20 customers before the 4 December webinar.", kind: "focus" }), "brief line");
-for (const t of [marketing, eng]) ok(await api("POST", `${base}/teams/${t.id}/briefs/draft`, T.admin), "brief");
+// Every team's brief has a line or two (Across teams on General's home shows the first).
+const LINES = {
+  [marketing.id]: [["The Q4 launch landing page is live for review; the webinar is booked for 4 December.", "shipped"], ["Three launch emails go out from 25 November.", "focus"]],
+  [eng.id]: [["SSO for the enterprise demo workspace ships Thursday.", "focus"], ["Search results now load twice as fast.", "shipped"]],
+};
+for (const t of [marketing, eng]) {
+  const b = ok(await api("POST", `${base}/teams/${t.id}/briefs/draft`, T.admin), "brief");
+  for (const [text, kind] of LINES[t.id]) ok(await api("POST", `${base}/teams/${t.id}/briefs/${b.id}/lines`, T.admin, { text, kind }), "line");
+}
+// General (the team everyone is in): its brief, drawn from the company-wide pages and meetings, plus the lead's lines.
+const gb = ok(await api("POST", `${base}/teams/general/briefs/draft`, T.owner), "general brief");
+for (const [text, kind] of [["Company holidays for 2026 are published: everyone gets 24 December off.", "update"],
+  ["Q4 launch on 9 December: Sales, Marketing and Engineering each have their part in the plan.", "decision"],
+  ["Expense policy: travel above $500 needs pre-approval from 1 December.", "note"]]) {
+  ok(await api("POST", `${base}/teams/general/briefs/${gb.id}/lines`, T.owner, { text, kind }), "general line");
+}
+ok(await api("PUT", `${base}/favorites`, T.owner, { kind: "team", ref: sales.id, on: true }), "favorite");
 
 mongo(`print(c["documents"].update_many({}, {"$set": {"demo_seed": True}}).modified_count, "documents kept")`);
 
