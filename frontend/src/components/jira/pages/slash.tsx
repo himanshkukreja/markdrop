@@ -145,7 +145,9 @@ export function useJiraSlash({ mode, slug, workspaceId, tenant, jira, editor, fl
       const same = !editor.isDestroyed && range.to.pos > range.from.pos && clean(editor.state.doc.textBetween(range.from.pos, range.to.pos, " ", " ")) === range.text;
       if (same) {
         at?.stop();
-        editor.chain().focus().insertContentAt({ from: range.from.pos, to: range.to.pos }, content).run();
+        // The line's text becomes the chip (no space after it: nothing follows on that line).
+        const bare = content.filter((c) => !((c as { type?: string; text?: string }).type === "text" && (c as { text?: string }).text === " "));
+        editor.chain().focus().insertContentAt({ from: range.from.pos, to: range.to.pos }, bare).run();
         return;
       }
     }
