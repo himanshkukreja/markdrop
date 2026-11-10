@@ -15,7 +15,7 @@ export interface McpToolName {
 }
 
 /**
- * The hosted server's 132 tools, grouped as the docs group them (docs: ai/tools "Hosted server
+ * The hosted server's 134 tools, grouped as the docs group them (docs: ai/tools "Hosted server
  * tools"). Keep in step with the backend's tool list and that page.
  */
 export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToolName[] }> = [
@@ -221,6 +221,14 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "update_jira_issue", scope: "write" },
       { name: "list_jira_transitions", scope: "read" },
       { name: "thread_to_jira", scope: "write" },
+    ],
+  },
+  {
+    title: "Zoom",
+    icon: "film",
+    tools: [
+      { name: "zoom_status", scope: "read" },
+      { name: "import_zoom_meetings", scope: "write" },
     ],
   },
   {

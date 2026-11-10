@@ -174,6 +174,8 @@ class Transport(McpTestCase):
             "list_teams", "get_team", "get_team_brief", "list_projects", "create_team", "update_team",
             "add_team_members", "remove_team_members", "move_to_team", "share_to_team", "edit_team_brief",
             "create_project", "route_meeting", "list_favorites", "set_favorite",
+            # Zoom (mcp/zoom_tools.py).
+            "zoom_status", "import_zoom_meetings",
         # A video's captions (search and Ask read it by minute).
         "set_captions"})
         for t in tools.values():
