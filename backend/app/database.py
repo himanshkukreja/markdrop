@@ -313,6 +313,12 @@ async def connect() -> None:
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] jira indexes skipped: {exc}")
     try:
+        from app.services import zoom as _zoom
+
+        await _zoom.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] zoom indexes skipped: {exc}")
+    try:
         from app.services import ask_markdrop as _ask
 
         await _ask.ensure_indexes(db)

@@ -674,6 +674,13 @@ class Settings(BaseSettings):
     # Atlassian's sign-in and API hosts (tests point them elsewhere).
     atlassian_auth_base: str = "https://auth.atlassian.com"
     atlassian_api_base: str = "https://api.atlassian.com"
+    # ── Zoom (services/zoom*.py, routers/zoom.py) ────────────────────────────
+    # No Markdrop-wide Zoom app: each workspace's Zoom admin makes a Server-to-Server OAuth app in their
+    # own Zoom account and pastes its Account ID, Client ID, Client Secret and Secret Token into
+    # Workspace settings › Integrations › Zoom (stored encrypted with token_encryption_key). These are
+    # only Zoom's hosts (tests point them elsewhere).
+    zoom_auth_base: str = "https://zoom.us"
+    zoom_api_base: str = "https://api.zoom.us/v2"
     # Jira AI (services/jira_ai.py, ledger feature "jira_ai"): drafting issues from meetings, Team and
     # pages (owner decision 2026-11-06: $1 a day, $10 a month; the admin AI tab overrides them).
     jira_ai_enabled: bool = True
