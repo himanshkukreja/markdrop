@@ -89,7 +89,7 @@ Putting a document in a workspace folder doesn't change who can open it. A docum
 | Workspace member, team choice or link | Yes | Yes, except **Can view** members | No | Add others, if allowed |
 | Anyone else, link choice | Yes | No | No | No |
 
-"If allowed" means you turned on **Let people I share with add others**. See [Share with specific people](/sharing/share-with-people#let-people-share-it-on).
+"If allowed" means **Let people I share with add others** is on: the default, unless you or your workspace's admins turned it off. See [Share with specific people](/sharing/share-with-people#let-people-share-it-on).
 
 Replacing a file always needs a signed-in account that can edit it. The edit secret doesn't replace files.
 
