@@ -690,6 +690,9 @@ async def run_list(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ct
         if not any(same_query(r.spec or {}, spec) and (r.host or default) == host for r in saved):
             raise HTTPException(status_code=403, detail="That list isn't on this page.")
     site = await site_as(db, actor.user_id, host)
+    if not await db[LIST_PAGES].find_one({"_id": f"{raw['_id']}|{host}"}, {"_id": 1}):
+        # A page made without a save (created, duplicated, from a template): webhooks find it from now on.
+        await sync_list_pages(db, raw)
     jql = spec_jql(spec)
     limit = spec["limit"]
     ck = hashlib.sha1("|".join([actor.user_id, site["cloud_id"], jql, page_token or "", str(limit)]).encode()).hexdigest()

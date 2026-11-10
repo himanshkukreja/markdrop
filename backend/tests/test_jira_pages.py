@@ -268,6 +268,11 @@ class Lists(PagesWorld):
         row = await self.db[jira_pages.LIST_PAGES].find_one({"doc_id": str(self.page["_id"])})
         self.assertEqual((row["host"], row["projects"], row["any"]), (HOST, ["PAY"], False))
         self.assertEqual(await jira_pages.backfill_list_pages(self.db), 0)
+        # A page that never went through a save (created as it is): its first list run indexes it.
+        await self.db[jira_pages.LIST_PAGES].delete_many({"doc_id": str(self.page["_id"])})
+        await self.connect("wm")
+        await self.run_list("wm", {"project": "PAY", "site": HOST})
+        self.assertTrue(await self.db[jira_pages.LIST_PAGES].find_one({"doc_id": str(self.page["_id"])}))
 
     async def test_jql_safety(self):
         await self.connect("wv")

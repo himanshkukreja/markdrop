@@ -5,7 +5,7 @@
   with ``invalid_grant``, like Atlassian after its reuse window).
 * ``https://api.jira.test/oauth/token/accessible-resources`` and ``/ex/jira/<cloud>/rest/api/3/…``:
   myself, project/search, createmeta issue types, priority, issue create / get, transitions,
-  search/jql (``key in (…)``, ``assignee in (…)``, ``project in (…)``), user/search, webhooks.
+  search/jql (``key in (…)``, ``assignee in (…)``, ``project in (…)``, ``status = / != X``), user/search, webhooks.
 
 Permissions: each account sees the projects in its ``projects`` (None: all) and may move issues
 unless ``can_transition`` is False. :meth:`move` changes an issue's status as someone and returns
@@ -315,6 +315,7 @@ class FakeJira:
             t1 = re.search(r'text ~ "([^"*]*)\*?"', jql)
             words = t1.group(1).strip().lower() if t1 else None
             mine = "currentUser()" in jql
+            s1 = re.search(r'\bstatus (=|!=) "?([A-Za-z ]+?)"?(?:\s+(?:AND|OR|ORDER)\b|$)', jql)
             out = []
             for key, it in self.issues.items():
                 if keys is not None and key not in keys:
@@ -326,6 +327,8 @@ class FakeJira:
                 if not self._sees(who, key):
                     continue
                 if words and words not in it["fields"]["summary"].lower():
+                    continue
+                if s1 and (it["fields"]["status"]["name"] == s1.group(2)) != (s1.group(1) == "="):
                     continue
                 if mine and (it["fields"].get("assignee") or {}).get("accountId") != who and (it["fields"].get("reporter") or {}).get("accountId") != who:
                     continue
