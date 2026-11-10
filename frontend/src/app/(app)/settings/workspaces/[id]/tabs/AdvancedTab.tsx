@@ -20,12 +20,12 @@ import { AccessSyncNote, Locked, lockProps, lockSelectProps, type WsTabProps } f
 export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: WsTabProps) {
   const toast = useToast();
   const router = useRouter();
-  const [saving, setSaving] = useState<"" | "default" | "share" | "auth" | "ai" | "covers" | "comments" | "team" | "tz">("");
+  const [saving, setSaving] = useState<"" | "default" | "share" | "reshare" | "auth" | "ai" | "covers" | "comments" | "team" | "tz">("");
   const [confirm, setConfirm] = useState<"leave" | "delete" | null>(null);
   const team = teamName(ws);
   const current: ItemAccess = ws.settings.default_access ?? ws.default_access ?? "workspace";
 
-  async function save(key: "default" | "share" | "auth" | "ai" | "covers" | "comments" | "team" | "tz", patch: Partial<WorkspaceSettings>, done: string) {
+  async function save(key: "default" | "share" | "reshare" | "auth" | "ai" | "covers" | "comments" | "team" | "tz", patch: Partial<WorkspaceSettings>, done: string) {
     if (!isAdmin) return;
     setSaving(key);
     try {
@@ -75,6 +75,19 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
               disabled={saving === "share"}
               locked={!isAdmin}
               onChange={(on) => void save("share", { members_can_share_folders: on }, on ? "Members can share folders." : "Only admins share folders now.")}
+            />
+          </div>
+        </Locked>
+        <Locked locked={!isAdmin}>
+          <div>
+            <SwitchRow
+              id="ws-reshare"
+              label="Let people share onward"
+              hint={<>People an item is shared with can add others, including people outside the workspace, never with more access than they have. Owners can still turn it off for one item. <ReadMore topic="shareWithPeople" /></>}
+              checked={ws.settings.allow_resharing !== false}
+              disabled={saving === "reshare"}
+              locked={!isAdmin}
+              onChange={(on) => void save("reshare", { allow_resharing: on }, on ? "People can share items onward." : "Only owners share items now, unless an owner turned it on.")}
             />
           </div>
         </Locked>

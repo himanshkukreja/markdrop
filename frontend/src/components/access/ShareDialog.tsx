@@ -234,6 +234,8 @@ export default function ShareDialog({
   const memberOf = (workspaces ?? []).filter((w) => can(w.role, "member"));
   const canMoveHere = !!wsId && can(wsRole, "member");
   const canRemove = !!wsId && (canManage || can(wsRole, "admin"));
+  // Owners and workspace admins see who added whom (people can share onward).
+  const seesWhoAdded = canManage || can(wsRole, "admin");
   const canChangeLocation = canManage ? memberOf.length > 0 || !!wsId : canMoveHere;
   const [locOpen, setLocOpen] = useState(!!startWithLocation);
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -562,6 +564,8 @@ export default function ShareDialog({
                       <span className="block truncate text-body text-text">{g.email}</span>
                       {g.active === false ? (
                         <span className="block text-caption text-text-muted">No longer active: whoever shared it lost access</span>
+                      ) : seesWhoAdded && g.granted_by_email && g.granted_by_email !== state.owner_email ? (
+                        <span className="block truncate text-caption text-text-muted">Added by {g.granted_by_email === state.your_email ? "you" : g.granted_by_email}</span>
                       ) : !g.notified && <span className="block text-caption text-text-muted">Added without an email</span>}
                     </span>
                     <span className="shrink-0 text-[13px] text-text-secondary">
