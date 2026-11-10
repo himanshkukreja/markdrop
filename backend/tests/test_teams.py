@@ -281,6 +281,24 @@ class Memory(TeamsWorld):
 
         return await user_service.get_user_by_id(self.db, self.uid[who])
 
+    async def test_lines_say_which_team_they_came_from(self):
+        # An open team's lines reach everyone, each labelled with its team; a private one's reach no outsider.
+        r = await self.http.patch(f"{self.base}/teams/{self.sales}", headers=self.session("wa"), json={"visibility": "open"})
+        self.assertEqual(r.status_code, 200, r.text)
+        prof = (await self.person("wm", who="wv")).json()
+        lines = [ln for k in ("working_on", "updates", "decisions", "open_items") for ln in prof.get(k) or []]
+        self.assertTrue(lines)
+        self.assertTrue(all([t["name"] for t in ln["teams"]] == ["Sales"] for ln in lines))
+        self.assertTrue(all(set(t) == {"id", "kind", "name", "color"} for ln in lines for t in ln["teams"]))
+        keys = {ln["project"]["key"] for ln in lines if ln.get("project")}
+        for key in list(keys)[:1]:
+            r = await self.http.get(f"/api/v1/team/{self.W}/projects/{key}", headers=self.session("wv"))
+            self.assertEqual(r.status_code, 200, r.text)
+            plines = [ln for k in ("working_on", "updates", "decisions", "open_items") for ln in r.json().get(k) or []]
+            self.assertTrue(plines and all("Sales" in [t["name"] for t in ln["teams"]] for ln in plines))
+        await self.http.patch(f"{self.base}/teams/{self.sales}", headers=self.session("wa"), json={"visibility": "private"})
+        self.assertNotIn("Sales", repr((await self.person("wm", who="wv")).json()))
+
     async def test_brief_bridge(self):
         team = await T.get_team(self.db, self.W, self.sales)
         with __import__("unittest").mock.patch.object(T, "now_utc", lambda: datetime(2026, 11, 9, 10, tzinfo=timezone.utc)):

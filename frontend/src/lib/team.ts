@@ -48,6 +48,8 @@ export interface Line {
   due_state?: DueState | null;
   waiting_on?: { id: string | null; name: string } | null;
   person?: { id: string; name: string; avatar_url: string | null };
+  /** Teams: the teams / projects its sources belong to that you may read (empty: company-wide). */
+  teams?: Array<{ id: string; kind?: "team" | "project"; name: string; color: string | null; icon?: string | null }>;
 }
 
 export interface Status {

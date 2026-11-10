@@ -10,6 +10,7 @@ import { useContext, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { JiraTeamContext } from "@/components/jira/JiraTeam";
+import { TeamChip } from "@/components/teams/parts";
 import { Avatar, Button, Dialog, Dropdown, Field, Icon, IconButton, Input, Select, Textarea, useToast, type MenuEntry } from "@/components/ui";
 import {
   correctLine, dueLabel, fmtDay, hideLine, markDone, setFocus, setStatus,
@@ -107,6 +108,9 @@ export function LineRow({ line, ws, onChanged, showPerson, hiddenList }: {
           {line.due && <TargetChip due={line.due} state={line.due_state} compact />}
           {line.waiting_on && <span className="tm-line__wait"><Icon name="clock" />Waiting on {line.waiting_on.name}</span>}
           {line.project && <span className="tm-proj">{line.project.name}</span>}
+          {(line.teams ?? []).slice(0, 3).map((t) => (
+            <span key={t.id} data-testid="line-team" title={t.kind === "project" ? `From the ${t.name} project` : `From the ${t.name} team`}><TeamChip team={t} /></span>
+          ))}
           <SourceLinks sources={line.sources} />
         </div>
       </div>
