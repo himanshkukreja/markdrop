@@ -299,3 +299,7 @@ a.th-li:hover { background: var(--surface-hover); }
 .th-head__main, .th-title { min-width: 0; }
 .th-ch { flex-wrap: wrap; row-gap: 4px; }
 .th-ch h2 { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.th .tz-sec__head { flex-wrap: wrap; row-gap: 6px; }
+.th .tz-sec__head .tz-h2 { min-width: 0; max-width: 100%; overflow: hidden; }
+.th .tz-sec__head .tz-h2 > span { min-width: 0; }
+.th .tz-sec__head .tz-h2 > .th-chip { flex: none; }

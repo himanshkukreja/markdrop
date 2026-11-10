@@ -248,7 +248,7 @@ function BriefCard({ ws, teamId, teamName, initial, briefId, className }: { ws: 
   return (
     <section className={cx("tz-card th-card", className)} aria-labelledby="tz-brief-h" data-testid="team-brief">
       <div className="tz-sec__head">
-        <h2 className="tz-h2" id="tz-brief-h"><Icon name="megaphone" size={16} /> This week in {teamName}{brief?.label ? <span className="th-chip">{brief.label}</span> : null}</h2>
+        <h2 className="tz-h2" id="tz-brief-h"><Icon name="megaphone" size={16} /> <span className="truncate">This week in {teamName}</span>{brief?.label ? <span className="th-chip">{brief.label}</span> : null}</h2>
         <div className="flex items-center gap-1">
           <Dropdown
             aria-label="Earlier briefs"
