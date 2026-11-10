@@ -3,7 +3,9 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from app.schemas.document import fill_addresses
 
 
 class ArtifactUploadUrlRequest(BaseModel):
@@ -80,6 +82,9 @@ class ArtifactResponse(BaseModel):
     # The canonical address on the workspace's own domain, when the artifact is
     # filed in a workspace with a live primary domain; else null.
     workspace_url: str | None = None
+    # markdrop.in/<slug>, and the workspace domain's address when live (= workspace_url).
+    markdrop_url: str | None = None
+    domain_url: str | None = None
     # Raw bytes for saving to disk — artifact_url may be a viewer page.
     download_url: str
     # A video's poster frame (signed when guarded) and ffprobe's metadata
@@ -94,6 +99,11 @@ class ArtifactResponse(BaseModel):
     views: int = 0
     is_password_protected: bool = False
     is_owner: bool = False
+
+    @model_validator(mode="after")
+    def _addresses(self):
+        fill_addresses(self)
+        return self
 
 
 class ArtifactCreateResponse(ArtifactResponse):

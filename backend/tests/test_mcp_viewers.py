@@ -222,6 +222,7 @@ class McpViewers(AccessWorld):
         self.assertEqual(self.ok(res), {"url": f"https://docs.acme.test/{d['slug']}",
                                         "markdrop_url": f"https://markdrop.in/{d['slug']}",
                                         "workspace_url": f"https://docs.acme.test/{d['slug']}",
+                                        "domain_url": f"https://docs.acme.test/{d['slug']}",
                                         "slug": d["slug"], "show_presence": False})
         await settle()
         self.assertEqual(a.presence(), {"type": "presence", "on": False})

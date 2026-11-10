@@ -373,12 +373,28 @@ async def read_doc(ctx: Context, value: str):
 
 
 async def url_pair(ctx: Context, raw_or_doc) -> dict:
-    """{url: canonical, markdrop_url, workspace_url} for tool output."""
+    """{url: canonical, markdrop_url, workspace_url, domain_url} for tool output: url is the
+    workspace domain's address when it is live, else markdrop.in; markdrop_url always markdrop.in;
+    domain_url (= workspace_url) the workspace domain's address, or None."""
     from app.services import urls as urls_service
 
     slug = raw_or_doc["slug"] if isinstance(raw_or_doc, dict) else raw_or_doc.slug
     ws_url = await urls_service.workspace_url(ctx.db, raw_or_doc)
-    return {"url": ws_url or public_url(slug), "markdrop_url": public_url(slug), "workspace_url": ws_url}
+    return {"url": ws_url or public_url(slug), "markdrop_url": public_url(slug), "workspace_url": ws_url,
+            "domain_url": ws_url}
+
+
+def with_domain_url(value):
+    """Every result object that names a ``workspace_url`` also names it ``domain_url`` (2026-11-10:
+    both addresses by name), recursively. Applied to every tool's structuredContent."""
+    if isinstance(value, dict):
+        out = {k: with_domain_url(v) for k, v in value.items()}
+        if "workspace_url" in out and "domain_url" not in out:
+            out["domain_url"] = out["workspace_url"]
+        return out
+    if isinstance(value, list):
+        return [with_domain_url(v) for v in value]
+    return value
 
 
 _HOSTLIKE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$")
@@ -1043,6 +1059,7 @@ async def list_documents(ctx: Context, args: dict) -> tuple[str, dict]:
         items.append({
             "url": ws_url or public_url(d.slug),
             "markdrop_url": public_url(d.slug),
+            "domain_url": ws_url,
             "slug": d.slug,
             "title": display_title(d),
             "kind": kind_of(d.kind),
@@ -2401,8 +2418,10 @@ _ACCESS_OUT = {"type": "string", "enum": ["link", "private", "password", "worksp
 _URL_PROPS = {
     "url": {"type": "string", "description": "Canonical link: the workspace's own domain when the "
                                              "document is filed in one with a live domain, else markdrop.in."},
-    "markdrop_url": {"type": "string"},
+    "markdrop_url": {"type": "string", "description": "The same document on markdrop.in (always works)."},
     "workspace_url": _NULLABLE_STR if False else {"type": ["string", "null"]},
+    "domain_url": {"type": ["string", "null"],
+                   "description": "The workspace's own domain address when it has a live one, else null."},
 }
 _WORKSPACE_ARG = {"type": "string", "minLength": 1, "maxLength": 300,
                   "description": ("A workspace the user belongs to: its id, its name, or one of its "
@@ -2466,8 +2485,15 @@ def slug_error(slug: str | None, exc: HTTPException) -> str:
 
 
 def _out(properties: dict, required: list[str] | None = None) -> dict:
-    return {"type": "object", "properties": properties,
-            "required": required if required is not None else list(properties)}
+    req = required if required is not None else list(properties)
+    if "workspace_url" in properties and "domain_url" not in properties:
+        # with_domain_url adds it to every result that has workspace_url.
+        properties = {**properties, "domain_url": _DOMAIN_URL}
+    return {"type": "object", "properties": properties, "required": req}
+
+
+_DOMAIN_URL = {"type": ["string", "null"],
+               "description": "The workspace's own domain address when it has a live one, else null."}
 
 
 _NULLABLE_INT = {"type": ["integer", "null"]}
@@ -2519,7 +2545,9 @@ TOOLS: list[Tool] = [
         description=(
             "Publish markdown as a Markdrop document and get back a link that opens it "
             "rendered in any browser (headings, tables, code, Mermaid diagrams and math). "
-            "Use it for notes, reports, docs and write-ups. Always give the user the returned url. "
+            "Use it for notes, reports, docs and write-ups. Always give the user the returned url "
+            "(its workspace's own domain when filed in one with a live domain; markdrop_url is the "
+            "same document on markdrop.in, so give both when there are two). "
             "Documents are readable by anyone with the link unless access is 'private' or 'password'. "
             "slug sets its link (change it later with set_slug). editor 'blocks' makes it a page that opens "
             "in the block editor (like create_page); 'classic' (the default) opens in the Markdown editor."
@@ -2553,7 +2581,8 @@ TOOLS: list[Tool] = [
         description=(
             "Publish a complete HTML page, or a text file (.txt, .csv, .json, .svg), as a Markdrop "
             "link that opens it rendered in the browser: HTML runs as a page, CSV shows as a table. "
-            "Use publish_document for markdown instead. Always give the user the returned url."
+            "Use publish_document for markdown instead. Always give the user the returned url "
+            "(and markdrop_url, the markdrop.in address, when the url is a workspace domain)."
         ),
         scope=WRITE,
         writes=True,

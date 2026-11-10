@@ -3,7 +3,9 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from app.schemas.document import fill_addresses
 
 SLUG_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
 
@@ -66,6 +68,8 @@ class UploadResult(BaseModel):
     url: str
     markdrop_url: str | None = None
     workspace_url: str | None = None
+    # The workspace domain's address when live (= workspace_url), else null.
+    domain_url: str | None = None
     # Set when the upload asked for a workspace but couldn't be filed there at
     # commit (e.g. membership removed meanwhile). The file then stays private.
     workspace_error: str | None = None
@@ -74,6 +78,11 @@ class UploadResult(BaseModel):
     size_bytes: int
     content_type: str
     sha256: str
+
+    @model_validator(mode="after")
+    def _addresses(self):
+        fill_addresses(self)
+        return self
 
 
 class UploadPartStatus(BaseModel):
@@ -113,6 +122,8 @@ class FileInfoResponse(BaseModel):
     url: str
     markdrop_url: str | None = None
     workspace_url: str | None = None
+    # The workspace domain's address when live (= workspace_url), else null.
+    domain_url: str | None = None
     title: str | None = None
     content_type: str
     size_bytes: int
@@ -124,6 +135,11 @@ class FileInfoResponse(BaseModel):
     poster_url: str | None = None
     download_url: str | None = None
     access: str
+
+    @model_validator(mode="after")
+    def _addresses(self):
+        fill_addresses(self)
+        return self
 
 
 class FileVersion(BaseModel):

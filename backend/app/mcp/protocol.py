@@ -82,7 +82,9 @@ INSTRUCTIONS = (
     "publish_page or create_upload, or file an existing document with add_to_workspace. A "
     "document has one access level for every address it has (markdrop.in and its workspace's "
     "domains); 'workspace' access means members only. Give the user the returned url, which is "
-    "the workspace's own domain when it has a live one. get_document and get_file_info accept "
+    "the workspace's own domain when it has a live one; markdrop_url opens the same item on "
+    "markdrop.in (domain_url names the domain address, null without one): mention both when "
+    "the user may want either. get_document and get_file_info accept "
     "links on a workspace's custom domain too. "
     "get_viewers says who has a document open right now and where they're reading, with the "
     "page's own rules (anonymous people stay anonymous); set_presence lets the owner turn that off. "
@@ -291,7 +293,7 @@ async def _modern(request_id, method: str, params: dict, meta: dict, headers, pr
 def _tool_result(text: str, structured: dict | None, is_error: bool, modern: bool) -> dict:
     result: dict[str, Any] = {"content": [{"type": "text", "text": text}], "isError": is_error}
     if structured is not None:
-        result["structuredContent"] = structured
+        result["structuredContent"] = tools.with_domain_url(structured)
     if modern:
         result["resultType"] = "complete"
     return result

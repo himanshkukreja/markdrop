@@ -2,7 +2,7 @@
 title: Upload and replace files from the terminal
 nav: Upload and replace
 description: Publish a video, PDF or HTML page with markdrop upload, swap the file behind the same link with markdrop replace, and restore earlier versions.
-updated: 2026-10-30
+updated: 2026-11-10
 prerequisites: [/cli/install, /cli/login-and-tokens]
 since: CLI 0.4.0
 keywords: [upload, replace, versions, restore, info, video, pdf, resume, sha256, json, same link]
@@ -179,10 +179,10 @@ markdrop upload demo.mp4 --json
 ```
 
 ```json
-{"url":"https://markdrop.in/demo","markdrop_url":"https://markdrop.in/demo","workspace_url":null,"workspace_error":null,"slug":"demo","version":1,"size_bytes":222717952,"content_type":"video/mp4","sha256":"9f2c…"}
+{"url":"https://markdrop.in/demo","markdrop_url":"https://markdrop.in/demo","workspace_url":null,"domain_url":null,"workspace_error":null,"slug":"demo","version":1,"size_bytes":222717952,"content_type":"video/mp4","sha256":"9f2c…"}
 ```
 
-`url` is the address to share: the workspace's custom domain when the file is in a workspace with a live one, otherwise markdrop.in. `markdrop_url` is always the markdrop.in address.
+`url` is the address to share: the workspace's custom domain when the file is in a workspace with a live one, otherwise markdrop.in. `markdrop_url` is always the markdrop.in address, and `domain_url` is the custom domain's address (`null` without one).
 
 ```bash
 slug=$(markdrop upload build/report.pdf --json | jq -r .slug)

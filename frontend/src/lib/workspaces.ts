@@ -893,17 +893,42 @@ export const getPreview = (id: string, opts: { folder: string | null; as: Previe
 };
 
 /**
- * Where clicking an item takes you: its workspace domain when it has one — the same address
- * "Copy link" gives — else the in-app page. Encrypted documents always open in the app (their key
- * lives in the link fragment, which only the in-app page holds).
+ * Where clicking an item inside the app takes you: its page here (owner, 2026-11-10). On markdrop.in
+ * that is markdrop.in/<slug>, never the workspace's own domain (that address is offered beside it:
+ * "Open on <host>", domainHref). On a workspace's own domain an item of that domain keeps its
+ * address there. `encrypted` is kept for callers: an encrypted document opens here either way.
  */
 export function openHref(slug: string, url?: string | null, encrypted?: boolean | null): string {
-  if (!url || encrypted) return `/${slug}`;
+  void encrypted;
+  if (url && typeof window !== "undefined" && !isPrimaryHost(window.location.host)) {
+    try {
+      const u = new URL(url);
+      if (u.host === window.location.host) return `${u.pathname}${u.search}`;
+    } catch { /* not a URL: the in-app page */ }
+  }
+  return `/${slug}`;
+}
+
+/**
+ * The item's address on its workspace's own domain, for "Open on <host>" (a new tab; the domain
+ * signs the reader in from markdrop.in itself) — null when there isn't one to offer: no live domain
+ * (`url` is markdrop.in), an encrypted document (its key lives in this page's link), or already there.
+ */
+export function domainHref(url?: string | null, encrypted?: boolean | null): { href: string; host: string } | null {
+  if (!url || encrypted) return null;
   try {
     const u = new URL(url);
-    if (isPrimaryHost(u.host) || (typeof window !== "undefined" && u.host === window.location.host)) return `/${slug}`;
-    return u.toString();
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    if (isPrimaryHost(u.host)) return null;
+    if (typeof window !== "undefined" && u.host === window.location.host) return null;
+    return { href: u.toString(), host: u.host };
   } catch {
-    return `/${slug}`;
+    return null;
   }
+}
+
+/** The ⋯ menu's "Open on <host>" entry for an item with a live workspace domain (else none). */
+export function openOnDomainEntry(url?: string | null, encrypted?: boolean | null): { label: string; icon: string; href: string; external: true } | null {
+  const d = domainHref(url, encrypted);
+  return d ? { label: `Open on ${d.host}`, icon: "globe", href: d.href, external: true } : null;
 }

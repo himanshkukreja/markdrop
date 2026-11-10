@@ -602,6 +602,7 @@ export default function DocumentView(props: DocumentViewProps) {
         fileVersion={artifactDoc.file_version ?? null}
         workspaceId={artifactDoc.workspace_id ?? null}
         folderPath={artifactDoc.folder_path ?? []}
+        domainUrl={artifactDoc.workspace_url ?? null}
         viewerChrome={viewerChrome === "none" ? "none" : "full"}
       />
     );
@@ -627,6 +628,7 @@ export default function DocumentView(props: DocumentViewProps) {
       hideAccount={!!tenant && gated && !pwdFetching && gateMode === "signin"}
       presence={docPresence}
       ask={askable}
+      domainUrl={page?.workspace_url ?? null}
       {...o}
     />
   );
@@ -1062,6 +1064,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 onCopied={copyLinkEvent}
                 menu={readerPageMenu}
                 ask={askable}
+                domainUrl={page?.workspace_url ?? null}
               />
             }
             head={<PageHead title={displayTitle} props={pageProps!} resolve={resolvePageAsset} below={<><SignoffSummary slug={slug} />{readerProps}{meetingBar}{pageBacklinks}</>} />}
@@ -1156,6 +1159,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 footer: pageFooter,
                 notices,
                 onDone: leaveEdit,
+                domainUrl: page?.workspace_url ?? null,
               }}
             />
           </div>

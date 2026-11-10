@@ -148,6 +148,7 @@ export default async function SlugPage({ params }: Props) {
         fileVersion={doc.file_version ?? null}
         workspaceId={doc.workspace_id ?? null}
         folderPath={doc.folder_path ?? []}
+        domainUrl={doc.workspace_url ?? null}
       />
       </Suspense>
       </div>

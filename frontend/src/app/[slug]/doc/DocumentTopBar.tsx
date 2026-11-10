@@ -38,6 +38,8 @@ export interface DocumentTopBarProps {
   rail?: boolean;
   /** ✦ Ask: "Ask this page" about this document (components/assistant). */
   ask?: boolean;
+  /** Its address on its workspace's own domain ("Open on <host>"), when live. */
+  domainUrl?: string | null;
 }
 
 /**
@@ -118,6 +120,7 @@ export function DocumentTopBar(p: DocumentTopBarProps) {
       rail={!!p.rail}
       hideAccount={p.hideAccount}
       ask={!p.gated && !!p.ask}
+      domainUrl={p.gated || p.encrypted ? null : p.domainUrl}
     />
   );
 }

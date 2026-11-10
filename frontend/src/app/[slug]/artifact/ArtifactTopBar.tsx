@@ -32,6 +32,8 @@ export interface ArtifactTopBarProps {
   menu: MenuEntry[];
   /** Who's viewing (components/presence). */
   presence?: ReactNode;
+  /** Its address on its workspace's own domain ("Open on <host>"), when live. */
+  domainUrl?: string | null;
 }
 
 /**
@@ -72,6 +74,7 @@ export function ArtifactTopBar(p: ArtifactTopBarProps) {
       menu={p.menu}
       menuLabel="More artifact actions"
       rail={false}
+      domainUrl={p.gated ? null : p.domainUrl}
     />
   );
 }

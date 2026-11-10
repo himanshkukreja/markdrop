@@ -35,7 +35,7 @@ import { DeleteDocDialog, NewFolderDialog } from "@/components/dashboard/DocDial
 import { hasFiles, useUploads, type UploadTarget } from "@/components/workspace/uploads/UploadProvider";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  can, errorStatus, getWorkspace, listWorkspaceItems, openHref, removeItems, WORKSPACES_EVENT,
+  can, errorStatus, getWorkspace, listWorkspaceItems, openHref, openOnDomainEntry, removeItems, WORKSPACES_EVENT,
   type Folder, type ItemAccess, type ItemsPage, type PreviewAs, type RedactedItem, type TreeFolder, type Workspace, type WorkspaceItem,
 } from "@/lib/workspaces";
 import {
@@ -432,6 +432,8 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
 
   function itemMenu(it: WorkspaceItem): MenuEntry[] {
     const out: MenuEntry[] = [{ label: "Open", icon: "external", href: openHref(it.slug, it.url, it.encrypted), external: true }];
+    const onDomain = openOnDomainEntry(it.url, it.encrypted);
+    if (onDomain) out.push(onDomain);
     if (!it.encrypted) out.push({ label: "Copy link", icon: "copy", onClick: () => copyLink(it) });
     if (it.can.share) out.push({ label: "Who can open it…", icon: ACCESS_ICON[it.access], onClick: () => setShareFor(it), description: accessLabel(it.access, team) });
     if (it.owner?.is_you) out.push({ label: "Analytics", icon: "chart", href: docHref(it.slug) });

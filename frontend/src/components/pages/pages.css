@@ -556,6 +556,13 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
   .pb-bar .mm-barbtn { min-width: 44px; height: 44px; }
 }
 
+/* "Open on <host>" (a workspace's own domain): wide screens; ⋯ has it everywhere. */
+.pb-bar__domain { max-width: 220px; }
+.pb-bar__domainhost { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1279px) {
+  .pb-bar__domain { display: none !important; }
+}
+
 @media (max-width: 639px) {
   .pb-bar { gap: 2px; padding: 0 4px; }
   .pb-bar__wide, .pb-bar__div { display: none !important; }

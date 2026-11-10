@@ -1,7 +1,7 @@
 ---
 title: Who can open what
 description: Every document and file is open to anyone with the link, only people added, or a workspace team. Here is how each choice works with passwords and sign-in.
-updated: 2026-11-02
+updated: 2026-11-10
 keywords: [access, permissions, private, public, team, who can see, visibility, access level]
 ---
 
@@ -38,6 +38,15 @@ Under **Who can open it**, choose one of the three cards. It saves straight away
 ::::
 
 The dialog lists every address the setting covers, for example `docs.acme.com/guides/setup` and `markdrop.in/setup`. One setting covers them all.
+
+## Two links, one setting
+
+When the document is filed in a workspace with its [own domain](/workspaces/custom-domain), the Share dialog shows both links under **Links**, each with its own **Copy**:
+
+- **Workspace domain**, like `docs.acme.com/guides/setup`. It's the default: it's highlighted, and **Copy link** at the bottom copies it.
+- **markdrop.in**, like `markdrop.in/setup`. The same document at Markdrop's own address.
+
+Send whichever suits the reader. Both open the same document with the same access: changing **Who can open it** changes it for both. An [end-to-end encrypted](/sharing/end-to-end-encryption) document has one link, the one that carries its key.
 
 Narrowing takes effect at once. Make a document private and people who aren't on the list can't open it on their next visit, and links to a protected file's bytes that were already handed out stop working.
 

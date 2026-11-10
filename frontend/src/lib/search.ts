@@ -233,7 +233,7 @@ export function forgetSearches(): void {
 }
 
 /** Where a result opens. Documents, pages and files go where a click on their row goes (lib/workspaces
- *  openHref): the workspace's own domain when it has one, else the in-app page, keeping a section's
+ *  openHref): their page here (markdrop.in, never the workspace's own domain), keeping a section's
  *  #anchor. Folders, workspaces and Guides pages are app paths. `external`: another origin (new tab). */
 export function hrefOf(item: Pick<SearchItem, "url" | "slug" | "kind"> & { encrypted?: boolean | null }): { href: string; external: boolean } {
   const url = item.url || "/";

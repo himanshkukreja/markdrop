@@ -700,6 +700,7 @@ async def _result_for(db: AsyncIOMotorDatabase, raw: dict, version: int, sess: d
 
     out = _result(raw["slug"], version, sess)
     out["workspace_url"] = await urls.workspace_url(db, raw)
+    out["domain_url"] = out["workspace_url"]
     out["url"] = out["workspace_url"] or out["markdrop_url"]
     out["workspace_error"] = workspace_error
     return out
@@ -888,6 +889,7 @@ def file_info(raw: dict, *, public: bool | None = None, workspace_url: str | Non
         "url": workspace_url or file_url(raw["slug"]),
         "markdrop_url": file_url(raw["slug"]),
         "workspace_url": workspace_url,
+        "domain_url": workspace_url,
         "title": raw.get("title"),
         "content_type": raw.get("mime") or "application/octet-stream",
         "size_bytes": int(raw.get("size_bytes") or 0),

@@ -26537,6 +26537,28 @@
             ],
             "title": "Workspace Url"
           },
+          "markdrop_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Markdrop Url"
+          },
+          "domain_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain Url"
+          },
           "download_url": {
             "type": "string",
             "title": "Download Url"
@@ -26838,6 +26860,28 @@
               }
             ],
             "title": "Workspace Url"
+          },
+          "markdrop_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Markdrop Url"
+          },
+          "domain_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain Url"
           },
           "download_url": {
             "type": "string",
@@ -28600,6 +28644,28 @@
             ],
             "title": "Workspace Url"
           },
+          "markdrop_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Markdrop Url"
+          },
+          "domain_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain Url"
+          },
           "access_level": {
             "type": "string",
             "title": "Access Level",
@@ -29157,6 +29223,28 @@
               }
             ],
             "title": "Workspace Url"
+          },
+          "markdrop_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Markdrop Url"
+          },
+          "domain_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain Url"
           },
           "access_level": {
             "type": "string",
@@ -30417,6 +30505,17 @@
               }
             ],
             "title": "Workspace Url"
+          },
+          "domain_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain Url"
           },
           "title": {
             "anyOf": [
@@ -35699,6 +35798,17 @@
               }
             ],
             "title": "Workspace Url"
+          },
+          "domain_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain Url"
           },
           "workspace_error": {
             "anyOf": [
