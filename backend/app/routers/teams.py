@@ -113,6 +113,7 @@ class TeamPatch(BaseModel):
     description: Optional[str] = Field(None, max_length=400)
     visibility: Optional[Literal["open", "private"]] = None
     slack_channel: Optional[SlackChannel] = None
+    slack_comments: Optional[bool] = Field(None, description="Post new and resolved comments on the team's items to its Slack channel (default on).")
     jira_projects: Optional[list[str]] = Field(None, max_length=20)
     digest: Optional[Digest] = None
 

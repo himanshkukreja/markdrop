@@ -16,6 +16,11 @@ How it rides on the existing Slack app (services/slack*.py), with no new scopes 
   (``view_submission``, callback ``md_cm_reply``) posts the reply and updates the DM.
 * Resolved anywhere (the app, MCP, Slack): every DM sent about that thread loses its Resolve button and says
   who resolved it (:func:`_on_resolved`, an events handler).
+* Teams: a new comment or a resolved thread on a team's item is also posted to that team's Slack channel
+  (:func:`team_channel_post`) when the team keeps "Comments to Slack" on (``teams.slack_comments``, default on)
+  and everyone the channel stands for may read the item's comments: the item is open to the workspace or by
+  link (no password, not encrypted, not owner-only), comments are on; a channel shared with another
+  organization only for a link-public item that shows its comments publicly. DMs are unchanged.
 """
 
 from __future__ import annotations
@@ -249,3 +254,94 @@ async def _on_resolved_bg(db, ev: events.CommentEvent) -> None:
 
 
 events.on(_on_resolved_bg, kinds=["resolved", "reopened"], name="slack.comment_dm_state")
+
+
+# ── Teams: comment notices in the team's channel ──────────────────────────────
+
+
+async def _team_channels(db, raw: dict) -> list[tuple[dict, dict]]:
+    """[(team, channel)] for the item's teams that post comments to a channel."""
+    from app.services import teams as teams_service
+
+    tids = [teams_service.oid(t) for t in teams_service.ids_of(raw, "team_ids")]
+    tids = [t for t in tids if t is not None]
+    if not tids:
+        return []
+    out, seen = [], set()
+    async for t in db[teams_service.TEAMS].find({"_id": {"$in": tids}}):
+        ch = t.get("slack_channel") or {}
+        if ch.get("id") and t.get("slack_comments") is not False and ch["id"] not in seen:
+            seen.add(ch["id"])
+            out.append((t, ch))
+    return out
+
+
+async def _comments_on(db, raw: dict) -> bool:
+    from app.services.comments import perms
+
+    if not perms.eligible(raw) or raw.get("comments_off") is True:
+        return False
+    ws_id = raw.get("workspace_id")
+    if ws_id and ObjectId.is_valid(str(ws_id)):
+        ws = await db["workspaces"].find_one({"_id": ObjectId(str(ws_id))}, {"settings.comments_enabled": 1}) or {}
+        if ((ws.get("settings") or {}).get("comments_enabled")) is False:
+            return False
+    return True
+
+
+def team_notice(ev: events.CommentEvent, title: str, url: str) -> dict:
+    from app.services import slack_blocks as B
+
+    user = getattr(ev.actor, "user", None)
+    who = getattr(user, "name", None) or getattr(user, "email", None) or "Someone"
+    page = B.link(url, B.cut(title, 120))
+    if ev.kind == "resolved":
+        text = f"*{B.esc(who)}* resolved a comment on *{page}*"
+        plain = f"{who} resolved a comment on {title}"
+    else:
+        body = B.cut(((ev.message or {}).get("body") or "").strip(), 280)
+        text = f"*{B.esc(who)}* commented on *{page}*" + (f"\n>{B.esc(body)}" if body else "")
+        plain = f"{who} commented on {title}"
+    return {"text": plain, "blocks": [B.section(text)]}
+
+
+async def team_channel_post(db, ev: events.CommentEvent) -> int:
+    """Post a new comment / a resolve on a team's item to its team's channel(s). Returns how many posted."""
+    from app.services import access, md_outline, slack as slack_svc, slack_api, slack_notify
+
+    raw = ev.doc or {}
+    if not slack_svc.configured() or not raw.get("team_ids"):
+        return 0
+    chans = await _team_channels(db, raw)
+    if not chans or not await _comments_on(db, raw):
+        return 0
+    if not await slack_notify.team_audience_ok(db, raw):
+        return 0                                    # owner-only, password, people-only: the channel can't read it
+    n = 0
+    url = await _thread_url(raw, str(ev.thread["_id"]))
+    msg = team_notice(ev, md_outline.display_title(raw), url)
+    for team, ch in chans:
+        inst = await slack_svc.install_for_workspace(db, team.get("workspace_id"))
+        token = slack_svc.bot_token(inst) if inst else None
+        if not token:
+            continue
+        if await slack_notify.channel_is_shared(token, ch["id"]) and not (
+                raw.get("comments_public") is True and await access.anonymous_can_read(db, raw)):
+            continue                                # Slack Connect: only what anyone could read anyway
+        try:
+            await slack_api.call("chat.postMessage", token, channel=ch["id"], text=msg["text"], blocks=msg["blocks"],
+                                 unfurl_links=False, unfurl_media=False)
+            n += 1
+        except slack_api.SlackError as exc:
+            log.info("slack: comment notice not posted to %s: %s", ch["id"], exc.error)
+    return n
+
+
+async def _team_channel_bg(db, ev: events.CommentEvent) -> None:
+    from app.services import slack as slack_svc
+
+    if slack_svc.configured() and (ev.doc or {}).get("team_ids"):
+        slack_svc.spawn(team_channel_post(db, ev))
+
+
+events.on(_team_channel_bg, kinds=["thread_created", "resolved"], name="slack.team_channel")

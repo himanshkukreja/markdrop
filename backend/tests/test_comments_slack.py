@@ -221,3 +221,65 @@ class CommentDMs(ReachWorld, SlackWorld):
         self.assertEqual(upd["channel"], "U0WM")
         self.assertIn("Resolved by Olive Owner.", json.dumps(upd))
         self.assertNotIn("md_cm_resolve", json.dumps(upd))
+
+
+class TeamChannelNotices(ReachWorld, SlackWorld):
+    """Teams: new and resolved comments on a team's item also go to the team's Slack channel."""
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        await self.install()
+        self.tid = (await self.db["teams"].insert_one({
+            "workspace_id": self.W, "name": "Sales", "slug": "sales", "visibility": "open", "member_ids": [self.uid["wm"]],
+            "lead_ids": [self.uid["wm"]], "slack_channel": {"id": "C9TEAM", "name": "sales"}})).inserted_id
+        self.doc = await self.item(title="Launch plan", team_ids=[str(self.tid)])
+        from app.models.user import User
+
+        self.owner = access.Actor.of(User(id=self.uid["owner"], email=self.email["owner"], name="Olive Owner",
+                                          created_at=now(), updated_at=now()))
+
+    async def fire(self, kind: str, doc: dict | None = None) -> list[dict]:
+        doc = doc or self.doc
+        th = await self.thread(doc, "owner", body="Is Friday real?")
+        msg = await self.db["comment_messages"].find_one({"thread_id": th["_id"]}) or {"body": "Is Friday real?"}
+        before = len(self.sk.of("chat.postMessage"))
+        await events.emit(self.db, kind, doc=doc, thread=th, message=msg if kind == "thread_created" else None,
+                          actor=self.owner)
+        await slack.drain()
+        return [m for m in self.sk.of("chat.postMessage")[before:] if m.get("channel") == "C9TEAM"]
+
+    async def test_new_and_resolved_post_to_the_team_channel(self):
+        posts = await self.fire("thread_created")
+        self.assertEqual(len(posts), 1)
+        text = json.dumps(posts[0])
+        self.assertIn("Olive Owner* commented on", text)
+        self.assertIn("Is Friday real?", text)
+        self.assertIn(f"/{self.doc['slug']}#c-", text)
+        posts = await self.fire("resolved")
+        self.assertEqual(len(posts), 1)
+        self.assertIn("resolved a comment on", json.dumps(posts[0]))
+        self.assertEqual(await self.fire("replied"), [])                 # replies stay in the app (and DMs)
+
+    async def test_setting_visibility_and_company_items(self):
+        await self.db["teams"].update_one({"_id": self.tid}, {"$set": {"slack_comments": False}})
+        self.assertEqual(await self.fire("thread_created"), [])           # the team turned it off
+        await self.db["teams"].update_one({"_id": self.tid}, {"$unset": {"slack_comments": ""}})
+        self.assertEqual(len(await self.fire("thread_created")), 1)
+        # Comments off on the item, an owner-only item, a password: nothing in the channel.
+        for change in ({"comments_off": True}, {"access_level": "private"}, {"read_password_hash": "x"}):
+            await self.db["documents"].update_one({"_id": self.doc["_id"]}, {"$set": change})
+            d = await self.db["documents"].find_one({"_id": self.doc["_id"]})
+            self.assertEqual(await self.fire("thread_created", d), [], change)
+            await self.db["documents"].update_one({"_id": self.doc["_id"]}, {"$unset": {k: "" for k in change}})
+        # A company-wide item: no team channel.
+        plain = await self.item(title="Company page")
+        self.assertEqual(await self.fire("thread_created", plain), [])
+        # A Slack Connect channel: only for a link-public item that shows its comments publicly.
+        self.sk.channel_info = {"is_ext_shared": True}
+        self.assertEqual(await self.fire("thread_created"), [])
+
+    async def test_patch_and_mcp_expose_the_setting(self):
+        from app.services import teams as T
+
+        team = await self.db["teams"].find_one({"_id": self.tid})
+        self.assertTrue(T.team_full(await T.load_view(self.db, self.W, self.uid["owner"], "owner"), team, {})["slack_comments"])
