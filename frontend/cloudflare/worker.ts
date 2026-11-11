@@ -10,15 +10,17 @@
 //  5. A User-Agent on server-side fetches (Workers send none; some hosts refuse those).
 //  6. Test deploys (workers.dev, next.markdrop.in) are never indexed, and on them (STAGING_HOST_OVERRIDE=1) the
 //     x-md-host header picks the host Next sees, so the docs and workspace-domain paths can be tried on one URL.
-//  7. Edge copies in the colo's cache (Vercel's CDN kept these): docs-site pages for the deployment's lifetime (their
-//     content is built in), and every 404 for 60 s (the documents' own revalidate). A copy answers without loading
-//     Next, which also spares the visitor a cold isolate's first render.
+//  7. Edge copies in the colo's cache (Vercel's CDN kept these; rules in cloudflare/edge-cache.ts): docs-site pages and
+//     prerendered pages for the deployment's lifetime, ISR pages (documents) for 15 s, 404s for 60 s; dropped in
+//     this colo when a revalidation arrives. A copy answers without loading Next, which also spares the visitor a
+//     cold isolate's first render. `x-md-edge: HIT | MISS | BYPASS` says which path answered.
 //  8. Workspace custom domains (content.acme.com) arrive through their own route `<host>/*` (Cloudflare for SaaS,
 //     backend services/cf_saas.py) with the customer's host in the URL and Host header; nothing here changes it
 //     (x-md-host is honoured on test hosts only), so the middleware rewrites it to the tenant renderer exactly as on
 //     Vercel, and edge copies are kept per host. The zone's fallback origin is never fetched.
 // @ts-ignore built by `opennextjs-cloudflare build` (missing until then)
 import { default as handler } from "../.open-next/worker.js";
+import { DOCS_HOSTS, EDGE_HEADER, bypassReason, edgeCopy, edgeKey, edgeTtl, fromCopy, purgeKeys } from "./edge-cache";
 
 type Env = { STAGING_HOST_OVERRIDE?: string; CF_VERSION_METADATA?: { id: string }; [k: string]: unknown };
 type Ctx = { waitUntil(p: Promise<unknown>): void; passThroughOnException?(): void };
@@ -39,45 +41,6 @@ const POSTHOG: [string, string][] = [
   ["/mdp/", "https://us.i.posthog.com/"],
 ];
 const isTestHost = (h: string) => h.endsWith(".workers.dev") || h === "next.markdrop.in";
-/** The docs site's hosts (src/docs/host.ts): every page there is the same for every reader until the next deploy. */
-const DOCS_HOSTS = new Set(["docs.markdrop.in"]);
-const DOCS_TTL = 24 * 3600;
-const NOT_FOUND_TTL = 60;
-const BROWSER_CC = "public, max-age=0, must-revalidate";
-
-/**
- * A request whose answer is the same for every visitor of this host + path: GET, no credentials header, not a client
- * navigation's RSC / prefetch request (those answers vary on these headers), not the API routes or the proxy.
- * (The server never reads cookies: sessions live in the browser.)
- */
-function edgeCacheable(request: Request, url: URL): boolean {
-  if (request.method !== "GET" || request.headers.has("authorization") || request.headers.has("rsc")) return false;
-  if (request.headers.has("next-router-prefetch") || request.headers.has("next-router-state-tree") || url.searchParams.has("_rsc")) return false;
-  return !url.pathname.startsWith("/api/") && !url.pathname.startsWith("/_next/");
-}
-
-function edgeKey(request: Request, url: URL, version: string): Request {
-  const md = /text\/markdown/i.test(request.headers.get("accept") || "") ? "md" : "html";
-  // per deployment (a copy refers to that build's /_next/static files) and per host (the x-md-host test header)
-  const k = new URL(request.url);
-  k.search = `${url.search ? `${url.search}&` : "?"}__edge=${encodeURIComponent(`${version}|${url.hostname}|${md}`)}`;
-  return new Request(k.toString(), { method: "GET" });
-}
-
-/** The copy kept at the edge, or null: docs pages (200) for a day, 404s for a minute; never one that sets a cookie. */
-function edgeCopy(res: Response, docs: boolean): Response | null {
-  if (res.headers.has("set-cookie")) return null;
-  let ttl = 0;
-  if (res.status === 404) ttl = NOT_FOUND_TTL;
-  else if (docs && res.status === 200 && !/private|no-store/i.test(res.headers.get("cache-control") || "")) ttl = DOCS_TTL;
-  if (!ttl) return null;
-  const copy = new Response(res.clone().body, res);
-  copy.headers.set("cache-control", `public, s-maxage=${ttl}`);
-  // Cloudflare's cache obeys CDN-Cache-Control over Cache-Control
-  copy.headers.delete("cdn-cache-control");
-  copy.headers.delete("vary");
-  return copy;
-}
 
 function posthog(request: Request, url: URL): Promise<Response> | null {
   for (const [prefix, upstream] of POSTHOG) {
@@ -115,35 +78,54 @@ export default {
       headers.set("host", url.host);
     }
     const docs = DOCS_HOSTS.has(url.hostname);
-    const cache = edgeCacheable(request, url) ? (globalThis as unknown as { caches?: { default?: Cache } }).caches?.default : undefined;
-    const key = cache ? edgeKey(request, url, env.CF_VERSION_METADATA?.id ?? "dev") : null;
+    const version = env.CF_VERSION_METADATA?.id ?? "dev";
+    const cache = (globalThis as unknown as { caches?: { default?: Cache } }).caches?.default;
+    const bypass = cache ? bypassReason(request.method, request.headers, url) : "no-cache-api";
+    const key = bypass ? null : edgeKey(new URL(request.url).origin, url, request.headers.get("accept"), version);
     if (cache && key) {
       const hit = await cache.match(key).catch(() => undefined);
       if (hit) {
-        const out = new Response(hit.body, hit);
-        out.headers.set("cache-control", hit.status === 404 ? "private, no-cache, no-store, max-age=0, must-revalidate" : BROWSER_CC);
-        if (docs) out.headers.set("vary", "Accept");
-        out.headers.set("x-edge-cache", "HIT");
+        const out = fromCopy(hit, docs);
         if (testHost) out.headers.set("x-robots-tag", "noindex, nofollow");
         return out;
       }
     }
+    // a document's revalidation (the API's outbox): this colo drops its copies of that page once Next has answered
+    const purgeSlug = request.method === "POST" && url.pathname === "/api/revalidate" ? await revalidatedSlug(request) : null;
     const res: Response = await handler.fetch(new Request(url.toString(), { method: request.method, headers, body: request.body, redirect: "manual", cf: (request as { cf?: unknown }).cf } as RequestInit), env, ctx);
-    if (cache && key) {
-      const copy = edgeCopy(res, docs);
-      if (copy) ctx.waitUntil(cache.put(key, copy).catch(() => {}));
+    if (cache && purgeSlug && res.status === 200) {
+      const keys = purgeKeys(purgeSlug, new URL(request.url).hostname, version);
+      ctx.waitUntil(Promise.all(keys.map((k) => cache.delete(k).catch(() => false))));
     }
-    return finish(res, testHost);
+    let state = bypass ? "BYPASS" : "MISS";
+    if (cache && key) {
+      const ttl = edgeTtl(res.status, res.headers, docs);
+      if (ttl) ctx.waitUntil(cache.put(key, edgeCopy(res, ttl)).catch(() => {}));
+      else state = "BYPASS";
+    }
+    return finish(res, testHost, state);
   },
 };
 
-/** Browser cache headers like Vercel's CDN; never a shared copy of a response that sets a cookie; noindex on tests. */
-function finish(res: Response, testHost: boolean): Response {
+/** The slug in a revalidate request's body (read from a copy; the request goes on to Next untouched), or null. */
+async function revalidatedSlug(request: Request): Promise<string | null> {
+  try {
+    const body = (await request.clone().json()) as { slug?: unknown };
+    return typeof body?.slug === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(body.slug) ? body.slug : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Browser cache headers like Vercel's CDN (+ the edge-cache debug header); never a shared copy of a response that sets a cookie; noindex on tests. */
+function finish(res: Response, testHost: boolean, edge: string): Response {
   const cc = res.headers.get("cache-control") || "";
   const shared = /s-maxage|stale-while-revalidate/i.test(cc);
   const cookie = res.headers.has("set-cookie") && /public|s-maxage/i.test(cc);
-  if (!shared && !cookie && !testHost) return res;
+  // a WebSocket upgrade can't be re-wrapped
+  if (res.status === 101 || (res as Response & { webSocket?: unknown }).webSocket) return res;
   const out = new Response(res.body, res);
+  out.headers.set(EDGE_HEADER, edge);
   if (cookie) out.headers.set("cache-control", "private, no-cache, no-store, max-age=0, must-revalidate");
   else if (shared) {
     out.headers.set("cache-control", "public, max-age=0, must-revalidate");
