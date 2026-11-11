@@ -1,7 +1,7 @@
 # Production deploys: push to main or deploy/cf-production.
 # Markdrop web app on Cloudflare Workers (OpenNext). Vercel's own workflows are unchanged and keep deploying.
 #   push to main             -> production (markdrop-web; its live domains are attached by hand, .work cutover plan)
-#   push to feat/cf-workers  -> staging (markdrop-web-staging: workers.dev + next.markdrop.in), until the branch merges
+#   push to feat/cf-workers or feat/cf-edge-cache -> staging (markdrop-web-staging: workers.dev + next.markdrop.in)
 #   push to deploy/cf-production -> production, before this file is on main (a manual run needs it there)
 #   manual run               -> the target picked
 # Needs: secret CLOUDFLARE_API_TOKEN (Himanshu@markdrop.in's account: Workers Scripts Edit, Workers R2 Storage Edit,
@@ -14,7 +14,7 @@ name: cf-deploy
 
 on:
   push:
-    branches: [main, feat/cf-workers, deploy/cf-production]
+    branches: [main, feat/cf-workers, feat/cf-edge-cache, deploy/cf-production]
     paths: ["frontend/**", ".github/workflows/cf-deploy.yml"]
   workflow_dispatch:
     inputs:
