@@ -76,6 +76,9 @@ export default function LoginClient() {
         <Anchor href="/privacy" className="md-focus md-hit inline-flex min-h-6 items-center rounded-sm text-text-muted no-underline hover:text-text">
           Privacy
         </Anchor>
+        <Anchor href="/terms" className="md-focus md-hit inline-flex min-h-6 items-center rounded-sm text-text-muted no-underline hover:text-text">
+          Terms
+        </Anchor>
       </p>
     </div>
   );

@@ -38,6 +38,7 @@ const APP_ROUTES = new Set([
   "settings",
   "share",
   "shared",
+  "terms",
   "trash",
   "upload",
   "w",

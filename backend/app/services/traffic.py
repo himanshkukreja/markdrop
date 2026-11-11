@@ -65,7 +65,7 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
 APP_ROUTES = {
     "", "admin", "auth", "builder", "d", "dashboard", "docs-studio", "enterprise", "extension", "f",
     "guides", "h", "invite", "login", "mcp", "new", "oauth", "privacy", "recent", "requests",
-    "settings", "share", "shared", "trash", "upload", "w",
+    "settings", "share", "shared", "terms", "trash", "upload", "w",
 }
 
 # Markdrop Guides (/guides, and its old address /docs-studio): literal screens, then a site id and

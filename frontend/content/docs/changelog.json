@@ -24,6 +24,28 @@
   "next": [],
   "entries": [
     {
+      "id": "terms-of-use",
+      "date": "2026-11-11",
+      "title": "Terms of Use",
+      "kind": "new",
+      "area": "Privacy",
+      "products": [
+        "web"
+      ],
+      "summary": "Markdrop now has Terms of Use: plain-language rules for your account and content, what you can publish, AI features, integrations and limits. Sign-in links to them, and the privacy policy now covers every integration.",
+      "body": "- **[Terms of Use](https://markdrop.in/terms).** Who runs Markdrop, what you own (everything you publish), what you can't publish, how AI features and integrations work, fair-use limits, and how to report content or reach the Grievance Officer.\n- **At sign-in.** The sign-in form says that continuing means agreeing to the Terms and the Privacy Policy, with links to both. The site footer and the docs footer link to them too.\n- **Privacy policy.** A new [Other integrations](https://markdrop.in/privacy#integrations) section says what Google Docs, Google Meet, Slack, Jira, GitHub and connected AI apps read and keep, and the list of who processes data is up to date. [Privacy at Markdrop](/security/privacy)",
+      "links": [
+        {
+          "label": "Terms of Use",
+          "href": "https://markdrop.in/terms"
+        },
+        {
+          "label": "Privacy policy",
+          "href": "https://markdrop.in/privacy"
+        }
+      ]
+    },
+    {
       "id": "integrations-grid",
       "date": "2026-11-11",
       "title": "Integrations, one card each",

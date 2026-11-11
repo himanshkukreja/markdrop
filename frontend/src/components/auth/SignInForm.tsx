@@ -18,9 +18,14 @@ import { Alert, Button, Field, Icon, Input, MarkdropMark, Spinner, announce } fr
 import { ReadMore } from "@/components/ReadMore";
 import { OtpInput, type OtpInputHandle } from "@/components/kit/OtpInput";
 import { API_BASE, googleLoginUrl, type MeUser } from "@/lib/api";
+import { PRIMARY_HOST } from "@/lib/hosts";
 import { useAuth } from "@/contexts/AuthContext";
 
 /* ── Copy ─────────────────────────────────────────────────────────────── */
+
+/** Absolute, on the app host: the form also opens in dialogs on hosts that don't serve these pages. */
+const LEGAL_TERMS = `https://${PRIMARY_HOST}/terms`;
+const LEGAL_PRIVACY = `https://${PRIMARY_HOST}/privacy`;
 
 export const SIGN_IN_TITLE = "Sign in to Markdrop";
 /** Board copy (Auth.dc.html): honest about artifacts, which do need an account. */
@@ -412,6 +417,12 @@ export function SignInForm({
                 <span>{FOOTNOTE}</span>
               </p>
             )}
+            <p className="m-0 text-caption text-text-muted" data-testid="signin-terms">
+              By continuing, you agree to Markdrop&apos;s{" "}
+              <a href={LEGAL_TERMS} target="_blank" rel="noopener" className="md-focus rounded-sm underline underline-offset-2 hover:text-text">Terms of Use</a>
+              {" "}and{" "}
+              <a href={LEGAL_PRIVACY} target="_blank" rel="noopener" className="md-focus rounded-sm underline underline-offset-2 hover:text-text">Privacy Policy</a>.
+            </p>
           </div>
         ) : (
           <form

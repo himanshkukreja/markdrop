@@ -296,7 +296,7 @@ async def event(db: AsyncIOMotorDatabase, payload: dict) -> None:
 # Top-level app routes (frontend/src/app) that aren't documents; utils/slug.RESERVED_SLUGS too.
 _APP_ROUTES = frozenset({
     "dashboard", "meetings", "pages", "recent", "requests", "search", "settings", "shared", "trash", "w", "h", "f",
-    "guides", "enterprise", "mcp", "privacy", "builder", "new", "share", "upload", "admin", "login", "auth", "invite",
+    "guides", "enterprise", "mcp", "privacy", "terms", "builder", "new", "share", "upload", "admin", "login", "auth", "invite",
     "oauth", "extension", "d", "integrations", "docs-site",
 })
 

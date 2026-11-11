@@ -71,7 +71,7 @@ test("the docs site: every page is public, reported under its own route", () => 
 
 test("replay records every page: documents, share rooms, invites, folders, workspaces, Guides", () => {
   for (const p of [
-    "/", "/guides", "/mcp", "/enterprise", "/privacy", "/dashboard", "/recent", "/shared", "/new", "/builder", "/upload", "/login",
+    "/", "/guides", "/mcp", "/enterprise", "/privacy", "/terms", "/dashboard", "/recent", "/shared", "/new", "/builder", "/upload", "/login",
     "/bkwJuG4", "/share", "/share/room", "/invite/tok", "/w/ws1", "/w/ws1/f/fold1", "/f/share", "/f/share/a/b", "/requests/r1",
     "/settings/tokens", "/dashboard/analytics/bkwJuG4", "/oauth/consent", "/extension/authorize", "/d/check/help.acme.com",
     `/guides/${SITE}`, `/guides/${SITE}/whatever`, "/guides/home",

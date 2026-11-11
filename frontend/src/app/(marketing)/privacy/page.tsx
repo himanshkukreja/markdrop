@@ -32,8 +32,10 @@ export default function PrivacyPage() {
       <h1 className="mb-6 text-h1 text-text">Privacy</h1>
       <P>
         Markdrop turns documents and files into links. This page says what we keep, what we measure,
-        who helps us run the service, and how to opt out. Questions or requests:{" "}
-        <a className={link} href="mailto:himanshu@markdrop.in">himanshu@markdrop.in</a>.
+        who helps us run the service, and how to opt out. Markdrop is operated by Himanshu Kukreja, an individual
+        based in India, who is responsible for your data. Questions or requests:{" "}
+        <a className={link} href="mailto:himanshu@markdrop.in">himanshu@markdrop.in</a>. Using Markdrop is also covered by
+        our <a className={link} href="/terms">Terms of Use</a>.
       </P>
 
       <H2 id="publish">What you publish</H2>
@@ -146,11 +148,33 @@ export default function PrivacyPage() {
         <a className={link} href="https://docs.markdrop.in/integrations/zoom#removing-the-app">Removing the app</a>.
       </P>
 
+      <H2 id="integrations">Other integrations</H2>
+      <P>
+        Each integration is off until you, or an admin of your workspace, connect it, and it can be disconnected at any
+        time. Tokens for other services are stored encrypted, used only for the feature you turned on, and deleted when
+        you disconnect.
+      </P>
+      <ul className="mb-4 list-disc pl-5">
+        <Li><strong className="text-text">Google sign-in.</strong> Your email address, name and picture. Nothing else from your Google account.</Li>
+        <Li><strong className="text-text">Google Docs.</strong> With your separate permission, access only to the Google Docs that Markdrop creates for you or that you pick (<code className="font-mono text-code">drive.file</code>), to export and refresh documents and to read the meeting notes you choose to import. We keep an encrypted refresh token and the ids of those Docs.</Li>
+        <Li><strong className="text-text">Google Meet (automatic import).</strong> A script runs in your own Google account with read-only Drive access. It reads only Docs that look like Meet transcripts or Gemini&rsquo;s notes and sends them to your workspace with a token that can do nothing else. Each one becomes a meeting page, as for Zoom above.</Li>
+        <Li><strong className="text-text">Slack.</strong> The Slack workspace&rsquo;s name and an encrypted app token, the meetings channel, who linked which Slack account and their notification choices. Markdrop doesn&rsquo;t read your channels: it sees only messages that contain a Markdrop link, and only the link, to show its preview.</Li>
+        <Li><strong className="text-text">Jira (Atlassian).</strong> Each person&rsquo;s encrypted Atlassian tokens, the connected sites, the issues linked to pages and meetings, and a short-lived copy of the issues it shows (key, summary, status, assignee, due date).</Li>
+        <Li><strong className="text-text">GitHub (Markdrop Guides).</strong> Read-only access to the repositories you install the Markdrop Guides app on, to import and sync a guide&rsquo;s pages. We keep the installation and repository you chose and the files the guide uses.</Li>
+        <Li><strong className="text-text">AI apps, the CLI and VS Code.</strong> An AI app you connect (for example Claude, ChatGPT or Cursor), the command-line tool and the VS Code extension act as you, with the access you approve, and can read and change what you can. We keep which app or token it is and when it was last used; revoke it in Settings at any time.</Li>
+      </ul>
+      <P>
+        Markdrop&rsquo;s use and transfer of information received from Google APIs adheres to the{" "}
+        <a className={link} href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
+        including the Limited Use requirements. Data from Google, Zoom, Slack, Atlassian and GitHub isn&rsquo;t sold, used
+        for advertising or used to train AI models.
+      </P>
+
       <H2 id="processors">Who processes data for us</H2>
       <ul className="mb-4 list-disc pl-5">
-        <Li>Vercel (website hosting) and Amazon Web Services in Mumbai (our API).</Li>
-        <Li>MongoDB Atlas (database, including connected integrations&rsquo; encrypted tokens and imported meetings) and Cloudflare (file storage, the file viewer and the Share relay).</Li>
-        <Li>Resend (sign-in and notification email).</Li>
+        <Li>Vercel (website hosting) and Amazon Web Services in Hyderabad, India (our API and our database, which runs on our own server there, including connected integrations&rsquo; encrypted tokens and imported meetings, with its backups).</Li>
+        <Li>Cloudflare (file storage, the file viewer, Markdrop Guides sites, DNS and the Share relay).</Li>
+        <Li>Resend and Brevo (sign-in and notification email).</Li>
         <Li>PostHog and Google (analytics, as above).</Li>
         <Li>Anthropic (AI in pages, guides, search, Ask, meetings, Team, analytics and Jira drafts, which are powered by Anthropic&rsquo;s Claude models): when you use an AI feature, the text it needs is sent to Anthropic&rsquo;s API to answer. For AI search and Ask, that is your question (and earlier questions in the same conversation) and short excerpts of the matching items you can open; for a workspace's Ask suggestions, the meeting topics, decisions and action items and the page titles and headings every member of it can open (never encrypted items, and only the title of a password-protected one). Nothing sent is used to train models: Anthropic doesn&rsquo;t train on data sent through its commercial API. Encrypted items are never sent. We keep only usage counts (tokens, cost, which feature), not the text sent. The one exception: your Ask conversations (questions, answers and their sources) are kept for you alone, so you can return to them, and deleted 90 days after the last question or when you clear them.</Li>
       </ul>

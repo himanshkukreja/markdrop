@@ -48,7 +48,7 @@ export function pwaSurface(rawHost: string | null | undefined): "app" | "studio"
 
 /**
  * First path segments of the app's own screens on markdrop.in: the account pages, sign-in, the
- * publishing tools and the admin console. Not "/", /enterprise, /mcp, /privacy, /guides (landing
+ * publishing tools and the admin console. Not "/", /enterprise, /mcp, /privacy, /terms, /guides (landing
  * pages) and not a document's address (anything else).
  */
 const APP_SEGMENTS: ReadonlySet<string> = new Set([

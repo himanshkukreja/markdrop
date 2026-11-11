@@ -1,11 +1,11 @@
 ---
 title: Privacy at Markdrop
 description: What Markdrop keeps about you and your readers, what it measures, what it never records, and how to opt out.
-updated: 2026-11-07
+updated: 2026-11-11
 keywords: [privacy, viewers, who viewed, view history, search log, content gaps, gdpr, cookies, consent, analytics, posthog, google analytics, global privacy control, delete account, data]
 ---
 
-This page explains, in plain terms, what Markdrop keeps and why. The [privacy policy](https://markdrop.in/privacy) is the formal version.
+This page explains, in plain terms, what Markdrop keeps and why. The [privacy policy](https://markdrop.in/privacy) is the formal version, and the [Terms of Use](https://markdrop.in/terms) are the rules for using Markdrop.
 
 ## What you publish
 
@@ -76,9 +76,9 @@ Files go straight from your device to the other person's and are never stored on
 
 ## Who processes data for Markdrop
 
-- Vercel (website hosting) and Amazon Web Services in Mumbai (the API).
-- MongoDB Atlas (database) and Cloudflare (file storage, the file viewer and the peer-to-peer relay).
-- Resend (sign-in and notification email).
+- Vercel (website hosting) and Amazon Web Services in Hyderabad, India (the API, and the database on Markdrop's own server there, with its backups).
+- Cloudflare (file storage, the file viewer, Markdrop Guides sites, DNS and the peer-to-peer relay).
+- Resend and Brevo (sign-in and notification email).
 - PostHog and Google (analytics, as above).
 - Anthropic (the Claude models behind the AI in pages, search, Ask, meetings, Team, analytics, Jira drafts and Markdrop Guides): only the text a request needs, when someone uses AI. For analytics that's totals and your own titles, never who visited. Markdrop keeps usage counts, not the text sent; the one exception is your own [Ask conversations](#what-ask-keeps), kept for you to return to. Nothing sent is used to train models. See [AI and your data](/security/ai-and-your-data).
 
