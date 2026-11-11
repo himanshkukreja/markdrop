@@ -767,7 +767,7 @@ class OptIn(SlackWorld):
         foot = dm["blocks"][-1]
         self.assertEqual(foot["type"], "context")
         self.assertIn("You turned these on in Markdrop", foot["elements"][0]["text"])
-        self.assertIn("https://markdrop.in/settings/account#slack|Turn off", foot["elements"][0]["text"])
+        self.assertIn("https://markdrop.in/settings/integrations/slack|Turn off", foot["elements"][0]["text"])
         # Per kind still applies once on.
         r = await self.http.patch("/api/v1/slack/me/prefs", json={"mention": False}, headers=self.session("wm"))
         self.assertFalse(r.json()["prefs"]["mention"])

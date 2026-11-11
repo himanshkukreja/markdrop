@@ -371,7 +371,7 @@ def meeting_post(team_id: str, post_id: str, *, title: str, url: str, when: str 
 
 # ── Direct messages ───────────────────────────────────────────────────────────
 
-SETTINGS_PATH = "/settings/account#slack"
+SETTINGS_PATH = "/settings/integrations/slack"  # where your Slack messages are turned on and off
 
 
 def dm_footer() -> dict:
