@@ -23,6 +23,7 @@ from app.middleware.docs_cors import DocsCORSMiddleware
 from app.middleware.errors import ServerErrorJSONMiddleware
 from app.middleware.internal import InternalRequestMiddleware
 from app.middleware.public_cors import PublicCORSMiddleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.tenant_cors import TenantCORSMiddleware
 from app.routers.admin import router as admin_router
 from app.routers.trash import router as trash_router
@@ -257,6 +258,9 @@ app.add_middleware(RequestContextMiddleware)
 from app.services.request_memo import RequestMemoMiddleware  # noqa: E402
 
 app.add_middleware(RequestMemoMiddleware)
+# Outermost: HSTS and nosniff on every response, CORS preflights and 429s included
+# (middleware/security_headers.py).
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Routers
 app.include_router(trash_router)  # before documents: /documents/{slug}/delete-preview
