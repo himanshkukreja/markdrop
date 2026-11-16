@@ -1,0 +1,32 @@
+# OWASP ZAP baseline (passive) scan of the live site + API, for the Zoom Marketplace security review (DAST).
+# Runs on a push to security/zap or by hand; reports are uploaded as the "zap-reports" artifact.
+name: ZAP baseline
+on:
+  push:
+    branches: [security/zap]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  zap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: web
+            target: https://markdrop.in
+          - name: api
+            target: https://api.markdrop.in/health
+    steps:
+      - name: Scan ${{ matrix.target }}
+        run: |
+          mkdir -p out && chmod 777 out
+          docker run --rm -v "$PWD/out:/zap/wrk" ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t "${{ matrix.target }}" -m 3 -I \
+              -r zap-${{ matrix.name }}.html -J zap-${{ matrix.name }}.json -w zap-${{ matrix.name }}.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zap-${{ matrix.name }}
+          path: out/
