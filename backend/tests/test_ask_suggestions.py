@@ -319,6 +319,138 @@ class Mcp(SugWorld):
         self.assertNotIn("Albatross team", p)
 
 
+class TeamLists(SugWorld):
+    """Per-team lists (owner, 2026-11-16): a private Sales team gets its own questions from its own items;
+    nothing of Sales reaches the workspace list or Eng's, nothing company-wide or of Eng reaches Sales'."""
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        from app.services import teams as T
+
+        await T.ensure_indexes(self.db)
+        base = f"/api/v1/workspaces/{self.W}/teams"
+        mk = lambda **b: self.http.post(base, headers=self.session("wa"), json=b)   # noqa: E731
+        r = await mk(name="Sales", visibility="private", member_ids=[self.uid["owner"], self.uid["wm"]])
+        self.assertEqual(r.status_code, 201, r.text)
+        self.sales = r.json()["id"]
+        r = await mk(name="Eng", visibility="open", member_ids=[self.uid["wv"]])
+        self.eng = r.json()["id"]
+        r = await mk(name="Quiet", visibility="open", member_ids=[self.uid["wm"]])
+        self.quiet = r.json()["id"]
+        self.general = str((await T.ensure_general(self.db, self.W))["_id"])
+
+    async def seed_teams(self):
+        m = await self.import_meeting()                                               # moved to Sales below
+        r = await self.http.put(f"/api/v1/meetings/{m['id']}/teams", headers=self.session("wa"),
+                                json={"team_ids": [self.sales]})
+        self.assertEqual(r.status_code, 200, r.text)
+        await self.put("daily", "Daily Syncup zebra", "# Daily Syncup zebra\n\n## Standup blockers")
+        await self.put("walrus", "Pipeline review walrus", "# Pipeline\n\n## Walrus deals", team_ids=[self.sales])
+        await self.put("narwhal", "Sales private narwhal", "# Narwhal", owner="wm", state="P", team_ids=[self.sales])
+        await self.put("otter", "Eng roadmap otter", "# Otter\n\n## Otter milestones", team_ids=[self.eng])
+
+    async def text(self, team=None) -> str:
+        return sug.source_text(await sug.team_sources(self.db, self.W, team_id=team))
+
+    async def get_team(self, who, team):
+        return await self.http.get(f"/api/v1/ask/suggestions?workspace={self.W}&team={team}", headers=self.session(who))
+
+    async def test_sources_never_cross_teams(self):
+        await self.seed_teams()
+        sales, eng, ws = await self.text(self.sales), await self.text(self.eng), await self.text()
+        self.assertIn("Weekly product sync", sales)
+        self.assertIn("walrus", sales)
+        for other in ("zebra", "otter", "narwhal"):
+            self.assertNotIn(other, sales, other)
+        self.assertIn("otter", eng)
+        for other in ("Weekly product sync", "walrus", "zebra", "narwhal"):
+            self.assertNotIn(other, eng, other)
+        self.assertIn("zebra", ws)
+        for other in ("Weekly product sync", "walrus", "otter", "narwhal"):
+            self.assertNotIn(other, ws, other)
+        # Built: one call each, separate rows, prompts as narrow as the sources.
+        await sug.build(self.db, self.W)
+        await sug.build(self.db, self.W, team_id=self.sales)
+        calls = self.sug_calls()
+        self.assertEqual(len(calls), 2)
+        self.assertNotIn("walrus", prompt_of(calls[0]))
+        self.assertIn("walrus", prompt_of(calls[1]))
+        self.assertIn("Team: Sales", prompt_of(calls[1]))
+        self.assertNotIn("zebra", prompt_of(calls[1]))
+        row = await self.db[sug.COLL].find_one({"_id": f"{self.W}:{self.sales}"})
+        self.assertEqual((row["workspace_id"], row["team_id"]), (self.W, self.sales))
+        # Same sources: no new call for the team either.
+        await sug.build(self.db, self.W, team_id=self.sales)
+        self.assertEqual(len(self.sug_calls()), 2)
+
+    async def test_api_only_for_readers_of_the_team(self):
+        await self.seed_teams()
+        r = await self.get_team("wm", self.sales)
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json()["team_scope"], {"id": self.sales, "name": "Sales"})
+        self.assertTrue(r.json()["refreshing"])
+        for t in list(sug._bg):
+            await asyncio.wait({t}, timeout=10)
+        self.assertEqual(len(self.sug_calls()), 1)
+        self.assertIn("walrus", prompt_of(self.sug_calls()[0]))
+        a = (await self.get_team("wm", self.sales)).json()
+        self.assertTrue(a["team"])
+        self.assertEqual(a["team"], (await self.get_team("wa", self.sales)).json()["team"])   # an admin reads every team
+        # Not in the private team (a workspace viewer), a stranger, an unknown or another workspace's id: 404.
+        for who, team in (("wv", self.sales), ("stranger", self.sales), ("wm", "0" * 24), ("wm", "nope")):
+            r = await self.get_team(who, team)
+            self.assertEqual(r.status_code, 404, (who, team, r.text))
+            self.assertNotIn("Sourcing", r.text)
+        # The workspace's own list never got Sales' items (its prompt), and isn't Sales' row.
+        self.assertEqual((await self.get_team("wv", self.eng)).status_code, 200)            # an open team
+        r = (await self.get("wv", self.W)).json()
+        self.assertIsNone(r["team_scope"])
+        for t in list(sug._bg):
+            await asyncio.wait({t}, timeout=10)
+        for c in self.sug_calls():
+            if "Team: Sales" not in prompt_of(c):
+                self.assertNotIn("walrus", prompt_of(c))
+                self.assertNotIn("Weekly product sync", prompt_of(c))
+        # Personal suggestions in Sales: only Sales' meetings.
+        self.assertTrue(a["personal"][1]["label"].startswith("Catch me up on Weekly product sync"), a["personal"])
+
+    async def test_general_is_the_workspace_list_and_a_quiet_team_is_empty(self):
+        await self.seed_teams()
+        await sug.build(self.db, self.W)
+        g = (await self.get_team("wm", self.general)).json()
+        w = (await self.get("wm", self.W)).json()
+        self.assertIsNone(g["team_scope"])
+        self.assertEqual(g["team"], w["team"])
+        self.assertTrue(g["team"])
+        # Quiet: nothing filed in it lately → no questions (never the workspace's), and it says so.
+        await sug.build(self.db, self.W, team_id=self.quiet)
+        q = (await self.get_team("wm", self.quiet)).json()
+        self.assertEqual(q["team"], [])
+        self.assertTrue(q["quiet"])
+        self.assertEqual(q["team_scope"]["name"], "Quiet")
+        self.assertEqual(len(self.sug_calls()), 1)
+        # The loop keeps team rows fresh, and drops a deleted team's row.
+        from app.services import teams as T
+
+        await self.db[sug.COLL].update_many({}, {"$set": {"viewed_at": sug.now_utc(), "checked_at": None}})
+        await self.db[T.TEAMS].delete_one({"_id": T.oid(self.quiet)})
+        await sug.background(self.db)
+        self.assertIsNone(await self.db[sug.COLL].find_one({"_id": f"{self.W}:{self.quiet}"}))
+        self.assertTrue((await self.db[sug.COLL].find_one({"_id": self.W}))["checked_at"])
+
+    async def test_mcp_team(self):
+        await self.seed_teams()
+        await sug.build(self.db, self.W, team_id=self.sales)
+        tok = await self.mcp_token("wm", write=False)
+        code, res = await self.mcp_call(tok, "ask_suggestions", {"workspace": self.W, "team": "Sales"})
+        self.assertFalse(res.get("isError"), res)
+        self.assertEqual(res["structuredContent"]["team_scope"]["id"], self.sales)
+        self.assertTrue(res["structuredContent"]["team"])
+        tok = await self.mcp_token("wv", write=False)
+        code, res = await self.mcp_call(tok, "ask_suggestions", {"workspace": self.W, "team": "Sales"})
+        self.assertTrue(res.get("isError"))
+
+
 class Pure(unittest.TestCase):
     def test_headings_and_clean(self):
         self.assertEqual(sug.headings_of("# A\n```\n# not\n```\n## B {#b-abcd1234}\n### **C**\n#### D"), ["A", "B", "C"])

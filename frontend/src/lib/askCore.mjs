@@ -154,6 +154,8 @@ export function homeChips(sug, max = 3) {
 
 /** "Updated 2 h ago." under a workspace's suggestions ("" without a built list). */
 export function updatedLine(sug, now = Date.now()) {
+  // A team (or workspace) with nothing new in the window: say so — never another list's questions.
+  if (sug && sug.quiet && !(sug.team || []).length) return "Nothing new here in the last 7 days.";
   if (!sug || !sug.updated_at || !(sug.team || []).length) return "";
   const t = Date.parse(sug.updated_at);
   if (!Number.isFinite(t)) return "";
