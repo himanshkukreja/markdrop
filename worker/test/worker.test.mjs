@@ -296,6 +296,14 @@ test("page images (pa/): public ones by URL, guarded ones only with a token for 
   assert.equal((await get("/r/pa/d1/..%2F..%2Fart/u1/page.html")).status, 404);
 });
 
+test("video player: a seek message moves it, only from the framing window on an app origin", async () => {
+  const page = await (await get("/v/video/art/u1/clip.mp4")).text();
+  assert.match(page, /var APP=\["https:\/\/markdrop\.in","https:\/\/www\.markdrop\.in","http:\/\/localhost:3000"\];/);
+  assert.match(page, /e\.source!==window\.parent/);
+  assert.match(page, /APP\.indexOf\(e\.origin\)<0/);
+  assert.match(page, /d\.ev!=='seek'/);
+});
+
 test("video player: captions only from a captions key (as text, never HTML), and ?at= starts there", async () => {
   const page = await (await get("/v/video/art/u1/clip.mp4?cc=art/u1/abc_DEF-1.captions.vtt&ct=aa.bb_cc&at=754")).text();
   assert.match(page, /var CC="\/r\/art\/u1\/abc_DEF-1\.captions\.vtt\?t=aa\.bb_cc";/);
