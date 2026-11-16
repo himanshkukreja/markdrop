@@ -1,7 +1,7 @@
 """Meetings into teams, and the one-time guided review (Teams, CONTRACT §4.6-4.7).
 
-**Suggestions.** A team is suggested for a meeting when its members include at least two of the
-attendees, or half (or more) of the attendees who are workspace members; or when earlier meetings of
+**Suggestions.** A team is suggested for a meeting when its members are half (or more) of the attendees
+who are workspace members — a company-wide meeting a few of its members attend stays company-wide; or when earlier meetings of
 the same series went to it. A mixed meeting goes to every matching team.
 
 **On import** the suggestions are applied at once (``routing.state = "auto"``) — before the summary is
@@ -42,7 +42,7 @@ async def suggest(db: AsyncIOMotorDatabase, workspace_id: str, row: dict, teams:
     out: dict[str, dict] = {}
     for t in teams:
         matched = len(members & set(t.get("member_ids") or []))
-        if matched and (matched >= 2 or matched * 2 >= len(members)):
+        if matched and matched * 2 >= len(members):
             out[str(t["_id"])] = {"team_id": str(t["_id"]), "name": t.get("name"), "reason": "attendees", "matched": matched}
     series = (row.get("series") or "").strip()
     if series:

@@ -147,6 +147,16 @@ class General(TeamsWorld):
         self.assertNotIn(gid, {s["team_id"] for s in sug})
         self.assertTrue(sug)
 
+    async def test_company_wide_meeting_stays_out_of_a_team(self):
+        # Two Sales members among five attendees: a minority, so no team (a daily sync isn't Sales').
+        row = {"attendees": [{"user_id": self.uid[u]} for u in ("owner", "wm", "wa", "wv", "ownv")]}
+        members = {str(t["_id"]): set(t.get("member_ids") or []) for t in await self.db["teams"].find({"workspace_id": self.W}).to_list(50)}
+        ids = {self.uid[u] for u in ("owner", "wm", "wa", "wv", "ownv")}
+        ws = {m["user_id"] for m in await self.db["memberships"].find({"workspace_id": self.W, "user_id": {"$in": list(ids)}}).to_list(50)}
+        sug = await team_routing.suggest(self.db, self.W, row)
+        for s in sug:
+            self.assertGreaterEqual(len(members[s["team_id"]] & ws) * 2, len(ws), s)
+
 
 class Favorites(TeamsWorld):
     async def favs(self, who: str) -> list[dict]:
