@@ -24,6 +24,24 @@
   "next": [],
   "entries": [
     {
+      "id": "zoom-speaker-names",
+      "date": "2026-11-16",
+      "title": "Names for speakers in transcribed Zoom meetings",
+      "kind": "improved",
+      "area": "Meetings",
+      "products": [
+        "web"
+      ],
+      "summary": "Zoom meetings that Markdrop transcribes now show who is speaking even when Zoom doesn't provide its speaker timeline, instead of \"Speaker 1\" and \"Speaker 2\".",
+      "body": "- **Names from the call itself.** When Zoom's active-speaker timeline isn't available, Markdrop AI works out who each speaker is from the meeting's topic, its host, the people who joined, introductions and people addressing each other by name. [Transcribe and keep recordings](/integrations/zoom#transcribe-and-keep-recordings)\n- **Only when it's sure.** A speaker gets a name only when the evidence is clear, and only with a name from the meeting itself; anyone else stays \"Speaker 1\", \"Speaker 2\".\n- **Meetings already here.** Zoom meetings transcribed before this get their speakers' names in the meeting and its transcript.",
+      "links": [
+        {
+          "label": "Zoom",
+          "href": "/integrations/zoom#transcribe-and-keep-recordings"
+        }
+      ]
+    },
+    {
       "id": "meeting-details",
       "date": "2026-11-16",
       "title": "Detailed notes for meetings without Google's notes",

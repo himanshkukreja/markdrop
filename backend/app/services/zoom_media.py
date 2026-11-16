@@ -10,7 +10,10 @@ admin turned on **Transcribe and keep recordings** (``zoom_connections.keep_medi
 a Deepgram key, the recording's AUDIO (``M4A``, never the video) goes to Deepgram (nova-3, diarized).
 The audio is downloaded to a temporary file, sent, and deleted right after, whatever happened.
 Deepgram's speakers get names from Zoom's active-speaker timeline (``TIMELINE``) when the recording
-has one, the host when only one person spoke, else "Speaker 1", "Speaker 2"…
+has one (Zoom's storage often refuses it), the host when only one person spoke; speakers still unnamed
+are named from what was said (:func:`named_from_words`, services/meeting_speakers.py: one small
+Meetings AI call given the topic, the host and who joined; only confident names), else "Speaker 1",
+"Speaker 2"…
 
 **When.** Transcribing is background work, never in a request: a meeting that needs it is
 ``waiting`` in ``zoom_meetings`` (``due_at``) and :func:`tick` (services/background.py, the ``zoom``
@@ -257,7 +260,7 @@ async def _to_file(db: AsyncIOMotorDatabase, conn: dict, url: str, path: str, ma
 
 
 async def transcribe(db: AsyncIOMotorDatabase, conn: dict, obj: dict, *, host_name: str | None,
-                     user_id: str | None) -> str:
+                     user_id: str | None, participants: list[str] | None = None) -> str:
     """The meeting's audio → Deepgram → WebVTT ("Name: text" cues). The audio file is deleted right after."""
     from app.services import zoom
 
@@ -295,7 +298,10 @@ async def transcribe(db: AsyncIOMotorDatabase, conn: dict, obj: dict, *, host_na
             points = timeline_points(await zoom.download(db, conn, tl["download_url"]))
         except (zoom_api.ZoomError, zoom.ZoomUnavailable) as exc:
             log.info("zoom: the timeline of a meeting: %s", exc)
-    return deepgram.to_vtt(utts, speaker_names(utts, points, host=host_name))
+    names = speaker_names(utts, points, host=host_name)
+    names.update(await named_from_words(db, conn, obj, utts, names, host=host_name, participants=participants,
+                                        user_id=user_id))
+    return deepgram.to_vtt(utts, names)
 
 
 # ── Speakers' names ───────────────────────────────────────────────────────────
@@ -363,6 +369,26 @@ def speaker_names(utts: list[dict], points: list[tuple[float, list[str]]], *, ho
             out[sp] = n
             taken.add(n.casefold())
     return out
+
+
+async def named_from_words(db: AsyncIOMotorDatabase, conn: dict, obj: dict, utts: list[dict], names: dict[int, str], *,
+                           host: str | None, participants: list[str] | None, user_id: str | None) -> dict[int, str]:
+    """Speakers the timeline left unnamed, named from what was said (services/meeting_speakers.py:
+    one small Meetings AI call; only confident names of people who are there). {} on any failure."""
+    from app.services import meeting_speakers
+
+    if all(u["speaker"] in names for u in utts):
+        return {}
+    label = {sp: f"Speaker {sp + 1}" for sp in {u["speaker"] for u in utts}}
+    lines = [(names.get(u["speaker"]) or label[u["speaker"]], u["text"]) for u in utts]
+    try:
+        got = await meeting_speakers.name_speakers(db, workspace_id=conn["_id"], user_id=user_id, lines=lines,
+                                                   title=obj.get("topic"), host=host, participants=participants)
+    except Exception:
+        log.warning("zoom: naming a meeting's speakers failed", exc_info=True)
+        return {}
+    by_label = {v: k for k, v in label.items()}
+    return {by_label[lab]: n for lab, n in got.names.items() if lab in by_label and by_label[lab] not in names}
 
 
 # ── Recordings ────────────────────────────────────────────────────────────────

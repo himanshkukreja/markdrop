@@ -961,7 +961,8 @@ async def handle_recording(db: AsyncIOMotorDatabase, workspace_id: str, obj: dic
         host_named = {"name": member.get("name") or (host or {}).get("name"), "email": member.get("email")}
         names = await participants(db, conn, uuid)
         if source == "transcribe":
-            vtt = await zoom_media.transcribe(db, conn, obj, host_name=host_named.get("name"), user_id=member["id"])
+            vtt = await zoom_media.transcribe(db, conn, obj, host_name=host_named.get("name"), user_id=member["id"],
+                                              participants=names)
         else:
             vtt = await download(db, conn, tf["download_url"], download_token)
         inc = meetings.Incoming(name=f"{base['topic']}.vtt", text=transcript_text(vtt, names, host_named), origin="zoom",
