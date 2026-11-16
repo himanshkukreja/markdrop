@@ -1,8 +1,8 @@
 ---
 title: Zoom
 description: Recorded Zoom meetings hosted by one team's members become meetings in that team, with a summary, decisions and action items. Import past ones too.
-updated: 2026-11-11
-keywords: [zoom, zoom meetings, integration, integrations tab, connect zoom, one click, markdrop app for zoom, zoom app marketplace app, add app, approve, zoom admin, reconnect, remove the app, uninstall, removing the app, deauthorize, added apps, delete imported meetings, user:read:user:admin, server-to-server oauth, s2s oauth, zoom app marketplace, build app, account id, client id, client secret, secret token, event subscriptions, recording.transcript_completed, recording.completed, endpoint url, validate, scopes, user:read:list_users:admin, cloud_recording:read:list_user_recordings:admin, cloud_recording:read:list_recording_files:admin, meeting:read:list_past_participants:admin, cloud recording, audio transcript, create audio transcript, no transcript, import past meetings, backfill, sales team, team, private team, open team, host, participants, attendees, disconnect, zoom_status, import_zoom_meetings]
+updated: 2026-11-16
+keywords: [zoom, activate, activation, validate fails, can't validate, zoom didn't accept, troubleshooting, zoom meetings, integration, integrations tab, connect zoom, one click, markdrop app for zoom, zoom app marketplace app, add app, approve, zoom admin, reconnect, remove the app, uninstall, removing the app, deauthorize, added apps, delete imported meetings, user:read:user:admin, server-to-server oauth, s2s oauth, zoom app marketplace, build app, account id, client id, client secret, secret token, event subscriptions, recording.transcript_completed, recording.completed, endpoint url, validate, scopes, user:read:list_users:admin, cloud_recording:read:list_user_recordings:admin, cloud_recording:read:list_recording_files:admin, meeting:read:list_past_participants:admin, cloud recording, audio transcript, create audio transcript, no transcript, import past meetings, backfill, sales team, team, private team, open team, host, participants, attendees, disconnect, zoom_status, import_zoom_meetings]
 ---
 
 Connect your company's Zoom account and every **recorded** Zoom meeting hosted by a member of one team becomes a Markdrop meeting in that team: the transcript, a summary, decisions and action items, the people who joined, and everything else [Meetings](/workspaces/meetings) do (the Slack post, Team briefs and memory, Jira drafts, Ask). You can also bring in past Zoom meetings.
@@ -45,7 +45,7 @@ If your company prefers to create its own app in Zoom, or one-click connect isn'
 
 You need two people, who may be the same person:
 
-- a **Zoom account admin** (or someone with permission to build Server-to-Server OAuth apps in Zoom), who creates the app in Zoom;
+- a **Zoom account admin**, or someone whose Zoom role has **View** and **Edit** for **Server-to-Server OAuth app** (Zoom web portal › **User Management › Roles**), who creates the app in Zoom;
 - a Markdrop **workspace admin** or the **owner**, who pastes the app's details into Markdrop.
 
 Zoom's Server-to-Server OAuth apps are available on paid Zoom plans; the participants list needs Pro or higher.
@@ -54,10 +54,11 @@ Zoom's Server-to-Server OAuth apps are available on paid Zoom plans; the partici
 
 Open **Workspace settings › Integrations** in Markdrop, choose **Details** on the **Zoom** card, and keep that page open: it shows the same steps, the scopes with copy buttons, and your workspace's own endpoint URL.
 
-1. **Create the app.** Sign in to the [Zoom App Marketplace](https://marketplace.zoom.us) as a Zoom account admin. Choose **Develop › Build App**, pick **Server-to-Server OAuth App**, and name it "Markdrop".
-2. **Copy the credentials.** On **App Credentials**, copy the **Account ID**, **Client ID** and **Client Secret**.
-3. **Fill in Information.** Add a short description and a developer contact: Zoom requires them before it activates the app.
-4. **Add the scopes.** On **Scopes**, choose **Add Scopes** and add these:
+Do the steps in this order. Zoom only accepts the credentials of an **activated** app, and Zoom's **Validate** only works once the app is saved in Markdrop.
+
+1. **Create the app.** Sign in to the [Zoom App Marketplace](https://marketplace.zoom.us) as a Zoom account admin. Choose **Develop › Build App**, pick **Server-to-Server OAuth App** (not General App), and name it "Markdrop".
+2. **Fill in Information.** Add a short description, the company name and a developer contact: Zoom requires them before it activates the app.
+3. **Add the scopes.** On **Scopes**, choose **Add Scopes** and add these:
 
    | Scope | What Markdrop uses it for |
    | --- | --- |
@@ -67,15 +68,26 @@ Open **Workspace settings › Integrations** in Markdrop, choose **Details** on 
    | `meeting:read:list_past_participants:admin` | Optional: who joined each meeting, for its attendees. Without it, Markdrop uses the people who spoke in the transcript. |
 
    Markdrop never asks for scopes that change anything in Zoom, and never downloads audio or video.
-5. **Turn on Event Subscriptions.** On **Feature**, turn on **Event Subscriptions** and add a subscription named "Markdrop".
+4. **Activate the app.** On **Activation**, choose **Activate your app**. It must say the app is activated before you go on.
+5. **Copy four values.** From **App Credentials**: the **Account ID**, **Client ID** and **Client Secret**. From the top of the **Feature** page: the **Secret Token**. The Secret Token and the Client Secret are different values.
+6. **Save them in Markdrop.** In the Zoom card, paste the four values, pick the team, and choose **Connect and check**. The card says **Connected**.
+7. **Turn on Event Subscriptions, then validate.** Back on **Feature** in Zoom, turn on **Event Subscriptions** and add a subscription named "Markdrop".
    - **Event notification endpoint URL**: copy it from the Zoom card in Markdrop. It looks like `https://api.markdrop.in/api/v1/zoom/webhook/<your workspace id>`.
    - **Events**: under **Recording**, add **Cloud recording transcript files have completed** (`recording.transcript_completed`) and **All recordings have completed** (`recording.completed`).
-   - Copy the **Secret Token** shown on that page.
-6. **Save in Markdrop, then validate in Zoom.** In the Zoom card, paste the **Account ID**, **Client ID**, **Client Secret** and **Secret Token**, pick the team, and choose **Connect and check**. Then go back to Zoom, press **Validate** next to the endpoint URL, and save the subscription.
-7. **Activate the app.** On **Activation**, choose **Activate your app**.
+   - Press **Validate** next to the endpoint URL. It turns to **Validated**. Save the subscription.
 8. **Turn on transcripts.** In the Zoom web portal, open **Account Management › Account Settings › Recording**. Turn on **Cloud recording** and, in its advanced settings, **Create audio transcript**. Lock both so every host has them.
 
 When you choose **Connect and check**, Markdrop asks Zoom for an access token with the app's credentials and makes a test call. If Zoom refuses the credentials, the card says so and nothing is saved. If a scope is missing, the card lists it: add it in Zoom, then save again (blank secret fields keep the saved ones).
+
+### If something doesn't work
+
+| What you see | What to do |
+| --- | --- |
+| **Zoom didn't accept the Account ID, Client ID or Client Secret** when you save | Check that the app is **activated** (step 4) and that it is a **Server-to-Server OAuth** app. Copy the three values again from **App Credentials**, without spaces, and check you didn't paste the Secret Token as the Client Secret. If someone regenerated the Client Secret in Zoom, paste the new one. |
+| Zoom's **Validate** fails | Save the app in Markdrop first (step 6): Markdrop answers Zoom's check with the saved Secret Token. Check that the endpoint URL is the one in your Zoom card, ending in your workspace ID. If the Secret Token was regenerated in Zoom, choose **Change credentials** in the Zoom card and paste the new one, then validate again. |
+| **Activate your app** is greyed out | Zoom still needs something on **Information** (description, company name, developer contact) or at least one scope on **Scopes**. |
+| **Build App** or **Server-to-Server OAuth App** is missing | Your Zoom role can't build these apps. Ask a Zoom account admin to do the Zoom steps, or to give your role **View** and **Edit** for **Server-to-Server OAuth app**. |
+| The card lists a **missing scope** | Add it on **Scopes** in Zoom, then save again in Markdrop (blank secret fields keep the saved ones). |
 
 ## The Zoom card
 
@@ -91,7 +103,7 @@ Each meeting from Zoom shows one state:
 | --- | --- |
 | **Imported** | It's a meeting in the team now. Choose it to open it. |
 | **Already here** | It was imported before. Markdrop never makes the same Zoom meeting twice. |
-| **No transcript** | Zoom recorded it without a transcript. Turn on **Create audio transcript** (step 8); if Zoom makes the transcript later, the meeting comes in then. |
+| **No transcript** | Zoom recorded it without a transcript. Turn on **Create audio transcript** (step 8 of the Server-to-Server setup, or step 5 of one-click connect); if Zoom makes the transcript later, the meeting comes in then. |
 | **Didn't import** | Something went wrong, with the reason. Zoom meetings that didn't import can be brought in with **Import past meetings**. |
 
 Admins can change the team or **Disconnect Zoom**. With your own Server-to-Server app, they can also **Change credentials** (for example after rotating the Client Secret in Zoom).

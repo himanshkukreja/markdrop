@@ -107,7 +107,7 @@ export function ZoomWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolea
                 <dt className="text-text-muted">Zoom events</dt>
                 <dd className="text-text" data-testid="zoom-verified">
                   {c.last_event_at ? <>Last one {shortWhen(c.last_event_at)}</> : c.verified ? "Zoom checked the endpoint; waiting for the first recording"
-                    : <span className="text-text-muted">Zoom hasn&apos;t checked the endpoint yet (step 6 below)</span>}
+                    : <span className="text-text-muted">Zoom hasn&apos;t checked the endpoint yet (step 7 below)</span>}
                 </dd>
                 <dt className="text-text-muted">Zoom app</dt>
                 {st.mode === "oauth" ? (
@@ -358,17 +358,14 @@ function Setup({ id, st, onSaved, onCancel }: { id: string; st: ZoomStatus; onSa
   return (
     <div className="flex min-w-0 flex-col gap-5 border-t border-border pt-4" data-testid="zoom-setup">
       <div className="flex min-w-0 flex-col gap-2">
-        <h3 className="text-[13px] font-medium text-text">Set up Zoom (your Zoom account admin does steps 1–7)</h3>
+        <h3 className="text-[13px] font-medium text-text">Set up Zoom (a Zoom account admin does the steps in Zoom; you save step 6 here)</h3>
         <ol className="m-0 flex list-none flex-col gap-3 p-0">
           <Step n={1} title="Create the app">
             Sign in to the Zoom App Marketplace (marketplace.zoom.us) as a Zoom account admin. Choose <strong>Develop › Build App</strong>,
-            pick <strong>Server-to-Server OAuth App</strong>, and name it &ldquo;Markdrop&rdquo;.
+            pick <strong>Server-to-Server OAuth App</strong> (not General App), and name it &ldquo;Markdrop&rdquo;.
           </Step>
-          <Step n={2} title="Copy the credentials">
-            On <strong>App Credentials</strong>, copy the <strong>Account ID</strong>, <strong>Client ID</strong> and <strong>Client Secret</strong> into the form below.
-          </Step>
-          <Step n={3} title="Fill in Information">Add a short description and a developer contact (Zoom requires them).</Step>
-          <Step n={4} title="Add the scopes">
+          <Step n={2} title="Fill in Information">Add a short description, the company name and a developer contact (Zoom requires them to activate).</Step>
+          <Step n={3} title="Add the scopes">
             On <strong>Scopes</strong>, choose <strong>Add Scopes</strong> and add:
             <ul className="mt-1 flex list-none flex-col gap-1 p-0" data-testid="zoom-scopes">
               {scopes.map((s) => (
@@ -380,8 +377,18 @@ function Setup({ id, st, onSaved, onCancel }: { id: string; st: ZoomStatus; onSa
               ))}
             </ul>
           </Step>
-          <Step n={5} title="Turn on Event Subscriptions">
-            On <strong>Feature</strong>, turn on <strong>Event Subscriptions</strong>, add a subscription named &ldquo;Markdrop&rdquo;, and set the
+          <Step n={4} title="Activate the app">
+            On <strong>Activation</strong>, choose <strong>Activate your app</strong>. Do this before saving here: Zoom refuses the credentials of an app that isn&apos;t activated.
+          </Step>
+          <Step n={5} title="Copy four values">
+            From <strong>App Credentials</strong>: the <strong>Account ID</strong>, <strong>Client ID</strong> and <strong>Client Secret</strong>. From the
+            top of the <strong>Feature</strong> page: the <strong>Secret Token</strong> (a different value from the Client Secret).
+          </Step>
+          <Step n={6} title="Save them here">
+            Paste the four values into the form below, pick the team, and choose <strong>Connect and check</strong>. The card then says Connected.
+          </Step>
+          <Step n={7} title="Turn on Event Subscriptions, then Validate">
+            Back on <strong>Feature</strong>, turn on <strong>Event Subscriptions</strong>, add a subscription named &ldquo;Markdrop&rdquo;, and set the
             event notification endpoint URL to:
             {st.webhook_url && (
               <span className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
@@ -391,14 +398,10 @@ function Setup({ id, st, onSaved, onCancel }: { id: string; st: ZoomStatus; onSa
             )}
             <span className="mt-1 block">
               Add the events <strong>Recording › Cloud recording transcript files have completed</strong> (<code className="text-[12px]">recording.transcript_completed</code>)
-              and <strong>Recording › All recordings have completed</strong> (<code className="text-[12px]">recording.completed</code>). Copy the
-              <strong> Secret Token</strong> shown on that page into the form below.
+              and <strong>Recording › All recordings have completed</strong> (<code className="text-[12px]">recording.completed</code>). Press
+              <strong> Validate</strong> next to the URL, then save the subscription. Validate only works after step 6: Markdrop answers Zoom with the saved Secret Token.
             </span>
           </Step>
-          <Step n={6} title="Save here, then validate in Zoom">
-            Save the form below first. Then press <strong>Validate</strong> next to the endpoint URL in Zoom and save the subscription.
-          </Step>
-          <Step n={7} title="Activate the app">On <strong>Activation</strong>, choose <strong>Activate your app</strong>.</Step>
           <Step n={8} title="Turn on transcripts in Zoom">
             In the Zoom web portal (Account Management › Account Settings › Recording), turn on <strong>Cloud recording</strong> and, under its
             advanced settings, <strong>Create audio transcript</strong>. Lock both so every host has them. Only recorded meetings with a transcript come in.
