@@ -480,3 +480,14 @@ class NamingRules(MediaWorld):
         self.assertNotIn("line 100\n", text)
         self.assertIn("…", text)
         self.assertLessEqual(len(meeting_speakers.excerpt(lines * 20, ["Speaker 2"])), meeting_speakers.EXCERPT_CHARS + 500)
+
+
+class Parts(__import__("unittest").TestCase):
+    """A host who stops and restarts recording leaves several parts: the largest one is used."""
+
+    def test_largest_audio_and_video_part(self):
+        f = lambda t, k, n: {"file_type": t, "recording_type": k, "file_size": n, "status": "completed", "download_url": f"u/{t}/{n}"}
+        obj = {"recording_files": [f("MP4", "shared_screen_with_speaker_view", 97851), f("M4A", "audio_only", 66250),
+                                   f("MP4", "shared_screen_with_speaker_view", 153335220), f("M4A", "audio_only", 28856808)]}
+        self.assertEqual(zoom_media.audio_file(obj)["file_size"], 28856808)
+        self.assertEqual(zoom_media.video_file(obj)["file_size"], 153335220)

@@ -133,18 +133,28 @@ def cc_file(obj: dict) -> dict | None:
     return None
 
 
+def _size(f: dict) -> int:
+    try:
+        return int(f.get("file_size") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def audio_file(obj: dict) -> dict | None:
+    # A host who stops and starts recording leaves several parts; the first can be seconds of silence
+    # (Senseloaf: a 66 KB part before the 29 MB one), so the largest part of the preferred kind.
     got = _of_type(obj, "M4A")
-    return next((f for f in got if f.get("recording_type") == "audio_only"), got[0] if got else None)
+    pick = [f for f in got if f.get("recording_type") == "audio_only"] or got
+    return max(pick, key=_size) if pick else None
 
 
 def video_file(obj: dict) -> dict | None:
     got = _of_type(obj, "MP4")
     for kind in VIDEO_PREFER:
-        for f in got:
-            if f.get("recording_type") == kind:
-                return f
-    return got[0] if got else None
+        of_kind = [f for f in got if f.get("recording_type") == kind]
+        if of_kind:
+            return max(of_kind, key=_size)
+    return max(got, key=_size) if got else None
 
 
 def timeline_file(obj: dict) -> dict | None:
