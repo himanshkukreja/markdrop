@@ -25757,7 +25757,7 @@
           "ask"
         ],
         "summary": "Suggestions",
-        "description": "Suggested questions for Ask. With ``workspace``: its team questions, refreshed from what happened\nthere in the last 7 days (meetings and pages every member can read; one list for all members), and\nyours (your action items, your latest meeting). Without: yours, across your workspaces.",
+        "description": "Suggested questions for Ask. With ``workspace``: its team questions, refreshed from what happened\nthere in the last 7 days (meetings and pages every member can read; one list for all members), and\nyours (your action items, your latest meeting). With ``team`` too (a team of that workspace you can\nread): that team's own list, from its meetings and pages only, and yours from its meetings; General\ngets the workspace's; ``quiet`` when nothing happened there lately. Without: yours, across your\nworkspaces.",
         "operationId": "suggestions_api_v1_ask_suggestions_get",
         "parameters": [
           {
@@ -25775,6 +25775,23 @@
                 }
               ],
               "title": "Workspace"
+            }
+          },
+          {
+            "name": "team",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Team"
             }
           }
         ],

@@ -112,7 +112,7 @@ Every meeting page has a cover from Markdrop's cover gallery. All the meetings o
 - **Details**, when Google's notes came in.
 - **Sources.** The **Transcript** sub-page, with a line for each turn and the time it was said, plus links back to the Google Docs. The transcript belongs to its meeting: folder views, counts and search show the meeting once, not its transcript as a second item. A word that was only said in the call finds the meeting page. Open the transcript from **Sources**, from **Details**, or under the meeting page in the sidebar.
 
-Links like **12:34** next to a decision or an action item open the transcript at that moment. Google Meet marks the time only every five minutes, so the times in between are estimated.
+Links like **12:34** next to a decision or an action item open the transcript at that moment. Google Meet marks the time only every five minutes, so the times in between are estimated. On a Zoom meeting whose [recording is kept](/integrations/zoom#transcribe-and-keep-recordings), the same links, and each line's time on the transcript, play the recording from that moment instead; **⌘-click** (Ctrl-click) still opens the transcript.
 
 When Google's notes are there, Markdrop uses them as written, marked **From Google Meet notes**. That covers the summary, the details and the suggested next steps. AI only adds what the notes leave out: the decisions, the open questions, the topics, and any action items the next steps miss.
 

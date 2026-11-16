@@ -24,6 +24,30 @@
   "next": [],
   "entries": [
     {
+      "id": "ask-team-suggestions-recording-times",
+      "date": "2026-11-16",
+      "title": "Team suggestions in Ask, and meeting times that play the recording",
+      "kind": "improved",
+      "area": "Ask",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Ask on a team suggests questions from that team's own meetings and pages, times in a meeting's notes and transcript play its kept Zoom recording from that moment, and forgetting a conversation no longer shows an error on a second click.",
+      "body": "- **A team's own suggestions.** On a team (**Ask Sales**), the suggested questions come from that team's meetings and pages of the last 7 days, never from company-wide items or another team's, and only people who can open the team see them. **General** keeps the workspace's. A quiet team says **Nothing new here in the last 7 days.** [Suggested questions](/workspaces/ask-markdrop#a-teams-own)\n- **Times play the recording.** On a meeting with a kept Zoom recording, a time next to a decision or action item, or a line's time on the transcript, plays the recording from that moment; scrolled down, the player floats in the corner. [Zoom](/integrations/zoom#transcribe-and-keep-recordings)\n- **Forgetting a conversation.** The conversation leaves the list at once, and one that's already gone is no longer reported as an error.\n- **MCP and API.** `ask_suggestions` takes `team` (an id, slug or name), and `GET /api/v1/ask/suggestions` takes `&team=`; both answer `team_scope` and `quiet`. [Tools](/ai/tools)",
+      "links": [
+        {
+          "label": "Suggested questions",
+          "href": "/workspaces/ask-markdrop#a-teams-own"
+        },
+        {
+          "label": "Zoom recordings",
+          "href": "/integrations/zoom#transcribe-and-keep-recordings"
+        }
+      ]
+    },
+    {
       "id": "zoom-recordings",
       "date": "2026-11-16",
       "title": "Zoom: captions, transcription and recordings",
