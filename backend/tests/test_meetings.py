@@ -711,11 +711,20 @@ class Import(MeetingsWorld):
         from app.services import ai_output
 
         script = self.fake.script
-        cap = meetings_ai.GEN_MAX_TOKENS
-        self.fake = ThinkingModel(lambda kw: script(kw), think=lambda kw: cap - 20 if kw["max_tokens"] == cap else 1500)
+        first: list[int] = []
+
+        def think(kw):
+            if not first:
+                first.append(kw["max_tokens"])
+                return kw["max_tokens"] - 20
+            return 1500
+        self.fake = ThinkingModel(lambda kw: script(kw), think=think)
         m = await self.imported()
         self.assertEqual(m["ai"]["state"], "done")
+        cap = first[0]     # a transcript without Google's notes: room for the Details too
+        self.assertGreater(cap, meetings_ai.GEN_MAX_TOKENS)
         self.assertEqual(self.fake.caps(), [cap, ai_output.retry_cap(cap)])
+        self.assertGreater(ai_output.retry_cap(cap), cap)
         self.assertIn("## Decisions", (await self.doc(m["slug"]))["content"])
 
     async def test_regenerate(self):
@@ -725,6 +734,194 @@ class Import(MeetingsWorld):
         self.assertEqual(r.json()["ai"]["state"], "done")
         r = await self.http.post(f"/api/v1/meetings/{m['id']}/regenerate", headers=self.session("wv"))
         self.assertEqual(r.status_code, 403)
+
+
+DETAILS = [
+    {"title": "Release timing", "cite": "s2", "points": [
+        {"text": "Ada said the release goes out Friday if the staging dry run passes.", "cite": "s4"},
+        {"text": "Bo asked what happens if it fails; Ada said they slip to Monday.", "cite": "s5"}]},
+    {"title": "Onboarding docs", "cite": "s9", "points": [
+        {"text": "Bo will refresh the screenshots by next Wednesday.", "cite": "s10"},
+        "Priya wants the annual discount shown, still open."]},
+    {"title": "Empty section", "points": []},
+]
+
+
+def details_script(params: dict) -> str:
+    system = params["system"][0]["text"]
+    if system == meetings_ai.GEN_DETAILS_SYSTEM:
+        task = params["messages"][-1]["content"][-1]["text"]
+        part = re.search(r"part (\d+) of", task)
+        if part:   # a long meeting: each part's details name their part
+            n = part.group(1)
+            return json.dumps({**GEN, "details": [{"title": f"Part {n} topic", "cite": "s1",
+                                                   "points": [{"text": f"Said in part {n}.", "cite": "s1"}]}]})
+        return json.dumps({**GEN, "details": DETAILS})
+    return fake_script(params)
+
+
+NOTES_PAIR = [
+    {"name": "Daily Syncup - 2026/11/06 10:00 GMT+05:30 - Notes by Gemini", "text": fixture("syncup_gemini_notes.txt")},
+    {"name": "Daily Syncup (2026-11-06 10:00 GMT+05:30) - Transcript", "text": fixture("syncup_meet_transcript.txt")}]
+
+
+class Details(MeetingsWorld):
+    """A meeting with a transcript and no Google notes (Zoom, a pasted transcript): Markdrop writes the
+    detailed notes too, shown as Details where Google's go; meetings with Google's notes are as before."""
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.fake.script = details_script
+
+    async def test_transcript_only_gets_details(self):
+        m = await self.imported()
+        call = self.fake.calls[0]
+        self.assertEqual(call["system"][0]["text"], meetings_ai.GEN_DETAILS_SYSTEM)
+        chars = len("\n".join(meetings_ai.segment_lines((await meetings.get_row(self.db, m["id"]))["segments"]))) + 1
+        cap, words = meetings_ai.details_budget(chars)
+        self.assertEqual(call["max_tokens"], cap)
+        self.assertGreater(cap, meetings_ai.GEN_MAX_TOKENS)
+        self.assertIn(f"about {words} words", prompt_of(call))
+        c = (await self.doc(m["slug"]))["content"]
+        ts = m["transcript_slug"]
+        self.assertIn("## Details\n\n" + meetings.AI_DETAILS_NOTE, c)
+        self.assertNotIn("From Google Meet notes", c)
+        self.assertIn("### Release timing", c)
+        self.assertIn(f"Ada said the release goes out Friday if the staging dry run passes. [", c)
+        self.assertIn(f"](/{ts}#b-t0004)", c)
+        self.assertIn("- Priya wants the annual discount shown, still open.\n", c)   # no cite, no link
+        self.assertNotIn("Empty section", c)
+        self.assertLess(c.index("## Topics"), c.index("## Details"))
+        self.assertLess(c.index("## Details"), c.index("## Sources"))
+        row = await meetings.get_row(self.db, m["id"])
+        self.assertEqual([d["title"] for d in row["generated"]["details"]], ["Release timing", "Onboarding docs"])
+        # The ledger hold is the larger one for this path.
+        self.assertEqual(meetings_ai._reserve(row), meetings_ai.RESERVE_DETAILS)
+
+    async def test_budget_follows_the_transcript(self):
+        small, w_small = meetings_ai.details_budget(5_000)
+        hour, w_hour = meetings_ai.details_budget(60_000)
+        huge, w_huge = meetings_ai.details_budget(1_000_000)
+        self.assertEqual(w_small, meetings_ai.DETAILS_MIN_WORDS)
+        self.assertEqual(w_hour, 3000)
+        self.assertEqual(w_huge, meetings_ai.DETAILS_MAX_WORDS)
+        self.assertLess(small, hour)
+        self.assertLessEqual(huge, meetings_ai.DETAILS_MAX_TOKENS)
+        from app.services import ai_output
+        self.assertGreater(ai_output.retry_cap(huge), huge)    # a cut answer still gets more room
+
+    async def test_meetings_with_google_notes_are_unchanged(self):
+        m = await self.imported(sources=NOTES_PAIR)
+        self.assertEqual({s["kind"] for s in m["sources"]}, {"notes", "transcript"})
+        call = self.fake.calls[0]
+        self.assertEqual(call["system"][0]["text"], meetings_ai.GEN_SYSTEM)
+        self.assertEqual(call["max_tokens"], meetings_ai.GEN_MAX_TOKENS)
+        self.assertNotIn("details", meetings_ai.GEN_SYSTEM.split("Return only JSON")[1].split("Rules:")[0])
+        c = (await self.doc(m["slug"]))["content"]
+        self.assertIn("## Details\n\n_From Google Meet notes._", c)
+        self.assertNotIn(meetings.AI_DETAILS_NOTE, c)
+        self.assertEqual(c.count("## Details"), 1)
+        row = await meetings.get_row(self.db, m["id"])
+        self.assertNotIn("details", row["generated"])
+        self.assertEqual(meetings_ai._reserve(row), meetings_ai.RESERVE_GENERATE)
+
+    async def test_long_transcript_details_cover_every_part(self):
+        lines = [f"Speaker{i % 3}: " + ("lorem ipsum dolor sit amet " * 30) for i in range(300)]
+        keep = meetings_ai.SINGLE_MAX_CHARS, meetings_ai.CHUNK_CHARS
+        meetings_ai.SINGLE_MAX_CHARS, meetings_ai.CHUNK_CHARS = 100_000, 80_000
+        try:
+            m = await self.imported(sources=[{"name": "Long all-hands", "text": "\n".join(lines)}])
+        finally:
+            meetings_ai.SINGLE_MAX_CHARS, meetings_ai.CHUNK_CHARS = keep
+        n = m["ai"]["chunks"]
+        self.assertGreater(n, 1)
+        maps, reduce_ = self.fake.calls[:-1], self.fake.calls[-1]
+        for k, call in enumerate(maps, 1):
+            self.assertEqual(call["system"][0]["text"], meetings_ai.GEN_DETAILS_SYSTEM)
+            self.assertIn(f"part {k} of {n}", prompt_of(call))
+        # The merge never carries the details (they'd be cut to its budget): they're kept as written.
+        self.assertTrue(reduce_["system"][0]["text"].startswith("You merge partial"))
+        self.assertNotIn("Said in part", prompt_of(reduce_))
+        self.assertIn("up to 8 sentences", prompt_of(reduce_))
+        c = (await self.doc(m["slug"]))["content"]
+        heads = re.findall(r"^### (Part \d+ topic)$", c, re.M)
+        self.assertEqual(heads, [f"Part {k} topic" for k in range(1, n + 1)])
+
+    async def test_refresh_existing_meetings(self):
+        # Imported before Details existed: the old prompt's answer (no details).
+        self.fake.script = fake_script
+        old = await self.imported(sources=[{"name": "Weekly product sync - Transcript",
+                                            "text": fixture("google_meet_transcript.txt")}])
+        edited = await self.imported(sources=[{"name": "Design review", "text": fixture("otter.txt")}],
+                                     title="Design review", date="2026-11-02")
+        gm = await self.imported(sources=NOTES_PAIR)     # Google's notes: never refreshed
+        self.assertEqual({s["kind"] for s in gm["sources"]}, {"notes", "transcript"})
+        page = await self.doc(edited["slug"])
+        await self.db["documents"].update_one({"_id": page["_id"]}, {"$set": {"content": page["content"] + "\nMY OWN NOTE\n"},
+                                                                     "$inc": {"rev": 1}})
+        self.fake.script = details_script
+        self.fake.calls.clear()
+        seen = []
+        out = await meetings_ai.refresh_details(self.db, workspace_id=self.W, on_row=lambda r, o: seen.append(o))
+        self.assertEqual((out["matched"], out["skipped_notes"], out["done"]), (2, 1, 0))
+        self.assertEqual(seen, ["would refresh"] * 2)
+        self.assertEqual(self.fake.calls, [])            # a dry run calls nothing
+        out = await meetings_ai.refresh_details(self.db, workspace_id=self.W, apply=True)
+        self.assertEqual((out["done"], out["failed"], out["stopped"]), (2, 0, None))
+        # Untouched since import: rewritten whole, with Details.
+        c = (await self.doc(old["slug"]))["content"]
+        self.assertIn("### Release timing", c)
+        self.assertEqual(c.count("## Decisions"), 1)
+        # Edited: the person's note stays, only the Details are added (no second Decisions).
+        c = (await self.doc(edited["slug"]))["content"]
+        self.assertIn("MY OWN NOTE", c)
+        self.assertEqual(c.count("## Decisions"), 1)
+        self.assertEqual(c.count("## Details"), 1)
+        self.assertLess(c.index("MY OWN NOTE"), c.index("### Release timing"))
+        # Google's notes meeting: as it was.
+        self.assertNotIn(meetings.AI_DETAILS_NOTE, (await self.doc(gm["slug"]))["content"])
+        # Again: nothing left to do; forced, an edited page doesn't get a second Details.
+        out = await meetings_ai.refresh_details(self.db, workspace_id=self.W, apply=True)
+        self.assertEqual((out["matched"], out["skipped_done"]), (0, 2))
+        out = await meetings_ai.refresh_details(self.db, meeting_ids=[edited["id"]], apply=True, force=True)
+        self.assertEqual(out["done"], 1)
+        self.assertEqual((await self.doc(edited["slug"]))["content"].count("## Details"), 1)
+        # The ledger: each run as the importer, under meetings_ai.
+        rows = await self.db["ai_requests"].find({"feature": "meetings_ai", "via": "refresh"}).to_list(10)
+        self.assertEqual(len(rows), 3)
+        self.assertEqual({r["user_id"] for r in rows}, {self.uid["owner"]})
+
+    async def test_refresh_keeps_the_old_sections_when_it_fails_or_hits_a_limit(self):
+        self.fake.script = fake_script
+        m = await self.imported()
+        before = (await self.doc(m["slug"]))["content"]
+        self.fake.script = lambda params: "not json at all"
+        out = await meetings_ai.refresh_details(self.db, workspace_id=self.W, apply=True)
+        self.assertEqual((out["done"], out["failed"]), (0, 1))
+        c = (await self.doc(m["slug"]))["content"]
+        self.assertIn("Ship the release on Friday", c)
+        self.assertIn("## Action items", c)
+        self.assertNotIn("No AI summary", c)
+        self.assertIn("## Decisions", before)
+        before = c
+        settings.meetings_ai_enabled = False
+        try:
+            self.fake.calls.clear()
+            out = await meetings_ai.refresh_details(self.db, workspace_id=self.W, apply=True)
+        finally:
+            settings.meetings_ai_enabled = True
+        self.assertEqual((out["stopped"], out["done"]), ("off", 0))
+        self.assertEqual(self.fake.calls, [])
+        self.assertEqual((await self.doc(m["slug"]))["content"], before)
+
+    async def test_regenerate_button_writes_details(self):
+        self.fake.script = fake_script
+        m = await self.imported()
+        self.assertNotIn("## Details", (await self.doc(m["slug"]))["content"])
+        self.fake.script = details_script
+        r = await self.http.post(f"/api/v1/meetings/{m['id']}/regenerate", headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertIn("### Onboarding docs", (await self.doc(m["slug"]))["content"])
 
 
 class Limits(MeetingsWorld):
