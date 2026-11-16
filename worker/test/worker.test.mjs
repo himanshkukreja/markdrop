@@ -300,8 +300,7 @@ test("video player: a seek message moves it, only from the framing window on an 
   const page = await (await get("/v/video/art/u1/clip.mp4")).text();
   assert.match(page, /var APP=\["https:\/\/markdrop\.in","https:\/\/www\.markdrop\.in","http:\/\/localhost:3000"\];/);
   assert.match(page, /e\.source!==window\.parent/);
-  assert.match(page, /APP\.indexOf\(e\.origin\)<0/);
-  assert.match(page, /d\.ev!=='seek'/);
+  assert.match(page, /APP\.indexOf\(e\.origin\)<0\|\|d\.ev!=='seek'/);   // seeking: app origins only
 });
 
 test("video player: the app's accent for the scrubber (a hex only), controls that hide, and ui messages", async () => {

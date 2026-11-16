@@ -1793,10 +1793,11 @@ function videoViewer(src, poster = null, captions = null, at = 0) {
   var APP=${JSON.stringify([...APP_ORIGINS])};
   window.addEventListener('message',function(e){
     try{
-      if(e.source!==window.parent||window.parent===window||APP.indexOf(e.origin)<0)return;
+      if(e.source!==window.parent||window.parent===window)return;
       var d=e.data;if(!d||typeof d!=='object'||d.md!==1)return;
+      // The accent: from the framing window on any origin (a workspace's own domain frames it too); a #rrggbb only.
       if(d.ev==='theme'){if(typeof d.accent==='string'&&/^#[0-9a-f]{6}$/i.test(d.accent))document.documentElement.style.setProperty('--player-accent',d.accent);return}
-      if(d.ev!=='seek')return;
+      if(APP.indexOf(e.origin)<0||d.ev!=='seek')return;
       var t=Number(d.t);if(!isFinite(t)||t<0||t>1e7)return;
       var go=function(){try{v.currentTime=Math.max(0,Math.min(t,(v.duration||t+1)-0.5));if(d.play===true){var p=v.play();if(p&&p.catch)p.catch(function(){})}}catch(_){}};
       if(v.readyState>=1)go();else v.addEventListener('loadedmetadata',go,{once:true});
