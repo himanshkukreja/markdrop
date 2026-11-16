@@ -138,6 +138,8 @@ export interface DocumentResponse {
   /** A video's captions (.vtt on the artifact origin) and the uploaded file's name. */
   captions_url?: string | null;
   captions_name?: string | null;
+  /** A video's chapters (seconds into it, a title), from its analysis when there is one; [] or absent otherwise. */
+  chapters?: { t: number; title: string }[] | null;
   /** ffprobe's reading of a video or audio file; null until known. */
   media?: MediaInfo | null;
   /** Artifacts: the live file version (1 for a never-replaced file). Sent as `ver` with analytics beacons. */

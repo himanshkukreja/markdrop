@@ -18,7 +18,8 @@
     PATCH  /api/v1/meetings/{id}                     {restricted?, type?, series?}
     DELETE /api/v1/meetings/{id}                     the importer, or a workspace admin/owner (any meeting)
     GET    /api/v1/meetings/{id}/recording           the Zoom recording Markdrop kept: a short-lived player link
-                                                     (whoever can read the meeting; services/zoom_media.py)
+                                                     with captions from the transcript, and chapters from the
+                                                     notes (whoever can read the meeting; services/zoom_media.py)
     DELETE /api/v1/meetings/{id}/recording           remove it (whoever can delete the meeting)
     POST   /api/v1/meetings/{id}/regenerate          writes the AI sections again (waits)
     POST   /api/v1/meetings/{id}/ask         SSE     {question, history?: [{question, answer}]}
@@ -37,6 +38,7 @@ allowlist); the inbox takes only a ``meetings:import`` token (services/meetings_
 # No `from __future__ import annotations`: slowapi wraps these routes (see routers/docs_ai.py).
 import hashlib
 import json
+import logging
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -51,6 +53,8 @@ from app.routers.auth import require_user
 from app.routers.pages_ai import sse
 from app.services import access, api_token, gdocs, meeting_google, meetings, meetings_ai, meetings_inbox, meetings_list
 from app.utils.net import get_client_ip
+
+log = logging.getLogger("markdrop.meetings")
 
 router = APIRouter(prefix="/api/v1/meetings", tags=["meetings"])
 
@@ -566,7 +570,14 @@ async def get_recording(request: Request, meeting_id: str, db: AsyncIOMotorDatab
 
     actor, ctx = _ac(request, db, user)
     row, _raw = await meetings.for_read(db, meeting_id, actor, ctx)
-    out = zoom_media.player(row)
+    # Captions from the transcript (built on the first play, again when it changes) and chapters from
+    # the notes' sections: only ever here, past the read check above.
+    try:
+        cc = await zoom_media.ensure_captions(db, row)
+    except Exception:
+        log.warning("meetings: a recording's captions failed", exc_info=True)
+        cc = None
+    out = zoom_media.player(row, cc)
     if out is None:
         raise HTTPException(status_code=404, detail="This meeting has no recording in Markdrop.")
     return out

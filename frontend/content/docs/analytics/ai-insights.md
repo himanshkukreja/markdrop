@@ -1,7 +1,7 @@
 ---
 title: AI insights for one link
 description: Ask AI why readers stop, where viewers drop or skip, which PDF pages lose people and which file version works better.
-updated: 2026-11-07
+updated: 2026-11-16
 prerequisites: [/analytics/overview]
 keywords: [ai insights, analytics ai, why did they stop, drop-off, rewrite, video coach, chapters, pdf, versions, verdict, confidence, analyze_document_engagement]
 ---
@@ -23,7 +23,7 @@ Choose **Analyse**. In a few seconds you get a one-line summary and three to fiv
 
 - **A suggested rewrite.** Choose **Show a suggested rewrite**, then **Copy rewrite**. On a page you can edit, choose **Apply in page**: the page opens with the rewrite offered over that section. Nothing changes until you choose **Accept**; **Discard** leaves the page as it was.
 - **A timestamp.** Choose the time on a finding to mark that moment on the **Who's still watching** chart. Choose it again to clear the mark.
-- **Chapters.** Choose **Copy chapters** to paste them into a description, one `0:00 Title` line each.
+- **Chapters.** Choose **Copy chapters** to paste them into a description, one `0:00 Title` line each. They also appear on the video's [progress bar](/files/video-and-audio#chapters) for everyone who can open it.
 - **The verdict.** The confidence (**High**, **Medium** or **Low**) is worked out by Markdrop from the number of sessions and the size of the difference, not by AI. A **Low** verdict means the difference could still be chance: wait for more sessions.
 
 ## When it's available

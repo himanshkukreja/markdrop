@@ -14,7 +14,7 @@ import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAccess, removePerson } from "@/lib/access";
 import { purgeDocument } from "@/lib/workspaces";
-import { sendViewerAccent, useWorkspaceAccent } from "@/lib/workspaceAccent";
+import { sendViewerAccent, sendViewerChapters, useWorkspaceAccent, type ViewerChapter } from "@/lib/workspaceAccent";
 import { PRIMARY_HOST, signInUrlFor } from "@/lib/hosts";
 
 /** The path part of this page's URL, for the tenant sign-in return trip (/login 404s there). */
@@ -101,6 +101,8 @@ interface Props {
   posterUrl?: string | null;
   /** A video's captions (API `captions_url`, .vtt), shown by the player as subtitles. */
   captionsUrl?: string | null;
+  /** A video's chapters (API `chapters`), drawn on the player's progress bar. */
+  chapters?: ViewerChapter[] | null;
   /** Opaque analytics reference (API `ref`); never the slug. */
   docRef?: string | null;
   /**
@@ -149,6 +151,7 @@ export default function ArtifactView({
   downloadUrl: initialDownloadUrl,
   posterUrl: initialPosterUrl = null,
   captionsUrl: initialCaptionsUrl = null,
+  chapters: initialChapters = null,
   docRef = null,
   viewerChrome = "full",
   readTicket: initialReadTicket = null,
@@ -177,6 +180,10 @@ export default function ArtifactView({
   const [posterUrl, setPosterUrl] = useState(initialPosterUrl);
   const captionsInput = useRef<HTMLInputElement>(null);
   const [captionsUrl, setCaptionsUrl] = useState(initialCaptionsUrl);
+  // Chapters on the player's progress bar (sent once it loads, and again when they change).
+  const [chapters, setChapters] = useState<ViewerChapter[] | null>(initialChapters);
+  const chaptersRef = useRef<ViewerChapter[] | null>(initialChapters);
+  chaptersRef.current = chapters;
   // `#t=754` / `#page=3` (an Ask answer's "at 12:34" / "page 3"): where the player or PDF starts.
   const [startAt, setStartAt] = useState<number | null>(null);
   const [renderer, setRenderer] = useState(initialRenderer);
@@ -211,6 +218,7 @@ export default function ArtifactView({
   const accentRef = useRef<string | null>(null);
   accentRef.current = accent;
   useEffect(() => { if (renderer === "video") sendViewerAccent(frameRef.current, accent); }, [accent, renderer]);
+  useEffect(() => { if (renderer === "video") sendViewerChapters(frameRef.current, chapters); }, [chapters, renderer]);
   const [domainUrl, setDomainUrl] = useState<string | null>(initialDomainUrl);
   const toast = useToast();
   // Immersive mode: the artifact fills the viewport with all app chrome hidden,
@@ -374,6 +382,7 @@ export default function ArtifactView({
     setDownloadUrl(doc.download_url ?? null);
     setPosterUrl(doc.poster_url ?? null);
     setCaptionsUrl(doc.captions_url ?? null);
+    if (doc.chapters !== undefined) setChapters(doc.chapters ?? null);
     if (doc.renderer) setRenderer(doc.renderer);
     if (doc.track) setTrack(doc.track);
     if (doc.type_label) setTypeLabel(doc.type_label);
@@ -481,6 +490,7 @@ export default function ArtifactView({
         setDocId(doc.id ?? null);
         setPlace({ workspaceId: doc.workspace_id ?? null, folderPath: doc.folder_path ?? [] });
         setDomainUrl(doc.workspace_url ?? null);
+        if (doc.chapters !== undefined) setChapters(doc.chapters ?? null);
         if (doc.is_owner && doc.artifact_url) applyDoc(doc, { remount: false });
         // Added to someone else's file? Then they may take themselves off it ("Remove me"). Not on
         // a workspace's own domain, whose session can only read.
@@ -756,7 +766,10 @@ export default function ArtifactView({
       onLoad={() => {
         setFrameLoading(false);
         setLiveReload(false);
-        if (renderer === "video") sendViewerAccent(frameRef.current, accentRef.current);
+        if (renderer === "video") {
+          sendViewerAccent(frameRef.current, accentRef.current);
+          sendViewerChapters(frameRef.current, chaptersRef.current);
+        }
       }}
       // User HTML is written for white: paper + color-scheme light in both themes. Worker viewers
       // follow the app theme they were given.

@@ -311,7 +311,15 @@ export function getMeeting(id: string) {
 
 /** A short-lived link to the files origin's video player for the meeting's recording (readers of the meeting only). */
 export function getMeetingRecording(id: string) {
-  return request<{ player_url: string; size: number | null; duration_s: number | null; expires_in: number }>(
+  return request<{
+    player_url: string; size: number | null; duration_s: number | null; expires_in: number;
+    /** Captions from the transcript are on the player link (its CC button). */
+    captions?: boolean;
+    /** Chapters from the notes' sections: seconds into the video. */
+    chapters?: { t: number; title: string }[];
+    /** Seconds the video starts after the transcript's time 0 (a recording stopped and started again); 0 mostly. */
+    offset_s?: number;
+  }>(
     `/api/v1/meetings/${encodeURIComponent(id)}/recording`);
 }
 

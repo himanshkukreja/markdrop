@@ -273,6 +273,14 @@ async def get_meeting(ctx: Context, args: dict) -> tuple[str, dict]:
                                   "text": s.get("text"), "url": urls.markdrop_url(row["transcript_slug"]) + f"#{meetings.anchor(start + i)}"}
                                  for i, s in enumerate(segs)]
     text = f"{m['title']} ({m['date']}): {m['url']}\n\n{md}"
+    if m["has_recording"]:
+        # The kept recording's chapters (its player's progress bar; times are seconds into the video).
+        from app.services import zoom_media
+
+        out["recording_chapters"] = zoom_media.chapters(row)
+        if out["recording_chapters"]:
+            text += "\n\nRecording chapters: " + "; ".join(
+                f"{mp.clock(c['t'])} {c['title']}" for c in out["recording_chapters"])
     if out["transcript"]:
         text += "\n\nTranscript:\n" + "\n".join(f"[{t['n']}] {t['time'] or ''} {t['speaker'] or ''}: {t['text']}" for t in out["transcript"])
         if out["transcript_total"] > out["transcript"][-1]["n"]:
@@ -456,7 +464,8 @@ MEETING_TOOLS: list[Tool] = [
         name="get_meeting",
         title="Read a meeting",
         description=("One meeting: its page's Markdown (summary, decisions, action items…) and, with transcript=true, "
-                     f"its transcript lines ({MAX_TRANSCRIPT_RETURN} at a time from from_segment), each with a link to that moment."),
+                     f"its transcript lines ({MAX_TRANSCRIPT_RETURN} at a time from from_segment), each with a link to that moment. "
+                     "With a kept recording: its chapters (seconds into the video, from the notes' sections)."),
         scope=READ,
         input_schema={"type": "object", "properties": {
             "meeting": _MEETING_REF,
@@ -464,7 +473,9 @@ MEETING_TOOLS: list[Tool] = [
             "from_segment": {"type": "integer", "minimum": 1, "default": 1},
         }, "required": ["meeting"]},
         output_schema=_out({**_MEETING_OUT["properties"], "markdown": {"type": "string"},
-                            "transcript": {"type": ["array", "null"]}, "transcript_total": {"type": "integer"}},
+                            "transcript": {"type": ["array", "null"]}, "transcript_total": {"type": "integer"},
+                            "recording_chapters": {"type": "array", "items": {"type": "object", "properties": {
+                                "t": {"type": "integer"}, "title": {"type": "string"}}}}},
                            ["id", "url", "markdown"]),
         annotations=_ann(True, False, True),
         handler=get_meeting,

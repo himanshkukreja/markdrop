@@ -15,6 +15,7 @@ import os
 import re
 import tempfile
 from datetime import timedelta
+from urllib.parse import parse_qs, urlparse
 
 from tests.test_zoom import ZoomWorld
 
@@ -286,6 +287,88 @@ class Recordings(MediaWorld):
         self.assertIsNone((await self.meeting_of("rc-2")).get("recording"))
 
 
+class RecordingCaptionsAndChapters(MediaWorld):
+    """Owner, 2026-11-16: a kept recording plays with captions from the transcript and chapters from the
+    notes' sections, both from what the meeting already has (no AI, no speech-to-text)."""
+
+    async def test_captions_and_chapters_for_readers_rebuilt_when_the_transcript_changes(self):
+        self.assertEqual((await self.switch()).status_code, 200)
+        self.fz.add_meeting("cp-1", "Pricing call", self.email["owner"], iso_days_ago(1))
+        self.fz.add_media("cp-1", audio=None)
+        await self.import_("cp-1")
+        await zoom_media.run_all(self.db)
+        row = await self.meeting_of("cp-1")
+        segs = row["segments"]
+        self.assertGreaterEqual(len(segs), 2)
+        # A meeting generated before chapters existed: its Details' sections are all there is.
+        times = [s.get("t") for s in segs]
+        details = [{"title": "Opening", "cite": "s1", "points": [{"text": "Hello.", "cite": "s1"}]},
+                   {"title": "Pricing <b>talk</b>", "cite": None, "points": [{"text": "Prices.", "cite": f"s{len(segs)}"}]}]
+        await self.db["meetings"].update_one({"_id": row["_id"]}, {"$set": {"generated.details": details}})
+        mid = str(row["_id"])
+        calls_before = len(self.dg.received)
+
+        r = await self.http.get(f"/api/v1/meetings/{mid}/recording", headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200, r.text)
+        body = r.json()
+        self.assertEqual(body["chapters"], [{"t": int(times[0] or 0), "title": "Opening"},
+                                            {"t": int(times[-1]), "title": "Pricing <b>talk</b>"}])
+        self.assertTrue(body["captions"])
+        self.assertEqual(body["offset_s"], 0)
+        q = parse_qs(urlparse(body["player_url"]).query)
+        key = q["cc"][0]
+        self.assertRegex(key, rf"^art/zoom/{self.W}/[A-Za-z0-9_-]+\.captions\.vtt$")   # the Worker's check
+        self.assertTrue(q["ct"][0])
+        obj = self.r2.objects[key]
+        self.assertEqual((obj["public"], obj["content_type"]), (False, "text/vtt"))
+        vtt = obj["data"].decode()
+        self.assertTrue(vtt.startswith("WEBVTT"))
+        self.assertIn(f"<v {segs[0]['speaker']}>", vtt)
+        self.assertEqual(len(self.dg.received), calls_before)              # nothing transcribed again
+
+        # Played again: the same captions, not stored again.
+        r = await self.http.get(f"/api/v1/meetings/{mid}/recording", headers=self.session("owner"))
+        self.assertEqual(parse_qs(urlparse(r.json()["player_url"]).query)["cc"][0], key)
+        # A speaker renamed: built again, the old file deleted.
+        segs[0]["speaker"] = "Renamed Person"
+        await self.db["meetings"].update_one({"_id": row["_id"]}, {"$set": {"segments": segs}})
+        r = await self.http.get(f"/api/v1/meetings/{mid}/recording", headers=self.session("owner"))
+        key2 = parse_qs(urlparse(r.json()["player_url"]).query)["cc"][0]
+        self.assertNotEqual(key2, key)
+        self.assertNotIn(key, self.r2.objects)
+        self.assertIn("<v Renamed Person>", self.r2.objects[key2]["data"].decode())
+
+        # Nobody else: no link, no chapters, no captions.
+        for who in ("wv", "ownv"):
+            r = await self.http.get(f"/api/v1/meetings/{mid}/recording", headers=self.session(who))
+            self.assertEqual(r.status_code, 404, who)
+            self.assertNotIn("Opening", r.text)
+        # MCP's get_meeting: the recording's chapters.
+        token = await self.mcp_token("owner")
+        _code, res = await self.mcp_call(token, "get_meeting", {"meeting": mid})
+        self.assertEqual([c["title"] for c in res["structuredContent"]["recording_chapters"]], ["Opening", "Pricing <b>talk</b>"])
+        self.assertIn("Recording chapters: ", res["content"][0]["text"])
+
+        # Removing the recording removes its captions too.
+        r = await self.http.delete(f"/api/v1/meetings/{mid}/recording", headers=self.session("wa"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertNotIn(key2, self.r2.objects)
+        self.assertIn(key2, self.r2.deleted)
+
+    async def test_deleting_the_meeting_deletes_the_captions(self):
+        self.assertEqual((await self.switch()).status_code, 200)
+        self.fz.add_meeting("cp-2", "Kickoff", self.email["owner"], iso_days_ago(1))
+        self.fz.add_media("cp-2", audio=None)
+        await self.import_("cp-2")
+        await zoom_media.run_all(self.db)
+        row = await self.meeting_of("cp-2")
+        r = await self.http.get(f"/api/v1/meetings/{row['_id']}/recording", headers=self.session("owner"))
+        key = parse_qs(urlparse(r.json()["player_url"]).query)["cc"][0]
+        self.assertEqual(r.json()["chapters"], [])                         # no Details, no topics: none
+        await zoom_media.forget_document(self.db, row["doc_id"])
+        self.assertNotIn(key, self.r2.objects)
+
+
 class Speakers(MediaWorld):
     async def test_names_from_the_timeline_or_the_host_else_numbers(self):
         utts = deepgram.utterances({"results": {"utterances": [
@@ -491,3 +574,68 @@ class Parts(__import__("unittest").TestCase):
                                    f("MP4", "shared_screen_with_speaker_view", 153335220), f("M4A", "audio_only", 28856808)]}
         self.assertEqual(zoom_media.audio_file(obj)["file_size"], 28856808)
         self.assertEqual(zoom_media.video_file(obj)["file_size"], 153335220)
+
+
+class CaptionsFromTheTranscript(__import__("unittest").TestCase):
+    """The WebVTT and the chapters a kept recording plays with (zoom_media.captions_vtt / chapters)."""
+
+    def test_cues_are_short_text_with_the_speaker_and_moved_by_the_offset(self):
+        long = ("We went through the pricing proposal for Acme and the rollout timeline, which slipped a week "
+                "because of the holiday; the renewal is now due on the twelfth --> not the fifth.")
+        row = {"segments": [{"speaker": "Ada <Lovelace>", "t": 0, "text": long},
+                            {"speaker": "Bo", "t": 14, "text": "Sounds good."},
+                            {"speaker": "Ada", "t": None, "text": "no time"},
+                            {"speaker": "Ada", "t": 300, "text": "Next topic."}]}
+        vtt = zoom_media.captions_vtt(row)
+        self.assertTrue(vtt.startswith("WEBVTT\n"))
+        cues = [c for c in vtt.split("\n\n")[1:] if c.strip()]
+        self.assertGreaterEqual(len(cues), 4)
+        for c in cues:
+            timing, *text = c.split("\n")
+            a, b = (zoom_media._secs(x.strip()) for x in timing.split("-->"))
+            self.assertLess(a, b)
+            self.assertLessEqual(b - a, zoom_media.CUE_MAX_S + 0.01)
+            self.assertLessEqual(len(text), 2)                              # two lines at most
+            self.assertNotIn("-->", " ".join(text))
+        self.assertTrue(cues[0].split("\n")[1].startswith("<v Ada ‹Lovelace›>"))   # never markup of its own
+        self.assertNotIn("no time", vtt)
+        self.assertIn("00:05:00.000 --> ", vtt)
+        # The kept video starts 10 s after the transcript's time 0: everything moves; before 0 is gone.
+        moved = zoom_media.captions_vtt({**row, "recording": {"offset_s": 10}})
+        self.assertIn("00:04:50.000 --> ", moved)
+        self.assertIn("00:00:04.000 --> ", moved)                          # Bo, at 14 s
+        self.assertNotEqual(zoom_media.captions_fp(row), zoom_media.captions_fp({**row, "recording": {"offset_s": 10}}))
+        self.assertIsNone(zoom_media.captions_vtt({"segments": [{"speaker": "A", "text": "no times"}]}))
+
+    def test_chapters_from_the_details_else_the_topics(self):
+        segs = [{"t": 0}, {"t": 65}, {"t": 130}, {"t": 400}]
+        gen = {"details": [{"title": "Intro", "cite": "s1", "points": []},
+                           {"title": "  Pricing\n  options ", "cite": None, "points": [{"text": "x", "cite": "s2"}]},
+                           {"title": "Out of order", "cite": "s1", "points": []},
+                           {"title": "Unknown line", "cite": "s99", "points": []},
+                           {"title": "Wrap-up", "cite": "[s4]", "points": []}],
+               "topics": [{"title": "T1", "cite": "s1"}, {"title": "T2", "cite": "s3"}]}
+        row = {"segments": segs, "generated": gen}
+        self.assertEqual(zoom_media.chapters(row), [{"t": 0, "title": "Intro"}, {"t": 65, "title": "Pricing options"},
+                                                    {"t": 400, "title": "Wrap-up"}])
+        self.assertEqual(zoom_media.chapters({"segments": segs, "generated": {"details": [], "topics": gen["topics"]}}),
+                         [{"t": 0, "title": "T1"}, {"t": 130, "title": "T2"}])
+        self.assertEqual(zoom_media.chapters({"segments": segs, "generated": {"topics": gen["topics"][:1]}}), [])
+        self.assertEqual(zoom_media.chapters({"segments": segs}), [])
+        # Moved by the offset; a section that began before the video did starts it.
+        self.assertEqual(zoom_media.chapters({**row, "recording": {"offset_s": 100}}),
+                         [{"t": 0, "title": "Pricing options"}, {"t": 300, "title": "Wrap-up"}])
+
+    def test_offset_from_zoom_s_recording_start(self):
+        f = lambda t, k, start, n=1: {"file_type": t, "recording_type": k, "file_size": n, "status": "completed",
+                                      "download_url": f"u/{t}/{n}", "recording_start": start}
+        obj = {"recording_files": [f("TRANSCRIPT", "audio_transcript", "2026-11-10T10:00:00Z"),
+                                   f("M4A", "audio_only", "2026-11-10T10:02:30Z", 9),
+                                   f("CC", "closed_caption", "2026-11-10T10:01:00Z")]}
+        vf = {"recording_start": "2026-11-10T10:02:30Z"}
+        self.assertEqual(zoom_media.offset_of(obj, "transcript", vf), 150)
+        self.assertEqual(zoom_media.offset_of(obj, "captions", vf), 90)
+        self.assertEqual(zoom_media.offset_of(obj, "transcribe", vf), 0)
+        self.assertIsNone(zoom_media.offset_of(obj, "transcript", {}))
+        self.assertIsNone(zoom_media.offset_of({"recording_files": []}, "transcript", vf))
+        self.assertEqual(zoom_media.offset({"recording": {"offset_s": "bad"}}), 0.0)

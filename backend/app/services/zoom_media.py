@@ -41,8 +41,10 @@ too_big | gone), ``rec_at``, ``rec_tries``.
 from __future__ import annotations
 
 import bisect
+import hashlib
 import json
 import logging
+import math
 import os
 import re
 import secrets
@@ -50,6 +52,7 @@ import tempfile
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import urlencode
 
 from fastapi import HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -486,7 +489,8 @@ async def copy_recording(db: AsyncIOMotorDatabase, key: str) -> str:
     if not zoom.is_connected(conn) or not is_on(conn):
         await _rec(db, key, "off")
         return "off"
-    mrow = await db[meetings.COLL].find_one({"workspace_id": ws, "sources.file_id": f"zoom:{uuid}"}, {"recording": 1})
+    mrow = await db[meetings.COLL].find_one({"workspace_id": ws, "sources.file_id": f"zoom:{uuid}"},
+                                            {"recording": 1, "zoom": 1})
     if mrow is None:
         await _rec(db, key, "gone")
         return "gone"
@@ -523,6 +527,9 @@ async def copy_recording(db: AsyncIOMotorDatabase, key: str) -> str:
         return "failed"
     rec = {"key": bkey, "mime": VIDEO_MIME, "size": size, "kind": vf.get("recording_type"), "uuid": uuid,
            "duration_s": int(obj["duration"]) * 60 if obj.get("duration") else None, "at": now_utc()}
+    off = offset_of(obj, ((mrow.get("zoom") or {}).get("transcript_from")) or row.get("source"), vf)
+    if off:
+        rec["offset_s"] = off
     res = await db[meetings.COLL].update_one({"_id": mrow["_id"], "recording.key": {"$exists": False}},
                                              {"$set": {"recording": rec}})
     if res.modified_count == 0:     # deleted meanwhile, or another copy won: this one goes
@@ -538,10 +545,14 @@ async def drop(row: dict | None) -> bool:
     """Delete a meeting row's stored video (the row's ``recording`` is the caller's to unset)."""
     from app.services import r2
 
-    key = ((row or {}).get("recording") or {}).get("key")
+    rec = (row or {}).get("recording") or {}
+    key = rec.get("key")
     if not key or not str(key).startswith("art/zoom/"):
         return False
     await run_in_threadpool(r2.delete, key)
+    cc = (rec.get("captions") or {}).get("key")
+    if cc and str(cc).startswith("art/zoom/"):
+        await run_in_threadpool(r2.delete, cc)
     return True
 
 
@@ -567,17 +578,21 @@ async def remove(db: AsyncIOMotorDatabase, row: dict) -> dict:
     return {"removed": True}
 
 
-def player(row: dict) -> dict | None:
-    """A short-lived signed link to the files origin's video player for a meeting's recording."""
+def player(row: dict, captions_key: str | None = None) -> dict | None:
+    """A short-lived signed link to the files origin's video player for a meeting's recording, with its
+    captions (``?cc=<key>&ct=<token>``, :func:`ensure_captions`) and its chapters (:func:`chapters`)."""
     from app.services import artifact, publicity, r2
 
     rec = row.get("recording") or {}
     if not rec.get("key") or not r2.is_configured():
         return None
     ttl = publicity.ttl_for(VIDEO_MIME)
-    return {"player_url": artifact.build_artifact_url(rec["key"], VIDEO_MIME, private=True, ttl=ttl),
-            "size": rec.get("size"), "duration_s": rec.get("duration_s"),
-            "expires_in": ttl}
+    url = artifact.build_artifact_url(rec["key"], VIDEO_MIME, private=True, ttl=ttl)
+    if captions_key:
+        url += "&" + urlencode({"cc": captions_key, "ct": artifact.sign_access_token(captions_key, ttl=ttl)})
+    return {"player_url": url, "size": rec.get("size"), "duration_s": rec.get("duration_s"),
+            "expires_in": ttl, "captions": bool(captions_key), "chapters": chapters(row),
+            "offset_s": offset(row)}
 
 
 def view(row: dict) -> dict | None:
@@ -586,6 +601,233 @@ def view(row: dict) -> dict | None:
     if not rec.get("key"):
         return None
     return {"size": rec.get("size"), "duration_s": rec.get("duration_s"), "source": "zoom"}
+
+
+# ── Captions and chapters for a kept recording ────────────────────────────────
+#
+# Owner, 2026-11-16. Both come from what the meeting already has, never a new AI or speech-to-text call,
+# so meetings imported before this get them too:
+# * captions: a WebVTT built from the transcript (``segments``: "Speaker: text", long lines split into
+#   cues of two short lines and a few seconds), stored beside the video (``art/zoom/<ws>/<random>
+#   .captions.vtt``, private) on the first play and built again when the transcript changes (a
+#   fingerprint: speakers renamed, a longer transcript merged in). The player shows them (CC).
+# * chapters: the Details' sections (``generated.details``: each starts at its cited transcript line),
+#   else the topics; a list of {t, title} the meeting page hands the player (worker/src/index.js).
+# Times: a transcript's time 0 is its own source's start (Zoom's transcript, captions or the audio
+# part sent to speech-to-text). When the kept MP4 is another part of a recording stopped and started
+# again, ``recording.offset_s`` (its start minus the source's, from Zoom's recording_start) moves
+# them; meetings copied before it was known have none, so 0.
+
+CAPTIONS_V = 1
+CUE_CHARS = 84                 # two lines of about 42 characters
+LINE_CHARS = 42
+CUE_MAX_S = 7.0
+CUE_MIN_S = 1.2
+CHARS_PER_S = 14.0             # speech, roughly: how long a line with no next line stays up
+MAX_CHAPTERS = 40
+CHAPTER_CHARS = 80
+
+
+def _when(v: Any) -> datetime | None:
+    try:
+        d = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+
+def offset_of(obj: dict, source: str | None, vf: dict | None) -> float | None:
+    """Seconds from the transcript's source file's start to the kept video's (Zoom's
+    ``recording_start``), or None when Zoom didn't say."""
+    from app.services import zoom
+
+    src = (zoom.transcript_file(obj) if source == "transcript" else cc_file(obj) if source == "captions"
+           else audio_file(obj) if source == "transcribe" else None)
+    a, b = _when((src or {}).get("recording_start")), _when((vf or {}).get("recording_start"))
+    if a is None or b is None:
+        return None
+    off = (b - a).total_seconds()
+    return round(off, 3) if abs(off) < 86400 else None
+
+
+def offset(row: dict) -> float:
+    try:
+        off = float(((row.get("recording") or {}).get("offset_s")) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return off if math.isfinite(off) else 0.0
+
+
+def _seg_t(seg: Any) -> float | None:
+    t = seg.get("t") if isinstance(seg, dict) else None
+    if isinstance(t, bool) or not isinstance(t, (int, float)) or not math.isfinite(t):
+        return None
+    return float(t)
+
+
+def _plain(v: Any, cap: int) -> str:
+    t = re.sub(r"\s+", " ", str(v or "")).strip()
+    return t[:cap].rstrip()
+
+
+def chapters(row: dict) -> list[dict]:
+    """The recording's chapters: [{t: seconds into the video, title}], ascending; [] when fewer than two."""
+    from app.services import meetings
+
+    segs = row.get("segments") or []
+    off = offset(row)
+    gen = row.get("generated") or {}
+
+    def at(cite: Any) -> float | None:
+        i = meetings._cite_index(cite)
+        if not i or i > len(segs):
+            return None
+        t = _seg_t(segs[i - 1])
+        return None if t is None else t - off
+
+    def build(items: Any) -> list[dict]:
+        out: list[dict] = []
+        last = -math.inf
+        for it in items if isinstance(items, list) else []:
+            if not isinstance(it, dict):
+                continue
+            title = _plain(it.get("title"), CHAPTER_CHARS)
+            t = at(it.get("cite"))
+            if t is None:
+                t = next((x for x in (at(p.get("cite")) for p in it.get("points") or [] if isinstance(p, dict))
+                          if x is not None), None)
+            if not title or t is None or t <= last:     # out of order, or the same moment: skipped
+                continue
+            last = t
+            t = max(0, int(t))
+            if out and t <= out[-1]["t"]:
+                if t == 0:                  # both began before the video did: the later one is on at 0
+                    out[-1] = {"t": 0, "title": title}
+                continue
+            out.append({"t": t, "title": title})
+            if len(out) >= MAX_CHAPTERS:
+                break
+        return out if len(out) >= 2 else []
+
+    return build(gen.get("details")) or build(gen.get("topics"))
+
+
+def _vtt_time(s: float) -> str:
+    ms = int(round(max(0.0, s) * 1000))
+    return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d}.{ms % 1000:03d}"
+
+
+def _cue_text(t: str) -> str:
+    # Text, never markup: the player draws it as text, and "-->" would end a cue's timing line.
+    return re.sub(r"\s+", " ", t.replace("-->", "→").replace("<", "‹").replace(">", "›")).strip()
+
+
+def _chunks(text: str, n: int) -> list[str]:
+    """``text`` in ``n`` pieces of about the same length, cut between words."""
+    words = text.split(" ")
+    if n <= 1 or len(words) <= 1:
+        return [text]
+    goal = len(text) / n
+    out: list[str] = []
+    cur = ""
+    for w in words:
+        if cur and len(out) < n - 1 and len(cur) + 1 + len(w) > goal * (1.15 if out else 1.0) and len(cur) >= goal * 0.6:
+            out.append(cur)
+            cur = w
+        else:
+            cur = f"{cur} {w}" if cur else w
+    if cur:
+        out.append(cur)
+    return out
+
+
+def _two_lines(t: str) -> str:
+    if len(t) <= LINE_CHARS:
+        return t
+    mid = len(t) // 2
+    spaces = [i for i, c in enumerate(t) if c == " "]
+    if not spaces:
+        return t
+    cut = min(spaces, key=lambda i: abs(i - mid))
+    return t[:cut] + "\n" + t[cut + 1:]
+
+
+def captions_vtt(row: dict) -> str | None:
+    """WebVTT from the meeting's transcript (times moved by the recording's offset), or None."""
+    off = offset(row)
+    items = []
+    for seg in row.get("segments") or []:
+        t = _seg_t(seg)
+        text = _cue_text(str((seg or {}).get("text") or ""))
+        if t is None or not text:
+            continue
+        who = _cue_text(str(seg.get("speaker") or ""))[:60]
+        items.append((t - off, who, text))
+    if not items:
+        return None
+    out = ["WEBVTT", ""]
+    for k, (t, who, text) in enumerate(items):
+        est = max(CUE_MIN_S, len(text) / CHARS_PER_S)
+        gap = items[k + 1][0] - t if k + 1 < len(items) else 0
+        d = min(gap, est * 2 + 2) if gap > 0 else est
+        d = max(d, min(CUE_MIN_S, gap) if gap > 0 else CUE_MIN_S)
+        n = max(math.ceil(len(text) / CUE_CHARS), math.ceil(d / CUE_MAX_S), 1)
+        parts = _chunks(text, n)
+        total = sum(len(p) for p in parts) or 1
+        start = t
+        for j, part in enumerate(parts):
+            end = start + d * len(part) / total
+            if end > 0:
+                body = _two_lines(part)
+                if j == 0 and who:
+                    body = f"<v {who}>{body}"
+                out += [f"{_vtt_time(start)} --> {_vtt_time(max(end, start + 0.2))}", body, ""]
+            start = end
+    return "\n".join(out) if len(out) > 2 else None
+
+
+def captions_fp(row: dict) -> str:
+    segs = [[s.get("speaker"), s.get("t"), s.get("text")] for s in row.get("segments") or [] if isinstance(s, dict)]
+    blob = json.dumps([CAPTIONS_V, offset(row), segs], default=str, ensure_ascii=False)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:32]
+
+
+async def ensure_captions(db: AsyncIOMotorDatabase, row: dict) -> str | None:
+    """The R2 key of the recording's captions, built (or built again, the transcript having changed) when
+    needed. None: no recording, no transcript with times, or storage refused (playing goes on without)."""
+    from app.services import meetings, r2
+
+    rec = row.get("recording") or {}
+    vkey = str(rec.get("key") or "")
+    if not vkey.startswith("art/zoom/") or not r2.is_configured():
+        return None
+    have = rec.get("captions") if isinstance(rec.get("captions"), dict) else None
+    fp = captions_fp(row)
+    if have and have.get("key") and have.get("fp") == fp:
+        return have["key"]
+    vtt = captions_vtt(row)
+    if vtt is None:
+        return None
+    key = f"{vkey.rsplit('/', 1)[0]}/{secrets.token_urlsafe(18)}.captions.vtt"
+    try:
+        ok = await run_in_threadpool(r2.put_bytes, key, vtt.encode("utf-8"), "text/vtt", False)
+    except Exception:
+        ok = False
+    if not ok:
+        log.warning("zoom: storing a recording's captions failed")
+        return (have or {}).get("key")
+    res = await db[meetings.COLL].update_one(
+        {"_id": row["_id"], "recording.key": vkey, "recording.captions": rec.get("captions")},
+        {"$set": {"recording.captions": {"key": key, "fp": fp, "at": now_utc()}}})
+    if res.modified_count == 0:     # another request got there first (or the recording went): theirs
+        await run_in_threadpool(r2.delete, key)
+        fresh = await db[meetings.COLL].find_one({"_id": row["_id"]}, {"recording.captions": 1, "recording.key": 1})
+        return (((fresh or {}).get("recording") or {}).get("captions") or {}).get("key")
+    old = (have or {}).get("key")
+    if old and old != key and str(old).startswith("art/zoom/"):
+        await run_in_threadpool(r2.delete, old)
+    rec["captions"] = {"key": key, "fp": fp}
+    return key
 
 
 # ── The background loop ───────────────────────────────────────────────────────

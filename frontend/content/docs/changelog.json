@@ -24,6 +24,19 @@
   "next": [],
   "entries": [
     {
+      "id": "video-chapters",
+      "date": "2026-11-16",
+      "title": "Chapters on the video player, and captions on meeting recordings",
+      "kind": "new",
+      "area": "Files",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "Videos and Zoom meeting recordings show chapters on the progress bar: hover for a chapter's title, or pick one from the list next to the time. Meeting recordings also play with captions made from their transcript.",
+      "body": "- **Chapters on the progress bar.** Small gaps mark where each chapter starts; pointing at the bar shows its title, and the current chapter's title next to the time opens the list. It works from the keyboard and in full screen. See [Chapters](/files/video-and-audio#chapters).\n- **Video files.** The chapters [AI insights](/analytics/ai-insights) suggested appear for everyone who can open the video.\n- **Meeting recordings.** Each part of the call in the meeting's **Details** becomes a chapter, and the recording plays with captions from its transcript, each line with its speaker (**CC** turns them off). Meetings already imported get both, with nothing transcribed or summarised again. See [Zoom](/integrations/zoom#transcribe-and-keep-recordings).\n- **MCP.** `get_meeting` lists a kept recording's chapters."
+    },
+    {
       "id": "video-player-brand",
       "date": "2026-11-16",
       "title": "Video player in your brand colour, quieter while you watch",

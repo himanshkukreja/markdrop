@@ -29357,6 +29357,21 @@
             ],
             "title": "Captions Name"
           },
+          "chapters": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapters"
+          },
           "media": {
             "anyOf": [
               {
@@ -29936,6 +29951,21 @@
               }
             ],
             "title": "Captions Name"
+          },
+          "chapters": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapters"
           },
           "media": {
             "anyOf": [

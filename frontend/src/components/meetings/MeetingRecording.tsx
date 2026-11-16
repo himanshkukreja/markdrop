@@ -13,13 +13,18 @@
  * player within a moment (an older player, a preview host): it reopens at that time instead.
  * Played from far down the page, the player floats in the corner (its place up top is kept), so the
  * transcript stays where the reader is.
+ *
+ * Captions and chapters (owner, 2026-11-16): the player link carries captions built from the transcript
+ * (its CC button), and the response's chapters (the notes' sections) go to the player as a
+ * {md:1, ev:"chapters"} message once it loads. Transcript times become video times by `offset_s` (a
+ * recording stopped and started again: the kept part may start after the transcript's time 0).
  */
 import { useEffect, useRef, useState } from "react";
 import { fromFrameOrigin } from "@/lib/engageCore";
 import { Alert, Button, ConfirmDialog, IconButton, Skeleton, useToast } from "@/components/ui";
 import { themedFrameSrc } from "@/app/[slug]/artifact/frame";
 import { deleteMeetingRecording, getMeetingRecording, type Meeting } from "@/lib/meetings";
-import { sendViewerAccent, useWorkspaceAccent } from "@/lib/workspaceAccent";
+import { sendViewerAccent, sendViewerChapters, useWorkspaceAccent, type ViewerChapter } from "@/lib/workspaceAccent";
 import { useTheme } from "@/lib/theme";
 
 // The same sandbox a video file's page gives the player (app/[slug]/ArtifactView.tsx).
@@ -35,15 +40,19 @@ export function MeetingRecording({ m, seek = null, onClose, onRemoved }: {
   const { resolved } = useTheme();
   const toast = useToast();
   const [url, setUrl] = useState<string | null>(null);
+  const [chapters, setChapters] = useState<ViewerChapter[]>([]);
+  const offset = useRef(0);              // video time = transcript time − offset
   const [err, setErr] = useState("");
   const [confirm, setConfirm] = useState(false);
-  // The time the frame was opened at (?at=) and a key that reopens it there.
+  // The time the frame was opened at (?at=, transcript time) and a key that reopens it there.
   const [at, setAt] = useState<{ t: number; k: number }>({ t: seek?.t ?? 0, k: 0 });
+  const atVideo = Math.max(0, at.t - offset.current);
   const box = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   // The progress bar in the workspace's brand accent.
   const accent = useWorkspaceAccent(m.workspace_id);
   useEffect(() => { sendViewerAccent(frame.current, accent); }, [accent]);
+  useEffect(() => { sendViewerChapters(frame.current, chapters); }, [chapters]);
   const alive = useRef(false);           // the player has spoken (it's loaded and listening)
   const answered = useRef(false);        // it moved after our last seek message
   const origin = url ? safeOrigin(url) : null;
@@ -96,7 +105,7 @@ export function MeetingRecording({ m, seek = null, onClose, onRemoved }: {
       return;
     }
     answered.current = false;
-    f.contentWindow.postMessage({ md: 1, ev: "seek", t: seek.t, play: true }, origin);
+    f.contentWindow.postMessage({ md: 1, ev: "seek", t: Math.max(0, seek.t - offset.current), play: true }, origin);
     const timer = window.setTimeout(() => {
       if (answered.current) return;
       alive.current = false;
@@ -108,7 +117,12 @@ export function MeetingRecording({ m, seek = null, onClose, onRemoved }: {
   useEffect(() => {
     let live = true;
     getMeetingRecording(m.id)
-      .then((r) => { if (live) setUrl(r.player_url); })
+      .then((r) => {
+        if (!live) return;
+        offset.current = Number.isFinite(r.offset_s) ? Number(r.offset_s) : 0;
+        setChapters(r.chapters ?? []);
+        setUrl(r.player_url);
+      })
       .catch((e) => { if (live) setErr(e instanceof Error ? e.message : "The recording didn't load."); });
     return () => { live = false; };
   }, [m.id]);
@@ -124,21 +138,21 @@ export function MeetingRecording({ m, seek = null, onClose, onRemoved }: {
           <iframe
             key={at.k}
             ref={frame}
-            src={themedFrameSrc(url, resolved ?? "light", null, null, at.t > 0 ? at.t : null)}
+            src={themedFrameSrc(url, resolved ?? "light", null, null, atVideo > 0 ? atVideo : null)}
             data-at={at.t || undefined}
             sandbox={SANDBOX}
             allow="fullscreen; picture-in-picture; autoplay"
             allowFullScreen
             referrerPolicy="no-referrer"
             title={`Recording of ${m.title || "the meeting"}`}
-            onLoad={() => sendViewerAccent(frame.current, accent)}
+            onLoad={() => { sendViewerAccent(frame.current, accent); sendViewerChapters(frame.current, chapters); }}
             style={{ colorScheme: resolved }}
             className="ph-no-capture block h-full w-full border-0 bg-bg"
           />
         </div>
       ) : <Skeleton width="100%" height={240} />}
       <div className="mt-recording__actions">
-        <span className="text-caption text-text-muted">Only people who can open this meeting can play its recording. Click a time in the notes or the transcript to play from there.</span>
+        <span className="text-caption text-text-muted">Only people who can open this meeting can play its recording. Click a time in the notes or the transcript to play from there{chapters.length ? ", or pick a chapter in the player" : ""}.</span>
         {m.can_delete && <Button size="sm" variant="ghost" onClick={() => setConfirm(true)} data-testid="meeting-recording-remove">Remove recording</Button>}
         <Button size="sm" variant="secondary" onClick={onClose}>Close</Button>
       </div>

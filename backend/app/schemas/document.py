@@ -138,6 +138,8 @@ class DocumentResponse(BaseModel):
     poster_url: str | None = None
     captions_url: str | None = None
     captions_name: str | None = None
+    # A video's chapters [{t: seconds, title}] (the player's progress bar), when its analysis made some.
+    chapters: list[dict] | None = None
     media: dict | None = None
     # The current file's version number (artifacts only; null for markdown).
     file_version: int | None = None
