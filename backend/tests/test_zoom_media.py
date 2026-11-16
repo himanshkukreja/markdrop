@@ -9,6 +9,7 @@ Run: cd backend && MARKDROP_TEST_MONGODB_URI=mongodb://127.0.0.1:27019 .venv/bin
 
 from __future__ import annotations
 
+import asyncio
 import glob
 import json
 import os
@@ -291,12 +292,20 @@ class RecordingCaptionsAndChapters(MediaWorld):
     """Owner, 2026-11-16: a kept recording plays with captions from the transcript and chapters from the
     notes' sections, both from what the meeting already has (no AI, no speech-to-text)."""
 
+    async def settle(self) -> None:
+        # The import's own AI summary runs in the background: done before the notes are set here.
+        from app.services import meetings
+
+        for t in list(meetings._bg):
+            await asyncio.wait({t}, timeout=10)
+
     async def test_captions_and_chapters_for_readers_rebuilt_when_the_transcript_changes(self):
         self.assertEqual((await self.switch()).status_code, 200)
         self.fz.add_meeting("cp-1", "Pricing call", self.email["owner"], iso_days_ago(1))
         self.fz.add_media("cp-1", audio=None)
         await self.import_("cp-1")
         await zoom_media.run_all(self.db)
+        await self.settle()
         row = await self.meeting_of("cp-1")
         segs = row["segments"]
         self.assertGreaterEqual(len(segs), 2)
@@ -333,6 +342,7 @@ class RecordingCaptionsAndChapters(MediaWorld):
         segs[0]["speaker"] = "Renamed Person"
         await self.db["meetings"].update_one({"_id": row["_id"]}, {"$set": {"segments": segs}})
         r = await self.http.get(f"/api/v1/meetings/{mid}/recording", headers=self.session("owner"))
+        self.assertEqual([c["title"] for c in r.json()["chapters"]], ["Opening", "Pricing <b>talk</b>"])
         key2 = parse_qs(urlparse(r.json()["player_url"]).query)["cc"][0]
         self.assertNotEqual(key2, key)
         self.assertNotIn(key, self.r2.objects)
@@ -346,7 +356,10 @@ class RecordingCaptionsAndChapters(MediaWorld):
         # MCP's get_meeting: the recording's chapters.
         token = await self.mcp_token("owner")
         _code, res = await self.mcp_call(token, "get_meeting", {"meeting": mid})
-        self.assertEqual([c["title"] for c in res["structuredContent"]["recording_chapters"]], ["Opening", "Pricing <b>talk</b>"])
+        now_row = await self.meeting_of("cp-1")
+        self.assertEqual([c["title"] for c in res["structuredContent"]["recording_chapters"]], ["Opening", "Pricing <b>talk</b>"],
+                         (res["structuredContent"].get("id"), mid, now_row.get("generated"),
+                          [x.get("t") for x in now_row.get("segments") or []], now_row.get("recording")))
         self.assertIn("Recording chapters: ", res["content"][0]["text"])
 
         # Removing the recording removes its captions too.
@@ -361,6 +374,7 @@ class RecordingCaptionsAndChapters(MediaWorld):
         self.fz.add_media("cp-2", audio=None)
         await self.import_("cp-2")
         await zoom_media.run_all(self.db)
+        await self.settle()
         row = await self.meeting_of("cp-2")
         r = await self.http.get(f"/api/v1/meetings/{row['_id']}/recording", headers=self.session("owner"))
         key = parse_qs(urlparse(r.json()["player_url"]).query)["cc"][0]
