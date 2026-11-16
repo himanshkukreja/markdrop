@@ -101,8 +101,17 @@ const nextConfig: NextConfig = {
    */
   async headers() {
     return [
-      // Report-only (see cspReportOnly): logs, never blocks.
-      { source: "/:path*", headers: [{ key: "Content-Security-Policy-Report-Only", value: cspReportOnly() }] },
+      // Report-only (see cspReportOnly): logs, never blocks. HSTS: Vercel added it on its own; Cloudflare doesn't.
+      // No site-wide frame-ancestors: Guides sites frame markdrop.in documents and files.
+      {
+        source: "/:path*",
+        headers: [
+          { key: "Content-Security-Policy-Report-Only", value: cspReportOnly() },
+          { key: "Strict-Transport-Security", value: "max-age=63072000" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
       {
         source: "/oauth/:path*",
         headers: [

@@ -1,5 +1,9 @@
 # Cloudflare static assets never reach Next, so next.config.ts headers() for public files live here too
 # (copied to .open-next/assets/_headers by scripts/cf/postbuild.mjs). Keep in step with next.config.ts.
+/*
+  Strict-Transport-Security: max-age=63072000
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
 /_next/static/*
   Cache-Control: public, max-age=31536000, immutable
 /studio-signout.html
