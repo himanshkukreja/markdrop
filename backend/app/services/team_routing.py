@@ -32,8 +32,9 @@ def _attendee_ids(row: dict) -> set[str]:
 async def suggest(db: AsyncIOMotorDatabase, workspace_id: str, row: dict, teams: list[dict] | None = None) -> list[dict]:
     """``[{team_id, name, reason: attendees|series, matched}]`` best first."""
     teams = teams if teams is not None else await db[T.TEAMS].find({"workspace_id": workspace_id}).to_list(length=T.MAX_TEAMS + 10)
-    # Never the default team (General: everyone is in it; unrouted meetings are its meetings anyway).
-    teams = [t for t in teams if not t.get("general")]
+    # Never the default team (General: everyone is in it; unrouted meetings are its meetings anyway), nor a
+    # team that turned "Add meetings by who attended" off (only meetings imported or moved into it).
+    teams = [t for t in teams if not t.get("general") and t.get("meetings_by_attendees") is not False]
     if not teams:
         return []
     uids = _attendee_ids(row)

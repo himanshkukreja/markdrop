@@ -3,7 +3,7 @@
   "info": {
     "title": "Markdrop",
     "version": "0.1.0",
-    "x-markdrop-exported": "2026-11-10"
+    "x-markdrop-exported": "2026-11-16"
   },
   "paths": {
     "/api/v1/trash": {
@@ -35822,6 +35822,18 @@
                 "type": "null"
               }
             ]
+          },
+          "meetings_by_attendees": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meetings By Attendees",
+            "description": "Add new meetings to this team when its members are half or more of the attendees (default on). Off: only meetings imported or moved into it, such as from Zoom."
           }
         },
         "type": "object",

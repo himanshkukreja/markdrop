@@ -24,6 +24,19 @@
   "next": [],
   "entries": [
     {
+      "id": "team-meetings-by-attendees",
+      "date": "2026-11-16",
+      "title": "Company-wide meetings stay out of teams",
+      "kind": "improved",
+      "area": "Teams",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "A meeting now joins a team only when the team's members are half or more of its attendees, and a team can turn off adding meetings by who attended, for example a Sales team that should hold only its Zoom calls.",
+      "body": "- **Half or more.** A daily sync with a dozen people no longer lands in a team just because two of its members were there. It stays in General. See [Team meetings and memory](/teams/meetings-and-memory).\n- **Add meetings by who attended.** A new switch in a team's settings. Off: the team gets only meetings imported or moved into it, or sent by [Zoom](/integrations/zoom).\n- **For AI apps.** `update_team` takes `meetings_by_attendees`.\n- **Zoom setup.** The Server-to-Server steps now activate the app before saving it in Markdrop, and validate the endpoint after, with a troubleshooting table."
+    },
+    {
       "id": "terms-of-use",
       "date": "2026-11-11",
       "title": "Terms of Use",
