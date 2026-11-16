@@ -22,7 +22,7 @@ Branding shows on your own domains. Admins and the owner change it on the **Look
 | **Favicon** | PNG, JPEG, WebP or GIF, under 2 MB. Resized to 128 pixels. |
 | **Logo** | Same file types and size. Shown on link preview cards and in the top bar on your domain. Resized so its longest side is at most 512 pixels. |
 | **Logo background** | The ground behind your logo. **Automatic** follows the reader's theme. Pick **Light** for a dark logo, **Dark** for a light one, or **Checker**. |
-| **Accent colour** | Buttons, links and highlights on your domain use it. Blank uses Markdrop's blue. |
+| **Accent colour** | Buttons, links and highlights on your domain use it, and so does the progress bar of videos and meeting recordings filed in the workspace. Blank uses Markdrop's blue. |
 | **White-label preview cards** | Removes "Published with Markdrop" from cards and titles. |
 
 ![The Logo, colours and favicon card with Favicon, Logo, Logo background, Accent colour #0F766E and White-label preview cards, beside the How your links look preview showing Acme's logo and teal accent in a browser tab and on a link preview card.](/docs-assets/workspaces/branding/branding-form.webp)

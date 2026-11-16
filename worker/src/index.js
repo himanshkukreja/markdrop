@@ -1563,14 +1563,14 @@ function videoViewer(src, poster = null, captions = null, at = 0) {
   #ui{position:absolute;left:0;right:0;bottom:0;padding:44px 14px 12px;
     background:linear-gradient(transparent,var(--scrim) 62%);
     opacity:0;transition:opacity .18s ease;pointer-events:none}
-  #stage.show #ui,#stage:focus-within #ui{opacity:1;pointer-events:auto}
+  #stage.show #ui,#ui:focus-within{opacity:1;pointer-events:auto}
   #stage.idle{cursor:none}
   /* Scrubber: buffered under played under an oversized invisible hit area. */
   .bar{position:relative;height:16px;display:flex;align-items:center;cursor:pointer}
   .track{position:relative;height:4px;width:100%;border-radius:99px;background:rgb(255 255 255 / .22);overflow:hidden;transition:height .12s}
   .bar:hover .track{height:7px}
   .buffered{position:absolute;inset:0 auto 0 0;background:rgb(255 255 255 / .3);width:0}
-  .played{position:absolute;inset:0 auto 0 0;background:var(--accent-hover);width:0}
+  .played{position:absolute;inset:0 auto 0 0;background:var(--player-accent,var(--accent-hover));width:0}
   .knob{position:absolute;top:50%;width:12px;height:12px;margin-left:-6px;border-radius:50%;
     background:var(--text);transform:translateY(-50%) scale(0);transition:transform .12s;pointer-events:none}
   .bar:hover .knob{transform:translateY(-50%) scale(1)}
@@ -1674,12 +1674,14 @@ function videoViewer(src, poster = null, captions = null, at = 0) {
     clearTimeout(flash.t);flash.t=setTimeout(function(){toast.classList.remove('on')},700)}
 
   // Controls hide while playing and return on movement or focus.
-  var idleTimer;
+  var idleTimer,uiShown=null;
+  function ui(on){if(on===uiShown)return;uiShown=on;
+    try{if(window.parent!==window)window.parent.postMessage({md:1,ev:'ui',show:on},'*')}catch(_){}}
   function wake(){
-    stage.classList.add('show');stage.classList.remove('idle');
+    stage.classList.add('show');stage.classList.remove('idle');ui(true);
     clearTimeout(idleTimer);
     if(!v.paused)idleTimer=setTimeout(function(){
-      stage.classList.remove('show');stage.classList.add('idle');},2200);
+      stage.classList.remove('show');stage.classList.add('idle');ui(false);},2200);
   }
   stage.addEventListener('mousemove',wake);
   stage.addEventListener('touchstart',wake,{passive:true});
@@ -1766,6 +1768,7 @@ function videoViewer(src, poster = null, captions = null, at = 0) {
   };
 
   stage.addEventListener('keydown',function(e){
+    wake();
     var k=e.key.toLowerCase();
     if(k===' '||k==='k'){e.preventDefault();toggle()}
     else if(k==='arrowleft'||k==='j'){e.preventDefault();v.currentTime=Math.max(0,v.currentTime-(k==='j'?10:5));flash('−'+(k==='j'?10:5)+'s')}
@@ -1791,7 +1794,9 @@ function videoViewer(src, poster = null, captions = null, at = 0) {
   window.addEventListener('message',function(e){
     try{
       if(e.source!==window.parent||window.parent===window||APP.indexOf(e.origin)<0)return;
-      var d=e.data;if(!d||typeof d!=='object'||d.md!==1||d.ev!=='seek')return;
+      var d=e.data;if(!d||typeof d!=='object'||d.md!==1)return;
+      if(d.ev==='theme'){if(typeof d.accent==='string'&&/^#[0-9a-f]{6}$/i.test(d.accent))document.documentElement.style.setProperty('--player-accent',d.accent);return}
+      if(d.ev!=='seek')return;
       var t=Number(d.t);if(!isFinite(t)||t<0||t>1e7)return;
       var go=function(){try{v.currentTime=Math.max(0,Math.min(t,(v.duration||t+1)-0.5));if(d.play===true){var p=v.play();if(p&&p.catch)p.catch(function(){})}}catch(_){}};
       if(v.readyState>=1)go();else v.addEventListener('loadedmetadata',go,{once:true});

@@ -304,6 +304,17 @@ test("video player: a seek message moves it, only from the framing window on an 
   assert.match(page, /d\.ev!=='seek'/);
 });
 
+test("video player: the app's accent for the scrubber (a hex only), controls that hide, and ui messages", async () => {
+  const page = await (await get("/v/video/art/u1/clip.mp4")).text();
+  assert.match(page, /d\.ev==='theme'/);
+  assert.match(page, /\/\^#\[0-9a-f\]\{6\}\$\/i\.test\(d\.accent\)/);   // nothing but #rrggbb reaches CSS
+  assert.match(page, /var\(--player-accent,var\(--accent-hover\)\)/);
+  // The stage's own focus on load no longer pins the controls open; a focused control still does.
+  assert.doesNotMatch(page, /#stage:focus-within #ui/);
+  assert.match(page, /#ui:focus-within/);
+  assert.match(page, /ev:'ui',show:on/);
+});
+
 test("video player: captions only from a captions key (as text, never HTML), and ?at= starts there", async () => {
   const page = await (await get("/v/video/art/u1/clip.mp4?cc=art/u1/abc_DEF-1.captions.vtt&ct=aa.bb_cc&at=754")).text();
   assert.match(page, /var CC="\/r\/art\/u1\/abc_DEF-1\.captions\.vtt\?t=aa\.bb_cc";/);

@@ -24,6 +24,18 @@
   "next": [],
   "entries": [
     {
+      "id": "video-player-brand",
+      "date": "2026-11-16",
+      "title": "Video player in your brand colour, quieter while you watch",
+      "kind": "improved",
+      "area": "Files",
+      "products": [
+        "web"
+      ],
+      "summary": "The video player's progress bar takes your workspace's accent colour, its controls hide a couple of seconds after you stop moving, and Show details shrinks to a small chip that hides with them.",
+      "body": "- **Brand colour.** Videos and meeting recordings filed in a workspace draw their progress bar in its [accent colour](/workspaces/branding).\n- **Out of the way.** The controls now hide while a video plays untouched (before, they could stay up after the page loaded), and come back when you move the pointer, tap or press a key.\n- **Show details.** Over a video it's a small chip that hides with the controls; hover or focus shows its label."
+    },
+    {
       "id": "zoom-speaker-names",
       "date": "2026-11-16",
       "title": "Names for speakers in transcribed Zoom meetings",

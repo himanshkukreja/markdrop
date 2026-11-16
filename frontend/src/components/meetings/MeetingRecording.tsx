@@ -19,6 +19,7 @@ import { fromFrameOrigin } from "@/lib/engageCore";
 import { Alert, Button, ConfirmDialog, IconButton, Skeleton, useToast } from "@/components/ui";
 import { themedFrameSrc } from "@/app/[slug]/artifact/frame";
 import { deleteMeetingRecording, getMeetingRecording, type Meeting } from "@/lib/meetings";
+import { sendViewerAccent, useWorkspaceAccent } from "@/lib/workspaceAccent";
 import { useTheme } from "@/lib/theme";
 
 // The same sandbox a video file's page gives the player (app/[slug]/ArtifactView.tsx).
@@ -40,6 +41,9 @@ export function MeetingRecording({ m, seek = null, onClose, onRemoved }: {
   const [at, setAt] = useState<{ t: number; k: number }>({ t: seek?.t ?? 0, k: 0 });
   const box = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
+  // The progress bar in the workspace's brand accent.
+  const accent = useWorkspaceAccent(m.workspace_id);
+  useEffect(() => { sendViewerAccent(frame.current, accent); }, [accent]);
   const alive = useRef(false);           // the player has spoken (it's loaded and listening)
   const answered = useRef(false);        // it moved after our last seek message
   const origin = url ? safeOrigin(url) : null;
@@ -127,6 +131,7 @@ export function MeetingRecording({ m, seek = null, onClose, onRemoved }: {
             allowFullScreen
             referrerPolicy="no-referrer"
             title={`Recording of ${m.title || "the meeting"}`}
+            onLoad={() => sendViewerAccent(frame.current, accent)}
             style={{ colorScheme: resolved }}
             className="ph-no-capture block h-full w-full border-0 bg-bg"
           />

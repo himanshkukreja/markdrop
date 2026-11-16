@@ -14,6 +14,7 @@ import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAccess, removePerson } from "@/lib/access";
 import { purgeDocument } from "@/lib/workspaces";
+import { sendViewerAccent, useWorkspaceAccent } from "@/lib/workspaceAccent";
 import { PRIMARY_HOST, signInUrlFor } from "@/lib/hosts";
 
 /** The path part of this page's URL, for the tenant sign-in return trip (/login 404s there). */
@@ -188,6 +189,8 @@ export default function ArtifactView({
   const [ownerCheckedFor, setOwnerCheckedFor] = useState<string | null>(null);
   const [fileVersion, setFileVersion] = useState<number | null>(initialFileVersion);
   const frameRef = useRef<HTMLIFrameElement>(null);
+  // The video player's controls showing (its "ui" message): "Show details" hides with them.
+  const [playerUi, setPlayerUi] = useState(true);
   // `can.replace` from the server (Q6): editors and workspace members on a non-private file may
   // swap the bytes, but only the owner reaches the rest of the settings.
   const [canReplace, setCanReplace] = useState(false);
@@ -202,6 +205,12 @@ export default function ArtifactView({
   const [docId, setDocId] = useState<string | null>(null);
   // Where it's filed (the bar's workspace › folders for members); a signed-in read refreshes it.
   const [place, setPlace] = useState({ workspaceId: initialWorkspaceId, folderPath: initialFolderPath });
+  // The video player's progress bar takes the workspace's brand accent (sent once it loads, and
+  // again if the accent arrives after it).
+  const accent = useWorkspaceAccent(place.workspaceId);
+  const accentRef = useRef<string | null>(null);
+  accentRef.current = accent;
+  useEffect(() => { if (renderer === "video") sendViewerAccent(frameRef.current, accent); }, [accent, renderer]);
   const [domainUrl, setDomainUrl] = useState<string | null>(initialDomainUrl);
   const toast = useToast();
   // Immersive mode: the artifact fills the viewport with all app chrome hidden,
@@ -695,6 +704,7 @@ export default function ArtifactView({
       if (!f || e.source !== f.contentWindow || !fromFrameOrigin(e.origin, frameOrigin)) return;
       const m = e.data as BridgeMessage | null;
       if (!m || typeof m !== "object" || m.md !== 1) return;
+      if ((m as { ev?: string; show?: unknown }).ev === "ui") { setPlayerUi((m as { show?: unknown }).show !== false); return; }
       if (m.ev === "page" && typeof m.p === "number" && m.p >= 1) presence.channel.setSection({ p: Math.floor(m.p) });
       else if (m.ev === "media" && typeof m.t === "number" && Number.isFinite(m.t) && m.t >= 0) {
         presence.channel.setSection({ s: Math.floor(m.t / 5) * 5 });
@@ -746,6 +756,7 @@ export default function ArtifactView({
       onLoad={() => {
         setFrameLoading(false);
         setLiveReload(false);
+        if (renderer === "video") sendViewerAccent(frameRef.current, accentRef.current);
       }}
       // User HTML is written for white: paper + color-scheme light in both themes. Worker viewers
       // follow the app theme they were given.
@@ -959,6 +970,8 @@ export default function ArtifactView({
             <ImmersiveExit
               onExit={exitImmersive}
               placement={renderer === "video" ? "top-right" : "bottom-right"}
+              quiet={renderer === "video"}
+              className={renderer === "video" && !playerUi ? "md-immersive--hidden" : undefined}
             />
           )}
         </div>
