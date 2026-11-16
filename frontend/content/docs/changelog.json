@@ -24,6 +24,29 @@
   "next": [],
   "entries": [
     {
+      "id": "meeting-details",
+      "date": "2026-11-16",
+      "title": "Detailed notes for meetings without Google's notes",
+      "kind": "improved",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Zoom meetings and pasted or uploaded transcripts now get detailed notes, like the ones Google writes for Meet: a Details section with a heading for each part of the call and who said what, each point linked to its moment in the transcript.",
+      "body": "- **Details from the transcript.** When a meeting has a transcript but no Google notes, Markdrop AI writes its **Details** too, marked **Notes by Markdrop AI, from the transcript**: the call in order, part by part, with the numbers, names, objections, commitments and next steps that were said. [What the meeting page holds](/workspaces/meetings#what-the-meeting-page-holds)\n- **Sized to the call.** A longer call gets longer notes and a fuller summary, and very long calls are covered from start to end.\n- **Meetings with Google's notes are unchanged.** Google's own summary, details and next steps are still used as written.\n- **Older meetings.** Choose **Write it again** in the meeting panel to add **Details** to a meeting imported before this.",
+      "links": [
+        {
+          "label": "Meetings",
+          "href": "/workspaces/meetings#what-the-meeting-page-holds"
+        },
+        {
+          "label": "Zoom",
+          "href": "/integrations/zoom"
+        }
+      ]
+    },
+    {
       "id": "zoom-recordings",
       "date": "2026-11-16",
       "title": "Zoom: captions, transcription and recordings",
