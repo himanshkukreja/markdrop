@@ -308,6 +308,7 @@ test("video player: the app's accent for the scrubber (a hex only), controls tha
   assert.match(page, /d\.ev==='theme'/);
   assert.match(page, /\/\^#\[0-9a-f\]\{6\}\$\/i\.test\(d\.accent\)/);   // nothing but #rrggbb reaches CSS
   assert.match(page, /var\(--player-accent,var\(--accent-hover\)\)/);
+  assert.match(page, /r\.setProperty\('--accent',hex\)/);               // the play button and slider too
   // The stage's own focus on load no longer pins the controls open; a focused control still does.
   assert.doesNotMatch(page, /#stage:focus-within #ui/);
   assert.match(page, /#ui:focus-within/);

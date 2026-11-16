@@ -1790,13 +1790,22 @@ function videoViewer(src, poster = null, captions = null, at = 0) {
 
   // The app that framed this player may move it ({md:1, ev:'seek', t:<seconds>, play?}: a meeting's
   // transcript time). Only from the framing window, and only when that window is one of the app's origins.
+  // The workspace's accent on everything accented here: the scrubber, the play button, the volume
+  // slider; as text (a menu's checked item) only when light enough to read on this dark player.
+  function brand(hex){
+    var r=document.documentElement.style,n=parseInt(hex.slice(1),16),
+        c=[n>>16&255,n>>8&255,n&255].map(function(x){x/=255;return x<=.03928?x/12.92:Math.pow((x+.055)/1.055,2.4)}),
+        lum=.2126*c[0]+.7152*c[1]+.0722*c[2];
+    r.setProperty('--player-accent',hex);r.setProperty('--accent',hex);r.setProperty('--accent-hover',hex);
+    if(lum>=.18)r.setProperty('--accent-text',hex);
+  }
   var APP=${JSON.stringify([...APP_ORIGINS])};
   window.addEventListener('message',function(e){
     try{
       if(e.source!==window.parent||window.parent===window)return;
       var d=e.data;if(!d||typeof d!=='object'||d.md!==1)return;
       // The accent: from the framing window on any origin (a workspace's own domain frames it too); a #rrggbb only.
-      if(d.ev==='theme'){if(typeof d.accent==='string'&&/^#[0-9a-f]{6}$/i.test(d.accent))document.documentElement.style.setProperty('--player-accent',d.accent);return}
+      if(d.ev==='theme'){if(typeof d.accent==='string'&&/^#[0-9a-f]{6}$/i.test(d.accent))brand(d.accent);return}
       if(APP.indexOf(e.origin)<0||d.ev!=='seek')return;
       var t=Number(d.t);if(!isFinite(t)||t<0||t>1e7)return;
       var go=function(){try{v.currentTime=Math.max(0,Math.min(t,(v.duration||t+1)-0.5));if(d.play===true){var p=v.play();if(p&&p.catch)p.catch(function(){})}}catch(_){}};
