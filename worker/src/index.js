@@ -44,8 +44,9 @@ const VIEWERS = new Set(["pdf", "sheet", "text", "docx", "pptx", "video", "audio
 // Anything else in ?poster= is ignored, so the parameter can only ever point
 // the player at a poster image on this origin.
 const POSTER_KEY = /^art\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\.poster\.jpg$/;
-// A video's captions (WebVTT beside it, services/captions.py): ?cc=<key> (+ ?ct=<its token>).
-const CAPTIONS_KEY = /^art\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\.captions\.vtt$/;
+// A video's captions (WebVTT beside it, services/captions.py): ?cc=<key> (+ ?ct=<its token>). A meeting
+// recording's captions, built from its transcript, sit beside it under art/zoom/<workspace>/ (zoom_media.py).
+const CAPTIONS_KEY = /^art\/(?:zoom\/)?[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\.captions\.vtt$/;
 const TOKEN_CHARS = /^[A-Za-z0-9_.-]{1,2048}$/;
 
 // The only two strings that can ever reach the data-theme attribute.
@@ -1576,7 +1577,26 @@ function videoViewer(src, poster = null, captions = null, at = 0) {
   .bar:hover .knob{transform:translateY(-50%) scale(1)}
   #hoverTime{position:absolute;bottom:22px;transform:translateX(-50%);background:var(--surface);
     border:1px solid var(--border-strong);padding:2px 6px;border-radius:5px;font-variant-numeric:tabular-nums;
-    font-size:11px;display:none;pointer-events:none;white-space:nowrap}
+    font-size:11px;display:none;pointer-events:none;white-space:nowrap;text-align:center}
+  /* Chapters (a {md:1, ev:'chapters'} message): gaps cut through the scrubber at each chapter's start
+     (a mask, so buffered and played show the gaps too), the title over the time on hover, and the
+     current one beside the time, which opens the list. */
+  #hoverTime .ht-c{display:block;max-width:min(260px,70vw);overflow:hidden;text-overflow:ellipsis;
+    font:600 12px/1.35 var(--sans);color:var(--text);margin-bottom:1px}
+  #hoverTime .ht-c:empty{display:none}
+  .chap{max-width:min(260px,30vw);min-width:0;flex:0 1 auto;gap:4px;padding:6px 8px;line-height:1.3;
+    color:var(--text-secondary);font-size:12px}
+  .chap:hover{color:var(--text)}
+  .chap span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .chap svg{flex:none;opacity:.8}
+  #chapMenu{min-width:0;display:flex}
+  #chapMenu[hidden]{display:none}
+  #chapMenu>div{left:0;right:auto;min-width:220px;max-width:min(340px,calc(100vw - 28px));
+    max-height:min(320px,calc(100vh - 96px));overflow:auto;overscroll-behavior:contain}
+  #chapList button{justify-content:flex-start;gap:10px;text-align:left;white-space:normal;align-items:baseline}
+  #chapList .ct{font-variant-numeric:tabular-nums;color:var(--text-muted);flex:none;min-width:3.2em}
+  #chapList button[aria-checked=true] .ct{color:inherit}
+  @media (max-width:480px){.chap{max-width:34vw}}
   .row{display:flex;align-items:center;gap:6px;margin-top:8px}
   button{background:transparent;border:0;color:var(--text);cursor:pointer;padding:6px;border-radius:7px;font-size:13px;
     min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center;line-height:0}
@@ -1646,6 +1666,10 @@ function videoViewer(src, poster = null, captions = null, at = 0) {
         <input id="vol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
       </div>
       <span class="time" id="time">0:00 / 0:00</span>
+      <div class="menu" id="chapMenu" hidden>
+        <button id="chap" class="chap" aria-haspopup="menu" aria-expanded="false" aria-controls="chapList"><span id="chapName"></span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg></button>
+        <div id="chapList" role="menu" aria-label="Chapters"></div>
+      </div>
       <span class="spacer"></span>
       <div class="menu" id="speedMenu">
         <button id="speedBtn" aria-label="Playback speed" title="Speed">1×</button>
@@ -1673,6 +1697,101 @@ function videoViewer(src, poster = null, captions = null, at = 0) {
   function flash(msg){toast.textContent=msg;toast.classList.add('on');
     clearTimeout(flash.t);flash.t=setTimeout(function(){toast.classList.remove('on')},700)}
 
+  // Chapters ({md:1, ev:'chapters', list:[{t, title}]} from the framing app): checked hard, drawn as text.
+  var CH_IN=[],CH=[],chCur=-2,chapOpen=false,chFor=null;
+  var chapMenu=document.getElementById('chapMenu'),chapBtn=document.getElementById('chap'),
+      chapName=document.getElementById('chapName'),chapList=document.getElementById('chapList'),
+      track=bar.querySelector('.track');
+  var htName=document.createElement('span'),htTime=document.createElement('span');
+  htName.className='ht-c';hoverTime.appendChild(htName);hoverTime.appendChild(htTime);
+  function setChapters(list){
+    // All or nothing: at most 40, each {t: finite seconds ≥ 0, ascending; title: text, ≤ 80 characters}.
+    if(!Array.isArray(list)||list.length>40)return;
+    var out=[],last=-1;
+    for(var i=0;i<list.length;i++){
+      var c=list[i];if(!c||typeof c!=='object')return;
+      var t=c.t,ti=c.title;
+      if(typeof t!=='number'||!isFinite(t)||t<0||t>1e7||t<=last||typeof ti!=='string')return;
+      ti=ti.replace(/[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]/g,' ').replace(/\\s+/g,' ').trim().slice(0,80);
+      if(!ti)return;
+      out.push({t:t,title:ti});last=t;
+    }
+    CH_IN=out;chFor=null;layoutChapters();
+  }
+  // Within the video only (its duration known): a chapter past the end is dropped; two at least, or none.
+  function layoutChapters(){
+    var d=v.duration;
+    if(chFor===d)return;chFor=d;      // once per list and duration (durationchange can repeat)
+    CH=isFinite(d)&&d>0?CH_IN.filter(function(c){return c.t<d}):[];
+    if(CH.length<2)CH=[];
+    chCur=-2;chapList.textContent='';
+    if(!CH.length){chapMenu.hidden=true;closeChapters(false);track.style.webkitMaskImage=track.style.maskImage='';return}
+    var stops=[];
+    CH.forEach(function(c,i){
+      if(c.t>0){var p=(c.t/d*100).toFixed(3)+'%';
+        stops.push('#000 calc('+p+' - 1px)','transparent calc('+p+' - 1px)','transparent calc('+p+' + 1px)','#000 calc('+p+' + 1px)')}
+      var b=document.createElement('button'),ct=document.createElement('span'),cn=document.createElement('span');
+      b.setAttribute('role','menuitemradio');b.setAttribute('aria-checked','false');b.tabIndex=-1;
+      ct.className='ct';ct.textContent=fmt(c.t);cn.textContent=c.title;
+      b.appendChild(ct);b.appendChild(cn);
+      b.onclick=function(e){e.stopPropagation();goChapter(i)};
+      chapList.appendChild(b);
+    });
+    var g=stops.length?'linear-gradient(90deg,'+stops.join(',')+')':'';
+    track.style.webkitMaskImage=g;track.style.maskImage=g;
+    chapMenu.hidden=false;markChapter();
+  }
+  function chapterAt(t){
+    var k=-1;for(var i=0;i<CH.length;i++){if(CH[i].t<=t)k=i;else break}
+    return k;
+  }
+  function markChapter(){
+    if(!CH.length)return;
+    var k=chapterAt(v.currentTime||0);
+    if(k===chCur)return;chCur=k;
+    var name=k>=0?CH[k].title:'Chapters';
+    chapName.textContent=name;chapBtn.title=name;
+    chapBtn.setAttribute('aria-label',(k>=0?'Chapter: '+name+'. ':'')+'Chapters');
+    [].forEach.call(chapList.children,function(b,i){b.setAttribute('aria-checked',i===k?'true':'false')});
+  }
+  function goChapter(i){
+    var c=CH[i];if(!c)return;
+    v.currentTime=c.t;paint();flash(c.title);
+    closeChapters(true);
+  }
+  function openChapters(){
+    if(!CH.length)return;
+    menu.classList.remove('open');
+    chapOpen=true;chapMenu.classList.add('open');chapBtn.setAttribute('aria-expanded','true');wake();
+    var items=chapList.children,at=items[Math.max(0,chCur)];
+    if(at){at.focus();at.scrollIntoView({block:'nearest'})}
+  }
+  function closeChapters(refocus){
+    if(!chapOpen)return;
+    chapOpen=false;chapMenu.classList.remove('open');chapBtn.setAttribute('aria-expanded','false');
+    if(refocus)chapBtn.focus();
+  }
+  chapBtn.onclick=function(e){e.stopPropagation();chapOpen?closeChapters(false):openChapters()};
+  chapBtn.addEventListener('keydown',function(e){
+    // Its own keys, not the player's (space would play, arrows would seek).
+    if(e.key===' '||e.key==='Enter'){e.stopPropagation()}
+    else if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();e.stopPropagation();openChapters()}
+  });
+  chapList.addEventListener('keydown',function(e){
+    var items=[].slice.call(chapList.children),i=items.indexOf(document.activeElement),n=items.length,go=-1;
+    if(e.key==='ArrowDown')go=(i+1)%n;
+    else if(e.key==='ArrowUp')go=(i-1+n)%n;
+    else if(e.key==='Home')go=0;
+    else if(e.key==='End')go=n-1;
+    else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();closeChapters(true);return}
+    else if(e.key==='Tab'){closeChapters(false);return}
+    else if(e.key===' '||e.key==='Enter'){e.stopPropagation();return}
+    else return;
+    e.preventDefault();e.stopPropagation();items[go].focus();
+  });
+  v.addEventListener('loadedmetadata',layoutChapters);
+  v.addEventListener('durationchange',layoutChapters);
+
   // Controls hide while playing and return on movement or focus.
   var idleTimer,uiShown=null;
   function ui(on){if(on===uiShown)return;uiShown=on;
@@ -1681,6 +1800,7 @@ function videoViewer(src, poster = null, captions = null, at = 0) {
     stage.classList.add('show');stage.classList.remove('idle');ui(true);
     clearTimeout(idleTimer);
     if(!v.paused)idleTimer=setTimeout(function(){
+      if(document.querySelector('.menu.open'))return wake();   // a menu open keeps the controls up
       stage.classList.remove('show');stage.classList.add('idle');ui(false);},2200);
   }
   stage.addEventListener('mousemove',wake);
@@ -1706,6 +1826,7 @@ function videoViewer(src, poster = null, captions = null, at = 0) {
     var d=v.duration||0,p=d?v.currentTime/d*100:0;
     played.style.width=p+'%';knob.style.left=p+'%';
     timeEl.textContent=fmt(v.currentTime)+' / '+fmt(d);
+    markChapter();
     if(v.buffered.length){
       // The range under the playhead, not range 0 — after a seek they differ.
       for(var i=0;i<v.buffered.length;i++){
@@ -1728,7 +1849,14 @@ function videoViewer(src, poster = null, captions = null, at = 0) {
   bar.addEventListener('pointerdown',function(e){scrubbing=true;bar.setPointerCapture(e.pointerId);v.currentTime=seekFromEvent(e);paint()});
   bar.addEventListener('pointermove',function(e){
     var r=bar.getBoundingClientRect(),x=(e.clientX-r.left)/r.width;
-    if(x>=0&&x<=1&&v.duration){hoverTime.style.display='block';hoverTime.style.left=(x*100)+'%';hoverTime.textContent=fmt(x*v.duration)}
+    if(x>=0&&x<=1&&v.duration){
+      var ht=x*v.duration,hc=chapterAt(ht);
+      htName.textContent=hc>=0?CH[hc].title:'';htTime.textContent=fmt(ht);
+      hoverTime.style.display='block';
+      // Kept inside the bar: a long title near either end would otherwise be cut off.
+      var hw=hoverTime.offsetWidth/2;
+      hoverTime.style.left=Math.max(hw,Math.min(r.width-hw,x*r.width))+'px';
+    }
     if(scrubbing){v.currentTime=seekFromEvent(e);paint()}
   });
   bar.addEventListener('pointerleave',function(){hoverTime.style.display='none'});
@@ -1753,8 +1881,8 @@ function videoViewer(src, poster = null, captions = null, at = 0) {
     };
     list.appendChild(b);
   });
-  sBtn.onclick=function(e){e.stopPropagation();menu.classList.toggle('open')};
-  document.addEventListener('click',function(){menu.classList.remove('open')});
+  sBtn.onclick=function(e){e.stopPropagation();closeChapters(false);menu.classList.toggle('open')};
+  document.addEventListener('click',function(){menu.classList.remove('open');closeChapters(false)});
 
   var pip=document.getElementById('pip');
   if(!document.pictureInPictureEnabled)pip.style.display='none';
@@ -1806,6 +1934,8 @@ function videoViewer(src, poster = null, captions = null, at = 0) {
       var d=e.data;if(!d||typeof d!=='object'||d.md!==1)return;
       // The accent: from the framing window on any origin (a workspace's own domain frames it too); a #rrggbb only.
       if(d.ev==='theme'){if(typeof d.accent==='string'&&/^#[0-9a-f]{6}$/i.test(d.accent))brand(d.accent);return}
+      // Chapters: display-only text, so from the framing window on any origin, as the accent.
+      if(d.ev==='chapters'){setChapters(d.list);return}
       if(APP.indexOf(e.origin)<0||d.ev!=='seek')return;
       var t=Number(d.t);if(!isFinite(t)||t<0||t>1e7)return;
       var go=function(){try{v.currentTime=Math.max(0,Math.min(t,(v.duration||t+1)-0.5));if(d.play===true){var p=v.play();if(p&&p.catch)p.catch(function(){})}}catch(_){}};
