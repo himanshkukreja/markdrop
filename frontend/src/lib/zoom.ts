@@ -6,6 +6,7 @@
  *   POST   /api/v1/zoom/connect/finish            {code, state? | workspace_id, team_id?}  (the callback page)
  *   PUT    /api/v1/zoom/connection                {workspace_id, account_id, client_id, client_secret?, secret_token?, team_id?}
  *   PUT    /api/v1/zoom/team                      {workspace_id, team_id}
+ *   PUT    /api/v1/zoom/media                     {workspace_id, enabled}: Transcribe and keep recordings (admins)
  *   DELETE /api/v1/zoom/connection?workspace_id=&delete_meetings=
  *   GET    /api/v1/zoom/recordings?workspace_id=&days=|from=&to=
  *   POST   /api/v1/zoom/import                    {workspace_id, uuids}
@@ -14,7 +15,10 @@
  */
 import { request } from "@/lib/workspaces";
 
-export type ZoomState = "processing" | "imported" | "duplicate" | "no_transcript" | "failed" | "ignored";
+export type ZoomState = "processing" | "imported" | "duplicate" | "no_transcript" | "failed" | "ignored" | "waiting";
+
+/** Where a meeting's transcript comes from: Zoom's transcript, its closed captions, or Markdrop transcribing the audio. */
+export type ZoomSource = "transcript" | "captions" | "transcribe";
 
 export interface ZoomScope { scope: string; why: string; required: boolean }
 
@@ -34,26 +38,38 @@ export interface ZoomStatus {
   scopes_needed: ZoomScope[] | null;
   events: string[] | null;
   no_transcript_help: string;
+  /** The server can transcribe meetings and keep recordings (the switch is offered). */
+  media_available?: boolean;
+  /** Transcribe and keep recordings is on for this workspace. */
+  media_on?: boolean;
   team: ZoomTeam | null;
   teams: ZoomTeam[] | null;
   connection: {
     connected_at: string | null; last_event_at: string | null; last_import_at: string | null; last_sync_at: string | null;
     verified: boolean; broken: string | null;
     imported: number; ignored: number; no_transcript: number; failed: number; duplicates: number;
+    from_captions?: number; transcribed?: number;
     account_id?: string | null; client_id?: string | null; connected_by?: string | null; approved_by?: string | null;
     missing_scopes?: ZoomScope[]; test_error?: string | null; last_error?: string | null;
   } | null;
   recent: Array<{ uuid: string; topic: string | null; date: string | null; state: ZoomState; reason: string | null;
-    slug: string | null; host: string | null; via: "webhook" | "backfill"; at: string | null }> | null;
+    slug: string | null; host: string | null; via: "webhook" | "backfill"; at: string | null;
+    source?: ZoomSource | null; recording?: string | null }> | null;
 }
 
 export interface ZoomRecording {
   uuid: string; topic: string; start_time: string | null; date: string | null; time: string | null; duration_min: number | null;
   host: { id: string; name: string; email: string };
   transcript: boolean; imported: boolean; slug: string | null; state: ZoomState | null;
+  captions?: boolean; video?: boolean; source?: ZoomSource | null;
+  /** The recording kept in Markdrop: stored, being copied, or not. */
+  recording?: "stored" | "copying" | null;
+  /** Already here without its recording (the switch is on): importing it again adds the recording. */
+  can_add_recording?: boolean;
 }
 
-export interface ZoomResult { uuid: string; status: ZoomState; reason?: string | null; slug?: string | null; url?: string; topic?: string | null }
+export interface ZoomResult { uuid: string; status: ZoomState; reason?: string | null; slug?: string | null; url?: string; topic?: string | null;
+  recording?: "queued" | null }
 
 const q = (ws: string) => `workspace_id=${encodeURIComponent(ws)}`;
 const put = (body: unknown): RequestInit => ({ method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -61,6 +77,7 @@ const put = (body: unknown): RequestInit => ({ method: "PUT", headers: { "Conten
 export const zoomStatus = (ws: string) => request<ZoomStatus>(`/api/v1/zoom/status?${q(ws)}`);
 export const zoomConnect = (body: { workspace_id: string; account_id: string; client_id: string; client_secret?: string | null;
   secret_token?: string | null; team_id?: string | null }) => request<ZoomStatus>("/api/v1/zoom/connection", put(body));
+export const zoomSetMedia = (ws: string, enabled: boolean) => request<ZoomStatus>("/api/v1/zoom/media", put({ workspace_id: ws, enabled }));
 export const zoomSetTeam = (ws: string, team_id: string) => request<ZoomStatus>("/api/v1/zoom/team", put({ workspace_id: ws, team_id }));
 export const zoomDisconnect = (ws: string, deleteMeetings = false) =>
   request<ZoomStatus & { deleted_meetings?: number }>(`/api/v1/zoom/connection?${q(ws)}${deleteMeetings ? "&delete_meetings=true" : ""}`, { method: "DELETE" });
@@ -75,7 +92,8 @@ export const zoomRecordings = (ws: string, range: { days?: number; from?: string
     if (range.from) p.set("from", range.from);
     if (range.to) p.set("to", range.to);
   } else p.set("days", String(range.days ?? 30));
-  return request<{ from: string; to: string; meetings: ZoomRecording[]; total: number; not_in_zoom: string[]; no_transcript_help: string }>(
+  return request<{ from: string; to: string; meetings: ZoomRecording[]; total: number; not_in_zoom: string[]; no_transcript_help: string;
+    media_on?: boolean }>(
     `/api/v1/zoom/recordings?${p.toString()}`);
 };
 export const zoomImport = (ws: string, uuids: string[]) =>

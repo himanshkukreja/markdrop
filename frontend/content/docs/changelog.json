@@ -24,6 +24,30 @@
   "next": [],
   "entries": [
     {
+      "id": "zoom-recordings",
+      "date": "2026-11-16",
+      "title": "Zoom: captions, transcription and recordings",
+      "kind": "new",
+      "area": "Integrations",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Zoom meetings without a Zoom transcript now come in from their closed captions, and a workspace admin can turn on Transcribe and keep recordings: Markdrop transcribes the rest from their audio and keeps each meeting's recording, playable only by people who can read the meeting.",
+      "body": "- **Captions count.** A recorded meeting with no Zoom transcript but with closed captions comes in from the captions, automatically. Zoom's own transcript is still the first choice. [Zoom](/integrations/zoom)\n- **Transcribe and keep recordings.** Off by default; a workspace admin turns it on in **Workspace settings › Integrations › Zoom**. Meetings without a transcript or captions are transcribed from their audio (never the video, and the downloaded audio is deleted right after), with speakers named from Zoom's active-speaker timeline when there is one. Within fair-use limits. [Transcribe and keep recordings](/integrations/zoom#transcribe-and-keep-recordings)\n- **Recordings on the meeting page.** The meeting bar gets a **Recording** button that plays the meeting's video right there. Only people who can read the meeting can play it, and deleting the meeting deletes its video.\n- **Import past meetings.** Each meeting shows where its transcript comes from (Transcript, Captions, Will transcribe), and meetings already here can get their recording with **Add recording**. [Import past meetings](/integrations/zoom#import-past-meetings)\n- **From an AI app and the API.** `zoom_status` says whether the switch is on, `import_zoom_meetings` lists each meeting's source, and `get_meeting` says `has_recording`. New API routes: `PUT /api/v1/zoom/media`, `GET` and `DELETE /api/v1/meetings/{id}/recording`. [Tools](/ai/tools#zoom)\n- **Privacy.** The [privacy policy](https://markdrop.in/privacy#zoom) says what changes when the switch is on, and names the speech-to-text provider.",
+      "links": [
+        {
+          "label": "Zoom",
+          "href": "/integrations/zoom#transcribe-and-keep-recordings"
+        },
+        {
+          "label": "Privacy policy",
+          "href": "https://markdrop.in/privacy#zoom"
+        }
+      ]
+    },
+    {
       "id": "terms-of-use",
       "date": "2026-11-11",
       "title": "Terms of Use",

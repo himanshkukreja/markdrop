@@ -169,7 +169,7 @@ class Transcribe(MediaWorld):
         self.assertEqual(len(self.dg.received), 1)
         sent = self.dg.received[0]
         self.assertEqual((sent["content_type"], sent["body"]), ("audio/mp4", b"AUDIO-ONLY-BYTES"))
-        self.assertEqual((sent["params"]["model"], sent["params"]["diarize"]), ("nova-3", "true"))
+        self.assertEqual((sent["params"]["model"], sent["params"]["diarize"], sent["params"]["mip_opt_out"]), ("nova-3", "true", "true"))
         self.assertEqual(temp_audio() - self.temp_before, set())    # the downloaded audio is gone
         # Minutes in the ledger, for the workspace (internal: never shown to users).
         led = await self.db[ai_usage.REQUESTS].find_one({"feature": "zoom_transcribe"})

@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacy" },
 };
 
-const UPDATED = "11 November 2026";
+const UPDATED = "16 November 2026";
 
 function H2({ id, children }: { id: string; children: React.ReactNode }) {
   return <h2 id={id} className="mt-12 mb-3 scroll-mt-24 text-h3 text-text">{children}</h2>;
@@ -125,8 +125,9 @@ export default function PrivacyPage() {
         <Li><strong className="text-text">Who the users are.</strong> The Zoom account&rsquo;s users (name, email, Zoom user ID), to know
           who hosted a meeting and whether they belong to the team the admin picked. The list is used and not kept.</Li>
         <Li><strong className="text-text">Recordings of the team&rsquo;s meetings.</strong> For cloud-recorded meetings hosted by a member
-          of that team: the topic, start time, duration and the list of recording files, and the audio transcript (a text file).
-          Markdrop never downloads the audio or video.</Li>
+          of that team: the topic, start time, duration and the list of recording files, and the audio transcript (a text file)
+          or, when Zoom made none, its closed captions (a text file). Unless the workspace turns on Transcribe and keep recordings
+          (below), Markdrop never downloads the audio or video.</Li>
         <Li><strong className="text-text">Who joined.</strong> The names of the people who joined those meetings, to list them as attendees.</Li>
         <Li><strong className="text-text">Who connected it.</strong> The Zoom account&rsquo;s ID and the name and email of the Zoom admin who
           approved the Markdrop app.</Li>
@@ -137,6 +138,17 @@ export default function PrivacyPage() {
         AI (see Anthropic below) and the other things meetings do in Markdrop. Meetings hosted by anyone else are skipped, and nothing about
         them is stored, not even the topic. Zoom data is used only to provide this feature to that workspace: it isn&rsquo;t sold, used for
         advertising, used to train AI models, or shared beyond the processors listed below.
+      </P>
+      <P>
+        <strong className="text-text">Transcribe and keep recordings (off unless a workspace admin turns it on).</strong> For that workspace
+        only, Markdrop then also downloads the team&rsquo;s meeting recordings. For a meeting Zoom made no transcript or captions for, its
+        audio (never the video) is sent to Deepgram, our speech-to-text provider, to write the transcript; the downloaded audio is
+        deleted right after, and Deepgram is asked not to use it to improve its models. The meeting&rsquo;s video is stored in Markdrop
+        (Cloudflare, below) with the meeting, private: only people who can read that meeting can play it, through links that expire
+        after a few hours. Markdrop also reads Zoom&rsquo;s active-speaker timeline, to put names on the transcript&rsquo;s speakers. A
+        meeting&rsquo;s stored video is deleted when the meeting is deleted (including Disconnect&rsquo;s &ldquo;delete the meetings&rdquo;),
+        when its page is deleted for good, or when its owner or a workspace admin removes it. Turning the switch off stops new
+        downloads; videos already stored stay with their meetings until then.
       </P>
       <P>
         <strong className="text-text">Kept and deleted.</strong> Zoom&rsquo;s access and refresh tokens (and an app&rsquo;s secrets, when the company
@@ -174,6 +186,9 @@ export default function PrivacyPage() {
       <ul className="mb-4 list-disc pl-5">
         <Li>Vercel (website hosting) and Amazon Web Services in Hyderabad, India (our API and our database, which runs on our own server there, including connected integrations&rsquo; encrypted tokens and imported meetings, with its backups).</Li>
         <Li>Cloudflare (file storage, the file viewer, Markdrop Guides sites, DNS and the Share relay).</Li>
+        <Li>Deepgram (speech-to-text, only for workspaces that turn on Zoom&rsquo;s Transcribe and keep recordings): the audio of a Zoom
+          meeting that has no transcript, to write one. Sent with Deepgram&rsquo;s model-improvement program opted out; Markdrop keeps
+          only how many minutes were transcribed.</Li>
         <Li>Resend and Brevo (sign-in and notification email).</Li>
         <Li>PostHog and Google (analytics, as above).</Li>
         <Li>Anthropic (AI in pages, guides, search, Ask, meetings, Team, analytics and Jira drafts, which are powered by Anthropic&rsquo;s Claude models): when you use an AI feature, the text it needs is sent to Anthropic&rsquo;s API to answer. For AI search and Ask, that is your question (and earlier questions in the same conversation) and short excerpts of the matching items you can open; for a workspace's Ask suggestions, the meeting topics, decisions and action items and the page titles and headings every member of it can open (never encrypted items, and only the title of a password-protected one). Nothing sent is used to train models: Anthropic doesn&rsquo;t train on data sent through its commercial API. Encrypted items are never sent. We keep only usage counts (tokens, cost, which feature), not the text sent. The one exception: your Ask conversations (questions, answers and their sources) are kept for you alone, so you can return to them, and deleted 90 days after the last question or when you clear them.</Li>

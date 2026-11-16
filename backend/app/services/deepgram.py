@@ -1,6 +1,6 @@
 """Deepgram speech-to-text, as little of it as Zoom meetings without a transcript need (no SDK).
 
-    POST <deepgram_api_base>/listen?model=nova-3&diarize=true&smart_format=true&utterances=true
+    POST <deepgram_api_base>/listen?model=nova-3&diarize=true&smart_format=true&utterances=true&mip_opt_out=true
          Authorization: Token <MARKDROP_DEEPGRAM_API_KEY>, the audio file as the body
 
 Only ever audio (a Zoom recording's M4A, read from a temporary file that the caller deletes right
@@ -43,8 +43,10 @@ def configured() -> bool:
 
 
 def params() -> dict[str, str]:
+    # mip_opt_out: Deepgram's Model Improvement Program is opted out of, so the audio is never used to
+    # train its models (the privacy policy's promise for Zoom data).
     return {"model": get_settings().deepgram_model or "nova-3", "diarize": "true", "smart_format": "true",
-            "utterances": "true", "punctuate": "true"}
+            "utterances": "true", "punctuate": "true", "mip_opt_out": "true"}
 
 
 async def _file_chunks(path: str):

@@ -3,7 +3,7 @@
   "info": {
     "title": "Markdrop",
     "version": "0.1.0",
-    "x-markdrop-exported": "2026-11-10"
+    "x-markdrop-exported": "2026-11-16"
   },
   "paths": {
     "/api/v1/trash": {
@@ -19199,6 +19199,96 @@
         }
       }
     },
+    "/api/v1/meetings/{meeting_id}/recording": {
+      "get": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Play a meeting's recording",
+        "operationId": "get_recording_api_v1_meetings__meeting_id__recording_get",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Remove a meeting's recording",
+        "operationId": "delete_recording_api_v1_meetings__meeting_id__recording_delete",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/meetings/{meeting_id}/regenerate": {
       "post": {
         "tags": [
@@ -25260,6 +25350,51 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/TeamIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/zoom/media": {
+      "put": {
+        "tags": [
+          "zoom"
+        ],
+        "summary": "Transcribe and keep Zoom recordings",
+        "operationId": "put_media_api_v1_zoom_media_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaIn"
               }
             }
           },
@@ -33116,6 +33251,26 @@
         },
         "type": "object",
         "title": "MarkRead"
+      },
+      "MediaIn": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{24}$",
+            "title": "Workspace Id"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "Transcribe meetings without a transcript (their audio) and keep their recordings."
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "enabled"
+        ],
+        "title": "MediaIn"
       },
       "MediaInfo": {
         "properties": {

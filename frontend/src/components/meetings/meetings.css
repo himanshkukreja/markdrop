@@ -226,6 +226,12 @@
   .mt-pagebar__actions > * { flex: 1 1 auto; }
 }
 
+/* The meeting's Zoom recording, under the bar (MeetingRecording.tsx). */
+.mt-recording { display: flex; flex-direction: column; gap: 8px; margin: 0 0 10px; }
+.mt-recording__frame { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: 70vh; overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--bg); }
+.mt-recording__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.mt-recording__actions > span { flex: 1 1 200px; min-width: 0; }
 
 /* ── import dialog ─────────────────────────────────────────────────────── */
 .mt-import { display: flex; flex-direction: column; gap: 14px; }

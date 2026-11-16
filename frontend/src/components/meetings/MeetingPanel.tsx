@@ -24,6 +24,7 @@ import {
   type Meeting,
 } from "@/lib/meetings";
 import { openAssistant } from "@/components/assistant/store";
+import { MeetingRecording } from "./MeetingRecording";
 import "@/components/pages/ai/ask-pill.css";
 import "@/components/pages/ai/ask.css";
 import "./meetings.css";
@@ -62,13 +63,15 @@ function useMeeting(id: string): [Meeting | null, (m: Meeting) => void, () => Pr
  * people do next — read the transcript, ask the meeting. On the transcript: back to the meeting, ask.
  */
 export function MeetingHeader({ meetingId, role, extra }: { meetingId: string; role?: string; extra?: React.ReactNode }) {
-  const [m] = useMeeting(meetingId);
+  const [m, , reload] = useMeeting(meetingId);
+  const [playing, setPlaying] = useState(false);
   if (!m) return null;
   // Who joined; with nobody known to have joined, the calendar invite, worded "invited" (never "people").
   const invitedOnly = m.attendees.length === 0 && (m.invited?.length ?? 0) > 0;
   const people = invitedOnly ? m.invited ?? [] : m.attendees;
   const ask = () => openAssistant({ scope: "meetings" });
   return (
+    <>
     <div className="mt-pagebar no-print" data-testid="meeting-header">
       <div className="mt-pagebar__facts">
         {people.length > 0 && (
@@ -93,9 +96,17 @@ export function MeetingHeader({ meetingId, role, extra }: { meetingId: string; r
         {role === "transcript"
           ? <Button size="sm" variant="secondary" iconLeft="arrowLeft" href={`/${m.slug}`}>The meeting</Button>
           : m.transcript_slug && <Button size="sm" variant="secondary" iconLeft="lines" href={`/${m.transcript_slug}`} data-testid="meeting-transcript">Transcript</Button>}
+        {role !== "transcript" && m.recording && (
+          <Button size="sm" variant="secondary" iconLeft="film" aria-expanded={playing} onClick={() => setPlaying((p) => !p)}
+            data-testid="meeting-recording-open">Recording</Button>
+        )}
         <Button size="sm" iconLeft="sparkle" onClick={ask} data-testid="meeting-ask">Ask this meeting</Button>
       </div>
     </div>
+    {playing && m.recording && (
+      <MeetingRecording m={m} onClose={() => setPlaying(false)} onRemoved={() => { setPlaying(false); void reload(); }} />
+    )}
+    </>
   );
 }
 

@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Alert, Badge, Button, Checkbox, ConfirmDialog, CopyButton, Dialog, Field, Icon, Input, SegmentedControl, Select, Skeleton, Spinner, useToast,
+  Alert, Badge, Button, Checkbox, ConfirmDialog, CopyButton, Dialog, Field, Icon, Input, SegmentedControl, Select, Skeleton, Spinner, Switch, useToast,
 } from "@/components/ui";
 import { updateTeam } from "@/lib/teams";
 import {
-  zoomConnect, zoomConnectStart, zoomDisconnect, zoomImport, zoomRecordings, zoomSetTeam, zoomStatus,
+  zoomConnect, zoomConnectStart, zoomDisconnect, zoomImport, zoomRecordings, zoomSetMedia, zoomSetTeam, zoomStatus,
   type ZoomRecording, type ZoomResult, type ZoomStatus,
 } from "@/lib/zoom";
 
@@ -18,7 +18,9 @@ import {
  * in their own Zoom account (the steps are right here) and a workspace admin pastes its Account ID,
  * Client ID, Client Secret and Secret Token; Markdrop checks them with Zoom and lists missing scopes.
  * Recorded meetings hosted by members of the chosen team come in on their own, visible to that team;
- * admins and the team's leads import past ones (Import past meetings). Backend: routers/zoom.py.
+ * admins and the team's leads import past ones (Import past meetings). Meetings without a Zoom transcript use
+ * Zoom's captions; an admin's Transcribe and keep recordings switch (offered when the server can, off by
+ * default) transcribes the rest from their audio and keeps each meeting's video with it. Backend: routers/zoom.py.
  */
 export function ZoomWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolean }) {
   const toast = useToast();
@@ -120,6 +122,15 @@ export function ZoomWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolea
             )}
           </dl>
 
+          {st.media_available && (isAdmin
+            ? <MediaSwitch id={id} st={st} onSaved={setSt} />
+            : st.media_on && (
+              <p className="m-0 text-[13px] text-text-secondary" data-testid="zoom-media-on">
+                <Icon name="film" size={14} className="mr-1 inline align-[-2px]" />
+                Meetings without a Zoom transcript are transcribed from their recording, and recordings are kept with their meetings.
+              </p>
+            ))}
+
           {!st.team && (
             <Alert tone="info" title="Pick a team">
               Nothing comes in until {isAdmin ? "you pick" : "an admin picks"} the team whose members&apos; Zoom meetings Markdrop brings in.
@@ -178,7 +189,7 @@ export function ZoomWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolea
                   </li>
                 ))}
               </ul>
-              {st.recent.some((r) => r.state === "no_transcript") && <p className="text-caption text-text-muted">{st.no_transcript_help}</p>}
+              {st.recent.some((r) => r.state === "no_transcript") && <p className="text-caption text-text-muted">{noTranscriptHelp(st)}</p>}
             </div>
           )}
 
@@ -247,6 +258,62 @@ export function ZoomWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolea
   );
 }
 
+function noTranscriptHelp(st: ZoomStatus): string {
+  return st.media_available && !st.media_on
+    ? `${st.no_transcript_help} Or a workspace admin turns on Transcribe and keep recordings here.`
+    : st.no_transcript_help;
+}
+
+/**
+ * Transcribe and keep recordings (admins). Off by default: Markdrop then never downloads a meeting's audio or
+ * video. Turning it on asks first, because it changes that for this workspace.
+ */
+function MediaSwitch({ id, st, onSaved }: { id: string; st: ZoomStatus; onSaved: (s: ZoomStatus) => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [ask, setAsk] = useState(false);
+  const save = async (on: boolean) => {
+    setBusy(true);
+    try {
+      onSaved(await zoomSetMedia(id, on));
+      toast.success(on ? "Markdrop transcribes meetings without a transcript and keeps their recordings now." : "Transcribe and keep recordings is off.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "That didn't save.");
+    } finally { setBusy(false); setAsk(false); }
+  };
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5 rounded-lg border border-border bg-bg p-3" data-testid="zoom-media">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+        <span className="text-[13px] font-medium text-text">Transcribe and keep recordings</span>
+        <Switch aria-label="Transcribe and keep recordings" checked={!!st.media_on} disabled={busy} data-testid="zoom-media-switch"
+          onChange={(e) => { if (e.target.checked) setAsk(true); else void save(false); }} />
+      </div>
+      <p className="m-0 text-[13px] leading-5 text-text-secondary">
+        {st.media_on
+          ? <>Meetings Zoom made no transcript or captions for are transcribed from their audio, and each meeting&apos;s video is kept with
+            it: only people who can read the meeting can play it. Deleting a meeting deletes its video.</>
+          : <>Off: Markdrop never downloads a meeting&apos;s audio or video; meetings without a Zoom transcript use Zoom&apos;s captions when
+            there are any. Turn it on to transcribe the rest from their recording and keep the recordings with their meetings.</>}
+      </p>
+      <ConfirmDialog
+        open={ask}
+        onClose={() => setAsk(false)}
+        title="Transcribe and keep recordings?"
+        description={(
+          <>
+            Markdrop will download this workspace&apos;s Zoom recordings. For meetings without a Zoom transcript or captions, the
+            audio (never the video) goes to Markdrop&apos;s speech-to-text provider and is deleted right after. Each meeting&apos;s video
+            is stored in Markdrop with the meeting, and only people who can read the meeting can play it. Fair-use limits apply.
+            See <Link href="/privacy#zoom" className="text-accent-text hover:underline">Privacy</Link>.
+          </>
+        )}
+        confirmLabel="Turn on"
+        onConfirm={() => save(true)}
+      />
+    </div>
+  );
+}
+
 function shortWhen(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -259,6 +326,7 @@ function StateBadge({ state }: { state: string | null }) {
   if (state === "no_transcript") return <Badge size="sm" tone="warning">No transcript</Badge>;
   if (state === "failed") return <Badge size="sm" tone="danger">Didn&apos;t import</Badge>;
   if (state === "processing") return <Badge size="sm" tone="info">Importing</Badge>;
+  if (state === "waiting") return <Badge size="sm" tone="info">Transcribing</Badge>;
   if (state === "ignored") return <Badge size="sm" tone="neutral">Not the team&apos;s</Badge>;
   return null;
 }
@@ -304,11 +372,12 @@ function OneClick({ id, st, onAdvanced }: { id: string; st: ZoomStatus; onAdvanc
         </Step>
         <Step n={2} title="Connect Zoom">
           You go to Zoom and a <strong>Zoom account admin</strong> (you, or send them this page) approves the Markdrop app for the whole
-          Zoom account. Markdrop only reads users, cloud recordings&apos; transcripts and who joined; it never changes anything in Zoom.
+          Zoom account. Markdrop only reads users, cloud recordings&apos; transcripts and captions, and who joined (the recordings
+          themselves only if you later turn on Transcribe and keep recordings); it never changes anything in Zoom.
         </Step>
         <Step n={3} title="Turn on transcripts in Zoom">
           In the Zoom web portal (Account Management › Account Settings › Recording), turn on <strong>Cloud recording</strong> and
-          <strong> Create audio transcript</strong>, and lock both. Only recorded meetings with a transcript come in.
+          <strong> Create audio transcript</strong>, and lock both. Meetings without a transcript use Zoom&apos;s captions, if any.
         </Step>
       </ol>
       {err && <Alert tone="danger">{err}</Alert>}
@@ -404,7 +473,8 @@ function Setup({ id, st, onSaved, onCancel }: { id: string; st: ZoomStatus; onSa
           </Step>
           <Step n={8} title="Turn on transcripts in Zoom">
             In the Zoom web portal (Account Management › Account Settings › Recording), turn on <strong>Cloud recording</strong> and, under its
-            advanced settings, <strong>Create audio transcript</strong>. Lock both so every host has them. Only recorded meetings with a transcript come in.
+            advanced settings, <strong>Create audio transcript</strong>. Lock both so every host has them. Meetings without a transcript use
+            Zoom&apos;s captions, if any.
           </Step>
         </ol>
       </div>
@@ -474,19 +544,20 @@ function Importer({ id, st, onClose }: { id: string; st: ZoomStatus; onClose: ()
       const out = await zoomRecordings(id, range === "custom" ? { from, to } : { days: Number(range) });
       setRows(out.meetings);
       setNotInZoom(out.not_in_zoom);
-      setPicked(new Set(out.meetings.filter((m) => m.transcript && !m.imported).map((m) => m.uuid)));
+      setPicked(new Set(out.meetings.filter((m) => !m.imported && hasSource(m)).map((m) => m.uuid)));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Couldn't list the Zoom meetings.");
     } finally { setLoading(false); }
   }, [id, range, from, to]);
   useEffect(() => { if (range !== "custom") void fetchList(); }, [range]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const ready = useMemo(() => (rows ?? []).filter((m) => m.transcript && !m.imported), [rows]);
+  const ready = useMemo(() => (rows ?? []).filter((m) => !m.imported && hasSource(m)), [rows]);
   const allOn = ready.length > 0 && ready.every((m) => picked.has(m.uuid));
 
   return (
     <Dialog open onClose={onClose} size="lg" title="Import past Zoom meetings"
-      description={<>Recorded meetings hosted by members of <strong>{st.team?.name}</strong>. They come in as past meetings: summarised, in the team, and nobody is notified.</>}
+      description={<>Recorded meetings hosted by members of <strong>{st.team?.name}</strong>. They come in as past meetings: summarised, in the team, and nobody is notified.
+        {st.media_on ? " Ones Markdrop transcribes arrive a few minutes later, and recordings are added in the background." : ""}</>}
       footer={(
         <>
           <Button variant="secondary" onClick={onClose}>Close</Button>
@@ -497,8 +568,11 @@ function Importer({ id, st, onClose }: { id: string; st: ZoomStatus; onClose: ()
               const out = await zoomImport(id, [...picked].slice(0, 50));
               setResults(out.results);
               const done = new Set(out.results.filter((r) => r.status === "imported" || r.status === "duplicate").map((r) => r.uuid));
-              setRows((rs) => (rs ?? []).map((m) => done.has(m.uuid) ? { ...m, imported: true,
-                slug: out.results.find((r) => r.uuid === m.uuid)?.slug ?? m.slug } : m));
+              const queued = new Set(out.results.filter((r) => r.status === "waiting").map((r) => r.uuid));
+              const recs = new Set(out.results.filter((r) => r.recording === "queued").map((r) => r.uuid));
+              setRows((rs) => (rs ?? []).map((m) => done.has(m.uuid) ? { ...m, imported: true, can_add_recording: false,
+                recording: recs.has(m.uuid) ? "copying" : m.recording, slug: out.results.find((r) => r.uuid === m.uuid)?.slug ?? m.slug }
+                : queued.has(m.uuid) ? { ...m, state: "waiting" } : m));
               setPicked(new Set());
             } catch (e) {
               setErr(e instanceof Error ? e.message : "That didn't import.");
@@ -529,23 +603,29 @@ function Importer({ id, st, onClose }: { id: string; st: ZoomStatus; onClose: ()
         ) : rows && (
           <div className="flex min-w-0 flex-col gap-1">
             {ready.length > 0 && (
-              <Checkbox label={`Select all ready to import (${ready.length})`} checked={allOn}
+              <Checkbox label={`Select all ready to import (${ready.length})`} checked={allOn && ready.length > 0}
                 onChange={(e) => setPicked(e.target.checked ? new Set(ready.map((m) => m.uuid)) : new Set())} />
             )}
             <ul className="m-0 flex max-h-[380px] min-w-0 list-none flex-col divide-y divide-border overflow-auto rounded-lg border border-border p-0">
               {rows.map((m) => (
                 <li key={m.uuid} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-[13px]" data-testid="zoom-row">
-                  <Checkbox aria-label={`Import ${m.topic}`} checked={picked.has(m.uuid)} disabled={!m.transcript || m.imported}
+                  <Checkbox aria-label={`Import ${m.topic}`} checked={picked.has(m.uuid)}
+                    disabled={m.state === "waiting" || (m.imported ? !m.can_add_recording : !hasSource(m))}
                     onChange={(e) => setPicked((p) => { const n = new Set(p); if (e.target.checked) n.add(m.uuid); else n.delete(m.uuid); return n; })} />
                   <span className="min-w-0 flex-[1_1_200px] truncate font-medium text-text">{m.topic}</span>
                   <span className="text-text-muted">{m.date}{m.time ? ` ${m.time}` : ""}{m.duration_min ? ` · ${m.duration_min} min` : ""} · {m.host.name}</span>
-                  {m.imported ? (m.slug ? <Link href={`/${m.slug}`} className="text-accent-text hover:underline">Open</Link> : <Badge size="sm">Imported</Badge>)
-                    : m.transcript ? <Badge size="sm" tone="success">Transcript</Badge>
-                    : <Badge size="sm" tone="warning">No transcript</Badge>}
+                  {m.imported ? (
+                    <>
+                      {m.slug ? <Link href={`/${m.slug}`} className="text-accent-text hover:underline">Open</Link> : <Badge size="sm">Imported</Badge>}
+                      {m.can_add_recording && <Badge size="sm" tone="info">Add recording</Badge>}
+                      {m.recording === "copying" && <Badge size="sm" tone="info">Adding recording</Badge>}
+                    </>
+                  ) : m.state === "waiting" ? <Badge size="sm" tone="info">Transcribing</Badge>
+                    : <SourceBadge m={m} />}
                 </li>
               ))}
             </ul>
-            {rows.some((m) => !m.transcript) && <p className="mt-1 text-caption text-text-muted">{st.no_transcript_help}</p>}
+            {rows.some((m) => !m.imported && !hasSource(m)) && <p className="mt-1 text-caption text-text-muted">{noTranscriptHelp(st)}</p>}
             {notInZoom.length > 0 && (
               <p className="text-caption text-text-muted">Not found in this Zoom account (by email): {notInZoom.join(", ")}.</p>
             )}
@@ -556,10 +636,25 @@ function Importer({ id, st, onClose }: { id: string; st: ZoomStatus; onClose: ()
   );
 }
 
+function hasSource(m: ZoomRecording): boolean {
+  return m.source !== undefined ? !!m.source : m.transcript;
+}
+
+function SourceBadge({ m }: { m: ZoomRecording }) {
+  const src = m.source !== undefined ? m.source : m.transcript ? "transcript" : null;
+  if (src === "transcript") return <Badge size="sm" tone="success">Transcript</Badge>;
+  if (src === "captions") return <Badge size="sm" tone="success">Captions</Badge>;
+  if (src === "transcribe") return <Badge size="sm" tone="info">Will transcribe</Badge>;
+  return <Badge size="sm" tone="warning">No transcript</Badge>;
+}
+
 function summary(results: ZoomResult[]): string {
   const n = (s: string) => results.filter((r) => r.status === s).length;
+  const recs = results.filter((r) => r.recording === "queued").length;
   const parts = [
     n("imported") && `${n("imported")} imported`,
+    n("waiting") && `${n("waiting")} being transcribed (they appear in Meetings in a few minutes)`,
+    recs && `${recs} ${recs === 1 ? "recording" : "recordings"} being added`,
     n("duplicate") && `${n("duplicate")} already here`,
     n("no_transcript") && `${n("no_transcript")} without a transcript`,
     n("ignored") && `${n("ignored")} not hosted by the team`,

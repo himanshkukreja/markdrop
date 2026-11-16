@@ -1848,6 +1848,16 @@
       "description": "The person who imported it, or a workspace admin or owner (any meeting, even one restricted from them): the meeting page and its transcript go to the Trash for 30 days and the stored transcript is deleted at once.",
       "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
     },
+    "GET /api/v1/meetings/{meeting_id}/recording": {
+      "title": "Play a meeting's recording",
+      "description": "For a Zoom meeting whose recording Markdrop kept (Transcribe and keep recordings): `player_url`, a link to the video player that expires after `expires_in` seconds, with the recording's `size` and `duration_s`. Anyone who can open the meeting; 404 when it has no recording or you can't open it.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom#transcribe-and-keep-recordings"}
+    },
+    "DELETE /api/v1/meetings/{meeting_id}/recording": {
+      "title": "Remove a meeting's recording",
+      "description": "Deletes Markdrop's copy of the meeting's video; the meeting, its summary and transcript stay, and the recording in Zoom isn't touched. The person who imported the meeting or a workspace admin.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom#transcribe-and-keep-recordings"}
+    },
     "POST /api/v1/meetings/{meeting_id}/regenerate": {
       "title": "Write the summary again",
       "description": "Writes the meeting's AI sections again (summary, decisions, action items, open questions, topics) and waits for them. When nobody has edited the page since, it's rewritten; otherwise the new sections are added at the end. Anyone who can edit the page. Counts towards your AI limits.",
@@ -2167,14 +2177,19 @@
       "description": "The team Zoom meetings go to (`team_id`): only meetings hosted by its members come in, visible to that team. Not the company-wide team. Admins and owners.",
       "guide": {"label": "Zoom", "href": "/integrations/zoom"}
     },
+    "PUT /api/v1/zoom/media": {
+      "title": "Transcribe and keep recordings",
+      "description": "Turns the workspace's Transcribe and keep recordings on or off (`enabled`): meetings without a Zoom transcript or captions are transcribed from their audio, and each Zoom meeting's recording is kept with it, playable by people who can read the meeting. Off by default; offered when `GET /api/v1/zoom/status` says `media_available`. Admins and owners.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom#transcribe-and-keep-recordings"}
+    },
     "GET /api/v1/zoom/recordings": {
       "title": "List past Zoom meetings",
-      "description": "The recorded Zoom meetings hosted by the Zoom team's members, newest first, for `days` (default 30) or `from`/`to` (YYYY-MM-DD, up to a year): `uuid`, `topic`, `date`, `time`, `duration_min`, `host`, whether there's a `transcript`, and whether it's `imported` (with its `slug`). `not_in_zoom`: team members Zoom doesn't know by their email. Admins, owners and the team's leads.",
+      "description": "The recorded Zoom meetings hosted by the Zoom team's members, newest first, for `days` (default 30) or `from`/`to` (YYYY-MM-DD, up to a year): `uuid`, `topic`, `date`, `time`, `duration_min`, `host`, whether there's a `transcript` (or `captions`), where its transcript would come from (`source`: `transcript`, `captions`, `transcribe` or null), whether it's `imported` (with its `slug`), its kept `recording`, and `can_add_recording` (import it again to add its recording). `not_in_zoom`: team members Zoom doesn't know by their email. Admins, owners and the team's leads.",
       "guide": {"label": "Zoom", "href": "/integrations/zoom"}
     },
     "POST /api/v1/zoom/import": {
       "title": "Import past Zoom meetings",
-      "description": "Imports the chosen meetings (`uuids`, up to 50) into the Zoom team as past meetings: nobody is notified. Each result has a `status`: `imported`, `duplicate`, `no_transcript`, `ignored` (not hosted by the team's members) or `failed` (with a `reason`). Admins, owners and the team's leads.",
+      "description": "Imports the chosen meetings (`uuids`, up to 50) into the Zoom team as past meetings: nobody is notified. Each result has a `status`: `imported`, `duplicate`, `waiting` (being transcribed: it comes in within minutes), `no_transcript`, `ignored` (not hosted by the team's members) or `failed` (with a `reason`), and `recording` is `queued` when its recording is being added. Admins, owners and the team's leads.",
       "guide": {"label": "Zoom", "href": "/integrations/zoom"}
     },
     "GET /api/v1/slack/status": {
