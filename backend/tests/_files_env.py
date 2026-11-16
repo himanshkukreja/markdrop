@@ -62,7 +62,7 @@ class FakeR2:
     def patches(self) -> list:
         names = ("is_configured", "head", "delete", "set_public", "set_public_prefix", "delete_prefix",
                  "put_bytes", "get_bytes", "copy_object", "presign_put", "presign_get", "presign_upload_part",
-                 "create_multipart", "list_parts", "complete_multipart", "abort_multipart", "sha256_of")
+                 "create_multipart", "list_parts", "complete_multipart", "abort_multipart", "sha256_of", "upload_part")
         return [mock.patch.object(r2, n, getattr(self, n)) for n in names]
 
     # objects
@@ -141,6 +141,12 @@ class FakeR2:
         etag = hashlib.md5(data).hexdigest()
         self.uploads[r2_upload_id]["parts"][n] = (data, etag)
         return etag
+
+    def upload_part(self, key, upload_id, part_number, data):
+        """r2.upload_part: a part sent from the server (services/zoom_media.py)."""
+        if upload_id not in self.uploads:
+            raise FakeClientError("NoSuchUpload")
+        return self.put_part(upload_id, int(part_number), bytes(data))
 
     def list_parts(self, key, upload_id):
         up = self.uploads.get(upload_id)

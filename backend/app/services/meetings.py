@@ -1484,6 +1484,8 @@ async def shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Ac
         "restricted": bool(row.get("restricted")), "action_items": int(row.get("action_items") or 0),
         "segments": len(row.get("segments") or []), "has_notes": bool(row.get("notes")),
         "has_transcript": bool(row.get("segments")),
+        # The Zoom recording Markdrop kept (services/zoom_media.py); played through GET /{id}/recording.
+        "recording": _recording_view(row),
         "sources": [{k: s.get(k) for k in ("kind", "origin", "name", "url", "format")} for s in row.get("sources") or []],
         "ai": ai_view(row), "created_at": iso(row.get("created_at")), "created_by": row.get("created_by"),
         # Who ran the call (Drive owner or stated in the text; None: unknown) and who brought it in.
@@ -1504,6 +1506,12 @@ async def shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Ac
 
         out["url"] = urls.markdrop_url(raw["slug"])
     return out
+
+
+def _recording_view(row: dict) -> dict | None:
+    from app.services import zoom_media
+
+    return zoom_media.view(row)
 
 
 SNIPPET_CHARS = 220
@@ -2217,7 +2225,9 @@ async def delete_meeting(db: AsyncIOMotorDatabase, row: dict, actor: access.Acto
     elif not admin and row.get("created_by") != uid:
         raise HTTPException(status_code=404, detail="Meeting not found")
     await db[COLL].delete_one({"_id": row["_id"]})
-    from app.services import meeting_memory
+    from app.services import meeting_memory, zoom_media
+
+    await zoom_media.drop(row)          # its Zoom recording, when Markdrop kept one
 
     await meeting_memory.drop_meeting(db, str(row["_id"]))
     return {"deleted": True, "id": str(row["_id"]), "trashed": raw is not None}

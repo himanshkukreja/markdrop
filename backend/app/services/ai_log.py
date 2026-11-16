@@ -79,7 +79,8 @@ _TEST_UA = re.compile(r"playwright|headlesschrome|puppeteer|\bpytest\b", re.I)
 _SCRIPT_UA = re.compile(r"python-httpx|python-requests|python-urllib|\bcurl/|aiohttp", re.I)
 
 #: Features whose every call is a background job, and the job's name.
-SYSTEM_FEATURES = {"workspace_memory": "Team memory", "ask_suggestions": "Ask suggestions"}
+SYSTEM_FEATURES = {"workspace_memory": "Team memory", "ask_suggestions": "Ask suggestions",
+                   "zoom_transcribe": "Zoom transcription"}
 
 
 def job_name(feature: str, meta: dict) -> str:

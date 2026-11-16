@@ -7,7 +7,8 @@
   screen → :func:`oauth_token` (``authorization_code``, then ``refresh_token``: Zoom rotates the refresh
   token on every refresh) and :func:`revoke` (Disconnect also removes the app from the Zoom account).
 * REST v2: :func:`api` (``<api>/<path>``) and :func:`download` (a recording file's ``download_url``,
-  with the access token as a Bearer).
+  with the access token as a Bearer); :func:`stream` for the big ones (a recording's audio or video,
+  services/zoom_media.py), read chunk by chunk, never whole into memory.
 
 Tests swap :data:`TRANSPORT` for an ``httpx.MockTransport`` (tests/_zoom_fake.py), so nothing leaves
 the machine. Zoom answers errors with a 4xx/5xx and ``{"code": n, "message": "…"}`` (OAuth errors:
@@ -18,7 +19,8 @@ from __future__ import annotations
 
 import base64
 import logging
-from typing import Any
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator
 from urllib.parse import quote, urlencode
 
 import httpx
@@ -159,3 +161,18 @@ async def download(url: str, access_token: str) -> str:
     if len(r.content) > MAX_TRANSCRIPT_BYTES:
         raise ZoomError(413, "The transcript is too big to import.")
     return r.content.decode("utf-8", errors="replace")
+
+
+MEDIA_TIMEOUT = httpx.Timeout(120.0, connect=15.0)
+
+
+@asynccontextmanager
+async def stream(url: str, access_token: str) -> AsyncIterator[httpx.Response]:
+    """A recording file (audio or video) as an open response: ``async for b in r.aiter_bytes(n)``."""
+    async with httpx.AsyncClient(verify=shared_ssl(), timeout=MEDIA_TIMEOUT, transport=TRANSPORT,
+                                 follow_redirects=True) as c:
+        async with c.stream("GET", url, headers={"Authorization": f"Bearer {access_token}"}) as r:
+            if r.status_code >= 400:
+                await r.aread()
+                raise _error(r)
+            yield r

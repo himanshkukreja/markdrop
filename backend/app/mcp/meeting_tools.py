@@ -65,6 +65,8 @@ def _meeting_out(m: dict) -> dict[str, Any]:
         # The calendar invite (Gemini notes' "Invited"), joined or not; never the attendees.
         "invited": [a["name"] for a in m.get("invited") or []],
         "action_items": m.get("action_items"), "has_notes": m.get("has_notes"),
+        # A Zoom recording Markdrop kept (played on the meeting's page by people who can read it).
+        "has_recording": bool(m.get("recording")),
         "segments": m.get("segments"), "ai": m.get("ai"), "source": m.get("source"), "series": m.get("series"),
         # What it was about at a glance (the Meetings page's cards): a line of the summary and the counts.
         "summary": m.get("summary"), "decisions": m.get("decisions"), "open_questions": m.get("open_questions"),
@@ -374,7 +376,8 @@ _MEETING_OUT = {"type": "object", "properties": {
     "attendees": {"type": "array", "items": {"type": "string"}, "description": "Who joined the call (with only Gemini's notes and no transcript: the invited people the notes name)."},
     "invited": {"type": "array", "items": {"type": "string"}, "description": "Everyone on the calendar invite, joined or not."},
     "restricted": {"type": "boolean"},
-    "action_items": {"type": "integer"}, "has_notes": {"type": "boolean"}, "segments": {"type": "integer"},
+    "action_items": {"type": "integer"}, "has_notes": {"type": "boolean"}, "has_recording": {"type": "boolean"},
+    "segments": {"type": "integer"},
     "ai": {"type": "object"}, "source": {"type": "string", "enum": list(meetings.SOURCES)},
     "series": _NULLABLE_STR,
 }}

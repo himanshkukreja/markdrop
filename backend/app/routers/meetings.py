@@ -17,6 +17,9 @@
     GET    /api/v1/meetings/{id}                     a meeting
     PATCH  /api/v1/meetings/{id}                     {restricted?, type?, series?}
     DELETE /api/v1/meetings/{id}                     the importer, or a workspace admin/owner (any meeting)
+    GET    /api/v1/meetings/{id}/recording           the Zoom recording Markdrop kept: a short-lived player link
+                                                     (whoever can read the meeting; services/zoom_media.py)
+    DELETE /api/v1/meetings/{id}/recording           remove it (whoever can delete the meeting)
     POST   /api/v1/meetings/{id}/regenerate          writes the AI sections again (waits)
     POST   /api/v1/meetings/{id}/ask         SSE     {question, history?: [{question, answer}]}
     POST   /api/v1/meetings/ask              SSE     {workspace, question, series?, since?, until?}
@@ -553,6 +556,36 @@ async def delete_meeting(request: Request, meeting_id: str, db: AsyncIOMotorData
     if row is None or await meetings.require_member(db, row["workspace_id"], user.id, write=False) is None:
         raise HTTPException(status_code=404, detail="Meeting not found")
     return await meetings.delete_meeting(db, row, actor, ctx)
+
+
+@router.get("/{meeting_id}/recording", summary="Play a meeting's recording")
+@limiter.limit("120/minute")
+async def get_recording(request: Request, meeting_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                        user: User = Depends(require_user)):
+    from app.services import zoom_media
+
+    actor, ctx = _ac(request, db, user)
+    row, _raw = await meetings.for_read(db, meeting_id, actor, ctx)
+    out = zoom_media.player(row)
+    if out is None:
+        raise HTTPException(status_code=404, detail="This meeting has no recording in Markdrop.")
+    return out
+
+
+@router.delete("/{meeting_id}/recording", summary="Remove a meeting's recording")
+@limiter.limit("30/minute")
+async def delete_recording(request: Request, meeting_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                           user: User = Depends(require_user)):
+    from app.services import zoom_media
+
+    actor, ctx = _ac(request, db, user)
+    row, raw = await meetings.for_read(db, meeting_id, actor, ctx)
+    if not (raw.get("owner_id") == user.id or await meetings.is_ws_admin(db, row["workspace_id"], user.id)):
+        raise HTTPException(status_code=403, detail="Only the person who imported this meeting or a workspace admin "
+                                                    "can remove its recording.")
+    if not (row.get("recording") or {}).get("key"):
+        raise HTTPException(status_code=404, detail="This meeting has no recording in Markdrop.")
+    return await zoom_media.remove(db, row)
 
 
 @router.post("/{meeting_id}/regenerate")

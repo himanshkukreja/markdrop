@@ -706,6 +706,18 @@ class Settings(BaseSettings):
     # Zoom's hosts (tests point them elsewhere).
     zoom_auth_base: str = "https://zoom.us"
     zoom_api_base: str = "https://api.zoom.us/v2"
+    # Zoom meetings without a transcript (services/zoom_media.py, owner decision 2026-11-16): a workspace
+    # admin's "Transcribe and keep recordings" switch sends the meeting's AUDIO (M4A, never the video) to
+    # Deepgram for speech-to-text and copies the recording (MP4) into R2 next to the meeting. Until the
+    # key is set (and R2 is), the switch is hidden. Minutes are recorded in the AI usage ledger (feature
+    # "zoom_transcribe", cost = minutes × deepgram_usd_per_minute; never shown to users) under its own caps.
+    deepgram_api_key: str = ""
+    deepgram_api_base: str = "https://api.deepgram.com/v1"
+    deepgram_model: str = "nova-3"
+    deepgram_usd_per_minute: float = 0.0043     # Nova-3 pre-recorded, pay as you go (internal accounting only)
+    zoom_transcribe_enabled: bool = True
+    zoom_transcribe_daily_usd: float = 3.0
+    zoom_transcribe_monthly_usd: float = 30.0
     # Jira AI (services/jira_ai.py, ledger feature "jira_ai"): drafting issues from meetings, Team and
     # pages (owner decision 2026-11-06: $1 a day, $10 a month; the admin AI tab overrides them).
     jira_ai_enabled: bool = True
@@ -745,6 +757,11 @@ class Settings(BaseSettings):
     def zoom_app_configured(self) -> bool:
         """Markdrop's Zoom Marketplace app is set up: "Connect Zoom" (one click) is offered."""
         return bool(self.zoom_client_id and self.zoom_client_secret and self.zoom_webhook_secret and self.token_encryption_key)
+
+    @property
+    def deepgram_configured(self) -> bool:
+        """Speech-to-text for Zoom meetings without a transcript (services/deepgram.py)."""
+        return bool(self.deepgram_api_key)
 
     @property
     def docs_r2_configured(self) -> bool:

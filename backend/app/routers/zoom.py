@@ -8,6 +8,8 @@ Settings (signed in, markdrop.in only):
     PUT    /connection                      {workspace_id, account_id, client_id, client_secret?, secret_token?, team_id?}
                                             save the workspace's Server-to-Server OAuth app (admins; checked with Zoom)
     PUT    /team                            {workspace_id, team_id}: where Zoom meetings go (admins)
+    PUT    /media                           {workspace_id, enabled}: Transcribe and keep recordings (admins;
+                                            services/zoom_media.py; offered when status says media_available)
     DELETE /connection?workspace_id=&delete_meetings=   disconnect (admins): the credentials are deleted
                                             (and the Marketplace app removed from the Zoom account)
 
@@ -80,6 +82,11 @@ class TeamIn(BaseModel):
     team_id: str = Field(..., pattern=_WS)
 
 
+class MediaIn(BaseModel):
+    workspace_id: str = Field(..., pattern=_WS)
+    enabled: bool = Field(..., description="Transcribe meetings without a transcript (their audio) and keep their recordings.")
+
+
 class ImportIn(BaseModel):
     workspace_id: str = Field(..., pattern=_WS)
     uuids: list[str] = Field(..., min_length=1, max_length=zoom.MAX_IMPORT)
@@ -124,6 +131,16 @@ async def put_team(request: Request, body: TeamIn, db: AsyncIOMotorDatabase = De
                    user: User = Depends(require_user)):
     _app_only(request)
     return await zoom.set_team(db, user, body.workspace_id, body.team_id)
+
+
+@router.put("/media", summary="Transcribe and keep Zoom recordings")
+@limiter.limit("30/minute")
+async def put_media(request: Request, body: MediaIn, db: AsyncIOMotorDatabase = Depends(get_db),
+                    user: User = Depends(require_user)):
+    _app_only(request)
+    from app.services import zoom_media
+
+    return await zoom_media.set_switch(db, user, body.workspace_id, body.enabled)
 
 
 @router.delete("/connection", summary="Disconnect Zoom")
