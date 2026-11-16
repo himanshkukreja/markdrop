@@ -35977,6 +35977,18 @@
                 "type": "null"
               }
             ]
+          },
+          "meetings_by_attendees": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meetings By Attendees",
+            "description": "Add new meetings to this team when its members are half or more of the attendees (default on). Off: only meetings imported or moved into it, such as from Zoom."
           }
         },
         "type": "object",

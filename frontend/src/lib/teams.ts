@@ -42,6 +42,8 @@ export interface TeamFull extends TeamCard {
   slack_channel: { id: string; name: string } | null;
   /** New and resolved comments on the team's pages post to its channel (default on). */
   slack_comments?: boolean;
+  /** New meetings join the team by who attended (default on); off: only meetings imported or moved into it. */
+  meetings_by_attendees?: boolean;
   jira_projects: string[];
   digest: { enabled: boolean; email: boolean; slack: boolean };
   admins_can_see: boolean;
@@ -158,7 +160,7 @@ export const browseTeams = (ws: string) => request<{ teams: TeamCard[] }>(`${bas
 export const getTeamHome = (ws: string, tid: string) => request<TeamHome | TeamHomeLocked>(`${base(ws)}/teams/${enc(tid)}`);
 export const createTeam = (ws: string, body: { name: string; icon?: string | null; color?: TeamColor; description?: string; visibility: Visibility; lead_ids: string[]; member_ids: string[] }) =>
   mutate(ws, request<TeamFull>(`${base(ws)}/teams`, json("POST", body)));
-export const updateTeam = (ws: string, tid: string, body: Partial<Pick<TeamFull, "name" | "icon" | "color" | "description" | "slack_channel" | "slack_comments" | "jira_projects" | "digest" | "visibility">>) =>
+export const updateTeam = (ws: string, tid: string, body: Partial<Pick<TeamFull, "name" | "icon" | "color" | "description" | "slack_channel" | "slack_comments" | "meetings_by_attendees" | "jira_projects" | "digest" | "visibility">>) =>
   mutate(ws, request<TeamFull>(`${base(ws)}/teams/${enc(tid)}`, json("PATCH", body)));
 export const deleteTeam = (ws: string, tid: string) => mutate(ws, request<void>(`${base(ws)}/teams/${enc(tid)}`, json("DELETE")));
 export const addTeamMembers = (ws: string, tid: string, user_ids: string[]) =>
