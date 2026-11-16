@@ -32,9 +32,10 @@ settings = get_settings()
 _SAVED = ("search_ai_enabled", "search_ai_daily_usd", "search_ai_monthly_usd", "meetings_ai_enabled",
           "meetings_ai_daily_usd", "meetings_ai_monthly_usd")
 
-# Dated yesterday: "catch me up on this week" must still find it whenever the suite runs.
-TRANSCRIPT = {"name": f"Weekly product sync ({(now() - timedelta(days=1)):%Y-%m-%d} 10:00 GMT+05:30) - Transcript",
-              "text": fixture("google_meet_transcript.txt")}
+# Held yesterday: "catch me up on this week" must still find it whenever the suite runs.
+_HELD = f"{now() - timedelta(days=1):%Y-%m-%d}"
+TRANSCRIPT = {"name": f"Weekly product sync ({_HELD} 10:00 GMT+05:30) - Transcript",
+              "text": fixture("google_meet_transcript.txt").replace("2026-11-04", _HELD)}
 
 
 def is_ask(params: dict) -> bool:
