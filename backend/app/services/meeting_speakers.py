@@ -31,7 +31,7 @@ log = logging.getLogger("markdrop.meetings_ai")
 
 GENERIC = re.compile(r"^Speaker (\d{1,3})$")
 RESERVE = 0.01
-MAX_TOKENS = 1200
+MAX_TOKENS = 5000   # the model may think first; 1200 cut answers off (22 of 35 on Senseloaf)
 LINE_CHARS = 280
 EXCERPT_CHARS = 14_000
 HEAD_LINES = 50
