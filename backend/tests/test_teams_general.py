@@ -157,6 +157,15 @@ class General(TeamsWorld):
         for s in sug:
             self.assertGreaterEqual(len(members[s["team_id"]] & ws) * 2, len(ws), s)
 
+    async def test_team_with_attendee_routing_off_gets_no_suggestions(self):
+        await self.sidebar("wa")
+        row = {"attendees": [{"user_id": self.uid[u]} for u in ("owner", "wm", "wv", "ownv")]}
+        sug = await team_routing.suggest(self.db, self.W, row)
+        self.assertTrue(sug)
+        off = sug[0]["team_id"]
+        await self.db["teams"].update_one({"_id": ObjectId(off)}, {"$set": {"meetings_by_attendees": False}})
+        self.assertNotIn(off, {s["team_id"] for s in await team_routing.suggest(self.db, self.W, row)})
+
 
 class Favorites(TeamsWorld):
     async def favs(self, who: str) -> list[dict]:
