@@ -9,7 +9,9 @@
  *    on phones they live in a drawer (History). Centre: the conversation (the shared chat, page layout).
  *    Top: the title and the scope chips — Everything · <each workspace> · My files.
  *  - Empty: a big composer and suggestions. In a workspace: its live team questions (GET /ask/suggestions:
- *    built only from what every member can read, "Updated 2 h ago") and yours; elsewhere, yours.
+ *    built only from what every member can read, "Updated 2 h ago") and yours; in a team: that team's own
+ *    list (&team=, from its meetings and pages; General: the workspace's) or "Nothing new" when it's quiet;
+ *    elsewhere, yours.
  *    A suggestion asks at once, in that scope.
  *  - One conversation everywhere: the panel and this page share it (store + PERSIST_KEY); "Open full page"
  *    in the panel lands here on it. ⌘J here focuses the composer.
@@ -32,6 +34,7 @@ import {
 import { readAskParams, suggestionsOf, updatedLine } from "@/lib/askCore.mjs";
 import { shortAgo } from "@/lib/searchCore.mjs";
 import { track } from "@/lib/track";
+import { errorStatus } from "@/lib/workspaces";
 import { askPlaceholder, askTitle } from "@/components/assistant/assistantCore.mjs";
 import { PERSIST_KEY, setAssistantThread, useAssistant, useAssistantHere, useHomeFocus } from "@/components/assistant/store";
 import { assistantTransport, loadAssistantThread } from "@/components/assistant/transport";
@@ -77,6 +80,7 @@ export default function AskPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const pendingQ = useRef<string | null>(null);
+  const forgetting = useRef(new Set<string>());
 
   // What the URL asks for (once): a scope, a conversation, a question to ask now.
   useEffect(() => {
@@ -136,15 +140,18 @@ export default function AskPage() {
     window.history.replaceState(window.history.state, "", `/ask${qs ? `?${qs}` : ""}`);
   }, []);
 
-  // Suggestions for this scope: the workspace's live ones (polled while the first list is being built).
-  const sugFor = scope ? (scope.kind === "workspace" || scope.kind === "team" ? scope.workspace ?? "" : "") : null;
+  // Suggestions for this scope: the workspace's live ones, or the team's own (polled while the first list is
+  // being built). Keyed "<workspace>" or "<workspace>:<team>".
+  const sugFor = scope ? (scope.kind === "workspace" ? scope.workspace ?? ""
+    : scope.kind === "team" ? `${scope.workspace ?? ""}${scope.team ? `:${scope.team}` : ""}` : "") : null;
   useEffect(() => {
     if (sugFor === null || !mounted) return;
     let on = true;
     let polls = 0;
     let timer = 0;
     setSug(null);
-    const load = () => getAskSuggestions(sugFor || null).then((x) => {
+    const [sugWs, sugTeam] = sugFor.split(":");
+    const load = () => getAskSuggestions(sugWs || null, sugTeam || null).then((x) => {
       if (!on) return;
       setSug(x);
       if (x.refreshing && polls++ < POLLS) timer = window.setTimeout(load, POLL_MS);
@@ -226,11 +233,24 @@ export default function AskPage() {
     <History threads={threads} current={threadId} onOpen={(id) => { track("ask_page_thread", {}); openThread(id); }}
       onNew={() => openThread(null)} onClear={() => setClearOpen(true)}
       onForget={async (t) => {
+        // Gone from the list at once (a second click can't send a second DELETE); a 404 means it was
+        // already removed (another tab, an earlier click). Only a real failure puts it back.
+        if (forgetting.current.has(t.id)) return;
+        forgetting.current.add(t.id);
+        setThreads((list) => list?.filter((x) => x.id !== t.id) ?? list);
+        if (t.id === threadId) openThread(null);
         try {
           await deleteAskThread(t.id);
-          if (t.id === threadId) openThread(null);
+        } catch (e) {
+          if (errorStatus(e) !== 404) {
+            toast.error("Couldn't remove it. Try again.");
+            setThreads((list) => (list && !list.some((x) => x.id === t.id)
+              ? [...list, t].sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? "")) : list));
+          }
+        } finally {
+          forgetting.current.delete(t.id);
           refreshThreads();
-        } catch { toast.error("Couldn't remove it. Try again."); }
+        }
       }} />
   );
 

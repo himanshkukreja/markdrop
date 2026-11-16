@@ -232,6 +232,16 @@
   border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--bg); }
 .mt-recording__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .mt-recording__actions > span { flex: 1 1 200px; min-width: 0; }
+/* Played from far down the notes: the player floats in the corner, its place up top kept. */
+.mt-recording--float .mt-recording__frame { position: fixed; z-index: 60; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom));
+  width: min(380px, calc(100vw - 32px)); max-height: none; box-shadow: 0 12px 32px rgb(0 0 0 / 0.28); }
+.mt-recording__unfloat { position: absolute; top: 6px; right: 6px; z-index: 1; background: var(--surface); }
+/* Times on a meeting with a kept recording play it from there (MeetingHeader sets data-mt-rec). */
+html[data-mt-rec="transcript"] .pb-body [data-bid^="b-t"] > strong:first-child { cursor: pointer;
+  text-decoration: underline dotted; text-underline-offset: 3px; }
+html[data-mt-rec="transcript"] .pb-body [data-bid^="b-t"] > strong:first-child:hover { color: var(--accent-text); }
+html[data-mt-rec="summary"] .pb-body a[href*="#b-t"]::before { content: "\25B6\FE0E"; font-size: 0.7em; margin-right: 0.3em;
+  vertical-align: 0.1em; }
 
 /* ── import dialog ─────────────────────────────────────────────────────── */
 .mt-import { display: flex; flex-direction: column; gap: 14px; }

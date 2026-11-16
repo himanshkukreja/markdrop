@@ -24,7 +24,9 @@ import {
   type Meeting,
 } from "@/lib/meetings";
 import { openAssistant } from "@/components/assistant/store";
-import { MeetingRecording } from "./MeetingRecording";
+import { MeetingRecording, type RecordingSeek } from "./MeetingRecording";
+import { citeSeconds, lineSeconds } from "./recordingSeek.mjs";
+import { track } from "@/lib/track";
 import "@/components/pages/ai/ask-pill.css";
 import "@/components/pages/ai/ask.css";
 import "./meetings.css";
@@ -65,6 +67,43 @@ function useMeeting(id: string): [Meeting | null, (m: Meeting) => void, () => Pr
 export function MeetingHeader({ meetingId, role, extra }: { meetingId: string; role?: string; extra?: React.ReactNode }) {
   const [m, , reload] = useMeeting(meetingId);
   const [playing, setPlaying] = useState(false);
+  const [seek, setSeek] = useState<RecordingSeek | null>(null);
+  const hasRecording = !!m?.recording;
+  const transcriptSlug = m?.transcript_slug ?? null;
+  const onTranscript = role === "transcript";
+  // A kept recording: the times in the notes play it from there (a summary's transcript citation, a
+  // transcript line's "12:34 · Ada"). Reading view only (never inside the editor); a modified click keeps
+  // the link's own behaviour. Capture phase, so the page's link handling never navigates first.
+  useEffect(() => {
+    if (!hasRecording) return;
+    const root = document.documentElement;
+    root.dataset.mtRec = onTranscript ? "transcript" : "summary";
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const el = e.target instanceof Element ? e.target : null;
+      if (!el || !el.closest(".pb-body") || el.closest('[contenteditable="true"]')) return;
+      let t: number | null = null;
+      if (onTranscript) {
+        const lead = el.closest("strong");
+        const block = lead?.parentElement?.closest<HTMLElement>("[data-bid]");
+        if (lead && block && lead.parentElement === block && block.firstElementChild === lead) t = lineSeconds(block.dataset.bid, lead.textContent);
+      } else {
+        const a = el.closest("a");
+        if (a) t = citeSeconds(a.getAttribute("href"), a.textContent, transcriptSlug, window.location.origin);
+      }
+      if (t == null) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setSeek((x) => ({ t: t!, n: (x?.n ?? 0) + 1 }));
+      setPlaying(true);
+      track("meeting_recording_seek", { from: onTranscript ? "transcript" : "summary" });
+    };
+    document.addEventListener("click", onClick, true);
+    return () => {
+      document.removeEventListener("click", onClick, true);
+      delete root.dataset.mtRec;
+    };
+  }, [hasRecording, onTranscript, transcriptSlug]);
   if (!m) return null;
   // Who joined; with nobody known to have joined, the calendar invite, worded "invited" (never "people").
   const invitedOnly = m.attendees.length === 0 && (m.invited?.length ?? 0) > 0;
@@ -96,7 +135,7 @@ export function MeetingHeader({ meetingId, role, extra }: { meetingId: string; r
         {role === "transcript"
           ? <Button size="sm" variant="secondary" iconLeft="arrowLeft" href={`/${m.slug}`}>The meeting</Button>
           : m.transcript_slug && <Button size="sm" variant="secondary" iconLeft="lines" href={`/${m.transcript_slug}`} data-testid="meeting-transcript">Transcript</Button>}
-        {role !== "transcript" && m.recording && (
+        {m.recording && (
           <Button size="sm" variant="secondary" iconLeft="film" aria-expanded={playing} onClick={() => setPlaying((p) => !p)}
             data-testid="meeting-recording-open">Recording</Button>
         )}
@@ -104,7 +143,7 @@ export function MeetingHeader({ meetingId, role, extra }: { meetingId: string; r
       </div>
     </div>
     {playing && m.recording && (
-      <MeetingRecording m={m} onClose={() => setPlaying(false)} onRemoved={() => { setPlaying(false); void reload(); }} />
+      <MeetingRecording m={m} seek={seek} onClose={() => { setPlaying(false); setSeek(null); }} onRemoved={() => { setPlaying(false); setSeek(null); void reload(); }} />
     )}
     </>
   );

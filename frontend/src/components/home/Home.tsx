@@ -39,7 +39,7 @@ import { getHome, tickAction, type HomeAction, type HomeData, type HomeMeeting, 
 import { listRecent, type PersonalItem } from "@/lib/me";
 import { openNotification, type AppNotification } from "@/lib/notifications";
 import { kindLabel } from "@/lib/itemKind";
-import { openHref, type WorkspaceItem } from "@/lib/workspaces";
+import { errorStatus, openHref, type WorkspaceItem } from "@/lib/workspaces";
 import { meetingsHref } from "@/lib/meetings";
 import { track } from "@/lib/track";
 import { getToken } from "@/lib/api";
@@ -383,7 +383,8 @@ function AskHistory({ open, onClose, recent, onChanged }: { open: boolean; onClo
                 </button>
                 <IconButton icon="x" label={`Forget “${r.title}”`} className="size-11 shrink-0"
                   onClick={async () => {
-                    try { await deleteAskThread(r.id); onChanged(); } catch { toast.error("Couldn't remove it. Try again."); }
+                    // A 404: already removed (a double click, another tab) — not an error.
+                    try { await deleteAskThread(r.id); onChanged(); } catch (e) { if (errorStatus(e) === 404) onChanged(); else toast.error("Couldn't remove it. Try again."); }
                   }} />
               </li>
             ))}

@@ -1785,6 +1785,19 @@ function videoViewer(src, poster = null, captions = null, at = 0) {
   if(AT>0){var seek=function(){try{v.currentTime=Math.min(AT,(v.duration||AT+1)-0.5)}catch(_){}};
     if(v.readyState>=1)seek();else v.addEventListener('loadedmetadata',seek,{once:true})}
 
+  // The app that framed this player may move it ({md:1, ev:'seek', t:<seconds>, play?}: a meeting's
+  // transcript time). Only from the framing window, and only when that window is one of the app's origins.
+  var APP=${JSON.stringify([...APP_ORIGINS])};
+  window.addEventListener('message',function(e){
+    try{
+      if(e.source!==window.parent||window.parent===window||APP.indexOf(e.origin)<0)return;
+      var d=e.data;if(!d||typeof d!=='object'||d.md!==1||d.ev!=='seek')return;
+      var t=Number(d.t);if(!isFinite(t)||t<0||t>1e7)return;
+      var go=function(){try{v.currentTime=Math.max(0,Math.min(t,(v.duration||t+1)-0.5));if(d.play===true){var p=v.play();if(p&&p.catch)p.catch(function(){})}}catch(_){}};
+      if(v.readyState>=1)go();else v.addEventListener('loadedmetadata',go,{once:true});
+    }catch(_){}
+  });
+
   // Captions: the WebVTT beside the video, drawn as text (never HTML) over the picture.
   var CC=${JSON.stringify(captions).replace(/</g, "\\u003c")};
   var ccBox=document.getElementById('cc'),ccBtn=document.getElementById('ccBtn'),cues=[],ccOn=true,ccLast=null;

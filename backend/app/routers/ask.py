@@ -11,9 +11,12 @@
            doc/folder/workspace/everything count towards AI search, meetings towards Meetings AI
     GET    /api/v1/ask/context          {scopes, default, page, workspace, folder, meeting, series,
                                          can_insert, status}   what the assistant offers here
-    GET    /api/v1/ask/suggestions      {workspace, team, personal, updated_at, refreshing, status}
+    GET    /api/v1/ask/suggestions      {workspace, team_scope, team, personal, updated_at, refreshing,
+                                         quiet, status}
                                          ?workspace=: its live team questions (only from what every
                                          member can read) + the caller's own; 404 for a non-member
+                                         &team=: that team's own list (its meetings and pages; General:
+                                         the workspace's); 404 when you can't read the team
     GET    /api/v1/ask/threads          {threads}            recent questions
     GET    /api/v1/ask/threads/{id}     {id, title, turns}   a turn whose sources you can no longer
                                                              open comes back withheld
@@ -143,13 +146,21 @@ async def ask_context(request: Request, page: Optional[str] = Query(None, max_le
 @router.get("/suggestions")
 @limiter.limit("120/minute")
 async def suggestions(request: Request, workspace: Optional[str] = Query(None, max_length=40),
+                      team: Optional[str] = Query(None, max_length=40),
                       db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
     """Suggested questions for Ask. With ``workspace``: its team questions, refreshed from what happened
     there in the last 7 days (meetings and pages every member can read; one list for all members), and
-    yours (your action items, your latest meeting). Without: yours, across your workspaces."""
+    yours (your action items, your latest meeting). With ``team`` too (a team of that workspace you can
+    read): that team's own list, from its meetings and pages only, and yours from its meetings; General
+    gets the workspace's; ``quiet`` when nothing happened there lately. Without: yours, across your
+    workspaces."""
     actor, ctx = _ac(request, db, user)
+    if team and not workspace:
+        raise HTTPException(status_code=422, detail="team needs workspace")
     try:
-        out = await ask_suggestions.for_viewer(db, actor, ctx, workspace or None)
+        out = await ask_suggestions.for_viewer(db, actor, ctx, workspace or None, team or None)
+    except ask_suggestions.TeamNotFound:
+        raise HTTPException(status_code=404, detail="Team not found")
     except LookupError:
         raise HTTPException(status_code=404, detail="Workspace not found")
     return jsonable_encoder(out)

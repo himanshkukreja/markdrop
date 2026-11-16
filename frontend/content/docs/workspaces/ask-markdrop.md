@@ -2,7 +2,7 @@
 title: Ask
 description: "One assistant, named after what it asks: your workspace, your own files or the page you are on. Its own page, live suggestions and cited sources."
 updated: 2026-11-07
-keywords: [ask, what ask can read, whole transcript, long meetings, word, docx, powerpoint, pptx, slides, excel, xlsx, csv, pdf pages, video captions, about me, about yourself, who am i, what did i say, my last standup, my last sync-up, my meetings, my documents, what have i been working on, my email, my workspaces, my role, ask your workspace, ask any page, ask my files, ask this page, ask page, full page, suggestions, live suggestions, suggested questions, what's happening, updated, topics, history, conversations, ask markdrop, never empty, cut short, slack, /markdrop ask, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, phone, app, side panel]
+keywords: [ask, what ask can read, whole transcript, long meetings, word, docx, powerpoint, pptx, slides, excel, xlsx, csv, pdf pages, video captions, about me, about yourself, who am i, what did i say, my last standup, my last sync-up, my meetings, my documents, what have i been working on, my email, my workspaces, my role, ask your workspace, ask any page, ask my files, ask this page, ask page, full page, suggestions, live suggestions, suggested questions, team suggestions, a team's suggestions, sales team questions, what's happening, updated, topics, history, conversations, ask markdrop, never empty, cut short, slack, /markdrop ask, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, phone, app, side panel]
 ---
 
 **Ask** is one assistant, everywhere in Markdrop. Ask a question in plain words and it answers from what you can open, citing where each part came from, so you can check it in one tap. The conversation follows you from screen to screen.
@@ -159,6 +159,10 @@ On a workspace (**Ask Acme**, on the Ask page, in the panel, and as chips under 
 - **When they change.** A few minutes after meetings or pages change (once things are quiet), and at least once a day. Edits that don't touch a title or heading don't change them.
 - **AI off.** In a workspace whose admin turned [AI features](/pages/ai#turn-ai-off-for-a-workspace) off, there are no team suggestions.
 
+### A team's own
+
+On a [team](/teams/overview) (**Ask Sales** on the Ask page), the suggestions are that team's own: written the same way from the team's meetings and pages of the last 7 days, never from company-wide items or another team's. Everyone who can open the team sees the same list; people who can't open a private team never see its suggestions. **General** shows the workspace's. When nothing new happened in the team that week, there are no team suggestions and Ask says **Nothing new here in the last 7 days.**; your own are still there, from that team's meetings.
+
 ### Your own
 
 Next to them, a few that are only yours, without AI: **What are my open action items?**, **Catch me up on** your latest meeting, and **What did I say in the last Daily Standup?** (your latest meeting series). Elsewhere, and on **Everything**:
@@ -229,8 +233,8 @@ On a phone, the panel opens as a sheet that stays above the keyboard. The chips 
 
 - **Slack.** `/markdrop ask` asks the workspace Slack is connected to, the way **Ask Acme** does (or **Everything**, when you aren't a member of it), and `/markdrop meetings` the way **Meetings** does. Only you see the answer. See [Slack](/integrations/slack#search-and-ask-from-slack).
 
-- **MCP.** The hosted MCP server's `ask_documents` tool asks the same way. Pass its `thread_id` back to ask a follow-up, set `intent` to `catch_up` or `my_actions`, `page` to ask about a doc first, `folder` (with `scope`) to ask one folder, or `scope` `mine` to ask your own files. `ask_suggestions` gives a workspace's live suggestions and yours. `ask_meetings` asks meetings and `meeting_context` finds what was decided about a topic. See [MCP tools](/ai/tools#read-and-find).
-- **API.** `POST /api/v1/ask` streams an answer as Server-Sent Events; its `scope` says what to answer from (`doc`, `meetings`, `folder`, `workspace`, `mine` or `everything`). `GET /api/v1/ask/context` says which scopes are offered where you are, `GET /api/v1/ask/suggestions?workspace=` gives the suggestions, and `/api/v1/ask/threads` lists, opens and deletes your conversations. See the [API reference](/api/overview).
+- **MCP.** The hosted MCP server's `ask_documents` tool asks the same way. Pass its `thread_id` back to ask a follow-up, set `intent` to `catch_up` or `my_actions`, `page` to ask about a doc first, `folder` (with `scope`) to ask one folder, or `scope` `mine` to ask your own files. `ask_suggestions` gives a workspace's live suggestions and yours (pass `team` for a team's own). `ask_meetings` asks meetings and `meeting_context` finds what was decided about a topic. See [MCP tools](/ai/tools#read-and-find).
+- **API.** `POST /api/v1/ask` streams an answer as Server-Sent Events; its `scope` says what to answer from (`doc`, `meetings`, `folder`, `workspace`, `mine` or `everything`). `GET /api/v1/ask/context` says which scopes are offered where you are, `GET /api/v1/ask/suggestions?workspace=` gives the suggestions (`&team=` for a team's own), and `/api/v1/ask/threads` lists, opens and deletes your conversations. See the [API reference](/api/overview).
 
 ## Related
 
