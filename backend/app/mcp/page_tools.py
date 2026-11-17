@@ -48,7 +48,7 @@ from app.mcp.tools import (
     url_pair,
 )
 from app.services import access as access_service
-from app.services import live, page_asset_uploads, page_assets, page_props, page_templates, pages, revalidate
+from app.services import live, page_asset_uploads, page_assets, page_blocks, page_props, page_templates, pages, revalidate
 
 settings = get_settings()
 
@@ -72,8 +72,13 @@ async def _slug_of(ctx: Context, value: str) -> str:
     return (await resolve_doc(ctx, value)).slug
 
 
-async def _save(ctx: Context, raw: dict, content: str, base_rev: int | None) -> dict:
-    """Save through the website's own path (lock 423, base_rev 409, limits)."""
+class _Stale(Exception):
+    """The page moved on since it was read (a partial edit reads it again and redoes itself)."""
+
+
+async def _save(ctx: Context, raw: dict, content: str, base_rev: int | None, *, stale: bool = False) -> dict:
+    """Save through the website's own path (lock 423, base_rev 409, limits). ``stale``: a 409
+    raises :class:`_Stale` instead of the tool error."""
     from pydantic import ValidationError
 
     from app.schemas.document import DocumentUpdate
@@ -89,6 +94,8 @@ async def _save(ctx: Context, raw: dict, content: str, base_rev: int | None) -> 
     try:
         return await doc_service.update_document(ctx.db, raw["slug"], data, actor_of(ctx), _actx(ctx))
     except HTTPException as exc:
+        if exc.status_code == 409 and base_rev is not None and stale and isinstance(exc, doc_service.StaleRevision):
+            raise _Stale()
         if exc.status_code == 409 and base_rev is not None:
             raise ToolError(f"The page changed since revision {base_rev} (it is at revision "
                             f"{(exc.headers or {}).get('X-Markdrop-Rev', 'newer')}). Read it again with "
@@ -112,6 +119,85 @@ async def _lock_check(raw: dict, ctx: Context) -> None:
         await pages.check_write_lock(ctx.db, raw, actor_of(ctx), _actx(ctx))
     except HTTPException as exc:
         raise ToolError(http_message(exc))
+
+
+async def _edit_part(ctx: Context, raw: dict, base_rev: int | None, apply) -> tuple[dict, dict, Any]:
+    """An edit to part of a page: ``apply(content) -> (new content, info)`` on the page as stored,
+    saved on the revision it was made on. When the page changed meanwhile it is read again and
+    the edit made again (three tries), unless ``base_rev`` was given: then the page must still be
+    at that revision. Goes ahead while someone has the page open in the editor
+    (pages.MERGE_EDIT: their editor merges it in). (the page as read, as saved, info)"""
+    for _ in range(3):
+        rev = int(raw.get("rev") or 1)
+        if base_rev is not None and int(base_rev) != rev:
+            raise ToolError(f"The page changed since revision {base_rev} (it is at revision {rev}). Read it "
+                            "again with get_page and redo the change.")
+        new, info = apply(raw.get("content") or "")
+        token = pages.MERGE_EDIT.set(True)
+        try:
+            after = await _save(ctx, raw, new, rev, stale=base_rev is None)
+        except _Stale:
+            fresh = await ctx.db["documents"].find_one({"_id": raw["_id"]})
+            if fresh is None:
+                raise ToolError("That page was deleted meanwhile.")
+            raw = fresh
+            continue
+        finally:
+            pages.MERGE_EDIT.reset(token)
+        return raw, after, info
+    raise ToolError("The page kept changing while this was being saved. Try again.")
+
+
+def _merged_note(raw: dict) -> str:
+    """For a partial edit made while someone has the page open in the editor."""
+    lock = pages.lock_view(raw.get("edit_lock"))
+    if lock is None:
+        return ""
+    return (f" {lock['name']} has the page open in the editor: the change shows there now, merged with "
+            "anything they're typing.")
+
+
+async def _page_to_edit(ctx: Context, args: dict) -> dict:
+    raw = await load_for(ctx, args["document"], "edit_content", "update")
+    _editable_page(raw)
+    return raw
+
+
+def _headings_text(content: str) -> str:
+    lines, blocks = page_blocks.parse(content)
+    names = [page_blocks.heading_text(lines[b.start]) for b in page_blocks.heading_blocks(blocks)][:40]
+    return f" Its headings: {', '.join(names)}." if names else " It has no headings."
+
+
+def _no_block(bid: str, content: str) -> str:
+    lines, blocks = page_blocks.parse(content)
+    have = page_blocks.anchored(blocks)
+    if not have:
+        return (f"There's no block {bid} on that page: it has no block anchors. Use replace_section, or "
+                "get_page with outline_only to see its headings and tables.")
+    listed = ", ".join(f"{b.bid} ({b.kind})" for b in have[:30])
+    return (f"There's no block {bid} on that page. Its anchored blocks: {listed}"
+            + (" …" if len(have) > 30 else "") + ". get_page with outline_only lists them with a preview.")
+
+
+def _check_new_anchors(new: str, content: str, replaced: tuple[int, int] | None = None) -> None:
+    """New Markdown mustn't reuse an anchor another block of the page has (links and comments
+    would find the wrong one); the ones in the lines it replaces (``replaced``) it may keep."""
+    lines = content.split("\n")
+    if replaced is not None:
+        lines = lines[:replaced[0]] + lines[replaced[1]:]
+    _l, have = page_blocks.parse("\n".join(lines))
+    taken = {b.bid for b in page_blocks.anchored(have)}
+    _l2, mine = page_blocks.parse(new)
+    clash = sorted({b.bid for b in page_blocks.anchored(mine)} & taken)
+    if clash:
+        raise ToolError(f"The anchor {clash[0]} is already another block's on that page. Leave anchors out of "
+                        "new blocks (or use new ones).")
+
+
+def _no_front_matter(new: str) -> None:
+    if page_blocks.front_matter_end((new or "").lstrip("\n").split("\n")):
+        raise ToolError("Page properties (the front matter) aren't changed this way: use set_page_properties.")
 
 
 async def _append(ctx: Context, raw: dict, block: str) -> dict:
@@ -260,11 +346,19 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
             props = {}
     else:
         props = {}
+    level = args.get("access")
+    if level and parent:
+        raise ToolError("A sub-page has its parent's access: create it without access, then change it with "
+                        "set_access if it needs to differ.")
+    if level == "workspace" and not ws_id:
+        raise ToolError("access 'workspace' needs a workspace: pass workspace (and folder), or use 'private' "
+                        "or 'link'.")
     try:
         raw, _secret, error = await pages.create_page(
             ctx.db, ctx.user, actor_of(ctx), _actx(ctx), title=args["title"], workspace=ws_id,
             folder=args.get("folder") if ws_id else None, parent=parent_slug,
-            template=args.get("template"), content=content, slug=args.get("slug") or None)
+            template=args.get("template"), content=content, slug=args.get("slug") or None,
+            access_level=level or None)
     except HTTPException as exc:
         raise ToolError(slug_error(args.get("slug"), exc))
     if props or typed:
@@ -290,7 +384,10 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
         if picked is not None:
             raw, cover_auto = picked, True
     cover = page_props.parse(raw.get("content")).get("cover")
+    from app.mcp.tools import access_of
+
     out = {**await url_pair(ctx, raw), "slug": raw["slug"], "title": raw.get("title"),
+           "access": access_of(raw.get("access_level"), bool(raw.get("read_password_hash"))),
            "editor": "blocks", "parent": parent_slug, "workspace_error": error,
            "template_id": raw.get("template_id"), "cover": cover, "cover_auto": cover_auto}
     where = f" inside {parent_slug}" if parent_slug else ""
@@ -353,6 +450,23 @@ async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
     content = await pages.content_for(actor, raw, actx) or ""
     custom, typed = await _typed(ctx, raw, actor, actx)
     note = None
+    # Only part of it (outline_only, sections): a long page without reading all of it.
+    outline_only = bool(args.get("outline_only"))
+    sections = args.get("sections")
+    shape = None
+    if outline_only or sections is not None:
+        if sections is not None and not isinstance(sections, list):
+            raise ToolError("sections is a list of headings (or anchors); null or \"\" is the text before the "
+                            "first heading.")
+        shape = page_blocks.outline(content)
+        if outline_only:
+            content = ""
+        else:
+            content, missing = page_blocks.sections_markdown(content, sections)
+            if missing:
+                names = [h["text"] for h in shape["headings"]][:40]
+                raise ToolError(f"There's no heading {missing[0]!r} on that page."
+                                + (f" Its headings: {', '.join(names)}." if names else " It has no headings."))
     if len(content) > MAX_RETURNED_CHARS:
         content = content[:MAX_RETURNED_CHARS]
         note = f"Only the first {MAX_RETURNED_CHARS:,} characters are included."
@@ -375,6 +489,8 @@ async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
         out["property_values"] = typed
     if note:
         out["note"] = note
+    if shape is not None:
+        out["outline"] = shape
     jira_text = ""
     if "jira" in content:
         # Jira chips, cards and lists (mcp/jira_page_tools.py): plain links, "KEY · title" + URL.
@@ -392,11 +508,34 @@ async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
         idle = "" if f["idle_s"] is None else (" (editing right now" if f["idle_s"] < 20
                                                 else f" (idle for {pages._ago(f['idle_s'])}")
         idle += (", unsaved changes)" if f["dirty"] else ")") if idle else ""
-        head += (f". {lock['name']} is editing it{idle}: update_page, replace_section and insert_embed after "
-                 f"a heading will be refused until the lock releases (in about {pages._ago(f['releases_in_s'])} "
-                 "if they stop) unless the page's owner or a workspace admin passes take_over: true; "
-                 "append_blocks still works")
+        head += (f". {lock['name']} is editing it{idle}: update_page (the whole page) is refused until the "
+                 f"lock releases (in about {pages._ago(f['releases_in_s'])} if they stop) unless the page's "
+                 "owner or a workspace admin passes take_over: true; edits to part of it (replace_section, "
+                 "replace_block, insert_after_block, delete_block, update_table_row, append_blocks) still work "
+                 "and show in their editor at once")
+    if shape is not None:
+        body = _outline_text(shape) if outline_only else f"{content}\n\n{_outline_text(shape)}"
+        return f"{head}\n\n{body}", out
     return f"{head}\n\n{content}" + (f"\n\n{jira_text}" if jira_text else ""), out
+
+
+def _outline_text(shape: dict) -> str:
+    out = [f"Outline (text before the first heading: {shape['preamble_chars']:,} characters):"]
+    for h in shape["headings"]:
+        out.append(f"{'  ' * (h['level'] - 1)}- {'#' * h['level']} {h['text']}"
+                   + (f" {{#{h['id']}}}" if h["id"] else "") + f" ({h['chars']:,} characters)")
+    if shape["tables"]:
+        out.append("Tables:")
+        for t in shape["tables"]:
+            out.append(f"- {t['index']}" + (f" {t['id']}" if t["id"] else "")
+                       + f" (under {t['section']!r})" * bool(t["section"]) + f": {' | '.join(t['columns'])}; "
+                       f"{t['rows']} rows")
+    if shape["blocks"]:
+        out.append("Anchored blocks:")
+        for b in shape["blocks"][:200]:
+            out.append(f"- {b['id']} {b['kind']}" + f" (under {b['section']!r})" * bool(b["section"])
+                       + f": {b['preview']}")
+    return "\n".join(out)
 
 
 async def update_page(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -420,19 +559,180 @@ async def append_blocks(ctx: Context, args: dict) -> tuple[str, dict]:
 
 
 async def replace_section(ctx: Context, args: dict) -> tuple[str, dict]:
-    raw = await load_for(ctx, args["document"], "edit_content", "update")
-    _editable_page(raw)
-    await _lock_check(raw, ctx)
+    raw = await _page_to_edit(ctx, args)
+    heading = args.get("heading")
+    preamble = not (heading or "").strip()
     markdown, left = await _people(ctx, raw, args["markdown"])
-    content = pages.replace_section(raw.get("content") or "", args["heading"], markdown)
-    if content is None:
-        names = [t for _i, _l, t in pages.headings(raw.get("content") or "")][:40]
-        raise ToolError(f"There's no heading {args['heading']!r} on that page."
-                        + (f" Its headings: {', '.join(names)}." if names else " It has no headings."))
-    after = await _save(ctx, raw, content, int(raw.get("rev") or 1))
+    if preamble:
+        _no_front_matter(markdown)
+
+    def apply(content: str) -> tuple[str, None]:
+        lines, blocks = page_blocks.parse(content)
+        r = page_blocks.section_range(lines, blocks, None if preamble else heading)
+        if r is None:
+            raise ToolError(f"There's no heading {heading!r} on that page." + _headings_text(content))
+        _check_new_anchors(markdown, content, (r[0], r[1]))
+        if preamble:
+            return page_blocks.replace_preamble(content, markdown), None
+        return pages.replace_section(content, heading, markdown), None
+
+    raw, after, _ = await _edit_part(ctx, raw, args.get("base_rev"), apply)
     out = await _result(ctx, after)
-    return _people_note(f"Replaced the section {args['heading']!r} on {out['url']} (revision {out['rev']}).",
+    what = "the text before the first heading" if preamble else f"the section {heading!r}"
+    return _people_note(f"Replaced {what} on {out['url']} (revision {out['rev']}).{_merged_note(raw)}",
                         out, left), out
+
+
+async def _block_edit(ctx: Context, args: dict, op: str) -> tuple[str, dict]:
+    """replace_block / insert_after_block / delete_block: one block, by its anchor."""
+    raw = await _page_to_edit(ctx, args)
+    bid = page_blocks.anchor_of(args.get("block"))
+    if bid is None:
+        raise ToolError("block is a block anchor like 'b-k3x9a1' (get_page with outline_only lists them).")
+    markdown, left = ("", [])
+    if op != "delete":
+        markdown, left = await _people(ctx, raw, args.get("markdown") or "")
+        if not markdown.strip() and op == "insert":
+            raise ToolError("Nothing to add.")
+        _no_front_matter(markdown)
+
+    def apply(content: str) -> tuple[str, dict]:
+        lines, blocks = page_blocks.parse(content)
+        hit = page_blocks.find_block(blocks, bid)
+        if hit is None:
+            raise ToolError(_no_block(bid, content))
+        b, _siblings = hit
+        info = {"block": bid, "kind": b.kind}
+        if op == "delete":
+            return page_blocks.splice(lines, b.start, b.end, None), info
+        if op == "insert":
+            _check_new_anchors(markdown, content)
+            return page_blocks.splice(lines, b.end, b.end, markdown), info
+        _check_new_anchors(markdown, content, (b.start, b.end))
+        new = markdown
+        if new.strip() and args.get("keep_anchor", True):
+            new = page_blocks.attach_id(new, bid) or new
+        info["anchor_kept"] = bool(new.strip()) and bid in {x.bid for x in page_blocks.anchored(page_blocks.parse(new)[1])}
+        return page_blocks.splice(lines, b.start, b.end, new), info
+
+    try:
+        raw, after, info = await _edit_part(ctx, raw, args.get("base_rev"), apply)
+    except ValueError:
+        raise ToolError("That block is part of the page's properties: use set_page_properties.")
+    out = {**await _result(ctx, after), **info}
+    verb = {"replace": "Replaced", "insert": "Added a block after", "delete": "Deleted"}[op]
+    text = f"{verb} block {bid} ({info['kind']}) on {out['url']} (revision {out['rev']})."
+    if op == "replace" and not info.get("anchor_kept"):
+        text += " The new Markdown isn't one block that can carry its anchor, so links to it no longer land there."
+    return _people_note(text + _merged_note(raw), out, left), out
+
+
+async def replace_block(ctx: Context, args: dict) -> tuple[str, dict]:
+    return await _block_edit(ctx, args, "replace")
+
+
+async def insert_after_block(ctx: Context, args: dict) -> tuple[str, dict]:
+    return await _block_edit(ctx, args, "insert")
+
+
+async def delete_block(ctx: Context, args: dict) -> tuple[str, dict]:
+    return await _block_edit(ctx, args, "delete")
+
+
+def _tables_text(lines: list[str], tables: list) -> str:
+    if not tables:
+        return " It has no tables."
+    rows = []
+    for n, t in enumerate(tables[:20], start=1):
+        cols = ", ".join(page_blocks.visible(c) for c in page_blocks.cells(lines[t.start]))
+        rows.append(f"{n}" + (f" ({t.bid})" if t.bid else "") + f": {cols}")
+    return " Its tables: " + "; ".join(rows) + "."
+
+
+def _column(header: list[str], ref) -> int:
+    """A column by its header text (case ignored) or its number (1 = the first)."""
+    key = str(ref).strip()
+    want = page_blocks.norm(page_blocks.visible(key))
+    for i, h in enumerate(header):
+        if page_blocks.norm(h) == want:
+            return i
+    if key.isdigit() and 1 <= int(key) <= len(header):
+        return int(key) - 1
+    raise ToolError(f"The table has no column {key!r}. Its columns: {', '.join(header)}.")
+
+
+async def update_table_row(ctx: Context, args: dict) -> tuple[str, dict]:
+    raw = await _page_to_edit(ctx, args)
+    values = args.get("cells")
+    if not isinstance(values, (dict, list)) or not values:
+        raise ToolError("cells is {column: new value} for the cells to change, or the whole row as a list.")
+    if args.get("row") is None and args.get("match") in (None, "", {}):
+        raise ToolError("Say which row: match ({column: value}, or the first cell's text) or row (1 = the "
+                        "first row under the header).")
+
+    def apply(content: str) -> tuple[str, dict]:
+        lines, blocks = page_blocks.parse(content)
+        t, tables = page_blocks.find_table(lines, blocks, args.get("table"))
+        if t is None:
+            if args.get("table") in (None, ""):
+                raise ToolError("That page has more than one table: say which with table (its anchor, its "
+                                "number or the heading it's under)." + _tables_text(lines, tables)
+                                if tables else "That page has no tables.")
+            raise ToolError(f"There's no table {args.get('table')!r} on that page." + _tables_text(lines, tables))
+        header = [page_blocks.visible(c) for c in page_blocks.cells(lines[t.start])]
+        rows = page_blocks.table_rows(lines, t)
+
+        def texts(k: int) -> list[str]:
+            cs = page_blocks.cells(lines[k])
+            return [page_blocks.norm(page_blocks.cell_text(c)) for c in cs] + [""] * (len(header) - len(cs))
+
+        if args.get("row") is not None:
+            n = int(args["row"])
+            if not 1 <= n <= len(rows):
+                raise ToolError(f"The table has {len(rows)} rows under its header; row {n} isn't one.")
+            k = rows[n - 1]
+        else:
+            match = args["match"]
+            conds = ([(_column(header, c), v) for c, v in match.items()] if isinstance(match, dict)
+                     else [(0, match)])
+            hits = [k for k in rows if all(texts(k)[ci] == page_blocks.norm(page_blocks.visible(str(v)))
+                                           for ci, v in conds)]
+            if not hits:
+                firsts = ", ".join(page_blocks.cell_text(page_blocks.cells(lines[k])[0]) for k in rows[:25])
+                raise ToolError(f"No row of that table matches {match!r}. Its first column: {firsts or 'empty'}.")
+            if len(hits) > 1:
+                raise ToolError(f"{len(hits)} rows match {match!r}: match on another column too, or pass row "
+                                f"(rows {', '.join(str(rows.index(k) + 1) for k in hits[:10])}).")
+            k = hits[0]
+        old = page_blocks.cells(lines[k])
+        old += [""] * (len(header) - len(old))
+        new = list(old)
+
+        def put(i: int, v) -> None:
+            src = page_blocks.cell_source(v)
+            keep = page_blocks.cell_attrs(old[i])
+            if keep and not page_blocks.cell_attrs(src):
+                src = f"{src} {keep}".strip()
+            new[i] = src
+
+        if isinstance(values, list):
+            if len(values) > len(header):
+                raise ToolError(f"The table has {len(header)} columns; that row has {len(values)} cells.")
+            for i in range(len(header)):
+                put(i, values[i] if i < len(values) else "")
+        else:
+            for c, v in values.items():
+                put(_column(header, c), v)
+        lines[k] = page_blocks.row_line(new)
+        n_tab = next(i for i, x in enumerate(tables, start=1) if x is t)
+        return "\n".join(lines), {"table": {"index": n_tab, "id": t.bid}, "row": rows.index(k) + 1,
+                                  "cells": {header[i] or str(i + 1): page_blocks.cell_text(new[i])
+                                            for i in range(len(header))}}
+
+    raw, after, info = await _edit_part(ctx, raw, args.get("base_rev"), apply)
+    out = {**await _result(ctx, after), **info}
+    return (f"Updated row {info['row']} of table {info['table']['index']} on {out['url']} (revision "
+            f"{out['rev']}).{_merged_note(raw)}"), out
 
 
 async def insert_embed(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -451,11 +751,13 @@ async def insert_embed(ctx: Context, args: dict) -> tuple[str, dict]:
         block = pages.embed_block(item["slug"], mode)
     heading = args.get("after_heading")
     if heading:
-        await _lock_check(raw, ctx)
-        content = pages.insert_after_section(raw.get("content") or "", heading, block)
-        if content is None:
-            raise ToolError(f"There's no heading {heading!r} on that page.")
-        after = await _save(ctx, raw, content, int(raw.get("rev") or 1))
+        def apply(content: str) -> tuple[str, None]:
+            new = pages.insert_after_section(content, heading, block)
+            if new is None:
+                raise ToolError(f"There's no heading {heading!r} on that page." + _headings_text(content))
+            return new, None
+
+        raw, after, _ = await _edit_part(ctx, raw, None, apply)
     else:
         after = await _append(ctx, raw, block)
     out = {**await _result(ctx, after), "item": item["slug"], "as": as_, "markdown": block}
@@ -1055,6 +1357,16 @@ _PAGE_RESULT = _out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "
                      "unresolved_people": _UNRESOLVED},
                     ["url", "markdrop_url", "slug", "rev"])
 _MARKDOWN = {"type": "string", "minLength": 1, "maxLength": settings.max_content_chars}
+_BASE_REV = {"type": "integer", "minimum": 1, "description": (
+    "Optional: the rev get_page returned. Given, nothing is saved if the page changed since; left out, "
+    "a page that changed meanwhile is read again and the edit made on the new version.")}
+_BLOCK_ARG = {"type": "string", "minLength": 6, "maxLength": 14, "description": (
+    "The block's anchor, e.g. 'b-k3x9a1' (from '{#b-k3x9a1}' in get_page's markdown, or get_page with "
+    "outline_only).")}
+_BLOCK_RESULT = _out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "integer"},
+                      "block": {"type": "string"}, "kind": {"type": "string"},
+                      "anchor_kept": {"type": "boolean"}, "unresolved_people": _UNRESOLVED},
+                     ["url", "markdrop_url", "slug", "rev", "block", "kind"])
 # What AI apps may write in a page (the block editor round-trips all of it). Kept in one place;
 # the docs page "Page Markdown reference" (frontend/content/docs/pages/markdown-reference.md) spells
 # out every block. Exactly what the editor reads and writes: nothing it doesn't.
@@ -1124,6 +1436,11 @@ PAGE_TOOLS: list[Tool] = [
                 "'blank' for an empty page.")},
             "slug": {**SLUG_ARG, "description": ("Optional: its link (random if omitted). 3-50 letters, digits, "
                                                  "- or _. If it is taken you get an error naming it.")},
+            "access": {"type": "string", "enum": ["private", "workspace", "link"], "description": (
+                "Optional: who can open it from the start: 'private' (only the user and people it's shared "
+                "with), 'workspace' (members of its workspace; needs workspace) or 'link' (anyone with the "
+                "link). Default: the folder's (or workspace's) 'new items start as', or 'link' for a "
+                "personal page. Not with parent (a sub-page has its parent's access).")},
             "content": {"type": "string", "maxLength": settings.max_content_chars,
                         "description": "Optional Markdown for the page (instead of a template)."},
             "properties": {"type": "object", "description": (
@@ -1139,6 +1456,7 @@ PAGE_TOOLS: list[Tool] = [
                 "can turn this off). The result's cover says which. false: no cover.")},
         }, "required": ["title"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "title": _NULLABLE_STR,
+                            "access": {"type": "string", "enum": ["link", "private", "password", "workspace"]},
                             "editor": {"type": "string"}, "parent": _NULLABLE_STR,
                             "workspace_error": _NULLABLE_STR, "template_id": _NULLABLE_STR,
                             "cover": _NULLABLE_STR, "cover_auto": {"type": "boolean"},
@@ -1155,15 +1473,35 @@ PAGE_TOOLS: list[Tool] = [
                      "(each with whether the user can open it) and its images. properties has the page's own "
                      "(icon, cover, …) and its folder's typed properties by key; property_values lists the "
                      "folder's properties in order with each value and a readable display (people's names, "
-                     "linked pages' titles when the user can open them). " + _SYNTAX),
+                     "linked pages' titles when the user can open them). A long page: outline_only gives "
+                     "its shape without the text (headings with anchors and sizes, tables with their "
+                     "columns, anchored blocks with a preview), then sections reads just the parts to change "
+                     "(edit them with replace_section, replace_block, insert_after_block, delete_block or "
+                     "update_table_row). " + _SYNTAX),
         scope=READ,
-        input_schema={"type": "object", "properties": {"document": _DOC_REF}, "required": ["document"]},
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF,
+            "outline_only": {"type": "boolean", "default": False, "description": (
+                "Only the page's outline (markdown is empty): its headings (level, text, anchor, size), "
+                "tables (number, anchor, section, columns, rows) and anchored blocks (anchor, kind, "
+                "section, a preview).")},
+            "sections": {"type": "array", "maxItems": 50, "items": {"type": ["string", "null"], "maxLength": 300},
+                         "description": (
+                "Only these sections in markdown (each from its heading to the next heading of the same or "
+                "a higher level), in this order, plus the outline. A heading's text (case, #s and {…} "
+                "attributes ignored) or its anchor ('b-…'); null or \"\" is the text before the first "
+                "heading.")},
+        }, "required": ["document"]},
         output_schema=_out({
             **_URL_PROPS, "slug": {"type": "string"}, "title": _NULLABLE_STR, "markdown": {"type": "string"},
             "rev": {"type": "integer"}, "editor": {"type": "string"}, "parent": {"type": ["object", "null"]},
             "children": {"type": "array"}, "embeds": {"type": "array"}, "assets": {"type": "array"},
             "editing": {"type": "string"}, "edit_lock": {"type": "object"}, "note": {"type": "string"},
             "jira": {"type": "array", "description": "Jira chips, cards and lists on the page, as plain links."},
+            "outline": {"type": "object", "description": (
+                "With outline_only or sections: {preamble_chars, headings: [{level, text, id, line, chars}], "
+                "tables: [{index, id, section, line, columns, rows}], blocks: [{id, kind, section, line, "
+                "preview}]}.")},
             "properties": {"type": "object"},
             "property_values": {"type": "array", "items": {"type": "object", "properties": {
                 "key": {"type": "string"}, "name": {"type": "string"}, "type": {"type": "string"},
@@ -1179,7 +1517,9 @@ PAGE_TOOLS: list[Tool] = [
         description=("Replace a page's whole Markdown. base_rev is the rev get_page returned: if the page "
                      "changed since, nothing is saved. Refused while someone is editing the page (error 'locked' "
                      "says who, how long they've been idle, whether they have unsaved changes and when it releases "
-                     "by itself; wait, use append_blocks, or — the page's owner or a workspace admin, after asking "
+                     "by itself; wait, edit just the part that changes (replace_section, replace_block, "
+                     "insert_after_block, delete_block, update_table_row, append_blocks: they merge into the "
+                     "open editor), or — the page's owner or a workspace admin, after asking "
                      "the user — pass take_over: true). Keep the front matter get_page "
                      "returned at the top. " + PAGE_SYNTAX),
         scope=WRITE,
@@ -1209,22 +1549,116 @@ PAGE_TOOLS: list[Tool] = [
     Tool(
         name="replace_section",
         title="Replace a section of a page",
-        description=("Replace one section of a page: from the heading named (matched ignoring case) to the "
-                     "next heading of the same or a higher level. The heading is kept unless the new Markdown "
-                     "starts with a heading of its own. Refused while someone is editing the page. "
+        description=("Replace one section of a page: from the heading named to the next heading of the same "
+                     "or a higher level. The heading is matched by the text a reader sees (case, #s, its "
+                     "'{#b-…}' anchor and '{bg=…}'-style attributes ignored), or by its anchor ('b-k3x9a1'). "
+                     "heading null (or \"\"): the text before the first heading (a page's intro or header "
+                     "table; the front matter stays). The heading is kept unless the new Markdown starts with "
+                     "a heading of its own. Works while someone has the page open in the editor: it shows "
+                     "there at once, merged with what they're typing. base_rev (optional): only if the page "
+                     "is still at that revision; without it, a page that changed meanwhile is read again and "
+                     "the section replaced in the new version. " + PAGE_SYNTAX),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF,
+            "heading": {"type": ["string", "null"], "maxLength": 300, "description": (
+                "The section's heading text, e.g. 'Rollout', or its anchor 'b-…'. null or \"\": the text "
+                "before the first heading.")},
+            "markdown": {"type": "string", "maxLength": settings.max_content_chars},
+            "base_rev": _BASE_REV,
+        }, "required": ["document", "markdown"]},
+        output_schema=_PAGE_RESULT,
+        annotations=_ann(False, True, True),
+        handler=replace_section,
+    ),
+    Tool(
+        name="replace_block",
+        title="Replace one block of a page",
+        description=("Replace one block of a page — a paragraph, heading, table, code block, callout or "
+                     "other container, … — found by its anchor ('b-k3x9a1': the '{#b-…}' after it in "
+                     "get_page's markdown; get_page with outline_only lists them), also inside a callout or "
+                     "column. The new Markdown keeps the anchor (so links and comments on the block still "
+                     "find it) when it is one block and has none of its own. Empty markdown removes the "
+                     "block. Works while someone has the page open in the editor (merged into it live). "
                      + PAGE_SYNTAX),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
             "document": _DOC_REF,
-            "heading": {"type": "string", "minLength": 1, "maxLength": 300,
-                        "description": "The section's heading text, e.g. 'Rollout'."},
+            "block": _BLOCK_ARG,
             "markdown": {"type": "string", "maxLength": settings.max_content_chars},
-            "take_over": TAKE_OVER_ARG,
-        }, "required": ["document", "heading", "markdown"]},
-        output_schema=_PAGE_RESULT,
+            "keep_anchor": {"type": "boolean", "default": True,
+                            "description": "Default true: put the block's anchor on the new Markdown."},
+            "base_rev": _BASE_REV,
+        }, "required": ["document", "block", "markdown"]},
+        output_schema=_BLOCK_RESULT,
         annotations=_ann(False, True, True),
-        handler=replace_section,
+        handler=replace_block,
+    ),
+    Tool(
+        name="insert_after_block",
+        title="Add blocks after a block of a page",
+        description=("Add Markdown blocks right after one block of a page, found by its anchor ('b-…'; "
+                     "inside a callout or column, they go in there too). Works while someone has the page "
+                     "open in the editor (merged into it live). " + PAGE_SYNTAX),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF, "block": _BLOCK_ARG, "markdown": _MARKDOWN, "base_rev": _BASE_REV,
+        }, "required": ["document", "block", "markdown"]},
+        output_schema=_BLOCK_RESULT,
+        annotations=_ann(False, False, False),
+        handler=insert_after_block,
+    ),
+    Tool(
+        name="delete_block",
+        title="Delete one block of a page",
+        description=("Delete one block of a page by its anchor ('b-…'): a paragraph, heading (only its line; "
+                     "use replace_section with empty markdown for a whole section), table, code block or a "
+                     "container with everything in it. It stays in the page's version history. Works while "
+                     "someone has the page open in the editor."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF, "block": _BLOCK_ARG, "base_rev": _BASE_REV,
+        }, "required": ["document", "block"]},
+        output_schema=_BLOCK_RESULT,
+        annotations=_ann(False, True, True),
+        handler=delete_block,
+    ),
+    Tool(
+        name="update_table_row",
+        title="Change one row of a table in a page",
+        description=("Change cells of one row of a table in a page, without rewriting the page. table: its "
+                     "anchor ('b-…'), its number (1 = the first table on the page) or the heading of the "
+                     "section it's in; may be left out when the page has one table. The row: match "
+                     "({column: value}, matched by the text a reader sees, case ignored; or a string for the "
+                     "first column) or row (1 = the first row under the header). cells: {column: new value} "
+                     "for just those cells (a column by its header text or number), or a list for the whole "
+                     "row. Values are inline Markdown on one line ('|' is escaped for you); a cell's colour "
+                     "({bg=…}) is kept. Works while someone has the page open in the editor (merged live)."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF,
+            "table": {"type": ["string", "integer"], "description": (
+                "The table's anchor ('b-…'), number (1 = first) or the heading it's under. Optional when the "
+                "page has one table.")},
+            "match": {"type": ["object", "string"], "description": (
+                "Which row: {column: value} (all must match), or a string matched against the first "
+                "column. Or use row.")},
+            "row": {"type": "integer", "minimum": 1, "description": "Which row by number (1 = first under the header)."},
+            "cells": {"type": ["object", "array"], "description": (
+                "{column: new value} (column = header text or number), or the whole row as a list.")},
+            "base_rev": _BASE_REV,
+        }, "required": ["document", "cells"]},
+        output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "integer"},
+                            "table": {"type": "object"}, "row": {"type": "integer"},
+                            "cells": {"type": "object", "description": "The row now: {column: text}."}},
+                           ["url", "markdrop_url", "slug", "rev", "table", "row", "cells"]),
+        annotations=_ann(False, True, True),
+        handler=update_table_row,
     ),
     Tool(
         name="insert_embed",

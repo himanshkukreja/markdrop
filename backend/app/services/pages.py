@@ -443,6 +443,12 @@ async def check_page_lock(raw: dict, actor: access.Actor, ctx: access.Ctx,
 # Set by an MCP write tool called with ``take_over: true`` (app/mcp/protocol.py): the write
 # takes the page from whoever holds it when the caller may (see :func:`check_write_lock`).
 TAKE_OVER: ContextVar[bool] = ContextVar("page_take_over", default=False)
+# Set around an MCP edit to part of a page (a section, a block, a table row: app/mcp/page_tools.py):
+# it goes ahead while someone holds the page, like append_blocks. Their open editor follows it live
+# (the socket's ``changed``): it shows the new version, or merges it under what they're typing
+# line by line (frontend lib/pageMerge.mjs), asking only when both changed the same lines; their
+# saves carry base_rev, so nothing they have overwrites it.
+MERGE_EDIT: ContextVar[bool] = ContextVar("page_merge_edit", default=False)
 
 
 async def may_take_over(actor: access.Actor, raw: dict, ctx: access.Ctx | None) -> bool:
@@ -492,8 +498,8 @@ def _taken_for(raw: dict, user_id: str | None) -> dict | None:
 async def check_write_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor,
                            ctx: access.Ctx | None = None) -> None:
     """423 when someone holds the page and this write isn't theirs. An MCP
-    write is refused whenever anyone holds it (its own user's open editor
-    would overwrite it on the next autosave); ``append_blocks`` never asks.
+    write of the whole page is refused whenever anyone holds it; ``append_blocks``
+    never asks, and an edit to part of the page (:data:`MERGE_EDIT`) merges in.
     An MCP write with ``take_over`` (:data:`TAKE_OVER`) by someone who may
     (:func:`may_take_over`) clears the lock first and goes ahead."""
     lock = lock_view(raw.get("edit_lock"))
@@ -501,6 +507,8 @@ async def check_write_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Ac
         return
     mcp = actor.cred == "mcp"
     if not mcp and actor.user_id and lock["user_id"] == actor.user_id:
+        return
+    if mcp and MERGE_EDIT.get():
         return
     allowed = await may_take_over(actor, raw, ctx) if ctx is not None else None
     if mcp and TAKE_OVER.get() and allowed:
@@ -982,12 +990,6 @@ async def restore_refs(actor: access.Actor, ctx: access.Ctx, new: str, old: str 
     return _REF.sub(fill, new)
 
 
-def _norm_heading(text: str) -> str:
-    t = re.sub(r"^\s*#{1,6}\s*", "", text or "")
-    t = re.sub(r"[ \t]+#+[ \t]*$", "", t)
-    return " ".join(t.split()).casefold()
-
-
 def headings(markdown: str) -> list[tuple[int, int, str]]:
     """(line index, level, text) of every ATX heading outside code fences."""
     out = []
@@ -1010,22 +1012,19 @@ def headings(markdown: str) -> list[tuple[int, int, str]]:
 
 
 def find_section(markdown: str, heading: str) -> tuple[int, int, int] | None:
-    """(heading line, end line exclusive, level) of the first heading whose text
-    is ``heading`` (case and #s ignored): it runs to the next heading of the
-    same or a higher level."""
-    want = _norm_heading(heading)
-    if not want:
+    """(heading line, end line exclusive, level) of the first top-level heading whose text a
+    reader sees is ``heading`` (case, #s, ``{#b-…}`` anchors and ``{bg=…}`` attributes ignored),
+    or whose anchor it is (``b-k3x9a1``): it runs to the next heading of the same or a higher
+    level (services/page_blocks.py)."""
+    from app.services import page_blocks
+
+    if not (heading or "").strip():
         return None
-    hs = headings(markdown)
-    for n, (i, level, text) in enumerate(hs):
-        if _norm_heading(text) == want:
-            end = len(markdown.split("\n"))
-            for j, lv, _t in hs[n + 1:]:
-                if lv <= level:
-                    end = j
-                    break
-            return i, end, level
-    return None
+    lines, blocks = page_blocks.parse(markdown)
+    r = page_blocks.section_range(lines, blocks, heading)
+    if r is None or r[2] is None:
+        return None
+    return r[0], r[1], r[2].level
 
 
 def _join(parts: list[str]) -> str:
@@ -1299,8 +1298,9 @@ async def create_page(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: 
     one is named (``{{date}}`` / ``{{title}}`` filled in), else ``content``.
     Under ``parent`` (a slug the caller can edit): in its workspace and folder,
     inheriting its access. In ``workspace`` (member+): filed like any new
-    document there. Otherwise a personal page (anyone with the link, or
-    ``access_level`` when given: ``private`` for a duplicate, page_copy.py).
+    document there (``access_level`` when given, else the folder's "new items start
+    as"). Otherwise a personal page (anyone with the link, or ``access_level`` when
+    given: ``private`` for a duplicate, page_copy.py).
     ``slug``: its link, with publish's custom-slug rules (3-50 letters, digits,
     - or _; 409 when taken or reserved, never a silent rename; 409 beside a
     folder of that slug on its workspace's domain). Nothing is created then."""
@@ -1410,7 +1410,8 @@ async def create_page(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: 
     if workspace:
         from app.services import library as lib_service
 
-        folder_id, level = await lib_service.prepare_new_filing(db, user, workspace, folder, custom_slug=slug)
+        folder_id, level = await lib_service.prepare_new_filing(db, user, workspace, folder, custom_slug=slug,
+                                                                access_level=access_level)
         data = DocumentCreate(title=title, content=content, access_level="private", custom_slug=slug)
         doc, secret = await doc_service.create_document(db, data, owner_id=user.id, extra=extra)
         raw = await db["documents"].find_one({"slug": doc.slug})

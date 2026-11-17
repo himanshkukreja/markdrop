@@ -34,7 +34,7 @@ import { useAltText } from "./menus/aiAlt";
 import type { AiHooks } from "./menus/aiKeys";
 import { PasteController, PasteMenu } from "./menus/PasteMenu";
 import type { VisualHandle } from "./FindBar";
-import { CODE_LANGS } from "./views/code";
+import { CODE_LANGS, keepDiagramsClosed, mermaidAround } from "./views/code";
 import { BlockMarquee, SelectionBar, TouchBar, useEditorAnchor } from "./menus/BlockTools";
 import { insertColumns } from "./menus/columns";
 import { blockDropAt } from "./menus/dnd";
@@ -298,6 +298,8 @@ export default function VisualEditor(props: VisualEditorProps) {
     // The caret stays where it was (a whole-document swap would put it at the end).
     const { from, to } = editor.state.selection;
     const focused = editor.isFocused;
+    // Same offset, same diagram: only a caret that was in a diagram's code may land in one's.
+    const inDiagram = mermaidAround(editor);
     editor.commands.setContent(next.doc as never, { emitUpdate: false });
     if (focused) {
       const max = editor.state.doc.content.size;
@@ -307,6 +309,7 @@ export default function VisualEditor(props: VisualEditorProps) {
         /* a position inside something that's gone: leave it where it landed */
       }
     }
+    keepDiagramsClosed(editor, inDiagram);
     if (typed !== null) onChangeRef.current(typed);
   }, [editor, value]);
 

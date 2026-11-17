@@ -19,6 +19,7 @@ from app.services import live, viewers
 from tests.test_pages import png
 
 PAGE_TOOLS = {"create_page", "get_page", "update_page", "append_blocks", "replace_section", "insert_embed",
+              "replace_block", "insert_after_block", "delete_block", "update_table_row",
               "list_page_templates", "list_subpages", "move_page", "upload_page_image", "set_page_properties",
               "create_page_image_upload", "complete_page_image_upload", "copy_page_asset"}
 
@@ -162,17 +163,14 @@ class McpPages(AccessWorld):
                                                                                  "markdown": "x", "base_rev": 2}))
         self.assertEqual((await self.doc(page["slug"]))["content"], "# v2")
 
-    async def test_lock_refuses_mcp_writes_except_append(self):
+    async def test_lock_refuses_whole_page_writes_and_partial_edits_merge(self):
         page = await self.mkdoc("UP")
         await self.db["documents"].update_one({"_id": page["_id"]},
                                               {"$set": {"content": "# Top\n\n## Rollout\n\nold\n"}})
         await self.lock(page["slug"], "ge")
-        for name, args in (("update_page", {"markdown": "x", "base_rev": 1}),
-                           ("replace_section", {"heading": "Rollout", "markdown": "new"}),
-                           ("insert_embed", {"item": page["slug"], "after_heading": "Rollout"})):
-            text = await self.err("owner", name, {"document": page["slug"], **args})
-            self.assertIn("GE is editing this page", text, name)
-        # Even the lock holder's own assistant waits: their open editor would overwrite it.
+        text = await self.err("owner", "update_page", {"document": page["slug"], "markdown": "x", "base_rev": 1})
+        self.assertIn("GE is editing this page", text)
+        # Even the lock holder's own assistant waits for a whole-page write.
         self.assertIn("editing", await self.err("ge", "update_page", {"document": page["slug"],
                                                                       "markdown": "x", "base_rev": 1}))
         q = live.subscribe(page["slug"])
@@ -184,20 +182,30 @@ class McpPages(AccessWorld):
         self.assertEqual(events[0], {"type": "appended", "rev": out["rev"], "markdown": "- [ ] new task"})
         self.assertEqual(events[1], {"type": "changed", "rev": out["rev"]})
         self.assertEqual((await self.doc(page["slug"]))["content"], "# Top\n\n## Rollout\n\nold\n\n- [ ] new task\n")
-        # insert_embed at the end behaves as an append, so it works too.
+        # An edit to part of the page goes ahead: the open editor gets `changed` and merges it in.
+        q = live.subscribe(page["slug"])
+        try:
+            res = await self.call("owner", "replace_section", {"document": page["slug"], "heading": "Rollout",
+                                                               "markdown": "new"})
+            events = [q.get_nowait() for _ in range(q.qsize())]
+        finally:
+            live.unsubscribe(page["slug"], q)
+        self.assertFalse(res["isError"], res)
+        self.assertIn("GE has the page open in the editor", res["content"][0]["text"])
+        self.assertIn({"type": "changed", "rev": res["structuredContent"]["rev"]}, events)
+        self.assertEqual((await self.doc(page["slug"]))["content"], "# Top\n\n## Rollout\n\nnew\n")
+        # The lock is still GE's (nothing taken over).
+        self.assertEqual((await self.doc(page["slug"]))["edit_lock"]["user_id"], self.uid["ge"])
         item = await self.mkdoc("UL")
+        await self.ok("owner", "insert_embed", {"document": page["slug"], "item": item["slug"], "after_heading": "Rollout"})
         await self.ok("owner", "insert_embed", {"document": page["slug"], "item": item["slug"]})
-        # The lock gone (expired), everything works again.
-        await self.db["documents"].update_one({"_id": page["_id"]},
-                                              {"$set": {"edit_lock.expires_at": now() - timedelta(seconds=1)}})
-        await self.ok("owner", "replace_section", {"document": page["slug"], "heading": "Rollout", "markdown": "new"})
 
     async def test_get_page_says_who_is_editing(self):
         page = await self.mkdoc("UP")
         await self.lock(page["slug"], "ge")
         res = await self.call("owner", "get_page", {"document": page["slug"]})
         self.assertEqual(res["structuredContent"]["editing"], "GE")
-        self.assertIn("append_blocks still works", res["content"][0]["text"])
+        self.assertIn("update_table_row, append_blocks) still work", res["content"][0]["text"])
 
     async def test_replace_section(self):
         page = await self.mkdoc("UP")
@@ -218,6 +226,135 @@ class McpPages(AccessWorld):
         self.assertIn("Steps", text)
         self.assertIn("can edit", await self.err("gv", "replace_section", {"document": page["slug"],
                                                                            "heading": "Steps", "markdown": "x"}))
+
+    async def test_replace_section_matches_visible_text_anchor_and_preamble(self):
+        page = await self.mkdoc("UP")
+        md = ("---\nicon: \"🚀\"\n---\n\n| Field | Value |\n| --- | --- |\n| Status | Draft |\n\n"
+              "## :span[Roll]{color=red}out **plan** {#b-roll01 bg=yellow}\n\nold\n\n## After\n\nz\n")
+        await self.db["documents"].update_one({"_id": page["_id"]}, {"$set": {"content": md}})
+        await self.ok("owner", "replace_section", {"document": page["slug"], "heading": "rollout plan",
+                                                   "markdown": "new"})
+        self.assertIn("{#b-roll01 bg=yellow}\n\nnew\n\n## After", (await self.doc(page["slug"]))["content"])
+        await self.ok("owner", "replace_section", {"document": page["slug"], "heading": "#b-roll01",
+                                                   "markdown": "newer"})
+        await self.ok("owner", "replace_section", {"document": page["slug"], "heading": "## Rollout plan {bg=blue}",
+                                                   "markdown": "newest"})
+        # The preamble: everything before the first heading; the front matter stays.
+        out = await self.ok("owner", "replace_section", {"document": page["slug"], "heading": None,
+                                                         "markdown": "| Field | Value |\n| --- | --- |\n| Status | Live |"})
+        content = (await self.doc(page["slug"]))["content"]
+        self.assertTrue(content.startswith("---\nicon: \"🚀\"\n---\n\n| Field | Value |\n| --- | --- |\n| Status | Live |\n\n## "))
+        self.assertIn("newest", content)
+        self.assertIn("set_page_properties", await self.err("owner", "replace_section", {
+            "document": page["slug"], "heading": "", "markdown": "---\nicon: x\n---\n\nhi"}))
+        # base_rev: refused when the page moved on; without it the edit is made on the latest version.
+        self.assertIn("changed since revision 1", await self.err("owner", "replace_section", {
+            "document": page["slug"], "heading": "After", "markdown": "q", "base_rev": 1}))
+        await self.ok("owner", "replace_section", {"document": page["slug"], "heading": "After", "markdown": "q",
+                                                   "base_rev": out["rev"]})
+        # A heading in a callout isn't a section; an anchor on a new block may not repeat another's.
+        self.assertIn("no heading", await self.err("owner", "replace_section", {
+            "document": page["slug"], "heading": "Nope", "markdown": "x"}))
+        self.assertIn("already another block", await self.err("owner", "replace_section", {
+            "document": page["slug"], "heading": "After", "markdown": "dup {#b-roll01}"}))
+
+    async def test_block_tools(self):
+        page = await self.mkdoc("UP")
+        md = ("Intro {#b-intro1}\n\n## Notes {#b-head01}\n\nKeep me.\n\n```js\nx()\n```\n{#b-code01}\n\n"
+              ":::note{#b-note01}\nInside {#b-in0001}\n:::\n\nEnd {#b-end001}\n")
+        await self.db["documents"].update_one({"_id": page["_id"]}, {"$set": {"content": md}})
+        out = await self.ok("owner", "replace_block", {"document": page["slug"], "block": "b-intro1",
+                                                       "markdown": "New intro"})
+        self.assertEqual((out["kind"], out["anchor_kept"]), ("paragraph", True))
+        doc = (await self.doc(page["slug"]))["content"]
+        self.assertTrue(doc.startswith("New intro {#b-intro1}\n\n## Notes"))
+        # Inside a container, and a code block's anchor line goes with it.
+        await self.ok("owner", "replace_block", {"document": page["slug"], "block": "#b-in0001", "markdown": "Changed"})
+        await self.ok("owner", "replace_block", {"document": page["slug"], "block": "b-code01",
+                                                 "markdown": "```py\ny()\n```"})
+        doc = (await self.doc(page["slug"]))["content"]
+        self.assertIn(":::note{#b-note01}\n\nChanged {#b-in0001}\n\n:::", doc)
+        self.assertIn("```py\ny()\n```\n{#b-code01}", doc)
+        self.assertNotIn("x()", doc)
+        await self.ok("owner", "insert_after_block", {"document": page["slug"], "block": "b-head01",
+                                                      "markdown": "Right under the heading."})
+        await self.ok("owner", "delete_block", {"document": page["slug"], "block": "b-note01"})
+        doc = (await self.doc(page["slug"]))["content"]
+        self.assertIn("## Notes {#b-head01}\n\nRight under the heading.\n\nKeep me.", doc)
+        self.assertNotIn(":::note", doc)
+        self.assertTrue(doc.endswith("End {#b-end001}\n"))
+        text = await self.err("owner", "delete_block", {"document": page["slug"], "block": "b-zzzz00"})
+        self.assertIn("no block b-zzzz00", text)
+        self.assertIn("b-end001", text)
+        self.assertIn("anchor like", await self.err("owner", "delete_block", {"document": page["slug"], "block": "The end"}))
+        self.assertIn("can edit", await self.err("gv", "replace_block", {"document": page["slug"],
+                                                                         "block": "b-end001", "markdown": "x"}))
+
+    async def test_update_table_row(self):
+        page = await self.mkdoc("UP")
+        md = ("| Field | Value |\n| --- | --- |\n| Status {bg=\"blue\"} | Draft |\n| Owner | Ada |\n\n"
+              "## Plan\n\n| Step | Who | When |\n|---|---|---|\n| Build | Bo | May |\n| Ship | Cy | June |\n\n"
+              "{#b-tabl02 widths=\"100,,\"}\n")
+        await self.db["documents"].update_one({"_id": page["_id"]}, {"$set": {"content": md}})
+        self.assertIn("more than one table", await self.err("owner", "update_table_row", {
+            "document": page["slug"], "match": "Status", "cells": {"Value": "Live"}}))
+        out = await self.ok("owner", "update_table_row", {"document": page["slug"], "table": 1, "match": "status",
+                                                          "cells": {"Value": "Live | now"}})
+        self.assertEqual((out["row"], out["table"]), (1, {"index": 1, "id": None}))
+        doc = (await self.doc(page["slug"]))["content"]
+        self.assertIn("| Status {bg=\"blue\"} | Live \\| now |\n| Owner | Ada |", doc)
+        out = await self.ok("owner", "update_table_row", {"document": page["slug"], "table": "b-tabl02",
+                                                          "match": {"Who": "cy"}, "cells": {"3": "July"}})
+        self.assertEqual(out["cells"], {"Step": "Ship", "Who": "Cy", "When": "July"})
+        await self.ok("owner", "update_table_row", {"document": page["slug"], "table": "Plan", "row": 1,
+                                                    "cells": ["Build", "Bo"]})
+        doc = (await self.doc(page["slug"]))["content"]
+        self.assertIn("| Build | Bo |  |\n| Ship | Cy | July |\n\n{#b-tabl02", doc)
+        self.assertIn("No row", await self.err("owner", "update_table_row", {
+            "document": page["slug"], "table": 2, "match": "Nope", "cells": {"Who": "x"}}))
+        self.assertIn("no column", await self.err("owner", "update_table_row", {
+            "document": page["slug"], "table": 2, "row": 1, "cells": {"Budget": "x"}}))
+        self.assertIn("no table", await self.err("owner", "update_table_row", {
+            "document": page["slug"], "table": 9, "row": 1, "cells": {"Who": "x"}}))
+
+    async def test_get_page_outline_and_sections(self):
+        page = await self.mkdoc("UP")
+        md = ("---\nicon: \"🚀\"\n---\n\nIntro {#b-intro1}\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n"
+              "## One {#b-one001}\n\none\n\n### Sub\n\nsub\n\n## Two\n\ntwo\n")
+        await self.db["documents"].update_one({"_id": page["_id"]}, {"$set": {"content": md}})
+        res = await self.call("owner", "get_page", {"document": page["slug"], "outline_only": True})
+        out = res["structuredContent"]
+        self.assertEqual(out["markdown"], "")
+        self.assertEqual([(h["level"], h["text"], h["id"]) for h in out["outline"]["headings"]],
+                         [(2, "One", "b-one001"), (3, "Sub", None), (2, "Two", None)])
+        self.assertEqual(out["outline"]["tables"][0]["columns"], ["A", "B"])
+        self.assertEqual(out["outline"]["blocks"][0]["id"], "b-intro1")
+        self.assertIn("## One {#b-one001}", res["content"][0]["text"])
+        out = await self.ok("owner", "get_page", {"document": page["slug"], "sections": ["b-one001", None]})
+        self.assertEqual(out["markdown"], "## One {#b-one001}\n\none\n\n### Sub\n\nsub\n\nIntro {#b-intro1}\n\n"
+                                          "| A | B |\n|---|---|\n| 1 | 2 |\n")
+        self.assertIn("no heading 'Three'", await self.err("owner", "get_page", {"document": page["slug"],
+                                                                                 "sections": ["Three"]}))
+
+    async def test_create_page_with_access(self):
+        out = await self.ok("wm", "create_page", {"title": "Plan", "workspace": "Acme", "access": "private",
+                                                  "slug": "acme-private-plan"})
+        self.assertEqual((out["slug"], out["access"]), ("acme-private-plan", "private"))
+        self.assertEqual((await self.doc("acme-private-plan"))["access_level"], "private")
+        out = await self.ok("wm", "create_page", {"title": "Team", "workspace": "Acme", "access": "workspace"})
+        self.assertEqual(out["access"], "workspace")
+        # list_workspace_items filters by access.
+        for level, want in (("private", {"acme-private-plan"}), ("workspace", {out["slug"]})):
+            got = await self.ok("wm", "list_workspace_items", {"workspace": "Acme", "access": level})
+            self.assertTrue(want <= {i["slug"] for i in got["items"]}, level)
+            self.assertEqual({i["access"] for i in got["items"]}, {level})
+        got = await self.ok("wm", "list_workspace_items", {"workspace": "Acme", "access": "link"})
+        self.assertFalse({"acme-private-plan", out["slug"]} & {i["slug"] for i in got["items"]})
+        out = await self.ok("owner", "create_page", {"title": "Mine", "access": "private"})
+        self.assertEqual(out["access"], "private")
+        self.assertIn("needs a workspace", await self.err("owner", "create_page", {"title": "x", "access": "workspace"}))
+        self.assertIn("parent's access", await self.err("owner", "create_page", {"title": "x", "parent": out["slug"],
+                                                                                 "access": "link"}))
 
     async def test_append_refusals(self):
         page = await self.mkdoc("UP")

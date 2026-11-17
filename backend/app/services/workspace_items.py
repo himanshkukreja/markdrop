@@ -464,10 +464,25 @@ async def nav(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, wo
 # ── Items ─────────────────────────────────────────────────────────────────────
 
 
+ACCESS_FILTERS = ("private", "workspace", "link")
+
+
+def access_clause(level: str | None) -> dict | None:
+    """Items whose own access level is ``level`` (what each item's ``access`` says; 'link'
+    includes items with a password)."""
+    if not level:
+        return None
+    if level not in ACCESS_FILTERS:
+        raise HTTPException(status_code=422, detail=f"access is one of {', '.join(ACCESS_FILTERS)}.")
+    if level == "link":
+        return {"access_level": {"$in": ["link", None]}}
+    return {"access_level": level}
+
+
 async def items(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace_id: str,
                 *, folder: str = "all", q: str | None = None, kind: str | None = None,
                 cursor: str | None = None, limit: int = 50, file_type: str | None = None,
-                space: str | None = None) -> dict:
+                space: str | None = None, access_level: str | None = None) -> dict:
     """A page of the folder's (or the top level's, or with ``q`` the workspace's) readable
     items, optionally of one file type (services/file_types). The first page also carries
     ``count_by_type``: the scope's readable items per type, whatever the search, type and kind
@@ -485,7 +500,7 @@ async def items(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
         scope.append({"folder_id": folder})
     sf = search_filter(q)
     extra: list[dict | None] = [kind_clause(kind), file_types.type_clause(file_type), sf,
-                                decode_cursor(cursor), *scope]
+                                decode_cursor(cursor), access_clause(access_level), *scope]
     clauses = [e for e in extra if e]
     # Admins' placeholders for private items say nothing of what they are, so a search or a type
     # filter never lists them (it would say what they match).

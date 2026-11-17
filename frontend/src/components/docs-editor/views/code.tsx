@@ -214,6 +214,31 @@ function useFocusWithin(editor: Editor, ref: React.RefObject<HTMLElement | null>
 
 const isMermaid = (n: { type: { name: string }; attrs: Record<string, unknown> } | null | undefined) => n?.type.name === "codeBlock" && n.attrs.language === MERMAID;
 
+/** The position of the ```mermaid block the selection is in (its code), or null. */
+export function mermaidAround(editor: Editor): number | null {
+  const { selection } = editor.state;
+  if (!(selection instanceof TextSelection)) return null;
+  const { $from, $to } = selection;
+  if ($from.parent !== $to.parent || !isMermaid($from.parent) || $from.depth < 1) return null;
+  return $from.before();
+}
+
+/**
+ * After the document was swapped under the caret (a teammate's or an AI app's change landing while
+ * the page is open): a caret put back at its old offset that lands in the code of a diagram it wasn't in
+ * would open that code (the owner saw raw Mermaid instead of the diagram). Select the block instead:
+ * the diagram shows, and Enter (or a click) edits it.
+ */
+export function keepDiagramsClosed(editor: Editor, wasIn: number | null): void {
+  const at = mermaidAround(editor);
+  if (at === null || at === wasIn) return;
+  try {
+    editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, at)).setMeta("addToHistory", false));
+  } catch {
+    /* not selectable: leave it */
+  }
+}
+
 /** Whether the caret (a text selection) is in the code of the block at `pos`. */
 function caretIn(editor: Editor, pos: number | undefined): boolean {
   if (typeof pos !== "number") return false;

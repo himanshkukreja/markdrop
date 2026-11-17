@@ -127,6 +127,8 @@ class Transport(McpTestCase):
             "rename_folder", "move_folder", "delete_folder",
             # Pages (block editor, sub-pages, embeds, page images).
             "create_page", "get_page", "update_page", "append_blocks", "replace_section", "insert_embed",
+            # Small edits: one block, one table row (services/page_blocks.py).
+            "replace_block", "insert_after_block", "delete_block", "update_table_row",
             "list_page_templates", "list_subpages", "move_page", "upload_page_image", "set_page_properties",
             # Page AI (services/pages_ai.py).
             "translate_page", "summarize_page", "suggest_page_meta",

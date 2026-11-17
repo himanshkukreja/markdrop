@@ -150,6 +150,19 @@
       ]
     },
     {
+      "id": "page-small-edits",
+      "date": "2026-11-17",
+      "title": "AI apps change one block, row or section of a page",
+      "kind": "new",
+      "area": "Pages",
+      "products": [
+        "mcp",
+        "web"
+      ],
+      "summary": "New MCP tools replace_block, insert_after_block, delete_block and update_table_row change one part of a page by its anchor; get_page reads just a page's outline or the sections you name; edits to part of a page merge into an open editor instead of waiting.",
+      "body": "- **One block.** `replace_block`, `insert_after_block` and `delete_block` find a block by its `{#b-…}` anchor, inside callouts and columns too. A replaced block keeps its anchor, so links and comments on it still land there.\n- **One table row.** `update_table_row` picks the table (anchor, number or the heading it's under) and the row (`match` on a column, or its number), and changes just the cells you give. Cell colours are kept.\n- **Sections.** `replace_section` matches a heading by the text you see, ignoring its anchor and colours, or by its anchor; `heading: null` replaces the text before the first heading, like a header table.\n- **Read less.** `get_page` with `outline_only` returns headings, tables and anchored blocks without the text; `sections` returns only the sections you name.\n- **No waiting.** Edits to part of a page work while someone has it open in the editor: the change shows there at once, merged with what they're typing. Only a whole-page `update_page` still waits for them.\n- **Also.** `create_page` takes `access` (`private`, `workspace` or `link`); `list_workspace_items` filters by `access`; `create_folder` answers with the folder that's already there (`existed: true`), or refuses with `if_exists: \"error\"`.\n- **Fixed.** A Mermaid diagram no longer opens as code in your editor when a teammate's or an AI app's change lands while the page is open."
+    },
+    {
       "id": "video-chapters",
       "date": "2026-11-16",
       "title": "Chapters on the video player, and captions on meeting recordings",
