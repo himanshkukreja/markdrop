@@ -196,6 +196,12 @@ function unwrapNull(s) {
   return { nullable: false, schema: s };
 }
 
+// A file upload: FastAPI before 0.13x wrote `format: binary`, later ones write OpenAPI 3.1's
+// `contentMediaType: application/octet-stream`.
+function isBinary(s) {
+  return s.format === "binary" || s.contentMediaType === "application/octet-stream";
+}
+
 function typeLabel(s, resolve) {
   const r = resolve(s);
   const { schema } = unwrapNull(r.schema);
@@ -205,7 +211,7 @@ function typeLabel(s, resolve) {
   const alts = schema.anyOf || schema.oneOf;
   if (Array.isArray(alts)) return alts.map((a) => typeLabel(a, resolve)).join(" | ");
   if (schema.type === "array") return `array of ${typeLabel(schema.items || {}, resolve)}`;
-  if (schema.type === "string" && schema.format === "binary") return "file";
+  if (schema.type === "string" && isBinary(schema)) return "file";
   if (schema.type === "string" && (schema.format === "date-time" || schema.format === "date")) return `string (${schema.format})`;
   if (schema.type === "string" && schema.format === "email") return "string (email)";
   if (schema.type === "object" || schema.properties) return "object";
@@ -273,7 +279,7 @@ function fieldsOf(schema, ctx, depth = 2, seen = new Set()) {
       const ex = raw.example !== undefined ? raw.example : ps.example !== undefined ? ps.example : Array.isArray(ps.examples) ? ps.examples[0] : undefined;
       if (ex !== undefined) f.example = ex;
     }
-    if (ps.format === "binary") f.binary = true;
+    if (isBinary(ps)) f.binary = true;
     if (ps.type === "boolean") f.kind = "boolean";
     else if (ps.type === "integer" || ps.type === "number") f.kind = "number";
     else if (ps.type === "array") f.kind = "array";
