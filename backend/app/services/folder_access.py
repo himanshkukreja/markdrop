@@ -771,7 +771,8 @@ async def sync_doc(db: AsyncIOMotorDatabase, raw: dict, rules: Rules | None = No
     if want:
         return await transitions.change(db, raw, sets={"folder_capped": True},
                                         cas={"workspace_id": raw.get("workspace_id")}, narrows=None)
-    return await transitions.change(db, raw, sets={}, unset=["folder_capped"],
+    # (False, not $unset: an update needs a non-empty $set.)
+    return await transitions.change(db, raw, sets={"folder_capped": False},
                                     cas={"workspace_id": raw.get("workspace_id")})
 
 
