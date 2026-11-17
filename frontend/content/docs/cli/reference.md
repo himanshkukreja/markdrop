@@ -15,7 +15,7 @@ This page covers the markdrop CLI 0.6.1. Run `markdrop <command> --help` for the
 |---|---|---|
 | [`send <file\|folder>`](#send) | Share a file or folder peer to peer and wait for one recipient | Optional |
 | [`get <room-id\|url>`](#get) | Download a peer-to-peer share | No |
-| [`upload <file|folder>`](#upload) | Publish a file, or every file in a folder, and print the link(s) | Yes |
+| [`upload <file\|folder>`](#upload) | Publish a file, or every file in a folder, and print the link(s) | Yes |
 | [`replace <slug-or-url> <path>`](#replace) | Swap the file behind a link, keeping the link | Yes |
 | [`versions <slug-or-url>`](#versions) | List a file's versions | Yes |
 | [`restore <slug-or-url> <version>`](#restore) | Make an earlier version current again | Yes |
