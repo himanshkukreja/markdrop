@@ -92,6 +92,7 @@ class V2World(HubSpotWorld):
 class Suggestions(V2World):
     async def test_suggested_validated_never_applied_alone_then_applied_and_remembered(self):
         _m, _c, _co, d = self.booked()
+        await self.http.put("/api/v1/hubspot/settings", headers=self.session("wa"), json={"workspace_id": self.W, "deal_updates": True})   # Apply changes deals only when turned on
         mid = await self.ready_call()
         p = await self.panel(mid)
         items = {i["field"]: i for i in p["suggestions"]["items"]}
@@ -143,7 +144,7 @@ class Suggestions(V2World):
         self.assertEqual(self.sug_calls, 0)
         self.assertFalse((await self.panel(mid))["suggestions"]["enabled"])
         st = (await self.http.get("/api/v1/hubspot/status", headers=self.session("wa"), params={"workspace_id": self.W})).json()
-        self.assertEqual(st["switches"], {"auto_log": False, "suggest": False, "accounts": True, "precall": True, "approve": True})
+        self.assertEqual(st["switches"], {"auto_log": False, "suggest": False, "accounts": True, "precall": True, "approve": True, "deal_updates": False})
         r = await self.http.put("/api/v1/hubspot/settings", headers=self.session("wm"), json={"workspace_id": self.W, "suggest": True})
         self.assertEqual(r.status_code, 403)
 
@@ -361,6 +362,7 @@ class Pipeline(V2World):
 class MCP(V2World):
     async def test_mcp_tools(self):
         _m, _c, _co, d = self.booked()
+        await self.http.put("/api/v1/hubspot/settings", headers=self.session("wa"), json={"workspace_id": self.W, "deal_updates": True})   # Apply changes deals only when turned on
         mid = await self.ready_call()
         token = await self.mcp_token("wm")
         code, res = await self.mcp_call(token, "hubspot_suggestions", {"meeting": mid})

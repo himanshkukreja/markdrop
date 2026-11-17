@@ -80,6 +80,7 @@ class HubSpotSettingsIn(BaseModel):
     accounts: Optional[bool] = Field(None, description="Keep an account page per HubSpot company (on by default).")
     precall: Optional[bool] = Field(None, description="Pre-call briefs to the team's members before their HubSpot meetings (on by default).")
     approve: Optional[bool] = Field(None, description="A Slack message to the call's host with Log to HubSpot and Create tasks buttons (on by default).")
+    deal_updates: Optional[bool] = Field(None, description="Let Apply on a suggested deal update change the deal in HubSpot (off by default; the key also needs crm.objects.deals.write).")
 
 
 class HubSpotMeIn(BaseModel):

@@ -34003,6 +34003,18 @@
             ],
             "title": "Approve",
             "description": "A Slack message to the call's host with Log to HubSpot and Create tasks buttons (on by default)."
+          },
+          "deal_updates": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deal Updates",
+            "description": "Let Apply on a suggested deal update change the deal in HubSpot (off by default; the key also needs crm.objects.deals.write)."
           }
         },
         "type": "object",
