@@ -113,6 +113,8 @@ class Transport(McpTestCase):
             # Analytics AI on the analytics home (services/analytics_ai_home.py).
             "analytics_story", "ask_analytics", "content_gaps",
             "list_shares", "get_share_status", "create_upload", "complete_upload", "get_upload_status",
+            # Many uploads at once (create_uploads / complete_uploads; page images: app/mcp/upload_batch_tools.py).
+            "create_uploads", "complete_uploads", "create_page_image_uploads", "complete_page_image_uploads",
             "get_file_info", "list_file_versions", "restore_file_version",
             # Who's viewing (live presence).
             "get_viewers", "set_presence",

@@ -227,7 +227,10 @@ class OverJsonRpc(McpTestCase):
                                                           "sha256": sha(DATA)})
         self.assertFalse(result["isError"], result["content"][0]["text"])
         up = result["structuredContent"]
-        self.assertIn("split -b", result["content"][0]["text"])
+        # One part is the whole file: one curl -T to its short link, no split (multi-part files
+        # still split: test_many_parts_get_one_curl_each).
+        self.assertIn("curl -sS --fail-with-body -T \"$FILE\" 'https://api.markdrop.in/u/", result["content"][0]["text"])
+        self.assertNotIn("split -b", result["content"][0]["text"])
         sess = await self.db["file_uploads"].find_one({"_id": up["upload_id"]})
         etag = self.r2.put_part(sess["r2_upload_id"], 1, DATA)
         result = await self.call(token, "complete_upload", {"upload_id": up["upload_id"],
