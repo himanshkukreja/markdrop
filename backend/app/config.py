@@ -706,6 +706,10 @@ class Settings(BaseSettings):
     # Zoom's hosts (tests point them elsewhere).
     zoom_auth_base: str = "https://zoom.us"
     zoom_api_base: str = "https://api.zoom.us/v2"
+    # ── HubSpot (services/hubspot*.py, routers/hubspot.py) ───────────────────
+    # A workspace admin pastes a HubSpot service key (or a legacy private app's access token); it is
+    # stored encrypted with token_encryption_key. Nothing else is needed here; tests point the API elsewhere.
+    hubspot_api_base: str = "https://api.hubapi.com"
     # Zoom meetings without a transcript (services/zoom_media.py, owner decision 2026-11-16): a workspace
     # admin's "Transcribe and keep recordings" switch sends the meeting's AUDIO (M4A, never the video) to
     # Deepgram for speech-to-text and copies the recording (MP4) into R2 next to the meeting. Until the

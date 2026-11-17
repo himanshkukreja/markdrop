@@ -554,10 +554,16 @@ async def generate(db: AsyncIOMotorDatabase, meeting_id: str, user, *, via: str 
 
 
 async def _slack_ready(db: AsyncIOMotorDatabase, row: dict) -> None:
-    """Markdrop for Slack: post the notes to the workspace's meetings channel (services/slack_notify)."""
-    from app.services import slack_notify
+    """The meeting is ready (its notes are written): Markdrop for Slack posts them to the workspace's
+    meetings channel (services/slack_notify), and HubSpot logs the call when its switch is on."""
+    from app.services import hubspot, slack_notify
 
     await slack_notify.meeting_ready(db, str(row["_id"]))
+    # HubSpot's "Log calls automatically" (services/hubspot.py; off unless a workspace admin turns it on).
+    try:
+        await hubspot.meeting_ready(db, str(row["_id"]))
+    except Exception:
+        log.warning("meetings ai: the HubSpot hook failed for %s", row.get("_id"), exc_info=True)
 
 
 #: How a meeting got here (its row's ``via``) → the background job that summarised it, for the AI

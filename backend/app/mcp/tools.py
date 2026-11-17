@@ -3679,6 +3679,10 @@ TOOLS += JIRA_PAGE_TOOLS
 from app.mcp.zoom_tools import ZOOM_TOOLS  # noqa: E402
 
 TOOLS += ZOOM_TOOLS
+# HubSpot (hubspot_status, hubspot_match, log_to_hubspot, hubspot_tasks): app/mcp/hubspot_tools.py.
+from app.mcp.hubspot_tools import HUBSPOT_TOOLS  # noqa: E402
+
+TOOLS += HUBSPOT_TOOLS
 
 # Comments (Track A core; Track B review/AI; Track C insights): app/mcp/comment_tools.py and friends.
 from app.mcp.comment_tools import COMMENT_TOOLS  # noqa: E402
