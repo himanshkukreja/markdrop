@@ -62,7 +62,8 @@ MAX_CHILDREN = 500
 MAX_EMBEDS = 100
 EXCERPT_CHARS = 300
 SLUG_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
-_PLACEMENT = ("workspace_id", "folder_id", "folder_path")
+# folder_capped: a restricted folder's byte flag (services/folder_access.py) follows the page too.
+_PLACEMENT = ("workspace_id", "folder_id", "folder_path", "folder_capped")
 _ACCESS = ("access_level", "read_password_hash")
 _NO_CONTENT = {"content": 0}
 

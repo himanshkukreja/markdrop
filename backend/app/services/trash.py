@@ -733,6 +733,14 @@ async def _restore_docs(db: AsyncIOMotorDatabase, rows: list[dict], notes: list[
         if publicity.is_expired(doc):
             continue  # its own expiry passed: the purge takes it
         doc = await _place(db, doc, notes, in_batch=in_batch)
+        if doc.get("parent_id") is None:
+            # Its folder may have been restricted (or opened) meanwhile (services/folder_access.py).
+            from app.services import folder_access
+
+            if await folder_access.desired_capped(db, doc):
+                doc["folder_capped"] = True
+            else:
+                doc.pop("folder_capped", None)
         doc["access_dirty"] = True  # bytes, images and caches re-derived below
         try:
             await db["documents"].insert_one(doc)

@@ -16,6 +16,7 @@ from app.schemas.access import (
     GrantCreate,
     GrantResponse,
     BatchLevelUpdate,
+    FolderOverrideUpdate,
     LevelUpdate,
     PresenceUpdate,
     ResharingUpdate,
@@ -119,7 +120,13 @@ async def get_access(
             owner_name, owner_email = owner.get("name"), owner.get("email")
     # The same flags (and names) as the document response and item rows (§7).
     can = await access_service.can_flags(actor, raw, ctx)
+    from app.services import folder_access
+
+    why = await folder_access.explain(actor, raw, ctx)
+    fa = await folder_access.item_folder_access(actor, raw, ctx)
     return AccessResponse(
+        why=why,
+        folder_access=fa,
         level=raw.get("access_level") or "link",
         allow_resharing=access_service.resharing_allowed(raw, f.ws if f.ws_id else None),
         is_password_protected=bool(raw.get("read_password_hash")),
@@ -217,6 +224,31 @@ async def add_person(
                                            notify_them=data.notify, message=data.message)
 
     return _to_grant(grant)
+
+
+@router.put("/{slug}/access/folder-override")
+@limiter.limit("30/minute")
+async def set_folder_override(
+    request: Request,
+    slug: str,
+    data: FolderOverrideUpdate,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Open this item beyond its restricted folder (``override: true``: its own access setting applies
+    again, e.g. a public link), or put it back under the folder's restriction. Its editors only; logged in
+    the folder's log and, for a page, its version history. Returns ``{why, folder_access}``."""
+    from app.services import folder_access
+
+    actor, ctx = _actor_ctx(request, db, user)
+    if actor.cred == "tenant":
+        raise HTTPException(status_code=401, detail="Open this page on markdrop.in to change that.")
+    raw = await _load(db, slug)
+    await access_service.require(actor, raw, "read", ctx)
+    after = await folder_access.set_override(db, actor, ctx, raw, data.override, data.reason)
+    ctx.forget()
+    return {"why": await folder_access.explain(actor, after, ctx),
+            "folder_access": await folder_access.item_folder_access(actor, after, ctx)}
 
 
 @router.delete("/{slug}/access/people/{email}", status_code=204)

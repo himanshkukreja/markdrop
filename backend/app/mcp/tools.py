@@ -924,6 +924,22 @@ async def update_document(ctx: Context, args: dict) -> tuple[str, dict]:
     return f"Updated {out['url']} (revision {doc.rev}).", out
 
 
+_WHY_OUT = {"type": ["object", "null"], "description": (
+    "Why the user can open it: {role, source (owner | edit_link | shared | folder_person | folder_team | "
+    "workspace | workspace_admin | link), text (e.g. \"Inherited from sales/ · Sales team\"), folder: "
+    "{id, path, restricted, restricted_by, override, capped} | null}.")}
+
+
+async def access_why(ctx: Context, raw: dict) -> dict | None:
+    """services/folder_access.explain for the MCP user (get_document, get_file_info, get_page)."""
+    from app.services import folder_access
+
+    try:
+        return await folder_access.explain(actor_of(ctx), raw, access_service.Ctx(ctx.db, surface="mcp"))
+    except Exception:  # pragma: no cover - an explanation never fails the read
+        return None
+
+
 async def _doc_meta(ctx: Context, raw: dict) -> dict:
     """workspace_id / folder / workspace_url for get_document (P6)."""
     folder = None
@@ -933,7 +949,7 @@ async def _doc_meta(ctx: Context, raw: dict) -> dict:
         if f:
             folder = {"id": raw["folder_id"], "name": f.get("name"),
                       "path": "/".join(raw.get("folder_path") or [])}
-    return {"workspace_id": raw.get("workspace_id"), "folder": folder}
+    return {"workspace_id": raw.get("workspace_id"), "folder": folder, "access_why": await access_why(ctx, raw)}
 
 
 async def get_document(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -2372,7 +2388,9 @@ async def get_file_info(ctx: Context, args: dict) -> tuple[str, dict]:
     except HTTPException as exc:
         raise _http_tool_error(exc)
     info = _file_out(await file_uploads.file_info_for(ctx.db, raw))
-    return f"{raw.get('title') or raw['slug']} ({info['url']}): {describe_file(info)}", info
+    info["access_why"] = await access_why(ctx, raw)
+    why = f" Why you can open it: {info['access_why']['text']}." if info.get("access_why") else ""
+    return f"{raw.get('title') or raw['slug']} ({info['url']}): {describe_file(info)}{why}", info
 
 
 async def _owned_file(ctx: Context, document: str, action: str) -> dict:
@@ -2548,7 +2566,7 @@ _FILE_INFO = _out(
         "sha256": _NULLABLE_STR, "version": {"type": "integer"},
         "updated_at": {"type": "string"}, "created_at": {"type": "string"},
         "media": _MEDIA, "poster_url": _NULLABLE_STR, "download_url": _NULLABLE_STR,
-        "access": _ACCESS_OUT,
+        "access": _ACCESS_OUT, "access_why": _WHY_OUT,
     },
     ["slug", "url", "content_type", "size_bytes", "sha256", "version", "updated_at", "created_at",
      "media", "poster_url"],
@@ -3616,6 +3634,10 @@ TOOLS += HISTORY_TOOLS
 from app.mcp.folder_tools import FOLDER_TOOLS  # noqa: E402
 
 TOOLS += FOLDER_TOOLS
+# Who can access a folder (get_folder_access, set_folder_access, share_folder): app/mcp/folder_access_tools.py.
+from app.mcp.folder_access_tools import FOLDER_ACCESS_TOOLS  # noqa: E402
+
+TOOLS += FOLDER_ACCESS_TOOLS
 
 # A document's link (set_slug): app/mcp/slug_tools.py.
 from app.mcp.slug_tools import SLUG_TOOLS  # noqa: E402

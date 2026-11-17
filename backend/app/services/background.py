@@ -149,6 +149,10 @@ async def _reconcile(db: AsyncIOMotorDatabase) -> None:
 
     full = _now() - _last_full.get("t", datetime.min.replace(tzinfo=timezone.utc)) > timedelta(days=1)
     await lifecycle.reconcile_once(db, full=full)
+    # Folder access re-apply jobs a stopped process left running (services/folder_access.py).
+    from app.services import folder_access
+
+    await folder_access.run_pending(db)
     if full:
         _last_full["t"] = _now()
 

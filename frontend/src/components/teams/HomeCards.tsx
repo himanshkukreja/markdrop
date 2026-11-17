@@ -32,7 +32,7 @@ export function AskBar({ href, name, chips }: { href: string; name: string; chip
 const NOTE_ICON: Record<string, { icon: string; cls: string }> = {
   signoff_requested: { icon: "checkSquare", cls: "acc" }, mention: { icon: "at", cls: "" }, comment_mention: { icon: "at", cls: "" },
   comment_assigned: { icon: "flag", cls: "warn" }, comment_reply: { icon: "message", cls: "" }, comment_new: { icon: "message", cls: "" },
-  comment_resolved: { icon: "checkCircle", cls: "ok" }, shared: { icon: "user", cls: "" },
+  comment_resolved: { icon: "checkCircle", cls: "ok" }, shared: { icon: "user", cls: "" }, folder_shared: { icon: "folder", cls: "" },
   hubspot_precall: { icon: "calendar", cls: "" },
 };
 export function NeedsYouCard() {

@@ -413,10 +413,18 @@ async def doc_filter(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.
     other = [v for v in views if not v.admin]
     if admin_ws:
         ors.append({"workspace_id": {"$in": admin_ws}, "access_level": {"$ne": "private"}})
+    # Folder access (services/folder_access.py): restricted folders the membership doesn't reach, and
+    # folders whose people / teams name the caller.
+    from app.services import folder_access
+
+    f_hidden, f_ors = await folder_access.search_parts(db, actor, ctx, member_ws)
+    f_clause = ([{"$or": [{"folder_id": {"$nin": f_hidden}}, {"folder_override": {"$ne": None}}]}]
+                if f_hidden else [])
     if other:
         # Teams (CONTRACT §2): the membership reaches company-wide items and readable teams / projects.
         ors.append({"$and": [{"workspace_id": {"$in": [v.workspace_id for v in other]}, "access_level": {"$ne": "private"}},
-                             teams_service.multi_clause(other)]})
+                             teams_service.multi_clause(other), *f_clause]})
+    ors.extend(f_ors)
     clauses: list[dict] = [{"$or": ors}, access.not_expired_clause(ctx.now), access.NOT_TEMPLATE]
     if q.space or ctx.space:
         sp = teams_service.parse_space(q.space or ctx.space)

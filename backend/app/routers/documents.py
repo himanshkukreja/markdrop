@@ -258,6 +258,10 @@ async def get_document(
 
     body["track"] = analytics_prefs.client_track(await analytics_prefs.effective(db, raw))
     if actor.user_id:
+        from app.services import folder_access
+
+        body["access_why"] = await folder_access.explain(actor, raw, ctx)
+    if actor.user_id:
         # "Recent" (services/personal.py): a signed-in reader's successful
         # read. Re-checked with can() whenever the list is shown.
         from app.services import personal

@@ -96,7 +96,9 @@ KINDS = ("mention", "signoff_requested", "shared",
          # Comments (services/comments/notify_app.py): one row per person + thread + kind while unread.
          "comment_mention", "comment_reply", "comment_new", "comment_resolved", "comment_assigned",
          # From Markdrop itself, no actor (:func:`notify_markdrop`): a meeting whose speakers need names.
-         "speakers_unnamed")
+         "speakers_unnamed",
+         # A folder shared with them (:func:`notify_folder`, services/folder_access.py): one per person, not per item.
+         "folder_shared")
 MARKDROP_KINDS = ("speakers_unnamed",)
 #: Where a notification from Markdrop opens on its page (the meeting's "Name the speakers" dialog).
 OPEN_QUERY = {"speakers_unnamed": "?speakers=name"}
@@ -221,6 +223,9 @@ def _clean_extra(extra: dict | None) -> dict:
         v = (extra or {}).get(key)
         if isinstance(v, str) and v.strip():
             out[key] = v.strip()[:limit] if key == "message" else mailer._one_line(v, limit)
+    n = (extra or {}).get("count")
+    if isinstance(n, int) and not isinstance(n, bool) and n > 1:
+        out["count"] = min(n, 10_000)   # "shared": several items at once (share_with_people with a list)
     return out
 
 
@@ -255,6 +260,61 @@ async def notify_markdrop(db: AsyncIOMotorDatabase, user_id: str, kind: str, doc
 
     await slack_notify.queue_notification(db, row)
     return row
+
+
+async def notify_folder(db: AsyncIOMotorDatabase, user_id: str, workspace_id: str, folder_id: str, actor: Any,
+                        extra: dict | None = None) -> dict | None:
+    """"<actor> shared the folder “Sales” with you" — one row per person and share (services/folder_access.py).
+    ``extra``: message, role, label (the folder's name), count (items they can open in it). The row names
+    the folder, not a page (``doc_id`` ""); the bell shows it while the folder still reaches them."""
+    actor_id, actor_name = _actor_info(actor)
+    user_id = str(user_id or "")
+    if not actor_id or not user_id or user_id == actor_id:
+        return None
+    if actor_name is None:
+        actor_name = _actor_info(await _user_row(db, actor_id) or {"_id": actor_id})[1]
+    now = _now()
+    ex = _clean_extra(extra)
+    try:
+        ex["count"] = max(0, int((extra or {}).get("count") or 0))
+    except (TypeError, ValueError):
+        pass
+    row = {
+        "user_id": user_id, "kind": "folder_shared", "doc_id": "", "block_id": None,
+        "workspace_id": workspace_id, "folder_id": folder_id,
+        "actor_id": actor_id, "actor_name": (actor_name or "Someone")[:80], "via": _via(actor),
+        "extra": ex, "created_at": now, "read_at": None,
+        # The share email went with the share (one per person): nothing batched from the bell.
+        "email": "off", "email_at": now, "emailed_at": None,
+    }
+    res = await db[COLL].insert_one(row)
+    row["_id"] = res.inserted_id
+    return row
+
+
+async def _folder_view(db: AsyncIOMotorDatabase, r: dict, user_row: dict) -> tuple[bool, str | None, str | None]:
+    """(available, in-app href, url) of a folder_shared row: the folder page for a workspace member, else the
+    first item they can open in it; unavailable once the folder no longer reaches them."""
+    from app.services import folder_access, urls
+
+    ws_id, fid = r.get("workspace_id"), r.get("folder_id")
+    if not ws_id or not fid:
+        return False, None, None
+    from app.services import access
+
+    ctx = access.Ctx(db)
+    actor = access.Actor.of(_as_user(user_row))
+    if await ctx.role(ws_id, actor.user_id) is not None:
+        href = f"/w/{ws_id}/f/{fid}"
+        try:
+            ok = await db["folders"].find_one({"_id": ObjectId(fid), "workspace_id": ws_id}, {"_id": 1}) is not None
+        except Exception:
+            ok = False
+        return ok, href if ok else None, urls.markdrop_url(href.lstrip("/")) if ok else None
+    items, _n = await folder_access.readable_items(db, user_row, actor.email, ws_id, [fid], limit=1)
+    if not items:
+        return False, None, None
+    return True, f"/{items[0]['slug']}", urls.markdrop_url(items[0]["slug"])
 
 
 async def notify(db: AsyncIOMotorDatabase, user_id: str, kind: str, doc: Any, block_id: str | None = None,
@@ -644,6 +704,9 @@ def _sentence(kind: str, actor: str, title: str | None, label: str | None) -> st
         return f"{actor} asked you to sign off on {what}" + (f" in {where}" if title else f" on {where}")
     if kind == "shared":
         return f"{actor} shared {where} with you" if title else f"{actor} shared a page with you that you can't open now"
+    if kind == "folder_shared":
+        return (f"{actor} shared the folder “{label}” with you" if (title and label)
+                else f"{actor} shared a folder with you that you can't open now")
     if kind == "speakers_unnamed":
         return (f"Name the speakers in {where}" + (f": {label} not named yet" if label and title else "")
                 if title else "Name the speakers in a meeting you can't open now")
@@ -671,6 +734,22 @@ async def _view(db: AsyncIOMotorDatabase, rows: list[dict], user_row: dict) -> l
     pics = await _pictures(db, {r.get("actor_id") or "" for r in rows})
     out = []
     for r in rows:
+        if r.get("kind") == "folder_shared":
+            extra = r.get("extra") or {}
+            ok, href, url = await _folder_view(db, r, user_row)
+            actor = r.get("actor_name") or "Someone"
+            out.append({
+                "id": str(r["_id"]), "kind": r["kind"], "read": r.get("read_at") is not None,
+                "created_at": _aware(r["created_at"]).isoformat(),
+                "actor": {"id": r.get("actor_id"), "name": actor, "picture": pics.get(r.get("actor_id") or "")},
+                "via_ai": r.get("via") == "mcp",
+                "text": _sentence(r["kind"], actor, "folder" if ok else None, extra.get("label") if ok else None),
+                "available": ok, "page": None, "block": None, "href": href, "url": url, "thread_id": None,
+                "count": int(extra.get("count") or 0),
+                "excerpt": None, "label": extra.get("label") if ok else None,
+                "message": extra.get("message") if ok else None,
+            })
+            continue
         d = docs.get(r["doc_id"])
         ok = bool(d is not None and readable.get(r["doc_id"]))
         title = md_outline.display_title(d) if ok else None
@@ -680,13 +759,16 @@ async def _view(db: AsyncIOMotorDatabase, rows: list[dict], user_row: dict) -> l
         frag = OPEN_QUERY.get(r["kind"], "") + frag
         href = (f"/{d['slug']}" + frag) if ok else None
         actor = r.get("actor_name") or "Someone"
+        more = int(extra.get("count") or 1) - 1 if r["kind"] == "shared" else 0
         page_meta = {"slug": d["slug"], "title": title} if ok else None
         out.append({
             "id": str(r["_id"]), "kind": r["kind"], "read": r.get("read_at") is not None,
             "created_at": _aware(r["created_at"]).isoformat(),
             "actor": {"id": r.get("actor_id"), "name": actor, "picture": pics.get(r.get("actor_id") or "")},
             "via_ai": r.get("via") == "mcp",
-            "text": _sentence(r["kind"], actor, title, extra.get("label") if ok else None),
+            "text": _sentence(r["kind"], actor, title, extra.get("label") if ok else None).replace(
+                " with you", f" and {more} more with you", 1) if (ok and more > 0) else
+            _sentence(r["kind"], actor, title, extra.get("label") if ok else None),
             "available": ok, "page": page_meta, "block": block, "href": href,
             "url": (urls.markdrop_url(d["slug"]) + frag) if ok else None,
             "thread_id": r.get("thread_id") if ok else None,
@@ -752,6 +834,11 @@ async def open_one(db: AsyncIOMotorDatabase, user_id: str, notification_id: str)
     if row.get("read_at") is None:
         await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"read_at": _now()}})
     user_row = await _user_row(db, user_id)
+    if row.get("kind") == "folder_shared":
+        ok, href, _url = await _folder_view(db, row, user_row) if user_row else (False, None, None)
+        if not ok:
+            raise HTTPException(status_code=403, detail="You can't open that folder any more.")
+        return {"href": href, "slug": None, "block": None}
     doc = await db["documents"].find_one({"_id": ObjectId(row["doc_id"])}) if ObjectId.is_valid(row["doc_id"]) else None
     if doc is None or not await can_open(db, user_row, doc):
         raise HTTPException(status_code=403, detail="You can't open that page any more.")

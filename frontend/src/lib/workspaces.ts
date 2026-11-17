@@ -574,6 +574,9 @@ export interface TreeFolder {
   meetings?: boolean;
   /** A folder inside it: Meetings/<series> or Meetings/Other meetings (backend services/meeting_series.py). */
   meetings_sub?: boolean;
+  /** Who can access it (services/folder_access.py), when it (or a folder above) names people / teams
+   *  or is restricted. Absent: each item's own setting decides. */
+  access?: { restricted: boolean; restricted_here: boolean; people: number; teams: number };
 }
 
 /** A person shown on a row: a name (null when unknown), an https photo or null, and whether it's you. */
@@ -715,6 +718,57 @@ export const listWorkspaceItems = async (
     count_by_type: r.count_by_type ?? null,
   };
 };
+
+// ── Folder access: people, teams, restriction (backend services/folder_access.py) ──
+
+export type FolderRole = "viewer" | "editor";
+/** What new items in a folder start as: the item levels, plus "folder" (the folder's people and teams). */
+export type FolderDefault = ItemAccess | "folder";
+
+export interface FolderAccess {
+  workspace_id: string;
+  folder_id: string;
+  name: string;
+  /** "sales/q4/" */
+  path: string;
+  restricted: boolean;
+  /** Restricted on this folder itself (not only above it). */
+  restricted_here: boolean;
+  /** The folder above that restricts it, when not this one ("sales/"). */
+  restricted_by: string | null;
+  /** `email` is null for people other than the caller unless the caller manages the folder. */
+  people: Array<{ email: string | null; name: string | null; role: FolderRole; inherited_from: string | null; has_account: boolean }>;
+  teams: Array<{ id: string; name: string; role: FolderRole; members: number; exists: boolean; inherited_from: string | null }>;
+  default_access: FolderDefault | null;
+  effective_default_access: ItemAccess;
+  summary: string;
+  can_manage: boolean;
+  team_options: Array<{ id: string; name: string; members: number; visibility?: string }>;
+  job: { state: string; done: number; total: number } | null;
+  log: Array<{ at: string; by: string | null; text: string }>;
+  notified?: Record<string, boolean>;
+}
+
+export const getFolderAccess = (id: string, folderId: string) =>
+  request<FolderAccess>(`/api/v1/workspaces/${encodeURIComponent(id)}/folders/${encodeURIComponent(folderId)}/access`);
+
+/** Present fields change. `people` / `teams` replace the folder's own lists. */
+export const putFolderAccess = (
+  id: string,
+  folderId: string,
+  data: {
+    restricted?: boolean;
+    people?: Array<{ email: string; role: FolderRole }>;
+    teams?: Array<{ team_id: string; role: FolderRole }>;
+    default_access?: FolderDefault | null;
+    notify?: boolean;
+    message?: string | null;
+  }
+) =>
+  request<FolderAccess>(`/api/v1/workspaces/${encodeURIComponent(id)}/folders/${encodeURIComponent(folderId)}/access`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
 
 /** Rename and/or move a folder (move = `parent_id`; null = the top level). Admins only. */
 export const updateFolder = (

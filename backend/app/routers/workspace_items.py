@@ -74,7 +74,7 @@ class FolderPatch(BaseModel):
     parent_id: str | None = None
     # What new items filed here start as; null = inherit the workspace's
     # default_access. Present ⇒ applied (absent ⇒ unchanged).
-    default_access: Literal["private", "workspace", "link"] | None = None
+    default_access: Literal["private", "folder", "workspace", "link"] | None = None
     # A new address something already holds there: "error" (default) = 409
     # saying what holds it; "suffix" = the next free one (-2, -3…).
     on_conflict: Literal["error", "suffix"] = Field("error", description=ON_CONFLICT_HELP)

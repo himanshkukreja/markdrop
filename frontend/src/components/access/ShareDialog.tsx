@@ -13,7 +13,7 @@ import { Combobox, type ComboboxSuggestion } from "@/components/kit/Combobox";
 import { useToast } from "@/components/Toast";
 import { API_BASE, updateDocumentSettings, type ExpiresIn } from "@/lib/api";
 import {
-  addPerson, getAccess, removePerson, setAccessLevel, setResharing, setShowPresence,
+  addPerson, getAccess, removePerson, setAccessLevel, setFolderOverride, setResharing, setShowPresence,
   type AccessLevel, type AccessState,
 } from "@/lib/access";
 import {
@@ -404,6 +404,37 @@ export default function ShareDialog({
                   Change general access on markdrop.in ↗
                 </a>
               </div>
+            )}
+
+            {/* ── Its folder's access (services/folder_access.py) and why the caller can open it ── */}
+            {state?.folder_access && (
+              <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-surface-inset px-3 py-2.5 text-caption text-text-secondary" data-testid="item-folder-access">
+                <div className="flex items-start gap-2">
+                  <Icon name={state.folder_access.restricted && !state.folder_access.override ? "lock" : "folder"} size={14} className="mt-0.5 shrink-0 text-text-muted" />
+                  <span className="min-w-0 flex-1">
+                    {state.folder_access.override
+                      ? <>Opened beyond its restricted folder <span className="ph-sensitive ph-mask font-mono">{state.folder_access.path}</span>: its own setting below applies.</>
+                      : <>In <span className="ph-sensitive ph-mask font-mono">{state.folder_access.path}</span>. {state.folder_access.summary}</>}
+                  </span>
+                </div>
+                {state.folder_access.can_override && (
+                  <button
+                    type="button"
+                    disabled={!!busy}
+                    onClick={() => run("override", () => setFolderOverride(slug, !state.folder_access?.override),
+                      () => toast.success(state.folder_access?.override ? "It follows its folder again." : "Opened beyond its folder. This is logged."))}
+                    className="md-focus self-start cursor-pointer rounded-sm bg-transparent p-0 font-semibold text-accent-text hover:underline disabled:opacity-60"
+                  >
+                    {state.folder_access.override ? "Follow the folder's restriction again" : "Open it beyond its folder…"}
+                  </button>
+                )}
+              </div>
+            )}
+            {state?.why && state.why.source !== "owner" && (
+              <p className="m-0 flex items-center gap-1.5 text-caption text-text-muted" data-testid="access-why">
+                <Icon name="info" size={13} className="shrink-0" />
+                <span className="ph-sensitive ph-mask">Why you can open it: {state.why.text}</span>
+              </p>
             )}
 
             {/* ── Who can open it ───────────────────────────────────── */}

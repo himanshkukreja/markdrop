@@ -89,6 +89,17 @@ class AccessResponse(BaseModel):
     comments_eligible: bool = False
     comments_enabled: bool = True
     comments_public: bool = False
+    # Why the caller can open it (services/folder_access.explain): {role, source, text, folder}.
+    why: dict | None = None
+    # Its folder's access, when the folder (or one above) names people / teams or is restricted:
+    # {folder_id, path, restricted, restricted_by, override, can_override, summary}.
+    folder_access: dict | None = None
+
+
+class FolderOverrideUpdate(BaseModel):
+    """Open one item beyond its restricted folder (``override``), or put it back under it. Logged."""
+    override: bool
+    reason: str | None = Field(None, max_length=300)
 
 
 # ── Share-dialog suggestions ──────────────────────────────────────────────────
