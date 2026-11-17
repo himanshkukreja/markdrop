@@ -6,7 +6,7 @@ import type { ChatEvent, ChatScope, ChatTransport, ChatTurn } from "@/components
 import { askMarkdrop, getAskThread, type AskEvent, type AssistantContext, type AssistantScopeKind } from "@/lib/ask";
 import { hrefOf } from "@/lib/search";
 import { scopeBody, stageLabel, threadTurns, toCitation, toSource } from "./assistantCore.mjs";
-import { getAssistant } from "./store";
+import { getAssistant, setAssistantThread } from "./store";
 
 type Linkable = { url?: string | null; slug?: string | null; kind?: string | null };
 export const link = (x: Linkable) => {
@@ -23,14 +23,27 @@ export const assistantTransport: ChatTransport<ChatScope, AssistantChatContext> 
   const ctx = req.context?.ctx ?? null;
   const scope = scopeBody(kind, ctx, req.scope);
   const reader = kind === "doc" ? safe(() => getAssistant().reader?.() ?? null) : null;
-  await askMarkdrop(
-    { question: req.question, thread_id: req.threadId, scope, context: reader },
+  // The kept conversation can be gone (deleted on the Ask page, expired, or another account's in this
+  // browser): the server then answers not_found before anything else. Ask again once as a new conversation
+  // instead of showing an error; the answer's thread id replaces the stale one.
+  let gone = false;
+  const send = (threadId: string | null | undefined) => askMarkdrop(
+    { question: req.question, thread_id: threadId, scope, context: reader },
     (e: AskEvent) => {
+      if (threadId && e.type === "error" && e.code === "not_found" && /conversation/i.test(e.detail || "")) {
+        gone = true;
+        return;
+      }
       const out = toChat(e, kind);
       if (out) emit(out);
     },
     req.signal,
   );
+  await send(req.threadId);
+  if (gone && !req.signal?.aborted) {
+    setAssistantThread(null);
+    await send(null);
+  }
 };
 
 function safe<T>(fn: () => T): T | null {

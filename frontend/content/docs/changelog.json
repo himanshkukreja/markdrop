@@ -24,6 +24,18 @@
   "next": [],
   "entries": [
     {
+      "id": "ask-missing-conversation",
+      "date": "2026-11-17",
+      "title": "Ask no longer stops at a conversation that's gone",
+      "kind": "fixed",
+      "area": "AI",
+      "products": [
+        "web"
+      ],
+      "summary": "Asking from a page or meeting no longer fails with \"That conversation isn't there any more.\" when the kept conversation was deleted, expired or belongs to another account in the same browser: Ask starts a new one and answers.",
+      "body": "- **What happened.** The Ask panel keeps one conversation across screens. If that conversation was deleted on the Ask page, expired, or belonged to the other account you use in the same browser, the next question failed until you closed the panel.\n- **Now** it starts a fresh conversation for that question and carries on."
+    },
+    {
       "id": "hubspot-deals",
       "date": "2026-11-17",
       "title": "HubSpot: suggested deal updates, account pages and pre-call briefs",
