@@ -155,6 +155,9 @@ async def destroy(db: AsyncIOMotorDatabase, raw: dict, *, reason: str = "delete"
     from app.services import signoffs
 
     await signoffs.forget_document(db, doc_id)
+    from app.services import zoom_media
+
+    await zoom_media.forget_document(db, raw["_id"])     # a meeting page's kept Zoom recording
     from app.services.comments import service as comments_service
 
     await comments_service.on_item_deleted(db, doc_id)

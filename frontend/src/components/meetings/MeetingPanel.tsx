@@ -4,7 +4,8 @@
  * The meeting panel on a meeting page (and its transcript): the "Meeting" pill opens a side panel on
  * desktop and a bottom sheet on phones with the meeting's details: date, type, who was there, where it
  * came from (links back to Google's Docs), the AI summary's state (Regenerate), Restrict to attendees
- * (the page's owner), Delete (the importer or a workspace admin), and All meetings.
+ * (the page's owner), HubSpot (the HubSpot team's meetings: HubSpotSection, loaded when the panel first opens),
+ * Delete (the importer or a workspace admin), and All meetings.
  *
  * Asking is Ask Markdrop's (components/assistant): the meeting bar's "Ask this meeting", ✦ Ask in the
  * top bar, ⌘J and a card's "Ask this meeting" (?ask=1) open it on this meeting.
@@ -24,6 +25,10 @@ import {
   type Meeting,
 } from "@/lib/meetings";
 import { openAssistant } from "@/components/assistant/store";
+import { MeetingRecording, type RecordingSeek } from "./MeetingRecording";
+import { HubSpotSection } from "./HubSpotSection";
+import { citeSeconds, lineSeconds } from "./recordingSeek.mjs";
+import { track } from "@/lib/track";
 import "@/components/pages/ai/ask-pill.css";
 import "@/components/pages/ai/ask.css";
 import "./meetings.css";
@@ -62,13 +67,52 @@ function useMeeting(id: string): [Meeting | null, (m: Meeting) => void, () => Pr
  * people do next — read the transcript, ask the meeting. On the transcript: back to the meeting, ask.
  */
 export function MeetingHeader({ meetingId, role, extra }: { meetingId: string; role?: string; extra?: React.ReactNode }) {
-  const [m] = useMeeting(meetingId);
+  const [m, , reload] = useMeeting(meetingId);
+  const [playing, setPlaying] = useState(false);
+  const [seek, setSeek] = useState<RecordingSeek | null>(null);
+  const hasRecording = !!m?.recording;
+  const transcriptSlug = m?.transcript_slug ?? null;
+  const onTranscript = role === "transcript";
+  // A kept recording: the times in the notes play it from there (a summary's transcript citation, a
+  // transcript line's "12:34 · Ada"). Reading view only (never inside the editor); a modified click keeps
+  // the link's own behaviour. Capture phase, so the page's link handling never navigates first.
+  useEffect(() => {
+    if (!hasRecording) return;
+    const root = document.documentElement;
+    root.dataset.mtRec = onTranscript ? "transcript" : "summary";
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const el = e.target instanceof Element ? e.target : null;
+      if (!el || !el.closest(".pb-body") || el.closest('[contenteditable="true"]')) return;
+      let t: number | null = null;
+      if (onTranscript) {
+        const lead = el.closest("strong");
+        const block = lead?.parentElement?.closest<HTMLElement>("[data-bid]");
+        if (lead && block && lead.parentElement === block && block.firstElementChild === lead) t = lineSeconds(block.dataset.bid, lead.textContent);
+      } else {
+        const a = el.closest("a");
+        if (a) t = citeSeconds(a.getAttribute("href"), a.textContent, transcriptSlug, window.location.origin);
+      }
+      if (t == null) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setSeek((x) => ({ t: t!, n: (x?.n ?? 0) + 1 }));
+      setPlaying(true);
+      track("meeting_recording_seek", { from: onTranscript ? "transcript" : "summary" });
+    };
+    document.addEventListener("click", onClick, true);
+    return () => {
+      document.removeEventListener("click", onClick, true);
+      delete root.dataset.mtRec;
+    };
+  }, [hasRecording, onTranscript, transcriptSlug]);
   if (!m) return null;
   // Who joined; with nobody known to have joined, the calendar invite, worded "invited" (never "people").
   const invitedOnly = m.attendees.length === 0 && (m.invited?.length ?? 0) > 0;
   const people = invitedOnly ? m.invited ?? [] : m.attendees;
   const ask = () => openAssistant({ scope: "meetings" });
   return (
+    <>
     <div className="mt-pagebar no-print" data-testid="meeting-header">
       <div className="mt-pagebar__facts">
         {people.length > 0 && (
@@ -93,9 +137,17 @@ export function MeetingHeader({ meetingId, role, extra }: { meetingId: string; r
         {role === "transcript"
           ? <Button size="sm" variant="secondary" iconLeft="arrowLeft" href={`/${m.slug}`}>The meeting</Button>
           : m.transcript_slug && <Button size="sm" variant="secondary" iconLeft="lines" href={`/${m.transcript_slug}`} data-testid="meeting-transcript">Transcript</Button>}
+        {m.recording && (
+          <Button size="sm" variant="secondary" iconLeft="film" aria-expanded={playing} onClick={() => setPlaying((p) => !p)}
+            data-testid="meeting-recording-open">Recording</Button>
+        )}
         <Button size="sm" iconLeft="sparkle" onClick={ask} data-testid="meeting-ask">Ask this meeting</Button>
       </div>
     </div>
+    {playing && m.recording && (
+      <MeetingRecording m={m} seek={seek} onClose={() => { setPlaying(false); setSeek(null); }} onRemoved={() => { setPlaying(false); setSeek(null); void reload(); }} />
+    )}
+    </>
   );
 }
 
@@ -111,6 +163,9 @@ export function MeetingLauncher({ meetingId }: { meetingId: string; role?: strin
   const toast = useToast();
   const [m, setM, load] = useMeeting(meetingId);
   const [open, setOpen] = useState(false);
+  // HubSpot asks the server (and HubSpot) only once someone opens the panel.
+  const [opened, setOpened] = useState(false);
+  useEffect(() => { if (open) setOpened(true); }, [open]);
   const pill = useRef<HTMLButtonElement>(null);
 
   // A card's "Ask this meeting" (?ask=1): Ask Markdrop on this meeting.
@@ -173,6 +228,7 @@ export function MeetingLauncher({ meetingId }: { meetingId: string; role?: strin
               <IconButton icon="x" label="Close" size="sm" onClick={close} />
             </header>
             <Details m={m} onChange={setM} onDeleted={() => { close(); router.push(meetingsHref(m.workspace_id)); }}
+              hubspot={opened ? <HubSpotSection meetingId={m.id} workspaceId={m.workspace_id} /> : null}
               top={(
                 <>
                   <SummaryBanner m={m} />
@@ -213,7 +269,9 @@ function SeriesField({ value, disabled, onCommit }: { value: string; disabled: b
   );
 }
 
-function Details({ m, onChange, onDeleted, top }: { m: Meeting; onChange: (m: Meeting) => void; onDeleted: () => void; top?: React.ReactNode }) {
+function Details({ m, onChange, onDeleted, top, hubspot }: {
+  m: Meeting; onChange: (m: Meeting) => void; onDeleted: () => void; top?: React.ReactNode; hubspot?: React.ReactNode;
+}) {
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
@@ -309,6 +367,8 @@ function Details({ m, onChange, onDeleted, top }: { m: Meeting; onChange: (m: Me
         <Switch checked={m.restricted} disabled={!m.can_manage || !!busy} aria-label="Restrict to attendees" data-testid="meeting-restrict"
           onChange={(e) => void run("restrict", () => patchMeeting(m.id, { restricted: e.target.checked }), e.target.checked ? "Only attendees can open it now." : "The team can open it again.")} />
       </div>
+
+      {hubspot}
 
       <div>
         <p className="pa-sources__label" style={{ margin: "0 0 6px" }}>AI summary</p>

@@ -176,6 +176,8 @@ class Transport(McpTestCase):
             "create_project", "route_meeting", "list_favorites", "set_favorite",
             # Zoom (mcp/zoom_tools.py).
             "zoom_status", "import_zoom_meetings",
+            # HubSpot (mcp/hubspot_tools.py).
+            "hubspot_status", "hubspot_match", "log_to_hubspot", "hubspot_tasks",
         # A video's captions (search and Ask read it by minute).
         "set_captions"})
         for t in tools.values():
@@ -229,7 +231,7 @@ class Transport(McpTestCase):
     async def test_modern_tools_list_and_call(self):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
-        self.assertEqual(len(r.json()["result"]["tools"]), 149)
+        self.assertEqual(len(r.json()["result"]["tools"]), 153)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")

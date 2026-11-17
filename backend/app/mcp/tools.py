@@ -1794,17 +1794,26 @@ async def ask_suggestions(ctx: Context, args: dict) -> tuple[str, dict]:
     from app.services import ask_suggestions as sug
 
     ws = str(args.get("workspace") or "").strip() or None
+    team = str(args.get("team") or "").strip() or None
+    if team and not ws:
+        raise ToolError("team needs workspace (use list_workspaces, then list_teams).")
     try:
-        out = await sug.for_viewer(ctx.db, actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp"), ws)
+        out = await sug.for_viewer(ctx.db, actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp"), ws, team)
+    except sug.TeamNotFound:
+        raise ToolError("Team not found (use list_teams for the teams you can read).")
     except LookupError:
         raise ToolError("Workspace not found (use list_workspaces for the ids of yours).")
-    body = {"workspace": out["workspace"], "updated_at": out["updated_at"], "refreshing": bool(out["refreshing"]),
+    body = {"workspace": out["workspace"], "team_scope": out.get("team_scope"), "quiet": bool(out.get("quiet")),
+            "updated_at": out["updated_at"], "refreshing": bool(out["refreshing"]),
             "team": [{"topic": t.get("topic"), "question": t["question"]} for t in out["team"]],
             "personal": [{"label": p["label"], "question": p["question"], "intent": p["intent"]} for p in out["personal"]]}
     lines = [f"- {t['topic']}: {t['question']}" if t.get("topic") else f"- {t['question']}" for t in body["team"]]
     lines += [f"- {p['question']}" for p in body["personal"]]
-    head = f"Suggested questions for {out['workspace']['name']}" if out["workspace"] else "Suggested questions"
-    if body["refreshing"] and not body["team"]:
+    head = (f"Suggested questions for {out['team_scope']['name']} ({out['workspace']['name']})" if out.get("team_scope")
+            else f"Suggested questions for {out['workspace']['name']}" if out["workspace"] else "Suggested questions")
+    if body["quiet"] and not body["team"]:
+        head += " (nothing new there in the last 7 days)"
+    elif body["refreshing"] and not body["team"]:
         head += " (the team's are being prepared; ask again in a minute)"
     text = head + ":\n" + "\n".join(lines) + "\n\nAsk one with ask_documents (scope workspace:<id> for a workspace's)."
     return text, body
@@ -3128,14 +3137,20 @@ TOOLS: list[Tool] = [
                      "live team questions, each with its topic (\"Sourcing: What did we decide this week?\"), "
                      "written by Markdrop's AI from the last 7 days of meetings and pages every member can read "
                      "(never a restricted meeting or a private page), refreshed as they change, the same list for "
-                     "every member; and the user's own (their action items, their latest meeting). Without "
-                     "workspace: the user's own only. Reading the list never calls the model."),
+                     "every member; and the user's own (their action items, their latest meeting). With team "
+                     "too: that team's own list, from its meetings and pages only (General: the workspace's); "
+                     "quiet is true when nothing happened there lately. Without workspace: the user's own only. "
+                     "Reading the list never calls the model."),
         scope=READ,
         input_schema={"type": "object", "properties": {
             "workspace": {"type": "string", "maxLength": 40,
-                          "description": "Optional: a workspace id (from list_workspaces)."}}},
+                          "description": "Optional: a workspace id (from list_workspaces)."},
+            "team": {"type": "string", "maxLength": 60,
+                     "description": "Optional, with workspace: a team id, slug or name (from list_teams)."}}},
         output_schema=_out({
             "workspace": {"type": ["object", "null"]},
+            "team_scope": {"type": ["object", "null"]},
+            "quiet": {"type": "boolean"},
             "updated_at": _NULLABLE_STR,
             "refreshing": {"type": "boolean"},
             "team": {"type": "array", "items": _out({"topic": _NULLABLE_STR, "question": {"type": "string"}}, ["question"])},
@@ -3664,6 +3679,10 @@ TOOLS += JIRA_PAGE_TOOLS
 from app.mcp.zoom_tools import ZOOM_TOOLS  # noqa: E402
 
 TOOLS += ZOOM_TOOLS
+# HubSpot (hubspot_status, hubspot_match, log_to_hubspot, hubspot_tasks): app/mcp/hubspot_tools.py.
+from app.mcp.hubspot_tools import HUBSPOT_TOOLS  # noqa: E402
+
+TOOLS += HUBSPOT_TOOLS
 
 # Comments (Track A core; Track B review/AI; Track C insights): app/mcp/comment_tools.py and friends.
 from app.mcp.comment_tools import COMMENT_TOOLS  # noqa: E402

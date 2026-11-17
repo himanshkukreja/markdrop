@@ -22,6 +22,13 @@ parts merged by one more call (reduce). The meeting row records the cost.
 **Google's notes.** When the import had Gemini's notes, their Summary / Details / Suggested next
 steps are used as written; the model is asked only for what they lack (decisions, open questions,
 topics, action items not already in the next steps).
+
+**Detailed notes (no Google notes).** A meeting with a transcript and no notes (Zoom, a pasted or
+uploaded transcript) gets Markdrop's own **Details** too, in the same call (:data:`GEN_DETAILS_SYSTEM`):
+a section per part of the call with substantive, cited bullets, rendered where Gemini's Details go
+(``meetings.page_markdown``). Its output budget grows with the transcript (:func:`details_budget`);
+a chunked transcript gets the details of every part, in order (the reduce merges only the rest).
+:func:`refresh_details` rewrites existing meetings (scripts/regenerate_meeting_details.py).
 """
 
 from __future__ import annotations
@@ -50,6 +57,14 @@ SINGLE_MAX_CHARS = 240_000
 CHUNK_CHARS = 160_000
 GEN_MAX_TOKENS = 3500
 REDUCE_MAX_TOKENS = 3500
+# Detailed notes (no Google notes): the Details' length follows the transcript's (≈ one word of
+# notes per 20 characters of transcript, Gemini's depth), and the cap follows the Details (two
+# tokens a word covers the JSON, the citations and thinking). Below ai_output.RETRY_CEILING, so a
+# cut answer is still asked again with more room.
+DETAILS_MIN_WORDS = 250
+DETAILS_MAX_WORDS = 4000
+DETAILS_MAX_TOKENS = 12000
+RESERVE_DETAILS = 0.08
 # Haiku 5.5 thinks before answering even at effort "low", and thinking counts against max_tokens
 # (real-model eval 2026-11-05: a catch-up over 7 meetings spent ~900 of 1000 on thinking and came
 # back empty or cut off mid-tag). The prompts bound the visible answer (≤180 words); this is headroom.
@@ -88,6 +103,24 @@ Return only JSON, no prose and no code fence:
  "open_questions": [{{"text": "a question left open or parked", "cite": "sN"}}],
  "topics": [{{"title": "2-5 words", "gist": "one sentence", "cite": "sN where it starts"}}],
  "type": "one of Standup, Planning, Review, 1:1, Interview, Customer, Other"}}
+Rules: only what was actually said; a decision needs agreement, not a suggestion; an action item needs someone committing or being asked to do something; "cite" is the [sN] line it comes from (just "s12"); empty lists are fine; never invent names, dates or numbers."""
+
+GEN_DETAILS_SYSTEM = f"""You write the team's notes for a meeting in Markdrop, a workspace app. You get the meeting's transcript: each line is "[sN] time Speaker: words". Nobody else took notes, so yours are the record of the call: someone who missed it should learn from them everything that matters.
+
+{DATA_NOT_INSTRUCTIONS}
+
+{ENGLISH}
+
+Return only JSON, no prose and no code fence:
+{{"summary": "a plain paragraph: what the meeting was about and what came out of it (3-5 sentences for a short call, up to 8 for a long one)",
+ "highlights": ["up to 8 short key points"],
+ "decisions": [{{"text": "a decision that was made, as one sentence", "cite": "sN"}}],
+ "action_items": [{{"text": "the task as an imperative, without the owner's name", "owner": "the person's name as said, or null", "due": "the deadline as said (e.g. Thursday), or null", "cite": "sN"}}],
+ "open_questions": [{{"text": "a question left open or parked", "cite": "sN"}}],
+ "topics": [{{"title": "2-5 words", "gist": "one sentence", "cite": "sN where it starts"}}],
+ "details": [{{"title": "the part of the call, 2-6 words", "cite": "sN where it starts", "points": [{{"text": "one substantive point", "cite": "sN"}}]}}],
+ "type": "one of Standup, Planning, Review, 1:1, Interview, Customer, Other"}}
+Details: the detailed notes of the whole call, in the order things were discussed, one section per topic or part of the call (from the first line to the last; a long call has many sections). Each section has 3-10 points; each point is one or two full sentences that say who said what and the substance: numbers, names, dates, prices, figures, options weighed, objections and how they were answered, concerns, commitments, next steps. Name the speaker ("Priya said…", "Ravi asked…, and Bo answered…"). No filler ("they discussed X"): say what was said about X. Skip greetings, small talk and audio trouble.
 Rules: only what was actually said; a decision needs agreement, not a suggestion; an action item needs someone committing or being asked to do something; "cite" is the [sN] line it comes from (just "s12"); empty lists are fine; never invent names, dates or numbers."""
 
 NOTES_RULE = """Google already wrote the summary, the details and these suggested next steps for this meeting (inside <untrusted_notes>). Don't repeat them: set "summary" to "" and "highlights" to [], and list only action items that are NOT already among the suggested next steps. Still give decisions, open questions and topics."""
@@ -382,16 +415,56 @@ def parse_sections(raw: str, n_segments: int) -> dict | None:
                 break
         return out
 
+    def details() -> list[dict]:
+        out = []
+        for sec in data.get("details") or []:
+            if not isinstance(sec, dict):
+                continue
+            points = []
+            for pt in sec.get("points") or []:
+                if isinstance(pt, str):
+                    pt = {"text": pt}
+                if isinstance(pt, dict) and s(pt.get("text"), 1000):
+                    points.append({"text": s(pt.get("text"), 1000), "cite": cite(pt.get("cite"))})
+                if len(points) >= DETAILS_POINTS:
+                    break
+            title = s(sec.get("title"), 160)
+            if title and points:
+                out.append({"title": title, "cite": cite(sec.get("cite")), "points": points})
+            if len(out) >= DETAILS_SECTIONS:
+                break
+        return out
+
     typ = data.get("type") if data.get("type") in meetings.TYPES else None
-    return {
-        "summary": s(data.get("summary"), 2000),
-        "highlights": [s(h, 300) for h in (data.get("highlights") or []) if isinstance(h, str) and h.strip()][:5],
+    out = {
+        "summary": s(data.get("summary"), 3000),
+        "highlights": [s(h, 300) for h in (data.get("highlights") or []) if isinstance(h, str) and h.strip()][:8],
         "decisions": items("decisions", 15, ("text",)),
         "action_items": items("action_items", 25, ("text", "owner", "due")),
         "open_questions": items("open_questions", 12, ("text",)),
         "topics": items("topics", 12, ("title", "gist")),
         "type": typ,
     }
+    det = details()
+    if det:
+        out["details"] = det
+    return out
+
+
+DETAILS_SECTIONS = 40
+DETAILS_POINTS = 15
+
+
+def details_budget(chars: int) -> tuple[int, int]:
+    """(max_tokens, the Details' length in words) for notes with Details from ``chars`` of transcript."""
+    words = max(DETAILS_MIN_WORDS, min(DETAILS_MAX_WORDS, chars // 20))
+    return min(DETAILS_MAX_TOKENS, GEN_MAX_TOKENS + 2 * words), words
+
+
+def _details_task(words: int, part: str | None = None) -> str:
+    where = f"This is {part} of a long meeting: write the notes for this part only, details included. " if part else \
+        "Write the notes for this meeting, details included. "
+    return where + f"Make the details about {words} words, covering the call from start to end. JSON only."
 
 
 async def _stream_whole(run: Run, params: dict) -> str:
@@ -418,38 +491,61 @@ async def _generate_sections(run: Run, meeting: dict) -> tuple[dict | None, int]
         return parse_sections(raw, 0), 1
     lines = segment_lines(segs)
     notes_block = ("\n" + pages_ai.wrap("notes", notes_text(notes))) if notes else ""
-    task = ("Write the notes for this meeting. JSON only." if not notes else NOTES_RULE + " JSON only.")
+    # No notes from Google: Markdrop writes the detailed notes too (GEN_DETAILS_SYSTEM).
+    detailed = not notes
+    system = GEN_DETAILS_SYSTEM if detailed else GEN_SYSTEM
     total = sum(len(x) + 1 for x in lines)
     if total <= SINGLE_MAX_CHARS:
-        raw = await _stream_whole(run, _params(GEN_SYSTEM, [
-            head + notes_block + "\n" + pages_ai.wrap("transcript", "\n".join(lines)), task], GEN_MAX_TOKENS))
+        if detailed:
+            cap, words = details_budget(total)
+            task = _details_task(words)
+        else:
+            cap, task = GEN_MAX_TOKENS, NOTES_RULE + " JSON only."
+        raw = await _stream_whole(run, _params(system, [
+            head + notes_block + "\n" + pages_ai.wrap("transcript", "\n".join(lines)), task], cap))
         return parse_sections(raw, len(segs)), 1
     parts = chunks_of(lines)
     partial = []
     for k, part in enumerate(parts, 1):
-        raw = await _stream_whole(run, _params(GEN_SYSTEM, [
-            head + "\n" + pages_ai.wrap("transcript", part, part=f"{k} of {len(parts)}"),
-            f"This is part {k} of {len(parts)} of a long meeting: write the notes for this part only. JSON only."],
-            GEN_MAX_TOKENS))
+        if detailed:
+            cap, words = details_budget(len(part))
+            task = _details_task(words, f"part {k} of {len(parts)}")
+        else:
+            cap = GEN_MAX_TOKENS
+            task = f"This is part {k} of {len(parts)} of a long meeting: write the notes for this part only. JSON only."
+        raw = await _stream_whole(run, _params(system, [
+            head + "\n" + pages_ai.wrap("transcript", part, part=f"{k} of {len(parts)}"), task], cap))
         got = parse_sections(raw, len(segs))
         if got:
             partial.append(got)
     if not partial:
         return None, len(parts)
+    # Each part's details cover its own stretch of the call: kept in order, outside the merge.
+    details = [d for p in partial for d in p.pop("details", None) or []]
     merged_in = "\n".join(pages_ai.wrap("part", json.dumps(p, ensure_ascii=False), n=i) for i, p in enumerate(partial, 1))
-    raw = await _stream_whole(run, _params(REDUCE_SYSTEM, [head + notes_block + "\n" + merged_in,
-                                                            ("Merge the parts. " + (NOTES_RULE if notes else "") + " JSON only.")],
+    if detailed:
+        task = ("Merge the parts. The summary covers the whole meeting: up to 8 sentences for a long one; up to "
+                "8 highlights. JSON only.")
+    else:
+        task = "Merge the parts. " + (NOTES_RULE if notes else "") + " JSON only."
+    raw = await _stream_whole(run, _params(REDUCE_SYSTEM, [head + notes_block + "\n" + merged_in, task],
                                             REDUCE_MAX_TOKENS))
-    return parse_sections(raw, len(segs)) or partial[0], len(parts)
+    out = parse_sections(raw, len(segs)) or partial[0]
+    out.pop("details", None)
+    if details:
+        out["details"] = details[:DETAILS_SECTIONS * 2]
+    return out, len(parts)
 
 
-async def generate(db: AsyncIOMotorDatabase, meeting_id: str, user, *, via: str = "web") -> dict:
-    """Write the meeting's AI sections into its page. Never raises: the outcome is on the row."""
+async def generate(db: AsyncIOMotorDatabase, meeting_id: str, user, *, via: str = "web",
+                   edited: str = "append") -> dict:
+    """Write the meeting's AI sections into its page. Never raises: the outcome is on the row.
+    ``edited``: what a page someone edited since gets (``meetings.write_generated``)."""
     row = await meetings.get_row(db, meeting_id)
     if row is None:
         return {"state": "missing"}
     try:
-        return await _generate(db, row, user, via)
+        return await _generate(db, row, user, via, edited)
     except Exception:
         log.warning("meetings ai: generate %s failed", meeting_id, exc_info=True)
         await db[meetings.COLL].update_one({"_id": row["_id"]}, {"$set": {
@@ -458,10 +554,16 @@ async def generate(db: AsyncIOMotorDatabase, meeting_id: str, user, *, via: str 
 
 
 async def _slack_ready(db: AsyncIOMotorDatabase, row: dict) -> None:
-    """Markdrop for Slack: post the notes to the workspace's meetings channel (services/slack_notify)."""
-    from app.services import slack_notify
+    """The meeting is ready (its notes are written): Markdrop for Slack posts them to the workspace's
+    meetings channel (services/slack_notify), and HubSpot logs the call when its switch is on."""
+    from app.services import hubspot, slack_notify
 
     await slack_notify.meeting_ready(db, str(row["_id"]))
+    # HubSpot's "Log calls automatically" (services/hubspot.py; off unless a workspace admin turns it on).
+    try:
+        await hubspot.meeting_ready(db, str(row["_id"]))
+    except Exception:
+        log.warning("meetings ai: the HubSpot hook failed for %s", row.get("_id"), exc_info=True)
 
 
 #: How a meeting got here (its row's ``via``) → the background job that summarised it, for the AI
@@ -490,26 +592,38 @@ def summary_markdown(gen: dict | None) -> str:
     if gen.get("topics"):
         out += ["## Topics", "", *(f"- **{t.get('title')}**" + (f": {t['gist']}" if t.get("gist") else "")
                                   for t in gen["topics"]), ""]
+    if gen.get("details"):
+        out += ["## Details", ""]
+        for sec in gen["details"]:
+            out += [f"### {sec.get('title')}", "", *(f"- {pt.get('text')}" for pt in sec.get("points") or []), ""]
     return "\n".join(out).strip()
 
 
-async def _generate(db: AsyncIOMotorDatabase, row: dict, user, via: str) -> dict:
+def _reserve(row: dict) -> float:
+    return RESERVE_DETAILS if row.get("segments") and not row.get("notes") else RESERVE_GENERATE
+
+
+async def _generate(db: AsyncIOMotorDatabase, row: dict, user, via: str, edited: str = "append") -> dict:
+    reserve = _reserve(row)
+    # The bulk refresh (edited="details") never leaves a page without the sections it had: on a limit
+    # or a failure the page keeps the previous ones (the row still says what happened).
+    fallback = row.get("generated") if edited == "details" else None
     run = Run(db, user.id, "generate", via, {"meeting_id": str(row["_id"]), "workspace_id": row["workspace_id"],
-                                             "segments": len(row.get("segments") or [])}, RESERVE_GENERATE)
+                                             "segments": len(row.get("segments") or [])}, reserve)
     title = row.get("title") or "Meeting"
-    run.job = SUMMARY_JOBS.get(str(row.get("via") or ""))
+    run.job = "Meeting notes refresh" if via == "refresh" else SUMMARY_JOBS.get(str(row.get("via") or ""))
     run.log.update(subject=title, output_format="markdown",
                    description=f"Summarised the meeting '{title}' ({len(row.get('segments') or [])} transcript lines)",
                    context=[{"kind": "meeting", "title": title, "id": str(row["_id"]),
                              "url": f"/{row['slug']}" if row.get("slug") else None}])
-    reason = await limit_for(db, user.id, row["workspace_id"], reserve=RESERVE_GENERATE)
+    reason = await limit_for(db, user.id, row["workspace_id"], reserve=reserve)
     if reason:
         if reason not in ("off", "not_configured"):
             await run.record("limit", limit_reason=reason)
         ai = {"state": "skipped", "reason": reason, "message": message(reason), "at": now_utc()}
         await db[meetings.COLL].update_one({"_id": row["_id"]}, {"$set": {"ai": ai, "updated_at": now_utc()}})
         row["ai"] = ai
-        await meetings.write_generated(db, row, None, user)
+        await meetings.write_generated(db, row, fallback, user, edited=edited)
         if (row.get("notes") or {}).get("summary"):
             await _slack_ready(db, row)  # Google's notes are the summary: worth posting without AI
         return ai
@@ -524,7 +638,7 @@ async def _generate(db: AsyncIOMotorDatabase, row: dict, user, via: str) -> dict
                   "cost_usd": run.meter.cost_usd, "calls": run.meter.calls}
             await db[meetings.COLL].update_one({"_id": row["_id"]}, {"$set": {"ai": ai, "updated_at": now_utc()}})
             row["ai"] = ai
-            await meetings.write_generated(db, row, None, user)
+            await meetings.write_generated(db, row, fallback, user, edited=edited)
             return ai
         prev = row.get("ai") or {}
         cost = float(prev.get("total_cost_usd") or 0) + run.meter.cost_usd
@@ -535,11 +649,12 @@ async def _generate(db: AsyncIOMotorDatabase, row: dict, user, via: str) -> dict
                   "chunks": chunks}
             await db[meetings.COLL].update_one({"_id": row["_id"]}, {"$set": {"ai": ai, "updated_at": now_utc()}})
             row["ai"] = ai
-            await meetings.write_generated(db, row, None, user)
+            await meetings.write_generated(db, row, fallback, user, edited=edited)
             return ai
         run.log.update(output=summary_markdown(gen), results={
             "decisions": len(gen["decisions"]), "action items": len(gen["action_items"]),
-            "open questions": len(gen.get("open_questions") or []), "chunks": chunks})
+            "open questions": len(gen.get("open_questions") or []), "chunks": chunks,
+            **({"details sections": len(gen["details"])} if gen.get("details") else {})})
         await run.record("ok", chunks=chunks, decisions=len(gen["decisions"]), actions=len(gen["action_items"]))
         n_actions = len((row.get("notes") or {}).get("next_steps") or []) + len(gen["action_items"])
         sets: dict[str, Any] = {
@@ -551,11 +666,71 @@ async def _generate(db: AsyncIOMotorDatabase, row: dict, user, via: str) -> dict
             sets["type"] = gen["type"]
         await db[meetings.COLL].update_one({"_id": row["_id"]}, {"$set": sets})
         row.update(sets)
-        await meetings.write_generated(db, row, gen, user)
+        await meetings.write_generated(db, row, gen, user, edited=edited)
         await _slack_ready(db, row)
         return sets["ai"]
     finally:
         run.release()
+
+
+async def refresh_details(db: AsyncIOMotorDatabase, *, apply: bool = False, workspace_id: str | None = None,
+                          meeting_ids: list[str] | None = None, limit: int | None = None, force: bool = False,
+                          as_user: str | None = None, on_row=None) -> dict:
+    """One-off (scripts/regenerate_meeting_details.py): meetings with a transcript and no Google notes
+    (Zoom, pasted or uploaded transcripts) imported before Markdrop wrote Details get their notes
+    written again, Details included. Each runs as the person who imported it (``as_user``: one
+    person for all), under their Meetings AI limits and in the ledger as usual; the first limit
+    stops the run (run it again later: meetings that have Details are skipped unless ``force``).
+    A page nobody edited since import is rewritten whole; an edited one only gets the Details
+    appended (``meetings.write_generated(edited="details")``); a failure keeps the old sections.
+    ``apply=False``: only count. ``on_row(row, outcome)``: progress, for the script."""
+    from app.services import user as user_service
+
+    q: dict[str, Any] = {"segments.0": {"$exists": True}}
+    if workspace_id:
+        q["workspace_id"] = workspace_id
+    if meeting_ids:
+        q["_id"] = {"$in": [meetings.oid(m) for m in meeting_ids if meetings.oid(m)]}
+    proj = {"notes": 1, "generated.details": 1, "workspace_id": 1, "imported_by": 1, "created_by": 1, "title": 1,
+            "date": 1, "doc_id": 1}
+    out = {"matched": 0, "skipped_notes": 0, "skipped_done": 0, "done": 0, "failed": 0, "stopped": None}
+    users: dict[str, Any] = {}
+    async for row in db[meetings.COLL].find(q, proj).sort("date", -1):
+        if row.get("notes"):
+            out["skipped_notes"] += 1
+            continue
+        if ((row.get("generated") or {}).get("details")) and not force:
+            out["skipped_done"] += 1
+            continue
+        out["matched"] += 1
+        if limit is not None and out["matched"] > limit:
+            out["matched"] -= 1
+            break
+        if not apply:
+            if on_row:
+                on_row(row, "would refresh")
+            continue
+        uid = as_user or row.get("imported_by") or row.get("created_by")
+        if uid not in users:
+            users[uid] = await user_service.get_user_by_id(db, str(uid)) if uid else None
+        user = users[uid]
+        if user is None:
+            out["failed"] += 1
+            if on_row:
+                on_row(row, "failed: the person who imported it is gone (use --as)")
+            continue
+        reason = await limit_for(db, user.id, row["workspace_id"], count=False, reserve=RESERVE_DETAILS)
+        if reason:
+            out["stopped"] = reason
+            if on_row:
+                on_row(row, f"stopped: {message(reason)}")
+            break
+        got = await generate(db, str(row["_id"]), user, via="refresh", edited="details")
+        ok = got.get("state") == "done"
+        out["done" if ok else "failed"] += 1
+        if on_row:
+            on_row(row, "refreshed" if ok else f"failed: {got.get('message') or got.get('state')}")
+    return out
 
 
 # ── Asking: shared ────────────────────────────────────────────────────────────

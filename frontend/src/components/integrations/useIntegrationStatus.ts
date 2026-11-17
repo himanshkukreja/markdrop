@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { slackMe, slackStatus } from "@/lib/slack";
 import { jiraMe, jiraStatus } from "@/lib/jira";
 import { zoomStatus } from "@/lib/zoom";
+import { hubspotStatus } from "@/lib/hubspot";
 import { getMeetConnection } from "@/lib/meetings";
 import { listConnections, type OAuthConnection } from "@/lib/oauthClient";
 import { getGoogleDocsStatus, listApiTokens } from "@/lib/api";
@@ -29,7 +30,7 @@ function off(isAdmin: boolean, adminOnly = true): IntegrationStatus {
 }
 
 async function loadWorkspace(id: string, isAdmin: boolean): Promise<StatusMap> {
-  const [slack, jira, zoom, meet] = await Promise.all([
+  const [slack, jira, zoom, meet, hubspot] = await Promise.all([
     settle(slackStatus(id), (s) => !s.configured ? { kind: "unavailable" }
       : s.install ? (s.install.token_ok && s.install.can_find_by_email ? { kind: "connected" } : { kind: "attention" })
       : off(isAdmin)),
@@ -41,8 +42,11 @@ async function loadWorkspace(id: string, isAdmin: boolean): Promise<StatusMap> {
       : off(isAdmin)),
     settle(getMeetConnection(id), (r) => r.connection && r.connection.workspace_id === id
       ? (r.connection.needs_update || r.connection.last_error ? { kind: "attention" } : { kind: "connected" }) : { kind: "off" }),
+    settle(hubspotStatus(id), (s) => !s.configured ? { kind: "unavailable" }
+      : s.connected ? (s.connection?.broken ? { kind: "attention" } : { kind: "connected" })
+      : off(isAdmin)),
   ]);
-  return { slack, jira, zoom, "google-meet": meet };
+  return { slack, jira, zoom, "google-meet": meet, hubspot };
 }
 
 async function loadAccount(): Promise<{ map: StatusMap; apps: OAuthConnection[] | null }> {

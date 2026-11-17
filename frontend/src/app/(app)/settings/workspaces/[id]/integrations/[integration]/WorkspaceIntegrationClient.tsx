@@ -8,6 +8,7 @@ import { useIntegrationStatus } from "@/components/integrations/useIntegrationSt
 import { MeetSettings } from "@/components/integrations/MeetSettings";
 import { JiraWorkspaceCard } from "@/components/jira/JiraWorkspaceCard";
 import { ZoomWorkspaceCard } from "@/components/zoom/ZoomWorkspaceCard";
+import { HubSpotWorkspaceCard } from "@/components/hubspot/HubSpotWorkspaceCard";
 import { can, getWorkspace, type Workspace } from "@/lib/workspaces";
 import { findIntegration, gridHref } from "@/lib/integrations";
 import { SettingsLoader, useRequireUser } from "../../../../settings-shared";
@@ -52,6 +53,7 @@ export default function WorkspaceIntegrationClient({ id, integration }: { id: st
       case "slack": return <SlackSection id={id} isAdmin={isAdmin} />;
       case "jira": return <JiraWorkspaceCard id={id} isAdmin={isAdmin} />;
       case "zoom": return <ZoomWorkspaceCard id={id} isAdmin={isAdmin} />;
+      case "hubspot": return <HubSpotWorkspaceCard id={id} isAdmin={isAdmin} />;
       case "google-meet": return <MeetSettings workspaceId={id} workspaceName={ws.name} onChanged={() => void reload()} />;
       default: return null;
     }

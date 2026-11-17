@@ -572,3 +572,47 @@ class Mcp(AIWorld):
         other = mcp_tools.Context(db=self.db, user=stranger, client_id="test", scopes=["documents:read"])
         with self.assertRaises(mcp_tools.ToolError):
             await mcp_tools.analyze_document_engagement(other, {"document": d["slug"]})
+
+
+# ── A video's chapters for its readers (the player's progress bar) ────────────
+
+
+class ChaptersForReaders(AIWorld):
+    async def coached(self, v: dict, chapters: list[dict], **over) -> None:
+        row = {"_id": aid.cache_id(v, "media", "30d", False, None), "doc_id": str(v["_id"]), "kind": "media",
+               "range": "30d", "internal": False, "ver": int(v.get("file_version") or 1), "sig": aid.signature(v),
+               "result": {"summary": "s", "findings": [], "chapters": chapters}, "generated_at": now(), "at": now(), **over}
+        await self.db[aid.COLL].replace_one({"_id": row["_id"]}, row, upsert=True)
+
+    async def read(self, d: dict, **headers):
+        return await self.http.get(f"/api/v1/documents/{d['slug']}", headers=headers)
+
+    async def test_the_coach_s_chapters_reach_every_reader_and_never_call_the_model(self):
+        v = await self.video()
+        self.assertEqual((await self.read(v)).json()["chapters"], [])            # no analysis: none
+        await self.coached(v, [{"t": 0, "title": "Intro"}, {"t": 20, "title": "Middle"}])
+        r = await self.read(v)                                                   # anyone with the link
+        self.assertEqual(r.json()["chapters"], [{"t": 0, "title": "Intro"}, {"t": 20, "title": "Middle"}])
+        self.assertEqual(self.fake.calls, [])
+        # The file replaced since: those chapters were for other bytes.
+        await self.db["documents"].update_one({"_id": v["_id"]}, {"$set": {"file_version": 2,
+                                                                           "blob_key": v["blob_key"] + "-2"}})
+        self.assertEqual((await self.read(v)).json()["chapters"], [])
+        # A markdown page has none to give.
+        d = await self.markdown_doc(n=0)
+        self.assertIsNone((await self.read(d)).json().get("chapters"))
+
+    async def test_locked_private_or_encrypted_videos_give_none(self):
+        chapters = [{"t": 0, "title": "SECRET-INTRO"}, {"t": 20, "title": "Middle"}]
+        locked = await self.mkdoc("LP", ws=None, kind="artifact", mime="video/mp4", media={"duration_s": 100.0})
+        private = await self.mkdoc("P", ws=None, kind="artifact", mime="video/mp4", media={"duration_s": 100.0})
+        enc = await self.mkdoc("L", ws=None, kind="artifact", mime="video/mp4", media={"duration_s": 100.0},
+                               encrypted=True)
+        for d in (locked, private, enc):
+            await self.coached(d, chapters)
+        for d in (locked, private):
+            r = await self.read(d)
+            self.assertIn(r.status_code, (401, 403, 404), r.text)
+            self.assertNotIn("SECRET-INTRO", r.text)
+        r = await self.read(enc)
+        self.assertEqual((r.status_code, r.json()["chapters"]), (200, []))

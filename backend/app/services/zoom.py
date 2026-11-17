@@ -41,6 +41,9 @@ decisions, action items, Slack, briefs, memory, Jira drafts). **Import past meet
 members' cloud recordings for a range (Zoom allows a month per request: several windows) and imports
 the chosen ones as history (nobody is notified).
 
+**No transcript** (2026-11-16, services/zoom_media.py): Zoom's closed captions stand in, and with the
+workspace's *Transcribe and keep recordings* switch the audio is transcribed and the video kept.
+
 **Dedupe**: ``zoom_meetings`` (_id ``<workspace>:<meeting UUID>``) claims a meeting once
 (processing → imported | duplicate | no_transcript | failed), and the meeting's source carries
 ``file_id = "zoom:<uuid>"`` (import_meetings(dedupe="file")). A meeting without a transcript is
@@ -50,9 +53,11 @@ Collections
     zoom_connections  _id = workspace id: mode (oauth | s2s), account_id, client_id, client_secret_enc,
                       webhook_secret_enc (s2s), refresh_enc + zoom_user {id, email, name} (oauth),
                       access_enc, expires_at, scopes, team_id, connected_by, connected_at, verified_at,
-                      broken, last_event_at, last_import_at, last_error, stats {imported, ignored, …}
+                      broken, last_event_at, last_import_at, last_error, stats {imported, ignored, …},
+                      keep_media (Transcribe and keep recordings; zoom_media.py)
     zoom_meetings     _id = "<workspace>:<uuid>": state, uuid, topic, host {user_id, name, email},
-                      start_time, meeting_id, slug, via (webhook | backfill), reason, at
+                      start_time, meeting_id, slug, via (webhook | backfill), reason, at; source, due_at,
+                      rec_state… (services/zoom_media.py)
     zoom_seen         _id = "state:<…>", expires_at (TTL): one-click connect states already used
 """
 
@@ -77,7 +82,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo.errors import DuplicateKeyError
 
 from app.config import get_settings
-from app.services import zoom_api
+from app.services import deepgram, zoom_api
 from app.utils import crypto
 
 log = logging.getLogger("markdrop.zoom")
@@ -866,7 +871,7 @@ async def _claim(db: AsyncIOMotorDatabase, key: str, base: dict) -> bool:
         return True
     except DuplicateKeyError:
         res = await db[MEETINGS].update_one(
-            {"_id": key, "$or": [{"state": {"$in": ["no_transcript", "failed"]}},
+            {"_id": key, "$or": [{"state": {"$in": ["no_transcript", "failed", "waiting"]}},
                                  {"state": "processing", "at": {"$lt": now - PROCESSING_STALE}}]},
             {"$set": {**base, "state": "processing", "at": now}})
         return res.modified_count > 0
@@ -882,10 +887,11 @@ async def _count(db: AsyncIOMotorDatabase, ws: str, field: str, sets: dict | Non
 
 async def handle_recording(db: AsyncIOMotorDatabase, workspace_id: str, obj: dict, *, event: str = "",
                            download_token: str | None = None, via: str = "webhook",
-                           users: dict[str, dict] | None = None) -> dict:
+                           users: dict[str, dict] | None = None, transcribe_now: bool = False) -> dict:
     """Import one recorded meeting (a webhook's object, or ``GET meetings/{uuid}/recordings``).
-    ``{status, meeting_id?, slug?, reason?}``: imported | duplicate | ignored | no_transcript | failed."""
-    from app.services import meetings, team_routing
+    ``{status, meeting_id?, slug?, reason?, recording?}``: imported | duplicate | ignored | no_transcript |
+    failed | waiting (it will be transcribed: services/zoom_media.py; ``transcribe_now`` is its loop)."""
+    from app.services import meetings, team_routing, zoom_media
     from app.services import user as user_service
 
     conn = await get(db, workspace_id)
@@ -912,15 +918,28 @@ async def handle_recording(db: AsyncIOMotorDatabase, workspace_id: str, obj: dic
             "duration_min": obj.get("duration"), "host": member, "via": via, "event": event or None}
     prev = await db[MEETINGS].find_one({"_id": key}, {"state": 1, "meeting_row_id": 1, "slug": 1})
     if prev and prev.get("state") in DONE:
-        return {"status": "duplicate", "meeting_id": prev.get("meeting_row_id"), "slug": prev.get("slug")}
+        out = {"status": "duplicate", "meeting_id": prev.get("meeting_row_id"), "slug": prev.get("slug")}
+        return {**out, "recording": await zoom_media.queue_copy(db, conn, key, obj, out["meeting_id"])}
     already = await db[meetings.COLL].find_one({"workspace_id": workspace_id, "sources.file_id": f"zoom:{uuid}"}, {"slug": 1})
     if already is not None:
         await db[MEETINGS].update_one({"_id": key}, {"$set": {**base, "state": "duplicate", "at": now_utc(),
                                                               "meeting_row_id": str(already["_id"]), "slug": already.get("slug")}},
                                       upsert=True)
-        return {"status": "duplicate", "meeting_id": str(already["_id"]), "slug": already.get("slug")}
-    tf = transcript_file(obj)
-    if tf is None:
+        return {"status": "duplicate", "meeting_id": str(already["_id"]), "slug": already.get("slug"),
+                "recording": await zoom_media.queue_copy(db, conn, key, obj, already["_id"])}
+    # Zoom's own transcript first, then its closed captions, then (the workspace's switch) the audio.
+    source = zoom_media.source_of(conn, obj)
+    tf = transcript_file(obj) if source == "transcript" else zoom_media.cc_file(obj) if source == "captions" else None
+    early = via == "webhook" and event != "recording.transcript_completed"
+    if not transcribe_now and (source == "transcribe" or (source == "captions" and early)):
+        # Background work (services/zoom_media.tick). From the webhook's recording.completed it waits
+        # first: Zoom's own transcript (the first choice) often arrives a few minutes later.
+        due = now_utc() + (zoom_media.WAIT if early else timedelta(0))
+        if await zoom_media.queue(db, key, base, due=due, source=source):
+            return {"status": "waiting"}
+        row = await db[MEETINGS].find_one({"_id": key}, {"state": 1, "meeting_row_id": 1, "slug": 1})
+        return {"status": "duplicate", "meeting_id": (row or {}).get("meeting_row_id"), "slug": (row or {}).get("slug")}
+    if source is None:
         if prev is None:
             try:
                 await db[MEETINGS].insert_one({"_id": key, **base, "state": "no_transcript", "at": now_utc(),
@@ -932,16 +951,20 @@ async def handle_recording(db: AsyncIOMotorDatabase, workspace_id: str, obj: dic
             await db[MEETINGS].update_one({"_id": key}, {"$set": {**base, "state": "no_transcript", "at": now_utc(),
                                                                   "reason": NO_TRANSCRIPT}})
         return {"status": "no_transcript", "reason": NO_TRANSCRIPT}
-    if not await _claim(db, key, base):
+    if not await _claim(db, key, {**base, "source": source}):
         row = await db[MEETINGS].find_one({"_id": key}, {"state": 1, "meeting_row_id": 1, "slug": 1})
         return {"status": "duplicate", "meeting_id": (row or {}).get("meeting_row_id"), "slug": (row or {}).get("slug")}
     try:
-        vtt = await download(db, conn, tf["download_url"], download_token)
-        names = await participants(db, conn, uuid)
         user = await user_service.get_user_by_id(db, member["id"])
         if user is None:
             raise HTTPException(status_code=404, detail="The host's Markdrop account is gone.")
         host_named = {"name": member.get("name") or (host or {}).get("name"), "email": member.get("email")}
+        names = await participants(db, conn, uuid)
+        if source == "transcribe":
+            vtt = await zoom_media.transcribe(db, conn, obj, host_name=host_named.get("name"), user_id=member["id"],
+                                              participants=names)
+        else:
+            vtt = await download(db, conn, tf["download_url"], download_token)
         inc = meetings.Incoming(name=f"{base['topic']}.vtt", text=transcript_text(vtt, names, host_named), origin="zoom",
                                 file_id=f"zoom:{uuid}", owner=host_named)
         tok = team_routing.chosen.set(([conn["team_id"]], []))
@@ -950,6 +973,14 @@ async def handle_recording(db: AsyncIOMotorDatabase, workspace_id: str, obj: dic
                                                   restricted=False, via="zoom", dedupe="file", notify=via == "webhook")
         finally:
             team_routing.chosen.reset(tok)
+    except zoom_media.Later as exc:
+        await _finish(db, key, "waiting", reason=exc.reason, due_at=exc.due)
+        return {"status": "waiting", "reason": exc.reason}
+    except deepgram.DeepgramError as exc:
+        msg = zoom_media.FAILED_REASON if exc.status != 422 else "No speech was found in the recording."
+        await _finish(db, key, "failed", reason=msg)
+        await _count(db, workspace_id, "failed", {"last_error": msg})
+        return {"status": "failed", "reason": msg}
     except HTTPException as exc:
         msg = str(exc.detail)[:300]
         await _finish(db, key, "failed", reason=msg)
@@ -973,12 +1004,16 @@ async def handle_recording(db: AsyncIOMotorDatabase, workspace_id: str, obj: dic
         fix["time"] = t
     if obj.get("duration") and not row.get("duration_s"):
         fix["duration_s"] = int(obj["duration"]) * 60
-    if fix and status_ == "imported":
-        await db[meetings.COLL].update_one({"_id": row["_id"]}, {"$set": {**fix, "zoom": {"uuid": uuid, "meeting_id": base["meeting_id"]}}})
-    await _finish(db, key, status_, meeting_row_id=str(row["_id"]), slug=row.get("slug"), reason=None)
+    if status_ == "imported":
+        await db[meetings.COLL].update_one({"_id": row["_id"]}, {"$set": {
+            **fix, "zoom": {"uuid": uuid, "meeting_id": base["meeting_id"], "transcript_from": source}}})
+    await _finish(db, key, status_, meeting_row_id=str(row["_id"]), slug=row.get("slug"), reason=None, due_at=None)
     await _count(db, workspace_id, "imported" if status_ == "imported" else "duplicates",
                  {"last_import_at": now_utc(), "last_error": None} if status_ == "imported" else None)
-    return {"status": status_, "meeting_id": str(row["_id"]), "slug": row.get("slug")}
+    if status_ == "imported" and source in ("captions", "transcribe"):
+        await _count(db, workspace_id, source)
+    return {"status": status_, "meeting_id": str(row["_id"]), "slug": row.get("slug"),
+            "recording": await zoom_media.queue_copy(db, conn, key, obj, row["_id"])}
 
 
 # ── Import past meetings ──────────────────────────────────────────────────────
@@ -1014,6 +1049,8 @@ async def list_recordings(db: AsyncIOMotorDatabase, user, workspace_id: str, *, 
                           from_: str | None = None, to: str | None = None) -> dict:
     """The team members' recorded meetings in the range, newest first, each with whether it has a
     transcript and whether it's already in Markdrop."""
+    from app.services import zoom_media
+
     conn = await require_import(db, user, workspace_id)
     team = await _team(db, workspace_id, conn["team_id"])
     a, b = date_range(days, from_, to)
@@ -1051,7 +1088,10 @@ async def list_recordings(db: AsyncIOMotorDatabase, user, workspace_id: str, *, 
                         rows[uuid] = {"uuid": uuid, "topic": mt.get("topic") or "Zoom meeting", "start_time": mt.get("start_time"),
                                       "date": d, "time": t, "duration_min": mt.get("duration"),
                                       "host": {"id": str(m["_id"]), "name": m.get("name") or email.split("@")[0], "email": email},
-                                      "transcript": transcript_file(mt) is not None}
+                                      "transcript": transcript_file(mt) is not None,
+                                      "captions": zoom_media.cc_file(mt) is not None,
+                                      "video": zoom_media.video_file(mt) is not None,
+                                      "source": zoom_media.source_of(conn, mt)}
                     token = body.get("next_page_token") or ""
                     if not token:
                         break
@@ -1069,23 +1109,30 @@ async def list_recordings(db: AsyncIOMotorDatabase, user, workspace_id: str, *, 
                             if exc.limited else "Zoom didn't answer. Try again in a minute.")
     uuids = list(rows)
     done = {r["uuid"]: r async for r in db[MEETINGS].find({"workspace_id": workspace_id, "uuid": {"$in": uuids}},
-                                                           {"uuid": 1, "state": 1, "slug": 1})}
+                                                           {"uuid": 1, "state": 1, "slug": 1, "rec_state": 1})}
     from app.services import meetings
 
-    have = {s["file_id"][5:]: r.get("slug") async for r in db[meetings.COLL].find(
-        {"workspace_id": workspace_id, "sources.file_id": {"$in": [f"zoom:{u}" for u in uuids]}}, {"sources.file_id": 1, "slug": 1})
+    have: dict[str, dict] = {s["file_id"][5:]: r async for r in db[meetings.COLL].find(
+        {"workspace_id": workspace_id, "sources.file_id": {"$in": [f"zoom:{u}" for u in uuids]}},
+        {"sources.file_id": 1, "slug": 1, "recording.key": 1})
         for s in r.get("sources") or [] if str(s.get("file_id") or "").startswith("zoom:")}
+    keep = zoom_media.is_on(conn)
     out = []
     for uuid, r in rows.items():
         st = done.get(uuid) or {}
+        mrow = have.get(uuid) or {}
         r["imported"] = uuid in have or st.get("state") in DONE
-        r["slug"] = have.get(uuid) or st.get("slug")
-        r["state"] = "imported" if r["imported"] else st.get("state") if st.get("state") in ("failed", "no_transcript") else None
+        r["slug"] = mrow.get("slug") or st.get("slug")
+        r["state"] = "imported" if r["imported"] else st.get("state") if st.get("state") in ("failed", "no_transcript", "waiting") else None
+        r["recording"] = ("stored" if (mrow.get("recording") or {}).get("key")
+                          else "copying" if st.get("rec_state") in ("queued", "copying") else None)
+        # Already here without its video: importing it again adds the recording (the switch is on).
+        r["can_add_recording"] = bool(keep and r["imported"] and r["video"] and r["recording"] is None)
         out.append(r)
     out.sort(key=lambda r: str(r.get("start_time") or ""), reverse=True)
     await db[CONNS].update_one({"_id": conn["_id"]}, {"$set": {"last_sync_at": now_utc()}})
     return {"from": a.isoformat(), "to": b.isoformat(), "meetings": out[:MAX_LIST], "total": len(out),
-            "not_in_zoom": not_in_zoom, "no_transcript_help": NO_TRANSCRIPT}
+            "not_in_zoom": not_in_zoom, "no_transcript_help": NO_TRANSCRIPT, "media_on": keep}
 
 
 async def import_recordings(db: AsyncIOMotorDatabase, user, workspace_id: str, uuids: list[str]) -> dict:
@@ -1142,6 +1189,7 @@ def _mask(v: str | None) -> str | None:
 async def status(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
     from app.models.workspace import role_allows
     from app.services import teams as T
+    from app.services import zoom_media
 
     role = await role_of(db, user, workspace_id)
     admin = role_allows(role, "admin")
@@ -1156,6 +1204,8 @@ async def status(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
         "scopes_needed": [{"scope": s["scope"], "why": s["why"], "required": s["required"]} for s in SCOPES] if admin else None,
         "events": list(EVENTS) if admin else None,
         "no_transcript_help": NO_TRANSCRIPT,
+        # Transcribe and keep recordings (services/zoom_media.py): offered when the server can; off by default.
+        "media_available": zoom_media.available(), "media_on": zoom_media.is_on(conn),
         "team": ({"id": str(team["_id"]), "name": team.get("name"), "visibility": team.get("visibility") or "open",
                   "slug": team.get("slug")} if team else None),
         "can_import": False, "connection": None, "teams": None, "recent": None,
@@ -1168,7 +1218,8 @@ async def status(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
              "verified": bool(conn.get("verified_at")),
              "broken": conn.get("broken"), "imported": int(st.get("imported") or 0), "ignored": int(st.get("ignored") or 0),
              "no_transcript": int(st.get("no_transcript") or 0), "failed": int(st.get("failed") or 0),
-             "duplicates": int(st.get("duplicates") or 0)}
+             "duplicates": int(st.get("duplicates") or 0), "from_captions": int(st.get("captions") or 0),
+             "transcribed": int(st.get("transcribe") or 0)}
         if admin:
             u = await db["users"].find_one({"_id": ObjectId(conn["connected_by"])}, {"name": 1, "email": 1}) \
                 if ObjectId.is_valid(str(conn.get("connected_by") or "")) else None
@@ -1189,5 +1240,6 @@ async def status(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
         rows = await db[MEETINGS].find({"workspace_id": workspace_id}).sort("at", -1).limit(10).to_list(length=10)
         out["recent"] = [{"uuid": r.get("uuid"), "topic": r.get("topic"), "date": r.get("date"), "state": r.get("state"),
                           "reason": r.get("reason"), "slug": r.get("slug"), "host": (r.get("host") or {}).get("name"),
-                          "via": r.get("via"), "at": iso(r.get("at"))} for r in rows]
+                          "via": r.get("via"), "at": iso(r.get("at")), "source": r.get("source"),
+                          "recording": r.get("rec_state")} for r in rows]
     return out

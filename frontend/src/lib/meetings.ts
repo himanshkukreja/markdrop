@@ -91,6 +91,8 @@ export interface Meeting {
   decisions?: number;
   open_questions?: number;
   cover?: string | null;
+  /** The meeting's Zoom recording kept in Markdrop (Transcribe and keep recordings); played via getMeetingRecording. */
+  recording?: { size: number | null; duration_s: number | null; source: "zoom" } | null;
 }
 
 /** A "Connect Google Meet" connection (never its token). */
@@ -305,6 +307,25 @@ export function listSeries(workspace: string, space?: string) {
 
 export function getMeeting(id: string) {
   return request<Meeting>(`/api/v1/meetings/${encodeURIComponent(id)}`);
+}
+
+/** A short-lived link to the files origin's video player for the meeting's recording (readers of the meeting only). */
+export function getMeetingRecording(id: string) {
+  return request<{
+    player_url: string; size: number | null; duration_s: number | null; expires_in: number;
+    /** Captions from the transcript are on the player link (its CC button). */
+    captions?: boolean;
+    /** Chapters from the notes' sections: seconds into the video. */
+    chapters?: { t: number; title: string }[];
+    /** Seconds the video starts after the transcript's time 0 (a recording stopped and started again); 0 mostly. */
+    offset_s?: number;
+  }>(
+    `/api/v1/meetings/${encodeURIComponent(id)}/recording`);
+}
+
+/** Remove the meeting's kept recording (the importer or a workspace admin). */
+export function deleteMeetingRecording(id: string) {
+  return request<{ removed: boolean }>(`/api/v1/meetings/${encodeURIComponent(id)}/recording`, { method: "DELETE" });
 }
 
 /** `workspace` (Teams): each meeting then carries `team_suggestions` from its attendees and series. */

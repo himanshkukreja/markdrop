@@ -1,8 +1,8 @@
 ---
 title: Video and audio
 description: Share screen recordings and audio up to 2 GB at a link that streams in any browser, with speed control, a poster frame, and captions search and Ask can read.
-updated: 2026-11-06
-keywords: [video, audio, mp4, mov, webm, mp3, player, screen recording, codec, playback speed, captions, subtitles, vtt, srt, webvtt, subrip, cc, search a video, ask a video, play from]
+updated: 2026-11-16
+keywords: [video, audio, mp4, mov, webm, mp3, player, screen recording, codec, playback speed, captions, subtitles, vtt, srt, webvtt, subrip, cc, search a video, ask a video, play from, chapters, chapter markers, key moments, progress bar]
 ---
 
 Send a link instead of a 900 MB attachment. Upload a screen recording or a voice memo and readers press play in their browser: it streams, seeks instantly, and never asks them to download the whole file.
@@ -71,6 +71,17 @@ The player gets a **CC** button (or press :kbd[C]) to turn them off and on. **Re
 From an AI app, the MCP tool `set_captions` does the same: give it the video's link and the captions file's text. With the API, it's `PUT /api/v1/artifacts/{slug}/captions` with `{"file_name": "demo.vtt", "content": "WEBVTT…"}`.
 
 A link that ends in `#t=754` plays from 12:34. That's the link an answer gives when it cites a moment.
+
+## Chapters
+
+A video can show chapters: small gaps split the progress bar into parts, and pointing at the bar shows the chapter's title above the time. The current chapter's title sits next to the time; select it for the list of chapters, and choose one to jump to its start.
+
+On the keyboard, press :kbd[Tab] until the chapter's title is focused, then :kbd[Enter] or :kbd[↓] to open the list. :kbd[↑] and :kbd[↓] move through it, :kbd[Enter] plays from that chapter, and :kbd[Esc] closes it. Chapters work in full screen too.
+
+Where they come from:
+
+- **Video files.** The chapters [AI insights](/analytics/ai-insights) suggested for the video. Once the owner has run insights on the **Video** tab and it suggested chapters, everyone who can open the video sees them. If the file is replaced, they disappear until insights run on the new version. Encrypted videos never show chapters.
+- **Meeting recordings.** The parts of the call in the meeting's notes. See [Zoom recordings](/integrations/zoom#transcribe-and-keep-recordings).
 
 ## Audio
 

@@ -320,6 +320,7 @@ def team_full(view: TeamView, t: dict, ppl: dict[str, dict]) -> dict:
     out.update(
         members=[{**ppl[u], "role": "lead" if u in leads else "member"} for u in (t.get("member_ids") or []) if u in ppl],
         slack_channel=t.get("slack_channel"), slack_comments=t.get("slack_comments") is not False,
+        meetings_by_attendees=t.get("meetings_by_attendees") is not False,
         jira_projects=list(t.get("jira_projects") or []),
         digest=t.get("digest") or {"enabled": True, "email": True, "slack": True},
         admins_can_see=True, created_at=t.get("created_at"))
@@ -547,6 +548,8 @@ async def update_team(db: AsyncIOMotorDatabase, view: TeamView, team: dict, body
         sets["slack_channel"] = ch
     if body.get("slack_comments") is not None:
         sets["slack_comments"] = bool(body["slack_comments"])
+    if body.get("meetings_by_attendees") is not None:
+        sets["meetings_by_attendees"] = bool(body["meetings_by_attendees"])
     if body.get("jira_projects") is not None:
         keys = [k for k in dict.fromkeys(_clean(k, 20).upper() for k in body["jira_projects"]) if re.fullmatch(r"[A-Z][A-Z0-9_]{0,19}", k)]
         sets["jira_projects"] = keys[:MAX_JIRA]

@@ -417,6 +417,8 @@ FEATURES: dict[str, str] = {
     "workspace_memory": "Team memory",
     "jira_ai": "Jira drafts",
     "comments_ai": "Comments AI",
+    # Not Claude: Deepgram speech-to-text for Zoom meetings without a transcript (services/zoom_media.py).
+    "zoom_transcribe": "Zoom transcription",
 }
 
 SETTINGS = "ai_settings"
@@ -441,6 +443,7 @@ _CONFIG: dict[str, tuple[str, str, tuple[str, ...]]] = {
     "workspace_memory": ("workspace_memory_daily_usd", "workspace_memory_monthly_usd", ("workspace_memory_enabled",)),
     "jira_ai": ("jira_ai_daily_usd", "jira_ai_monthly_usd", ("jira_ai_enabled",)),
     "comments_ai": ("comments_ai_daily_usd", "comments_ai_monthly_usd", ("comments_ai_enabled",)),
+    "zoom_transcribe": ("zoom_transcribe_daily_usd", "zoom_transcribe_monthly_usd", ("zoom_transcribe_enabled",)),
 }
 
 _cache: dict[tuple[str, str], tuple[float, Any]] = {}

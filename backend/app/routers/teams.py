@@ -117,6 +117,7 @@ class TeamPatch(BaseModel):
     slack_comments: Optional[bool] = Field(None, description="Post new and resolved comments on the team's items to its Slack channel (default on).")
     jira_projects: Optional[list[str]] = Field(None, max_length=20)
     digest: Optional[Digest] = None
+    meetings_by_attendees: Optional[bool] = Field(None, description="Add new meetings to this team when its members are half or more of the attendees (default on). Off: only meetings imported or moved into it, such as from Zoom.")
 
 
 class Members(BaseModel):

@@ -269,6 +269,7 @@ export default async function TenantDocumentPage({ params }: Props) {
           downloadUrl={doc.download_url ?? null}
           posterUrl={doc.poster_url ?? null}
           captionsUrl={doc.captions_url ?? null}
+          chapters={doc.chapters ?? null}
           readTicket={doc.read_ticket ?? null}
           track={doc.track ?? null}
           fileVersion={doc.file_version ?? null}

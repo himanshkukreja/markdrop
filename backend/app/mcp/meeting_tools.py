@@ -65,6 +65,8 @@ def _meeting_out(m: dict) -> dict[str, Any]:
         # The calendar invite (Gemini notes' "Invited"), joined or not; never the attendees.
         "invited": [a["name"] for a in m.get("invited") or []],
         "action_items": m.get("action_items"), "has_notes": m.get("has_notes"),
+        # A Zoom recording Markdrop kept (played on the meeting's page by people who can read it).
+        "has_recording": bool(m.get("recording")),
         "segments": m.get("segments"), "ai": m.get("ai"), "source": m.get("source"), "series": m.get("series"),
         # What it was about at a glance (the Meetings page's cards): a line of the summary and the counts.
         "summary": m.get("summary"), "decisions": m.get("decisions"), "open_questions": m.get("open_questions"),
@@ -271,6 +273,14 @@ async def get_meeting(ctx: Context, args: dict) -> tuple[str, dict]:
                                   "text": s.get("text"), "url": urls.markdrop_url(row["transcript_slug"]) + f"#{meetings.anchor(start + i)}"}
                                  for i, s in enumerate(segs)]
     text = f"{m['title']} ({m['date']}): {m['url']}\n\n{md}"
+    if m["has_recording"]:
+        # The kept recording's chapters (its player's progress bar; times are seconds into the video).
+        from app.services import zoom_media
+
+        out["recording_chapters"] = zoom_media.chapters(row)
+        if out["recording_chapters"]:
+            text += "\n\nRecording chapters: " + "; ".join(
+                f"{mp.clock(c['t'])} {c['title']}" for c in out["recording_chapters"])
     if out["transcript"]:
         text += "\n\nTranscript:\n" + "\n".join(f"[{t['n']}] {t['time'] or ''} {t['speaker'] or ''}: {t['text']}" for t in out["transcript"])
         if out["transcript_total"] > out["transcript"][-1]["n"]:
@@ -374,7 +384,8 @@ _MEETING_OUT = {"type": "object", "properties": {
     "attendees": {"type": "array", "items": {"type": "string"}, "description": "Who joined the call (with only Gemini's notes and no transcript: the invited people the notes name)."},
     "invited": {"type": "array", "items": {"type": "string"}, "description": "Everyone on the calendar invite, joined or not."},
     "restricted": {"type": "boolean"},
-    "action_items": {"type": "integer"}, "has_notes": {"type": "boolean"}, "segments": {"type": "integer"},
+    "action_items": {"type": "integer"}, "has_notes": {"type": "boolean"}, "has_recording": {"type": "boolean"},
+    "segments": {"type": "integer"},
     "ai": {"type": "object"}, "source": {"type": "string", "enum": list(meetings.SOURCES)},
     "series": _NULLABLE_STR,
 }}
@@ -453,7 +464,8 @@ MEETING_TOOLS: list[Tool] = [
         name="get_meeting",
         title="Read a meeting",
         description=("One meeting: its page's Markdown (summary, decisions, action items…) and, with transcript=true, "
-                     f"its transcript lines ({MAX_TRANSCRIPT_RETURN} at a time from from_segment), each with a link to that moment."),
+                     f"its transcript lines ({MAX_TRANSCRIPT_RETURN} at a time from from_segment), each with a link to that moment. "
+                     "With a kept recording: its chapters (seconds into the video, from the notes' sections)."),
         scope=READ,
         input_schema={"type": "object", "properties": {
             "meeting": _MEETING_REF,
@@ -461,7 +473,9 @@ MEETING_TOOLS: list[Tool] = [
             "from_segment": {"type": "integer", "minimum": 1, "default": 1},
         }, "required": ["meeting"]},
         output_schema=_out({**_MEETING_OUT["properties"], "markdown": {"type": "string"},
-                            "transcript": {"type": ["array", "null"]}, "transcript_total": {"type": "integer"}},
+                            "transcript": {"type": ["array", "null"]}, "transcript_total": {"type": "integer"},
+                            "recording_chapters": {"type": "array", "items": {"type": "object", "properties": {
+                                "t": {"type": "integer"}, "title": {"type": "string"}}}}},
                            ["id", "url", "markdown"]),
         annotations=_ann(True, False, True),
         handler=get_meeting,

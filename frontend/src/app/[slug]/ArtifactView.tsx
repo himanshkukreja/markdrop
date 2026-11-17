@@ -14,6 +14,8 @@ import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAccess, removePerson } from "@/lib/access";
 import { purgeDocument } from "@/lib/workspaces";
+import PwaBack from "@/components/pwa/PwaBack";
+import { sendViewerAccent, sendViewerChapters, useWorkspaceAccent, type ViewerChapter } from "@/lib/workspaceAccent";
 import { PRIMARY_HOST, signInUrlFor } from "@/lib/hosts";
 
 /** The path part of this page's URL, for the tenant sign-in return trip (/login 404s there). */
@@ -100,6 +102,8 @@ interface Props {
   posterUrl?: string | null;
   /** A video's captions (API `captions_url`, .vtt), shown by the player as subtitles. */
   captionsUrl?: string | null;
+  /** A video's chapters (API `chapters`), drawn on the player's progress bar. */
+  chapters?: ViewerChapter[] | null;
   /** Opaque analytics reference (API `ref`); never the slug. */
   docRef?: string | null;
   /**
@@ -148,6 +152,7 @@ export default function ArtifactView({
   downloadUrl: initialDownloadUrl,
   posterUrl: initialPosterUrl = null,
   captionsUrl: initialCaptionsUrl = null,
+  chapters: initialChapters = null,
   docRef = null,
   viewerChrome = "full",
   readTicket: initialReadTicket = null,
@@ -176,6 +181,10 @@ export default function ArtifactView({
   const [posterUrl, setPosterUrl] = useState(initialPosterUrl);
   const captionsInput = useRef<HTMLInputElement>(null);
   const [captionsUrl, setCaptionsUrl] = useState(initialCaptionsUrl);
+  // Chapters on the player's progress bar (sent once it loads, and again when they change).
+  const [chapters, setChapters] = useState<ViewerChapter[] | null>(initialChapters);
+  const chaptersRef = useRef<ViewerChapter[] | null>(initialChapters);
+  chaptersRef.current = chapters;
   // `#t=754` / `#page=3` (an Ask answer's "at 12:34" / "page 3"): where the player or PDF starts.
   const [startAt, setStartAt] = useState<number | null>(null);
   const [renderer, setRenderer] = useState(initialRenderer);
@@ -188,6 +197,8 @@ export default function ArtifactView({
   const [ownerCheckedFor, setOwnerCheckedFor] = useState<string | null>(null);
   const [fileVersion, setFileVersion] = useState<number | null>(initialFileVersion);
   const frameRef = useRef<HTMLIFrameElement>(null);
+  // The video player's controls showing (its "ui" message): "Show details" hides with them.
+  const [playerUi, setPlayerUi] = useState(true);
   // `can.replace` from the server (Q6): editors and workspace members on a non-private file may
   // swap the bytes, but only the owner reaches the rest of the settings.
   const [canReplace, setCanReplace] = useState(false);
@@ -202,6 +213,13 @@ export default function ArtifactView({
   const [docId, setDocId] = useState<string | null>(null);
   // Where it's filed (the bar's workspace › folders for members); a signed-in read refreshes it.
   const [place, setPlace] = useState({ workspaceId: initialWorkspaceId, folderPath: initialFolderPath });
+  // The video player's progress bar takes the workspace's brand accent (sent once it loads, and
+  // again if the accent arrives after it).
+  const accent = useWorkspaceAccent(place.workspaceId);
+  const accentRef = useRef<string | null>(null);
+  accentRef.current = accent;
+  useEffect(() => { if (renderer === "video") sendViewerAccent(frameRef.current, accent); }, [accent, renderer]);
+  useEffect(() => { if (renderer === "video") sendViewerChapters(frameRef.current, chapters); }, [chapters, renderer]);
   const [domainUrl, setDomainUrl] = useState<string | null>(initialDomainUrl);
   const toast = useToast();
   // Immersive mode: the artifact fills the viewport with all app chrome hidden,
@@ -365,6 +383,7 @@ export default function ArtifactView({
     setDownloadUrl(doc.download_url ?? null);
     setPosterUrl(doc.poster_url ?? null);
     setCaptionsUrl(doc.captions_url ?? null);
+    if (doc.chapters !== undefined) setChapters(doc.chapters ?? null);
     if (doc.renderer) setRenderer(doc.renderer);
     if (doc.track) setTrack(doc.track);
     if (doc.type_label) setTypeLabel(doc.type_label);
@@ -472,6 +491,7 @@ export default function ArtifactView({
         setDocId(doc.id ?? null);
         setPlace({ workspaceId: doc.workspace_id ?? null, folderPath: doc.folder_path ?? [] });
         setDomainUrl(doc.workspace_url ?? null);
+        if (doc.chapters !== undefined) setChapters(doc.chapters ?? null);
         if (doc.is_owner && doc.artifact_url) applyDoc(doc, { remount: false });
         // Added to someone else's file? Then they may take themselves off it ("Remove me"). Not on
         // a workspace's own domain, whose session can only read.
@@ -695,6 +715,7 @@ export default function ArtifactView({
       if (!f || e.source !== f.contentWindow || !fromFrameOrigin(e.origin, frameOrigin)) return;
       const m = e.data as BridgeMessage | null;
       if (!m || typeof m !== "object" || m.md !== 1) return;
+      if ((m as { ev?: string; show?: unknown }).ev === "ui") { setPlayerUi((m as { show?: unknown }).show !== false); return; }
       if (m.ev === "page" && typeof m.p === "number" && m.p >= 1) presence.channel.setSection({ p: Math.floor(m.p) });
       else if (m.ev === "media" && typeof m.t === "number" && Number.isFinite(m.t) && m.t >= 0) {
         presence.channel.setSection({ s: Math.floor(m.t / 5) * 5 });
@@ -746,6 +767,10 @@ export default function ArtifactView({
       onLoad={() => {
         setFrameLoading(false);
         setLiveReload(false);
+        if (renderer === "video") {
+          sendViewerAccent(frameRef.current, accentRef.current);
+          sendViewerChapters(frameRef.current, chaptersRef.current);
+        }
       }}
       // User HTML is written for white: paper + color-scheme light in both themes. Worker viewers
       // follow the app theme they were given.
@@ -959,8 +984,12 @@ export default function ArtifactView({
             <ImmersiveExit
               onExit={exitImmersive}
               placement={renderer === "video" ? "top-right" : "bottom-right"}
+              quiet={renderer === "video"}
+              className={renderer === "video" && !playerUi ? "md-immersive--hidden" : undefined}
             />
           )}
+          <PwaBack edge={renderer === "video" ? "top" : "bottom"}
+            className={renderer === "video" && !playerUi ? "md-immersive--hidden" : undefined} />
         </div>
       )}
 

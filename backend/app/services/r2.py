@@ -325,6 +325,14 @@ def list_parts(key: str, upload_id: str) -> list[dict[str, Any]]:
             return parts
 
 
+def upload_part(key: str, upload_id: str, part_number: int, data: bytes) -> str:
+    """Upload one part from the server (a Zoom recording copied into R2, services/zoom_media.py);
+    returns its ETag. Network call; raises on failure. R2 wants every part but the last the same size."""
+    r = _client().upload_part(Bucket=settings.r2_bucket, Key=key, UploadId=upload_id,
+                              PartNumber=int(part_number), Body=data)
+    return (r.get("ETag") or "").strip('"')
+
+
 def complete_multipart(key: str, upload_id: str, parts: list[dict[str, Any]]) -> None:
     """Stitch the parts into the final object. Network call; raises on failure
     (a wrong or missing ETag, an upload that was aborted or expired)."""

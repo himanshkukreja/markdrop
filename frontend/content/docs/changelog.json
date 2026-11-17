@@ -24,6 +24,159 @@
   "next": [],
   "entries": [
     {
+      "id": "hubspot",
+      "date": "2026-11-17",
+      "title": "Your team's calls, written up in HubSpot",
+      "kind": "new",
+      "area": "Integrations",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Connect your company's HubSpot account and one team's calls are matched to their HubSpot meeting and deal. Log to HubSpot fills the meeting HubSpot booked with the summary, next steps and decisions, and action items become tasks when you approve them.",
+      "body": "- **Connect once.** A HubSpot admin creates a service key with five scopes; a workspace admin pastes it into **Workspace settings › Integrations › HubSpot** and picks the team, such as Sales. Markdrop checks the key and lists any missing scopes. [Set up HubSpot](/integrations/hubspot#set-up-hubspot)\n- **Matched to the right deal.** Each call is matched to the meeting HubSpot booked for it (same host, within 15 minutes), else through its attendees' contacts to their open deal; otherwise pick the deal. The meeting panel shows the deal's stage, amount, owner and close date. [How a call is matched](/integrations/hubspot#how-a-call-is-matched)\n- **Log to HubSpot, never a duplicate.** The summary, next steps and decisions go into the HubSpot meeting's internal notes, with a link back; the attendee-facing description and your reps' own notes are left alone. Logging again updates the same meeting. [Log to HubSpot](/integrations/hubspot#log-to-hubspot)\n- **Log calls automatically.** Off by default; when an admin turns it on, calls matched to the meeting HubSpot booked are logged after their summary is written. [Log calls automatically](/integrations/hubspot#log-calls-automatically)\n- **Action items as tasks.** Each with a due date and an owner; tick the ones you want and they're created on the deal, once. [Tasks](/integrations/hubspot#tasks)\n- **Only the team's calls.** Only that team's meetings, only by people who can open them, and only to the workspace's own HubSpot account. The [privacy policy](https://markdrop.in/privacy#hubspot) has a HubSpot section.\n- **From an AI app and the API.** `hubspot_status`, `hubspot_match`, `log_to_hubspot` and `hubspot_tasks`, and the `/api/v1/hubspot` routes. [Tools](/ai/tools#hubspot)"
+    },
+    {
+      "id": "pwa-back",
+      "date": "2026-11-17",
+      "title": "Back button in the installed app",
+      "kind": "fixed",
+      "area": "App",
+      "products": [
+        "web"
+      ],
+      "summary": "In the installed app on a phone or tablet, a full-screen document, page or file now has a Back button, so you no longer have to close and reopen the app to leave it.",
+      "body": "- **Back.** A small chip in the corner opposite Show details, shown only in the installed app (browsers have their own Back). It returns to where you came from, or home if you opened the link directly.\n- **Over video** it hides with the player's controls, like Show details."
+    },
+    {
+      "id": "video-chapters",
+      "date": "2026-11-16",
+      "title": "Chapters on the video player, and captions on meeting recordings",
+      "kind": "new",
+      "area": "Files",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "Videos and Zoom meeting recordings show chapters on the progress bar: hover for a chapter's title, or pick one from the list next to the time. Meeting recordings also play with captions made from their transcript.",
+      "body": "- **Chapters on the progress bar.** Small gaps mark where each chapter starts; pointing at the bar shows its title, and the current chapter's title next to the time opens the list. It works from the keyboard and in full screen. See [Chapters](/files/video-and-audio#chapters).\n- **Video files.** The chapters [AI insights](/analytics/ai-insights) suggested appear for everyone who can open the video.\n- **Meeting recordings.** Each part of the call in the meeting's **Details** becomes a chapter, and the recording plays with captions from its transcript, each line with its speaker (**CC** turns them off). Meetings already imported get both, with nothing transcribed or summarised again. See [Zoom](/integrations/zoom#transcribe-and-keep-recordings).\n- **MCP.** `get_meeting` lists a kept recording's chapters."
+    },
+    {
+      "id": "video-player-brand",
+      "date": "2026-11-16",
+      "title": "Video player in your brand colour, quieter while you watch",
+      "kind": "improved",
+      "area": "Files",
+      "products": [
+        "web"
+      ],
+      "summary": "The video player's progress bar takes your workspace's accent colour, its controls hide a couple of seconds after you stop moving, and Show details shrinks to a small chip that hides with them.",
+      "body": "- **Brand colour.** Videos and meeting recordings filed in a workspace draw their progress bar in its [accent colour](/workspaces/branding).\n- **Out of the way.** The controls now hide while a video plays untouched (before, they could stay up after the page loaded), and come back when you move the pointer, tap or press a key.\n- **Show details.** Over a video it's a small chip that hides with the controls; hover or focus shows its label."
+    },
+    {
+      "id": "zoom-speaker-names",
+      "date": "2026-11-16",
+      "title": "Names for speakers in transcribed Zoom meetings",
+      "kind": "improved",
+      "area": "Meetings",
+      "products": [
+        "web"
+      ],
+      "summary": "Zoom meetings that Markdrop transcribes now show who is speaking even when Zoom doesn't provide its speaker timeline, instead of \"Speaker 1\" and \"Speaker 2\".",
+      "body": "- **Names from the call itself.** When Zoom's active-speaker timeline isn't available, Markdrop AI works out who each speaker is from the meeting's topic, its host, the people who joined, introductions and people addressing each other by name. [Transcribe and keep recordings](/integrations/zoom#transcribe-and-keep-recordings)\n- **Only when it's sure.** A speaker gets a name only when the evidence is clear, and only with a name from the meeting itself; anyone else stays \"Speaker 1\", \"Speaker 2\".\n- **Meetings already here.** Zoom meetings transcribed before this get their speakers' names in the meeting and its transcript.",
+      "links": [
+        {
+          "label": "Zoom",
+          "href": "/integrations/zoom#transcribe-and-keep-recordings"
+        }
+      ]
+    },
+    {
+      "id": "meeting-details",
+      "date": "2026-11-16",
+      "title": "Detailed notes for meetings without Google's notes",
+      "kind": "improved",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Zoom meetings and pasted or uploaded transcripts now get detailed notes, like the ones Google writes for Meet: a Details section with a heading for each part of the call and who said what, each point linked to its moment in the transcript.",
+      "body": "- **Details from the transcript.** When a meeting has a transcript but no Google notes, Markdrop AI writes its **Details** too, marked **Notes by Markdrop AI, from the transcript**: the call in order, part by part, with the numbers, names, objections, commitments and next steps that were said. [What the meeting page holds](/workspaces/meetings#what-the-meeting-page-holds)\n- **Sized to the call.** A longer call gets longer notes and a fuller summary, and very long calls are covered from start to end.\n- **Meetings with Google's notes are unchanged.** Google's own summary, details and next steps are still used as written.\n- **Older meetings.** Choose **Write it again** in the meeting panel to add **Details** to a meeting imported before this.",
+      "links": [
+        {
+          "label": "Meetings",
+          "href": "/workspaces/meetings#what-the-meeting-page-holds"
+        },
+        {
+          "label": "Zoom",
+          "href": "/integrations/zoom"
+        }
+      ]
+    },
+    {
+      "id": "zoom-recordings",
+      "date": "2026-11-16",
+      "title": "Zoom: captions, transcription and recordings",
+      "kind": "new",
+      "area": "Integrations",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Zoom meetings without a Zoom transcript now come in from their closed captions, and a workspace admin can turn on Transcribe and keep recordings: Markdrop transcribes the rest from their audio and keeps each meeting's recording, playable only by people who can read the meeting.",
+      "body": "- **Captions count.** A recorded meeting with no Zoom transcript but with closed captions comes in from the captions, automatically. Zoom's own transcript is still the first choice. [Zoom](/integrations/zoom)\n- **Transcribe and keep recordings.** Off by default; a workspace admin turns it on in **Workspace settings › Integrations › Zoom**. Meetings without a transcript or captions are transcribed from their audio (never the video, and the downloaded audio is deleted right after), with speakers named from Zoom's active-speaker timeline when there is one. Within fair-use limits. [Transcribe and keep recordings](/integrations/zoom#transcribe-and-keep-recordings)\n- **Recordings on the meeting page.** The meeting bar gets a **Recording** button that plays the meeting's video right there. Only people who can read the meeting can play it, and deleting the meeting deletes its video.\n- **Import past meetings.** Each meeting shows where its transcript comes from (Transcript, Captions, Will transcribe), and meetings already here can get their recording with **Add recording**. [Import past meetings](/integrations/zoom#import-past-meetings)\n- **From an AI app and the API.** `zoom_status` says whether the switch is on, `import_zoom_meetings` lists each meeting's source, and `get_meeting` says `has_recording`. New API routes: `PUT /api/v1/zoom/media`, `GET` and `DELETE /api/v1/meetings/{id}/recording`. [Tools](/ai/tools#zoom)\n- **Privacy.** The [privacy policy](https://markdrop.in/privacy#zoom) says what changes when the switch is on, and names the speech-to-text provider.",
+      "links": [
+        {
+          "label": "Zoom",
+          "href": "/integrations/zoom#transcribe-and-keep-recordings"
+        },
+        {
+          "label": "Privacy policy",
+          "href": "https://markdrop.in/privacy#zoom"
+        }
+      ]
+    },
+    {
+      "id": "team-meetings-by-attendees",
+      "date": "2026-11-16",
+      "title": "Company-wide meetings stay out of teams",
+      "kind": "improved",
+      "area": "Teams",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "A meeting now joins a team only when the team's members are half or more of its attendees, and a team can turn off adding meetings by who attended, for example a Sales team that should hold only its Zoom calls.",
+      "body": "- **Half or more.** A daily sync with a dozen people no longer lands in a team just because two of its members were there. It stays in General. See [Team meetings and memory](/teams/meetings-and-memory).\n- **Add meetings by who attended.** A new switch in a team's settings. Off: the team gets only meetings imported or moved into it, or sent by [Zoom](/integrations/zoom).\n- **For AI apps.** `update_team` takes `meetings_by_attendees`.\n- **Zoom setup.** The Server-to-Server steps now activate the app before saving it in Markdrop, and validate the endpoint after, with a troubleshooting table."
+    },
+    {
+      "id": "ask-team-suggestions-recording-times",
+      "date": "2026-11-16",
+      "title": "Team suggestions in Ask, and meeting times that play the recording",
+      "kind": "improved",
+      "area": "Ask",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Ask on a team suggests questions from that team's own meetings and pages, times in a meeting's notes and transcript play its kept Zoom recording from that moment, and forgetting a conversation no longer shows an error on a second click.",
+      "body": "- **A team's own suggestions.** On a team (**Ask Sales**), the suggested questions come from that team's meetings and pages of the last 7 days, never from company-wide items or another team's, and only people who can open the team see them. **General** keeps the workspace's. A quiet team says **Nothing new here in the last 7 days.** [Suggested questions](/workspaces/ask-markdrop#a-teams-own)\n- **Times play the recording.** On a meeting with a kept Zoom recording, a time next to a decision or action item, or a line's time on the transcript, plays the recording from that moment; scrolled down, the player floats in the corner. [Zoom](/integrations/zoom#transcribe-and-keep-recordings)\n- **Forgetting a conversation.** The conversation leaves the list at once, and one that's already gone is no longer reported as an error.\n- **MCP and API.** `ask_suggestions` takes `team` (an id, slug or name), and `GET /api/v1/ask/suggestions` takes `&team=`; both answer `team_scope` and `quiet`. [Tools](/ai/tools)",
+      "links": [
+        {
+          "label": "Suggested questions",
+          "href": "/workspaces/ask-markdrop#a-teams-own"
+        },
+        {
+          "label": "Zoom recordings",
+          "href": "/integrations/zoom#transcribe-and-keep-recordings"
+        }
+      ]
+    },
+    {
       "id": "terms-of-use",
       "date": "2026-11-11",
       "title": "Terms of Use",

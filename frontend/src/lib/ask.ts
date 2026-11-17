@@ -5,6 +5,8 @@
  *   GET    /api/v1/ask/home              {status, suggestions, recent}
  *   GET    /api/v1/ask/suggestions       ?workspace=: live team questions (only from what every member can
  *                                        read) + the caller's own; {workspace, team, personal, updated_at, refreshing}
+ *                                        &team=: that team's own list (General: the workspace's); quiet when
+ *                                        nothing happened there lately
  *   POST   /api/v1/ask  (SSE)            {question, thread_id?, intent?, page?, scope?, context?}
  *          scope: the assistant's (components/assistant): doc | meetings | folder | workspace | everything
  *   GET    /api/v1/ask/context           what the assistant offers where you are
@@ -98,6 +100,10 @@ export interface AskTeamSuggestion { topic: string | null; question: string; lab
 export interface AskPersonalSuggestion { label: string; question: string; intent: AskIntent; icon?: string }
 export interface AskSuggestions {
   workspace: { id: string; name: string } | null;
+  /** The team whose own list this is (null: the workspace's, General included). */
+  team_scope?: { id: string; name: string } | null;
+  /** Built, and nothing new in the last 7 days there: no questions (never another list's). */
+  quiet?: boolean;
   team: AskTeamSuggestion[];
   personal: AskPersonalSuggestion[];
   /** When the team list was built. */
@@ -108,8 +114,9 @@ export interface AskSuggestions {
   status: AskStatus;
 }
 
-export function getAskSuggestions(workspace?: string | null): Promise<AskSuggestions> {
-  return request<AskSuggestions>(`/api/v1/ask/suggestions${workspace ? `?workspace=${encodeURIComponent(workspace)}` : ""}`);
+export function getAskSuggestions(workspace?: string | null, team?: string | null): Promise<AskSuggestions> {
+  const q = workspace ? `?workspace=${encodeURIComponent(workspace)}${team ? `&team=${encodeURIComponent(team)}` : ""}` : "";
+  return request<AskSuggestions>(`/api/v1/ask/suggestions${q}`);
 }
 
 export function listAskThreads(limit = 50): Promise<{ threads: AskThreadCard[] }> {

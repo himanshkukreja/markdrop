@@ -1,7 +1,7 @@
 """Live suggestions for Ask: questions about what is happening in a workspace now (owner, 2026-11-06).
 
-    GET /api/v1/ask/suggestions?workspace=<id>   (routers/ask.py)
-        {workspace, team, personal, updated_at, refreshing, status}
+    GET /api/v1/ask/suggestions?workspace=<id>[&team=<id>]   (routers/ask.py)
+        {workspace, team_scope, team, personal, updated_at, refreshing, quiet, status}
 
 **Team suggestions** (one cached list per workspace, the same for every member): Claude Haiku turns
 the last :data:`WINDOW_DAYS` days of the workspace into 6–8 short questions, each with a topic label
@@ -15,6 +15,16 @@ member of the workspace can read**, so the one list is safe to show to all of th
 
 Never a restricted meeting, a private page, a password page, an encrypted one, or anything from a
 workspace with AI off (no team list at all there). Nothing a single person can see is ever sent.
+
+**Per team** (owner, 2026-11-16: General and a private "Sales" showed the same questions). With a team
+scope (``?team=<id>``) the list is that team's own, cached per (workspace, team) under the id
+``<workspace>:<team>``: the sources are the team's meetings and pages (items whose ``team_ids`` include
+it) with the same rule otherwise (workspace or link access, no password, not encrypted, not restricted).
+Anyone who can read the team can read every item filed in it (Teams CONTRACT §2), so one list per team is
+safe to show to all of them — and only to them (404 for anyone else). A team's list never has a
+company-wide item or another team's, and the workspace list never has a team's item. General (the default
+team) is the workspace list. A team with nothing recent gets no questions (``quiet``), never the
+workspace's. Same debounce, fingerprint, loop and budget as the workspace list.
 
 **Refresh, debounced.** A list is rebuilt when its sources changed (a fingerprint of exactly the
 text sent, so an edit that doesn't touch a title or heading costs nothing) and the workspace has been
@@ -121,10 +131,17 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
 # ── Sources every member can read ─────────────────────────────────────────────
 
 
-async def open_to_all_members(db: AsyncIOMotorDatabase, raw: dict | None, ws_id: str, ctx: access.Ctx) -> bool:
+def key_of(ws_id: str, team_id: str | None = None) -> str:
+    """The cache row's id: the workspace's list, or one team's (``<workspace>:<team>``)."""
+    return f"{ws_id}:{team_id}" if team_id else ws_id
+
+
+async def open_to_all_members(db: AsyncIOMotorDatabase, raw: dict | None, ws_id: str, ctx: access.Ctx,
+                              team_id: str | None = None) -> bool:
     """Can every member of ``ws_id`` (viewers too) read this document now? Its effective access (an
     inheriting sub-page: the page it inherits from) is the workspace's and not private, it has no
-    password, it isn't encrypted, in the Trash or expired. Fails closed."""
+    password, it isn't encrypted, in the Trash or expired. Fails closed. Without ``team_id`` only a
+    company-wide item; with it, only an item filed in that team (then: can everyone who reads the team?)."""
     if not raw or raw.get("deleted_at") or raw.get("encrypted"):
         return False
     exp = _aware(raw.get("expires_at"))
@@ -136,9 +153,11 @@ async def open_to_all_members(db: AsyncIOMotorDatabase, raw: dict | None, ws_id:
         return False
     from app.services import teams as teams_service
 
-    # A team's item is not every member's (Teams, CONTRACT §2): company-wide items only.
+    # A team's item is not every member's (Teams, CONTRACT §2): company-wide items only — or, for a
+    # team's list, only that team's items (everyone who can read the team reads them).
+    in_scope = (team_id in teams_service.ids_of(raw, "team_ids")) if team_id else teams_service.company_wide(raw)
     return (eff.get("workspace_id") == ws_id and (eff.get("access_level") or "link") in VISIBLE
-            and not eff.get("read_password_hash") and teams_service.company_wide(raw))
+            and not eff.get("read_password_hash") and in_scope)
 
 
 def _line(text: Any, limit: int) -> str:
@@ -183,23 +202,26 @@ def _texts(items: list, key: str = "text") -> list[str]:
     return out[:MAX_FACTS]
 
 
-async def team_sources(db: AsyncIOMotorDatabase, ws_id: str, *, now: datetime | None = None) -> dict:
-    """What the team list is built from (only what every member can read): {meetings, pages, changed_at}."""
+async def team_sources(db: AsyncIOMotorDatabase, ws_id: str, *, now: datetime | None = None,
+                       team_id: str | None = None) -> dict:
+    """What the list is built from (only what every member can read — of the workspace, or of
+    ``team_id``): {meetings, pages, projects, changed_at}."""
     now = now or now_utc()
+    narrow = {"team_ids": team_id} if team_id else {}
     since = now - timedelta(days=WINDOW_DAYS)
     since_day = since.date().isoformat()
     ctx = access.Ctx(db)
     out_m: list[dict] = []
     changed: datetime | None = None
     cur = db[meetings.COLL].find(
-        {"workspace_id": ws_id, "restricted": {"$ne": True},
+        {"workspace_id": ws_id, "restricted": {"$ne": True}, **narrow,
          "$or": [{"date": {"$gte": since_day}}, {"created_at": {"$gte": since}}]},
         {"segments": 0}).sort([("date", -1), ("created_at", -1)]).limit(MAX_MEETINGS * 2)
     async for row in cur:
         if row.get("restricted"):
             continue
         raw = await meetings.page_of(db, row)
-        if not await open_to_all_members(db, raw, ws_id, ctx):
+        if not await open_to_all_members(db, raw, ws_id, ctx, team_id):
             continue
         gen = row.get("generated") or {}
         notes = row.get("notes") or {}
@@ -221,12 +243,12 @@ async def team_sources(db: AsyncIOMotorDatabase, ws_id: str, *, now: datetime | 
     out_p: list[dict] = []
     cur = db["documents"].find(
         {"workspace_id": ws_id, "updated_at": {"$gte": since}, "deleted_at": None, "encrypted": {"$ne": True},
-         "meeting_role": None},
+         "meeting_role": None, **narrow},
         {"title": 1, "content": 1, "updated_at": 1, "access_level": 1, "read_password_hash": 1, "workspace_id": 1,
          "parent_id": 1, "access_inherit": 1, "encrypted": 1, "deleted_at": 1, "expires_at": 1, "kind": 1,
-         "original_filename": 1, "meeting_id": 1}).sort("updated_at", -1).limit(MAX_PAGES * 3)
+         "original_filename": 1, "meeting_id": 1, "team_ids": 1, "project_ids": 1}).sort("updated_at", -1).limit(MAX_PAGES * 3)
     async for raw in cur:
-        if raw.get("meeting_id") or not await open_to_all_members(db, raw, ws_id, ctx):
+        if raw.get("meeting_id") or not await open_to_all_members(db, raw, ws_id, ctx, team_id):
             continue
         title = _line(raw.get("title") or (raw.get("original_filename") if raw.get("kind") == "artifact" else None), 100)
         if not title:
@@ -238,11 +260,13 @@ async def team_sources(db: AsyncIOMotorDatabase, ws_id: str, *, now: datetime | 
         if len(out_p) >= MAX_PAGES:
             break
     # Team memory's active projects (services/team_extras.py), team-visible lines only; nothing when it's off.
+    # Workspace-wide memory: never in one team's list.
     projects: list[dict] = []
     try:
         from app.services import team_extras
 
-        projects = await team_extras.active_projects(db, ws_id, since)
+        if not team_id:
+            projects = await team_extras.active_projects(db, ws_id, since)
     except Exception:
         log.warning("ask suggestions: team projects of %s not read", ws_id, exc_info=True)
     return {"meetings": out_m, "pages": out_p, "projects": projects, "changed_at": changed}
@@ -313,12 +337,13 @@ async def limit_reason(db: AsyncIOMotorDatabase, ws_id: str) -> str | None:
 
 
 async def _generate(db: AsyncIOMotorDatabase, ws_id: str, text: str, ws_name: str | None,
-                    user_id: str | None) -> list[dict]:
+                    user_id: str | None, team_name: str | None = None, team_id: str | None = None) -> list[dict]:
     """One Haiku call (raises pages_ai.Upstream / ValueError); recorded under FEATURE."""
     meter = ai_usage.Meter(MODEL)
     watch = ai_usage.Stopwatch()
     request_id = uuid.uuid4().hex
-    content = (f"Workspace: {_line(ws_name, 80) or 'the team'}\nToday: {now_utc().date().isoformat()}\n\n"
+    team_line = f"Team: {_line(team_name, 60) or 'a team'} (everything below is this team's)\n" if team_id else ""
+    content = (f"Workspace: {_line(ws_name, 80) or 'the team'}\n{team_line}Today: {now_utc().date().isoformat()}\n\n"
                f"<untrusted_workspace>\n{text}\n</untrusted_workspace>")
     params = {
         "model": MODEL, "max_tokens": MAX_TOKENS,
@@ -363,7 +388,8 @@ async def _generate(db: AsyncIOMotorDatabase, ws_id: str, text: str, ws_name: st
             await ai_usage.record(db, feature=FEATURE, meter=meter, request_id=request_id, outcome=outcome,
                                   latency_ms=watch.elapsed_ms, ttft_ms=watch.ttft_ms, user_id=user_id,
                                   visitor=f"u:{user_id}" if user_id else None,
-                                  meta={"kind": "workspace", "via": "ask", "workspace_id": ws_id,
+                                  meta={"kind": "team" if team_id else "workspace", "via": "ask", "workspace_id": ws_id,
+                                        **({"team_id": team_id} if team_id else {}),
                                         "questions": n, "stop_reason": stop},
                                   log={"description": f"Suggested {n} question{'s' if n != 1 else ''} for the Ask box "
                                                       f"from {len(text):,} characters of workspace titles and topics",
@@ -377,30 +403,38 @@ async def _generate(db: AsyncIOMotorDatabase, ws_id: str, text: str, ws_name: st
 # ── The cache ─────────────────────────────────────────────────────────────────
 
 
-async def _lease(db: AsyncIOMotorDatabase, ws_id: str) -> bool:
+def _row_fields(ws_id: str, team_id: str | None) -> dict:
+    return {"workspace_id": ws_id, **({"team_id": team_id} if team_id else {})}
+
+
+async def _lease(db: AsyncIOMotorDatabase, ws_id: str, team_id: str | None = None) -> bool:
     now = now_utc()
+    key = key_of(ws_id, team_id)
     try:
         res = await db[COLL].update_one(
-            {"_id": ws_id, "$or": [{"building_until": None}, {"building_until": {"$lt": now}}]},
+            {"_id": key, "$or": [{"building_until": None}, {"building_until": {"$lt": now}}]},
             {"$set": {"building_until": now + LEASE}})
         if res.matched_count:
             return True
-        await db[COLL].insert_one({"_id": ws_id, "questions": [], "building_until": now + LEASE, "created_at": now})
+        await db[COLL].insert_one({"_id": key, **_row_fields(ws_id, team_id), "questions": [],
+                                   "building_until": now + LEASE, "created_at": now})
         return True
     except Exception:   # someone else inserted it first (duplicate key): they build
         return False
 
 
-async def build(db: AsyncIOMotorDatabase, ws_id: str, *, user_id: str | None = None, force: bool = False) -> dict | None:
-    """Rebuild ``ws_id``'s list when its sources changed (``force``: even when they didn't). Returns the
-    cached row afterwards, or None when another worker is building it."""
-    if not await _lease(db, ws_id):
+async def build(db: AsyncIOMotorDatabase, ws_id: str, *, user_id: str | None = None, force: bool = False,
+                team_id: str | None = None) -> dict | None:
+    """Rebuild ``ws_id``'s list (``team_id``: that team's) when its sources changed (``force``: even when
+    they didn't). Returns the cached row afterwards, or None when another worker is building it."""
+    if not await _lease(db, ws_id, team_id):
         return None
+    key = key_of(ws_id, team_id)
     now = now_utc()
-    sets: dict[str, Any] = {"checked_at": now, "building_until": None}
+    sets: dict[str, Any] = {"checked_at": now, "building_until": None, **_row_fields(ws_id, team_id)}
     try:
-        row = await db[COLL].find_one({"_id": ws_id}) or {}
-        src = await team_sources(db, ws_id, now=now)
+        row = await db[COLL].find_one({"_id": key}) or {}
+        src = await team_sources(db, ws_id, now=now, team_id=team_id)
         text = source_text(src)
         fp = fingerprint(text)
         sets["changed_at"] = src.get("changed_at")
@@ -418,10 +452,16 @@ async def build(db: AsyncIOMotorDatabase, ws_id: str, *, user_id: str | None = N
                 from app.services import workspace as ws_service
 
                 ws = await ws_service.get_workspace(db, ws_id)
+                team_name = None
+                if team_id:
+                    from app.services import teams as teams_service
+
+                    t = await db[teams_service.TEAMS].find_one({"_id": teams_service.oid(team_id)}, {"name": 1})
+                    team_name = (t or {}).get("name")
                 try:
-                    qs = await _generate(db, ws_id, text, getattr(ws, "name", None), user_id)
+                    qs = await _generate(db, ws_id, text, getattr(ws, "name", None), user_id, team_name, team_id)
                 except (pages_ai.Upstream, ValueError) as exc:
-                    log.info("ask suggestions for %s: kept the last list (%s)", ws_id, type(exc).__name__)
+                    log.info("ask suggestions for %s: kept the last list (%s)", key, type(exc).__name__)
                     sets.update(state="failed", reason="error")
                 else:
                     if not qs:   # nothing usable came back: keep the last list
@@ -430,22 +470,24 @@ async def build(db: AsyncIOMotorDatabase, ws_id: str, *, user_id: str | None = N
                         sets.update(questions=qs, fp=fp, built_at=now, state="ok", reason=None,
                                     counts={"meetings": len(src["meetings"]), "pages": len(src["pages"])})
     finally:
-        await db[COLL].update_one({"_id": ws_id}, {"$set": sets})
-    return await db[COLL].find_one({"_id": ws_id})
+        await db[COLL].update_one({"_id": key}, {"$set": sets})
+    return await db[COLL].find_one({"_id": key})
 
 
-async def latest_change(db: AsyncIOMotorDatabase, ws_id: str) -> datetime | None:
-    """The newest change among the workspace's meetings and documents (cheap: two indexed reads). It may
-    be a change nobody else can see: that only makes a re-check due; the fingerprint decides the rest."""
-    m = await db[meetings.COLL].find_one({"workspace_id": ws_id}, {"updated_at": 1, "created_at": 1},
-                                         sort=[("updated_at", -1)])
-    d = await db["documents"].find_one({"workspace_id": ws_id}, {"updated_at": 1}, sort=[("updated_at", -1)])
+async def latest_change(db: AsyncIOMotorDatabase, ws_id: str, team_id: str | None = None) -> datetime | None:
+    """The newest change among the workspace's (or the team's) meetings and documents (cheap: two indexed
+    reads). It may be a change nobody else can see: that only makes a re-check due; the fingerprint
+    decides the rest."""
+    q: dict[str, Any] = {"workspace_id": ws_id, **({"team_ids": team_id} if team_id else {})}
+    m = await db[meetings.COLL].find_one(q, {"updated_at": 1, "created_at": 1}, sort=[("updated_at", -1)])
+    d = await db["documents"].find_one(q, {"updated_at": 1}, sort=[("updated_at", -1)])
     vals = [_aware(x.get("updated_at") or x.get("created_at")) for x in (m, d) if x]
     vals = [v for v in vals if v]
     return max(vals) if vals else None
 
 
-async def due(db: AsyncIOMotorDatabase, ws_id: str, row: dict | None, *, now: datetime | None = None) -> bool:
+async def due(db: AsyncIOMotorDatabase, ws_id: str, row: dict | None, *, now: datetime | None = None,
+              team_id: str | None = None) -> bool:
     """Should the list be re-checked now? None yet; a day since the last check; or something changed
     since it and the workspace has been quiet for DEBOUNCE (and MIN_GAP since the last check)."""
     now = now or now_utc()
@@ -459,7 +501,7 @@ async def due(db: AsyncIOMotorDatabase, ws_id: str, row: dict | None, *, now: da
         return True
     if now - checked < MIN_GAP:
         return False
-    last = await latest_change(db, ws_id)
+    last = await latest_change(db, ws_id, team_id)
     return bool(last and last > checked and now - last >= DEBOUNCE)
 
 
@@ -470,20 +512,29 @@ def _spawn(coro) -> asyncio.Task:
     return t
 
 
-async def _build_quietly(db: AsyncIOMotorDatabase, ws_id: str, user_id: str | None) -> None:
+async def _build_quietly(db: AsyncIOMotorDatabase, ws_id: str, user_id: str | None, team_id: str | None = None) -> None:
     try:
-        await build(db, ws_id, user_id=user_id)
+        await build(db, ws_id, user_id=user_id, team_id=team_id)
     except Exception:
-        log.warning("ask suggestions: rebuilding %s failed", ws_id, exc_info=True)
+        log.warning("ask suggestions: rebuilding %s failed", key_of(ws_id, team_id), exc_info=True)
 
 
 async def background(db: AsyncIOMotorDatabase) -> None:
-    """The loop: re-check the lists of workspaces someone opened Ask in recently."""
+    """The loop: re-check the lists (workspaces' and teams') someone opened Ask on recently. A team that
+    was deleted since: its row goes."""
+    from app.services import teams as teams_service
+
     since = now_utc() - ACTIVE
-    rows = await db[COLL].find({"viewed_at": {"$gte": since}}).to_list(length=500)
+    rows = await db[COLL].find({"viewed_at": {"$gte": since}}).to_list(length=1000)
     for row in rows:
-        if await due(db, row["_id"], row):
-            await _build_quietly(db, row["_id"], None)
+        team_id = row.get("team_id")
+        ws_id = row.get("workspace_id") or (row["_id"].split(":", 1)[0] if team_id else row["_id"])
+        if team_id and await db[teams_service.TEAMS].find_one({"_id": teams_service.oid(team_id), "workspace_id": ws_id},
+                                                              {"_id": 1}) is None:
+            await db[COLL].delete_one({"_id": row["_id"]})
+            continue
+        if await due(db, ws_id, row, team_id=team_id):
+            await _build_quietly(db, ws_id, None, team_id)
 
 
 # ── Personal suggestions (no AI) ──────────────────────────────────────────────
@@ -502,15 +553,17 @@ def _day_label(d: str | None) -> str:
     return f"{x.strftime('%b')} {x.day}"
 
 
-async def personal(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspaces: list[str]) -> list[dict]:
+async def personal(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspaces: list[str],
+                   team_id: str | None = None) -> list[dict]:
     """The viewer's own: their action items, the latest meeting they attended, what they said in the last
-    one of a series. Only meetings they can open now."""
+    one of a series. Only meetings they can open now (``team_id``: only that team's meetings)."""
     uid = actor.user_id
     out: list[dict] = [dict(FIXED[0])]
     if not uid or not workspaces:
         return out
     attended: list[dict] = []
-    cur = db[meetings.COLL].find({"workspace_id": {"$in": workspaces}, "attendees.user_id": uid},
+    cur = db[meetings.COLL].find({"workspace_id": {"$in": workspaces}, "attendees.user_id": uid,
+                                  **({"team_ids": team_id} if team_id else {})},
                                  {"segments": 0}).sort([("date", -1), ("created_at", -1)]).limit(12)
     async for row in cur:
         if row.get("title") and await meetings.readable(db, row, actor, ctx) is not None:
@@ -544,37 +597,69 @@ async def member_workspaces(db: AsyncIOMotorDatabase, user_id: str) -> list[str]
     return [r["workspace_id"] for r in rows if r.get("workspace_id")]
 
 
-async def for_viewer(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace: str | None) -> dict:
-    """What GET /ask/suggestions returns. ``workspace``: its team list (LookupError when the viewer isn't a
-    member) and the viewer's own; none: the viewer's own across their workspaces."""
+class TeamNotFound(LookupError):
+    """The team isn't in the workspace, or the viewer can't read it (the same answer for both)."""
+
+
+async def resolve_team(db: AsyncIOMotorDatabase, ctx: access.Ctx, workspace: str, uid: str, ref: str) -> dict | None:
+    """The team ``ref`` (an id, slug or name) of ``workspace`` when the viewer can read it; None for General
+    (its list is the workspace's). TeamNotFound otherwise."""
+    from app.services import teams as teams_service
+
+    t = await teams_service.get_team(db, workspace, ref)
+    if t is None:
+        raise TeamNotFound("team")
+    if teams_service.is_general(t):
+        return None
+    view = await ctx.team_view(workspace, uid)
+    if not view.team_readable(str(t["_id"])):
+        raise TeamNotFound("team")
+    return t
+
+
+async def for_viewer(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace: str | None,
+                     team: str | None = None) -> dict:
+    """What GET /ask/suggestions returns. ``workspace``: its list (LookupError when the viewer isn't a
+    member) and the viewer's own; with ``team`` (a team of it they can read; TeamNotFound otherwise):
+    that team's list and the viewer's own from its meetings — General gets the workspace's. None: the
+    viewer's own across their workspaces."""
     from app.services import ask_markdrop
     from app.services import workspace as ws_service
 
     uid = actor.user_id
     status = await ask_markdrop.status(db, uid)
     if not workspace:
-        return {"workspace": None, "team": [], "personal": await personal(db, actor, ctx, await member_workspaces(db, uid)),
-                "updated_at": None, "refreshing": False, "status": status}
+        return {"workspace": None, "team_scope": None, "team": [],
+                "personal": await personal(db, actor, ctx, await member_workspaces(db, uid)),
+                "updated_at": None, "refreshing": False, "quiet": False, "status": status}
     if not uid or await ws_service.role_for(db, workspace, uid) is None:
         raise LookupError("not a member")
     ws = await ws_service.get_workspace(db, workspace)
     if ws is None:
         raise LookupError("no workspace")
+    t = await resolve_team(db, ctx, workspace, uid, team) if team else None
+    team_id = str(t["_id"]) if t else None
+    key = key_of(workspace, team_id)
     now = now_utc()
-    row = await db[COLL].find_one_and_update({"_id": workspace}, {"$set": {"viewed_at": now}})
+    row = await db[COLL].find_one_and_update({"_id": key}, {"$set": {"viewed_at": now}})
     refreshing = False
     ai_on = await pages_ai.workspace_on(db, workspace)
-    if ai_on and await due(db, workspace, row, now=now):
-        _spawn(_build_quietly(db, workspace, uid))
+    if ai_on and await due(db, workspace, row, now=now, team_id=team_id):
+        _spawn(_build_quietly(db, workspace, uid, team_id))
         refreshing = True
     elif row is None:
-        await db[COLL].update_one({"_id": workspace}, {"$setOnInsert": {"questions": [], "created_at": now},
-                                                       "$set": {"viewed_at": now}}, upsert=True)
-    team = [] if not ai_on else [
+        await db[COLL].update_one({"_id": key}, {"$setOnInsert": {"questions": [], "created_at": now,
+                                                                  **_row_fields(workspace, team_id)},
+                                                 "$set": {"viewed_at": now}}, upsert=True)
+    team_qs = [] if not ai_on else [
         {**q, "label": f"{q['topic']}: {q['question']}" if q.get("topic") else q["question"]}
         for q in (row or {}).get("questions") or []]
-    return {"workspace": {"id": workspace, "name": ws.name}, "team": team,
-            "personal": await personal(db, actor, ctx, [workspace]),
-            "updated_at": iso((row or {}).get("built_at")) if team else None,
+    return {"workspace": {"id": workspace, "name": ws.name},
+            "team_scope": {"id": team_id, "name": t.get("name")} if t else None,
+            "team": team_qs,
+            "personal": await personal(db, actor, ctx, [workspace], team_id),
+            "updated_at": iso((row or {}).get("built_at")) if team_qs else None,
             "refreshing": refreshing and not (row or {}).get("built_at"),
+            # Built, and nothing happened here in the window: say so (never another list's questions).
+            "quiet": bool(ai_on and (row or {}).get("state") == "empty"),
             "ai_off": not ai_on, "status": status}

@@ -7,8 +7,8 @@ A meeting is a ``meetings`` row plus two pages:
 * the **meeting page** (blocks editor) in the workspace's Meetings folder (``folders.meetings``,
   created on the first import with typed properties: Date, Type, Attendees, Organizer, Duration,
   Action items): a summary callout, Decisions, Action items (``:person`` mentions for assignees who
-  are members), Open questions, Topics, Google's Details
-  when Google's notes were imported, and Sources;
+  are members), Open questions, Topics, Details (Google's when its notes were imported, else
+  Markdrop AI's detailed notes from the transcript: ``details_markdown``), and Sources;
 * the **Transcript** sub-page: one anchored paragraph per segment (``{#b-t0012}``), which answers
   and the meeting page link to ("[Ada Lovelace, 12:34]").
 
@@ -342,6 +342,27 @@ def action_lines(meeting: dict, gen: dict | None, people: People) -> list[str]:
     return out
 
 
+AI_DETAILS_NOTE = "_Notes by Markdrop AI, from the transcript._"
+
+
+def details_markdown(meeting: dict, gen: dict | None) -> str:
+    """Markdrop AI's detailed notes (a meeting with a transcript and no Google notes, services/meetings_ai):
+    "## Details", a heading per part of the call, its points each linked to the transcript moment."""
+    secs = []
+    for sec in (gen or {}).get("details") or []:
+        title = md_inline(sec.get("title")) if isinstance(sec, dict) else ""
+        pts = []
+        for pt in (sec.get("points") or []) if isinstance(sec, dict) else []:
+            text = md_inline(pt.get("text")) if isinstance(pt, dict) else ""
+            if text:
+                pts.append(f"- {text}{cite_link(meeting, _cite_index(pt.get('cite')))}")
+        if title and pts:
+            secs.append(f"### {title}\n\n" + "\n".join(pts))
+    if not secs:
+        return ""
+    return f"## Details\n\n{AI_DETAILS_NOTE}\n\n" + "\n\n".join(secs)
+
+
 def page_markdown(meeting: dict, gen: dict | None, people: People) -> str:
     """The meeting page's body (no front matter). ``gen``: the AI's sections (None: not yet / none)."""
     ai = meeting.get("ai") or {}
@@ -353,7 +374,7 @@ def page_markdown(meeting: dict, gen: dict | None, people: People) -> str:
         parts.append(f':::note[Summary · From Google Meet notes]{{icon="📝"}}\n{body}\n:::')
     elif gen and (gen.get("summary") or gen.get("highlights")):
         body = md_inline(gen.get("summary"))
-        hl = [f"- {md_inline(h)}" for h in (gen.get("highlights") or [])[:6] if str(h).strip()]
+        hl = [f"- {md_inline(h)}" for h in (gen.get("highlights") or [])[:8] if str(h).strip()]
         parts.append(':::note[Summary]{icon="✨"}\n' + body + ("\n\n" + "\n".join(hl) if hl else "") + "\n:::")
     elif state == "pending":
         parts.append(':::note[Summarizing…]{icon="⏳"}\nMarkdrop AI is writing the summary, decisions and '
@@ -399,6 +420,10 @@ def page_markdown(meeting: dict, gen: dict | None, people: People) -> str:
     if notes and notes.get("details"):
         det = "\n".join(f"- {md_inline(d, keep_bold=True)}" for d in notes["details"] if d.strip())
         parts.append("## Details\n\n_From Google Meet notes._\n\n" + det)
+    else:
+        det = details_markdown(meeting, gen)
+        if det:
+            parts.append(det)
     src = ["## Sources"]
     if meeting.get("transcript_slug"):
         src.append(f'::page{{src="{meeting["transcript_slug"]}"}}')
@@ -1368,21 +1393,23 @@ async def _save(db: AsyncIOMotorDatabase, raw: dict, content: str, actor, ctx, *
         return await doc_service.update_document(db, raw["slug"], data, actor, ctx)
 
 
-async def write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | None, user) -> None:
+async def write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | None, user, *,
+                          edited: str = "append") -> None:
     """The AI's sections into the meeting page: the whole page when nobody changed it since import,
-    else the new sections appended at the end (never over someone's edits). Its mentions notify
-    nobody (**Quiet**, at the top)."""
+    else (never over someone's edits) ``edited="append"``: the new sections appended at the end;
+    ``"details"``: only Markdrop AI's Details, appended when the page has no "## Details" yet (the
+    bulk refresh, meetings_ai.refresh_details). Its mentions notify nobody (**Quiet**, at the top)."""
     from app.services import meeting_memory, notifications
 
     try:
         with notifications.quiet():
-            return await _write_generated(db, meeting, gen, user)
+            return await _write_generated(db, meeting, gen, user, edited)
     finally:
         # Meeting memory (services/meeting_memory.py): the summary's decisions, action items… as facts.
         await meeting_memory.sync_quietly(db, meeting.get("_id"))
 
 
-async def _write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | None, user) -> None:
+async def _write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | None, user, edited: str = "append") -> None:
     from app.services import pages
 
     raw = await db["documents"].find_one({"_id": oid(meeting.get("doc_id"))})
@@ -1404,10 +1431,16 @@ async def _write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | 
                 raise
             raw = await db["documents"].find_one({"_id": raw["_id"]}) or raw
     # Edited meanwhile (or someone is editing): add the sections below what's there.
-    body = page_markdown(meeting, gen, people)
-    keep = [p for p in body.split("\n\n## ") if not p.startswith(("## Sources", "Sources", "Attendees\n", "Invited\n"))]
-    block = "\n\n## ".join(keep).rstrip() + "\n"
     cur = raw.get("content") or ""
+    if edited == "details":
+        det = "" if re.search(r"(?m)^## Details\s*$", cur) else details_markdown(meeting, gen)
+        if not det:
+            return
+        block = det.rstrip() + "\n"
+    else:
+        body = page_markdown(meeting, gen, people)
+        keep = [p for p in body.split("\n\n## ") if not p.startswith(("## Sources", "Sources", "Attendees\n", "Invited\n"))]
+        block = "\n\n## ".join(keep).rstrip() + "\n"
     try:
         await pages.check_page_lock(raw, actor, ctx, pages.appended(cur, block))
         await _save(db, raw, pages.appended(cur, block), actor, ctx)
@@ -1484,6 +1517,8 @@ async def shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Ac
         "restricted": bool(row.get("restricted")), "action_items": int(row.get("action_items") or 0),
         "segments": len(row.get("segments") or []), "has_notes": bool(row.get("notes")),
         "has_transcript": bool(row.get("segments")),
+        # The Zoom recording Markdrop kept (services/zoom_media.py); played through GET /{id}/recording.
+        "recording": _recording_view(row),
         "sources": [{k: s.get(k) for k in ("kind", "origin", "name", "url", "format")} for s in row.get("sources") or []],
         "ai": ai_view(row), "created_at": iso(row.get("created_at")), "created_by": row.get("created_by"),
         # Who ran the call (Drive owner or stated in the text; None: unknown) and who brought it in.
@@ -1504,6 +1539,12 @@ async def shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Ac
 
         out["url"] = urls.markdrop_url(raw["slug"])
     return out
+
+
+def _recording_view(row: dict) -> dict | None:
+    from app.services import zoom_media
+
+    return zoom_media.view(row)
 
 
 SNIPPET_CHARS = 220
@@ -2217,7 +2258,9 @@ async def delete_meeting(db: AsyncIOMotorDatabase, row: dict, actor: access.Acto
     elif not admin and row.get("created_by") != uid:
         raise HTTPException(status_code=404, detail="Meeting not found")
     await db[COLL].delete_one({"_id": row["_id"]})
-    from app.services import meeting_memory
+    from app.services import meeting_memory, zoom_media
+
+    await zoom_media.drop(row)          # its Zoom recording, when Markdrop kept one
 
     await meeting_memory.drop_meeting(db, str(row["_id"]))
     return {"deleted": True, "id": str(row["_id"]), "trashed": raw is not None}

@@ -18,6 +18,7 @@ export const DOCS_PAGES = {
   slackIntegration: "/integrations/slack",
   jiraIntegration: "/integrations/jira",
   zoomIntegration: "/integrations/zoom",
+  hubspotIntegration: "/integrations/hubspot",
   meetingsAutoImport: "/workspaces/meetings-auto-import",
   googleDocs: "/integrations/overview#google-docs",
   // Documents

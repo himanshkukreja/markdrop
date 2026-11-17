@@ -180,6 +180,13 @@ export function Integrations({ ws, team, onSaved, bare }: { ws: string; team: Te
     <section className={bare ? undefined : "tz-card"} aria-labelledby={bare ? undefined : "ts-int"} aria-label={bare ? "Slack, Jira and the weekly digest" : undefined} data-testid="team-integrations">
       {!bare && <h2 className="tz-h2 mb-3" id="ts-int">Slack, Jira and the weekly digest</h2>}
       <div className="flex flex-col gap-5">
+        {!team.general && (
+          <div className="flex flex-col gap-1">
+            <Switch label="Add meetings by who attended" checked={team.meetings_by_attendees !== false} disabled={busy} data-testid="meetings-by-attendees"
+              onChange={(e) => void save({ meetings_by_attendees: e.target.checked }, e.target.checked ? "Meetings join by who attended" : "Only meetings imported or moved here")} />
+            <p className="tz-muted">On: a new meeting joins this team when its members are half or more of the attendees. Off: only meetings imported or moved into it, such as from Zoom.</p>
+          </div>
+        )}
         <Field label="Slack channel" hint="The team's meeting posts, weekly brief and comment notices go here.">
           {channels === null ? <Skeleton variant="rect" height={36} /> : channels === false || channels.length === 0 ? (
             <Input value={team.slack_channel?.name ? `#${team.slack_channel.name}` : ""} disabled placeholder="A workspace admin connects Slack in Workspace settings › Integrations" aria-label="Slack channel" />

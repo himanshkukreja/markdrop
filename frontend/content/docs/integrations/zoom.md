@@ -1,17 +1,23 @@
 ---
 title: Zoom
-description: Recorded Zoom meetings hosted by one team's members become meetings in that team, with a summary, decisions and action items. Import past ones too.
-updated: 2026-11-11
-keywords: [zoom, zoom meetings, integration, integrations tab, connect zoom, one click, markdrop app for zoom, zoom app marketplace app, add app, approve, zoom admin, reconnect, remove the app, uninstall, removing the app, deauthorize, added apps, delete imported meetings, user:read:user:admin, server-to-server oauth, s2s oauth, zoom app marketplace, build app, account id, client id, client secret, secret token, event subscriptions, recording.transcript_completed, recording.completed, endpoint url, validate, scopes, user:read:list_users:admin, cloud_recording:read:list_user_recordings:admin, cloud_recording:read:list_recording_files:admin, meeting:read:list_past_participants:admin, cloud recording, audio transcript, create audio transcript, no transcript, import past meetings, backfill, sales team, team, private team, open team, host, participants, attendees, disconnect, zoom_status, import_zoom_meetings]
+description: Recorded Zoom meetings hosted by one team's members become meetings in that team, with a summary and action items, and if you choose, their recording.
+updated: 2026-11-16
+keywords: [zoom, activate, activation, validate fails, can't validate, zoom didn't accept, troubleshooting, zoom meetings, integration, integrations tab, connect zoom, one click, markdrop app for zoom, zoom app marketplace app, add app, approve, zoom admin, reconnect, remove the app, uninstall, removing the app, deauthorize, added apps, delete imported meetings, user:read:user:admin, server-to-server oauth, s2s oauth, zoom app marketplace, build app, account id, client id, client secret, secret token, event subscriptions, recording.transcript_completed, recording.completed, endpoint url, validate, scopes, user:read:list_users:admin, cloud_recording:read:list_user_recordings:admin, cloud_recording:read:list_recording_files:admin, meeting:read:list_past_participants:admin, cloud recording, audio transcript, create audio transcript, no transcript, import past meetings, backfill, sales team, team, private team, open team, host, participants, attendees, disconnect, zoom_status, import_zoom_meetings, captions, closed captions, cc, transcribe, transcription, speech to text, no transcript, transcribe and keep recordings, recording, recordings, video, play recording, keep recordings, remove recording, play from timestamp, jump to time, timestamps, seek, will transcribe, transcribing, add recording, speaker names, fair-use limits, subtitles, recording captions, chapters, recording chapters]
 ---
 
-Connect your company's Zoom account and every **recorded** Zoom meeting hosted by a member of one team becomes a Markdrop meeting in that team: the transcript, a summary, decisions and action items, the people who joined, and everything else [Meetings](/workspaces/meetings) do (the Slack post, Team briefs and memory, Jira drafts, Ask). You can also bring in past Zoom meetings.
+Connect your company's Zoom account and every **recorded** Zoom meeting hosted by a member of one team becomes a Markdrop meeting in that team: the transcript, a summary, detailed notes of the whole call, decisions and action items, the people who joined, and everything else [Meetings](/workspaces/meetings) do (the Slack post, Team briefs and memory, Jira drafts, Ask). You can also bring in past Zoom meetings.
 
 - **One team.** Pick the team, for example **Sales**. Only meetings whose **host** is a member of that team come in. Meetings hosted by anyone else are ignored, and Markdrop doesn't keep anything about them.
 - **Visible to that team.** A Zoom meeting lands in the team, so the team's members can read it, and so can workspace admins, as with all [team](/teams/overview) content. If the team is **open**, everyone in the workspace can read its meetings: the Zoom card suggests making it **private**.
 - **The host's meeting.** Each meeting is imported as its host's, with the host as organizer. It isn't restricted to its attendees, so the whole team sees it.
 
-Zoom meetings need a **cloud recording with an audio transcript**. A meeting recorded without one shows as **No transcript** with how to turn transcripts on.
+Zoom meetings need a **cloud recording**. The transcript comes from, in this order:
+
+1. Zoom's own **audio transcript**, when Zoom made one;
+2. else Zoom's **closed captions**, when the meeting had them;
+3. else, if a workspace admin turned on [Transcribe and keep recordings](#transcribe-and-keep-recordings), Markdrop transcribes the meeting's audio.
+
+A meeting with none of these shows as **No transcript** with how to turn transcripts on.
 
 ## Connect with one click
 
@@ -35,7 +41,7 @@ The app asks Zoom for read-only access:
 | `cloud_recording:read:list_recording_files:admin` | Read a meeting's recording files and download its transcript. |
 | `meeting:read:list_past_participants:admin` | Who joined each meeting, for its attendees. |
 
-Markdrop never changes anything in Zoom, and never downloads audio or video. One Zoom account connects to one Markdrop workspace.
+Markdrop never changes anything in Zoom. It downloads audio or video only if a workspace admin turns on [Transcribe and keep recordings](#transcribe-and-keep-recordings). One Zoom account connects to one Markdrop workspace.
 
 If the card says **Reconnect Zoom**, Zoom stopped accepting the connection (for example, the app was removed in Zoom without telling Markdrop). Choose **Reconnect Zoom** and approve the app again.
 
@@ -45,7 +51,7 @@ If your company prefers to create its own app in Zoom, or one-click connect isn'
 
 You need two people, who may be the same person:
 
-- a **Zoom account admin** (or someone with permission to build Server-to-Server OAuth apps in Zoom), who creates the app in Zoom;
+- a **Zoom account admin**, or someone whose Zoom role has **View** and **Edit** for **Server-to-Server OAuth app** (Zoom web portal › **User Management › Roles**), who creates the app in Zoom;
 - a Markdrop **workspace admin** or the **owner**, who pastes the app's details into Markdrop.
 
 Zoom's Server-to-Server OAuth apps are available on paid Zoom plans; the participants list needs Pro or higher.
@@ -54,10 +60,11 @@ Zoom's Server-to-Server OAuth apps are available on paid Zoom plans; the partici
 
 Open **Workspace settings › Integrations** in Markdrop, choose **Details** on the **Zoom** card, and keep that page open: it shows the same steps, the scopes with copy buttons, and your workspace's own endpoint URL.
 
-1. **Create the app.** Sign in to the [Zoom App Marketplace](https://marketplace.zoom.us) as a Zoom account admin. Choose **Develop › Build App**, pick **Server-to-Server OAuth App**, and name it "Markdrop".
-2. **Copy the credentials.** On **App Credentials**, copy the **Account ID**, **Client ID** and **Client Secret**.
-3. **Fill in Information.** Add a short description and a developer contact: Zoom requires them before it activates the app.
-4. **Add the scopes.** On **Scopes**, choose **Add Scopes** and add these:
+Do the steps in this order. Zoom only accepts the credentials of an **activated** app, and Zoom's **Validate** only works once the app is saved in Markdrop.
+
+1. **Create the app.** Sign in to the [Zoom App Marketplace](https://marketplace.zoom.us) as a Zoom account admin. Choose **Develop › Build App**, pick **Server-to-Server OAuth App** (not General App), and name it "Markdrop".
+2. **Fill in Information.** Add a short description, the company name and a developer contact: Zoom requires them before it activates the app.
+3. **Add the scopes.** On **Scopes**, choose **Add Scopes** and add these:
 
    | Scope | What Markdrop uses it for |
    | --- | --- |
@@ -66,16 +73,27 @@ Open **Workspace settings › Integrations** in Markdrop, choose **Details** on 
    | `cloud_recording:read:list_recording_files:admin` | Read a meeting's recording files and download its transcript. |
    | `meeting:read:list_past_participants:admin` | Optional: who joined each meeting, for its attendees. Without it, Markdrop uses the people who spoke in the transcript. |
 
-   Markdrop never asks for scopes that change anything in Zoom, and never downloads audio or video.
-5. **Turn on Event Subscriptions.** On **Feature**, turn on **Event Subscriptions** and add a subscription named "Markdrop".
+   Markdrop never asks for scopes that change anything in Zoom. It downloads audio or video only with [Transcribe and keep recordings](#transcribe-and-keep-recordings) on.
+4. **Activate the app.** On **Activation**, choose **Activate your app**. It must say the app is activated before you go on.
+5. **Copy four values.** From **App Credentials**: the **Account ID**, **Client ID** and **Client Secret**. From the top of the **Feature** page: the **Secret Token**. The Secret Token and the Client Secret are different values.
+6. **Save them in Markdrop.** In the Zoom card, paste the four values, pick the team, and choose **Connect and check**. The card says **Connected**.
+7. **Turn on Event Subscriptions, then validate.** Back on **Feature** in Zoom, turn on **Event Subscriptions** and add a subscription named "Markdrop".
    - **Event notification endpoint URL**: copy it from the Zoom card in Markdrop. It looks like `https://api.markdrop.in/api/v1/zoom/webhook/<your workspace id>`.
    - **Events**: under **Recording**, add **Cloud recording transcript files have completed** (`recording.transcript_completed`) and **All recordings have completed** (`recording.completed`).
-   - Copy the **Secret Token** shown on that page.
-6. **Save in Markdrop, then validate in Zoom.** In the Zoom card, paste the **Account ID**, **Client ID**, **Client Secret** and **Secret Token**, pick the team, and choose **Connect and check**. Then go back to Zoom, press **Validate** next to the endpoint URL, and save the subscription.
-7. **Activate the app.** On **Activation**, choose **Activate your app**.
+   - Press **Validate** next to the endpoint URL. It turns to **Validated**. Save the subscription.
 8. **Turn on transcripts.** In the Zoom web portal, open **Account Management › Account Settings › Recording**. Turn on **Cloud recording** and, in its advanced settings, **Create audio transcript**. Lock both so every host has them.
 
 When you choose **Connect and check**, Markdrop asks Zoom for an access token with the app's credentials and makes a test call. If Zoom refuses the credentials, the card says so and nothing is saved. If a scope is missing, the card lists it: add it in Zoom, then save again (blank secret fields keep the saved ones).
+
+### If something doesn't work
+
+| What you see | What to do |
+| --- | --- |
+| **Zoom didn't accept the Account ID, Client ID or Client Secret** when you save | Check that the app is **activated** (step 4) and that it is a **Server-to-Server OAuth** app. Copy the three values again from **App Credentials**, without spaces, and check you didn't paste the Secret Token as the Client Secret. If someone regenerated the Client Secret in Zoom, paste the new one. |
+| Zoom's **Validate** fails | Save the app in Markdrop first (step 6): Markdrop answers Zoom's check with the saved Secret Token. Check that the endpoint URL is the one in your Zoom card, ending in your workspace ID. If the Secret Token was regenerated in Zoom, choose **Change credentials** in the Zoom card and paste the new one, then validate again. |
+| **Activate your app** is greyed out | Zoom still needs something on **Information** (description, company name, developer contact) or at least one scope on **Scopes**. |
+| **Build App** or **Server-to-Server OAuth App** is missing | Your Zoom role can't build these apps. Ask a Zoom account admin to do the Zoom steps, or to give your role **View** and **Edit** for **Server-to-Server OAuth app**. |
+| The card lists a **missing scope** | Add it on **Scopes** in Zoom, then save again in Markdrop (blank secret fields keep the saved ones). |
 
 ## The Zoom card
 
@@ -91,7 +109,8 @@ Each meeting from Zoom shows one state:
 | --- | --- |
 | **Imported** | It's a meeting in the team now. Choose it to open it. |
 | **Already here** | It was imported before. Markdrop never makes the same Zoom meeting twice. |
-| **No transcript** | Zoom recorded it without a transcript. Turn on **Create audio transcript** (step 8); if Zoom makes the transcript later, the meeting comes in then. |
+| **Transcribing** | Markdrop is transcribing it from its recording, or waiting a few minutes for Zoom's own transcript first. It comes in on its own. |
+| **No transcript** | Zoom recorded it without a transcript or captions. Turn on **Create audio transcript** (step 8 of the Server-to-Server setup, or step 5 of one-click connect), or [Transcribe and keep recordings](#transcribe-and-keep-recordings); if Zoom makes the transcript later, the meeting comes in then. |
 | **Didn't import** | Something went wrong, with the reason. Zoom meetings that didn't import can be brought in with **Import past meetings**. |
 
 Admins can change the team or **Disconnect Zoom**. With your own Server-to-Server app, they can also **Change credentials** (for example after rotating the Client Secret in Zoom).
@@ -101,10 +120,28 @@ Admins can change the team or **Disconnect Zoom**. With your own Server-to-Serve
 Workspace admins and the team's leads can bring in meetings recorded before Zoom was connected. In the Zoom card, choose **Import past meetings**:
 
 1. Pick **Last 30 days**, **Last 90 days** or **Custom** dates (up to a year).
-2. Markdrop lists the recorded meetings hosted by the team's members: the topic, date and time, duration, host, and whether there's a transcript. Meetings already in Markdrop show **Open**.
-3. The meetings with a transcript are selected. Change the selection, then choose **Import**.
+2. Markdrop lists the recorded meetings hosted by the team's members: the topic, date and time, duration, host, and where the transcript comes from: **Transcript**, **Captions**, **Will transcribe** (Transcribe and keep recordings is on) or **No transcript**. Meetings already in Markdrop show **Open**.
+3. The meetings that can come in are selected. Change the selection, then choose **Import**.
+
+Meetings marked **Will transcribe** come back **Transcribing** and appear in Meetings a few minutes later. With Transcribe and keep recordings on, a meeting already in Markdrop without its recording shows **Add recording**: select it and choose **Import** to add the recording.
 
 Past meetings come in like any other Zoom meeting, into the team, but as history: nobody is notified and they aren't posted to Slack on their own. A team member Zoom doesn't know by their email address is listed under the meetings so you can check their Zoom account.
+
+## Transcribe and keep recordings
+
+Off by default. A workspace admin turns it on in the Zoom card (**Transcribe and keep recordings**), and it applies to this workspace only. If the switch isn't in your card, it isn't available on this Markdrop server yet.
+
+With it on:
+
+- **Meetings without a transcript are transcribed.** When Zoom made no transcript and no captions, Markdrop sends the meeting's **audio** (never the video) to its speech-to-text provider, and deletes the downloaded audio right after. Speakers get names from Zoom's active-speaker timeline when Zoom provides it. When it doesn't, Markdrop AI works out who is speaking from the call itself (the meeting's topic, its host, the people who joined, introductions and people addressing each other by name), and names a speaker only when it is sure, and only with a name from the meeting itself; anyone else shows as "Speaker 1", "Speaker 2". With AI off for the workspace, speakers keep their numbers. For a meeting that just ended, Markdrop first waits a few minutes, because Zoom's own transcript often arrives a little after the recording, and Zoom's transcript is always preferred.
+- **Recordings are kept with their meetings.** After a Zoom meeting comes in, Markdrop copies its video (shared screen with the active speaker when Zoom has it) and the meeting page's bar gets a **Recording** button that plays it right there.
+- **Captions and chapters.** The recording plays with captions made from the meeting's transcript, each line marked with its speaker; turn them off with **CC** or :kbd[C]. When a speaker is renamed, the captions follow on the next play. Chapters come from the notes: each part of the call in **Details** (or each topic, without Details) marks the progress bar where it begins, and the current part's name next to the time opens the list. Both are made from what the meeting already has, so meetings imported earlier get them too, with nothing transcribed or summarised again.
+- **Times play the recording.** On a meeting with a kept recording, select a time in the notes (like **12:34** next to a decision or an action item) or a line's time on its **Transcript** page, and the recording plays from that moment. Scrolled down the page, the player floats in the corner so you keep your place. Without a recording, times open the transcript as before.
+- **The same people as the meeting.** Only people who can read the meeting can play its recording, through a link that expires after a few hours. If the meeting is restricted or its team private, so is the recording.
+
+Transcribing and keeping recordings happen in the background, within fair-use limits; past the day's limit, meetings wait and continue the next day.
+
+A meeting's stored video is deleted when the meeting is deleted (also with **Disconnect Zoom… › Also delete the meetings imported from Zoom**), when its page is deleted for good from the Trash, or when the person who imported it or a workspace admin chooses **Recording › Remove recording**. Turning the switch off stops new transcriptions and copies; recordings already stored stay with their meetings until removed. The recording in Zoom is never touched.
 
 ## Removing the app
 
@@ -127,10 +164,10 @@ After removing the app, the Zoom card says **Zoom was disconnected**. Choose **C
 - Markdrop stores Zoom's access and refresh tokens, and a Server-to-Server app's Client Secret and Secret Token, **encrypted**. Only workspace admins see the card's setup details, and never the secrets.
 - Every request from Zoom is checked with Zoom's signature. Requests that aren't signed by the Markdrop app for Zoom (or your own Zoom app) are refused, and each one reaches only the workspace connected to its Zoom account.
 - Only meetings hosted by the team's members are read. For other meetings, Markdrop keeps nothing, not even the topic.
-- Markdrop downloads the transcript only, never the audio or video.
+- Markdrop downloads the transcript, or the closed captions when there is no transcript. It downloads audio or video only when a workspace admin turns on [Transcribe and keep recordings](#transcribe-and-keep-recordings): then only the audio of meetings without a transcript goes to the speech-to-text provider (and the downloaded copy is deleted right after), and each meeting's video is stored privately with the meeting.
 - The transcript of an imported meeting is used to write its summary, decisions and action items, as for any [meeting](/workspaces/meetings). See [Removing the app](#removing-the-app) for what is deleted and when, and the [privacy policy](https://markdrop.in/privacy#zoom) for the whole picture.
 - Questions or a problem? See [Get help](/help/support).
 
 ## From an AI app
 
-With the [MCP server](/ai/tools#zoom), an assistant can check the connection (`zoom_status`, which also gives a workspace admin a one-click link to connect Zoom) and list and import past Zoom meetings (`import_zoom_meetings`). Imported meetings work with the meeting tools like any other meeting.
+With the [MCP server](/ai/tools#zoom), an assistant can check the connection (`zoom_status`, which also gives a workspace admin a one-click link to connect Zoom, and says whether Transcribe and keep recordings is on) and list and import past Zoom meetings (`import_zoom_meetings`, with where each one's transcript comes from, and adding recordings to meetings already here). Imported meetings work with the meeting tools like any other meeting (`get_meeting` says `has_recording` and, with a kept recording, lists its `recording_chapters`). The switch itself is turned on in the Zoom card.

@@ -1,10 +1,14 @@
 """MCP tools for Zoom (services/zoom.py).
 
 * ``zoom_status``: whether a workspace is connected to a Zoom account, which team Zoom meetings go to,
-  and how imports are going (the last ones, meetings that had no transcript).
+  how imports are going (the last ones, meetings that had no transcript), and whether the workspace's
+  *Transcribe and keep recordings* switch is on (services/zoom_media.py; turned on on the website).
 * ``import_zoom_meetings``: ``action: "list"`` lists the team members' recorded Zoom meetings for a
-  range (with host, date, duration, whether there's a transcript, already imported?); ``action:
-  "import"`` imports the chosen ones (by uuid) into the team, as past meetings (nobody is notified).
+  range (with host, date, duration, where its transcript would come from: Zoom's transcript, its
+  captions, or transcribed by Markdrop when the switch is on; already imported?); ``action: "import"``
+  imports the chosen ones (by uuid) into the team, as past meetings (nobody is notified). Meetings to
+  transcribe are queued and come in a few minutes later; importing a meeting already here adds its
+  recording when the switch is on.
 
 Same rules as the website: workspace admins and the Zoom team's leads import; connecting is done on the
 website (Workspace settings › Integrations › Zoom). The imported meetings are ordinary meetings: the
@@ -35,6 +39,9 @@ async def zoom_status(ctx: Context, args: dict) -> tuple[str, dict]:
            "can_import": bool(st["can_import"]), "team": team, "broken": c.get("broken"),
            "missing_scopes": [m["scope"] for m in c.get("missing_scopes") or []],
            "imported": c.get("imported", 0), "no_transcript": c.get("no_transcript", 0),
+           "transcribe_and_keep_recordings": bool(st.get("media_on")),
+           "transcribe_available": bool(st.get("media_available")),
+           "transcribed": c.get("transcribed", 0), "from_captions": c.get("from_captions", 0),
            "last_import_at": c.get("last_import_at"), "last_event_at": c.get("last_event_at"),
            "recent": [{**r, "url": urls.markdrop_url(r["slug"]) if r.get("slug") else None} for r in st.get("recent") or []]}
     out["mode"] = st.get("mode") if st["connected"] else None
@@ -62,6 +69,13 @@ async def zoom_status(ctx: Context, args: dict) -> tuple[str, dict]:
     if out["missing_scopes"]:
         lines.append("The Zoom app is missing scopes: " + ", ".join(out["missing_scopes"]) + ".")
     lines.append(f"Imported so far: {out['imported']}; without a transcript: {out['no_transcript']}.")
+    if out["transcribe_and_keep_recordings"]:
+        lines.append("Transcribe and keep recordings is on: meetings without a Zoom transcript or captions are transcribed "
+                     "from their audio, and recordings are kept with their meetings (only people who can read a meeting "
+                     f"can play it). Transcribed so far: {out['transcribed']}.")
+    elif out["transcribe_available"]:
+        lines.append(f"Transcribe and keep recordings is off (an admin turns it on in {_SETUP}); meetings without a Zoom "
+                     "transcript use Zoom's captions when they have them.")
     return "\n".join(lines), out
 
 
@@ -75,12 +89,17 @@ async def import_zoom_meetings(ctx: Context, args: dict) -> tuple[str, dict]:
             ms = got["meetings"]
             for m in ms:
                 m["url"] = urls.markdrop_url(m["slug"]) if m.get("slug") else None
-            ready = [m for m in ms if m["transcript"] and not m["imported"]]
+            ready = [m for m in ms if m.get("source") and not m["imported"]]
+            nothing = [m for m in ms if not m.get("source") and not m["imported"]]
+            will = sum(1 for m in ready if m.get("source") == "transcribe")
+            adds = sum(1 for m in ms if m.get("can_add_recording"))
             text = (f"{got['total']} recorded Zoom meetings from {got['from']} to {got['to']}: {len(ready)} ready to import"
-                    f"{', ' + str(sum(1 for m in ms if not m['transcript'])) + ' without a transcript' if any(not m['transcript'] for m in ms) else ''}"
-                    f"{', ' + str(sum(1 for m in ms if m['imported'])) + ' already imported' if any(m['imported'] for m in ms) else ''}. "
+                    f"{' (' + str(will) + ' will be transcribed from their audio)' if will else ''}"
+                    f"{', ' + str(len(nothing)) + ' without a transcript' if nothing else ''}"
+                    f"{', ' + str(sum(1 for m in ms if m['imported'])) + ' already imported' if any(m['imported'] for m in ms) else ''}"
+                    f"{' (' + str(adds) + ' of them can get their recording: import them again)' if adds else ''}. "
                     "Import with action 'import' and their uuids.")
-            if any(not m["transcript"] for m in ms):
+            if nothing:
                 text += " " + got["no_transcript_help"]
             return text, {"action": "list", "from": got["from"], "to": got["to"], "meetings": ms, "total": got["total"],
                           "not_in_zoom": got["not_in_zoom"], "results": [], "counts": {}}
@@ -91,7 +110,11 @@ async def import_zoom_meetings(ctx: Context, args: dict) -> tuple[str, dict]:
     except HTTPException as exc:
         raise ToolError(http_message(exc))
     c = got["counts"]
-    parts = [f"{n} {k.replace('_', ' ')}" for k, n in c.items()]
+    parts = [f"{n} {'queued to transcribe (they come in within minutes)' if k == 'waiting' else k.replace('_', ' ')}"
+             for k, n in c.items()]
+    recs = sum(1 for r in got["results"] if r.get("recording") == "queued")
+    if recs:
+        parts.append(f"{recs} recordings being copied into Markdrop")
     return "Zoom import: " + ", ".join(parts) + ".", {"action": "import", "meetings": [], "results": got["results"],
                                                      "counts": c, "total": len(got["results"])}
 
@@ -102,7 +125,9 @@ ZOOM_TOOLS: list[Tool] = [
         title="Zoom connection",
         description=("Whether a workspace is connected to its Zoom account, which team recorded Zoom meetings go to (only "
                      "meetings hosted by that team's members come in, visible to that team), and how imports are going: "
-                     "the latest ones and meetings that had no transcript. Read-only: connecting is done on the website "
+                     "the latest ones and meetings that had no transcript, and whether Transcribe and keep recordings is "
+                     "on (meetings without a Zoom transcript are transcribed from their audio; recordings kept with their "
+                     "meetings). Read-only: connecting and the switch are on the website "
                      f"({_SETUP}); for an admin of a workspace that isn't connected, it also returns connect_url, a "
                      "one-click link to approve the Markdrop app for Zoom (opened in the person's browser)."),
         scope=READ,
@@ -114,6 +139,8 @@ ZOOM_TOOLS: list[Tool] = [
                             "team": {"type": ["object", "null"]}, "broken": {"type": ["string", "null"]},
                             "missing_scopes": {"type": "array", "items": {"type": "string"}},
                             "imported": {"type": "integer"}, "no_transcript": {"type": "integer"},
+                            "transcribe_and_keep_recordings": {"type": "boolean"}, "transcribe_available": {"type": "boolean"},
+                            "transcribed": {"type": "integer"}, "from_captions": {"type": "integer"},
                             "last_import_at": {"type": ["string", "null"]}, "last_event_at": {"type": ["string", "null"]},
                             "recent": {"type": "array", "items": {"type": "object"}}},
                            ["workspace_id", "connected"]),
@@ -125,9 +152,13 @@ ZOOM_TOOLS: list[Tool] = [
         title="Import past Zoom meetings",
         description=("Bring past recorded Zoom meetings into the workspace's Zoom team. action 'list' (default): the team "
                      "members' recorded meetings in a range (days: 30 or 90, or from/to YYYY-MM-DD) with host, date, "
-                     "duration, whether Zoom made a transcript, and whether it's already imported. action 'import': "
-                     "import the chosen uuids (up to 50; each needs a transcript) as past meetings with a summary, "
-                     "decisions and action items; nobody is notified. Workspace admins and the team's leads only."),
+                     "duration, source (where its transcript comes from: 'transcript' Zoom's, 'captions' Zoom's closed "
+                     "captions, 'transcribe' Markdrop transcribes the audio because the workspace turned on Transcribe "
+                     "and keep recordings, null: none), and whether it's already imported. action 'import': import the "
+                     "chosen uuids (up to 50; each needs a source) as past meetings with a summary, decisions and action "
+                     "items; nobody is notified. Ones to transcribe come back 'waiting' and arrive within minutes. With "
+                     "the switch on, importing a meeting already here adds its recording (can_add_recording). Workspace "
+                     "admins and the team's leads only."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {

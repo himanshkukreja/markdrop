@@ -296,6 +296,25 @@ test("page images (pa/): public ones by URL, guarded ones only with a token for 
   assert.equal((await get("/r/pa/d1/..%2F..%2Fart/u1/page.html")).status, 404);
 });
 
+test("video player: a seek message moves it, only from the framing window on an app origin", async () => {
+  const page = await (await get("/v/video/art/u1/clip.mp4")).text();
+  assert.match(page, /var APP=\["https:\/\/markdrop\.in","https:\/\/www\.markdrop\.in","http:\/\/localhost:3000"\];/);
+  assert.match(page, /e\.source!==window\.parent/);
+  assert.match(page, /APP\.indexOf\(e\.origin\)<0\|\|d\.ev!=='seek'/);   // seeking: app origins only
+});
+
+test("video player: the app's accent for the scrubber (a hex only), controls that hide, and ui messages", async () => {
+  const page = await (await get("/v/video/art/u1/clip.mp4")).text();
+  assert.match(page, /d\.ev==='theme'/);
+  assert.match(page, /\/\^#\[0-9a-f\]\{6\}\$\/i\.test\(d\.accent\)/);   // nothing but #rrggbb reaches CSS
+  assert.match(page, /var\(--player-accent,var\(--accent-hover\)\)/);
+  assert.match(page, /r\.setProperty\('--accent',hex\)/);               // the play button and slider too
+  // The stage's own focus on load no longer pins the controls open; a focused control still does.
+  assert.doesNotMatch(page, /#stage:focus-within #ui/);
+  assert.match(page, /#ui:focus-within/);
+  assert.match(page, /ev:'ui',show:on/);
+});
+
 test("video player: captions only from a captions key (as text, never HTML), and ?at= starts there", async () => {
   const page = await (await get("/v/video/art/u1/clip.mp4?cc=art/u1/abc_DEF-1.captions.vtt&ct=aa.bb_cc&at=754")).text();
   assert.match(page, /var CC="\/r\/art\/u1\/abc_DEF-1\.captions\.vtt\?t=aa\.bb_cc";/);
@@ -315,6 +334,58 @@ test("video player: captions only from a captions key (as text, never HTML), and
   // The player's script parses with captions and a start time.
   const js = page.slice(page.indexOf("<script>") + 8, page.indexOf("</script>"));
   assert.doesNotThrow(() => new vm.Script(js));
+});
+
+test("video player: chapters from the framing window (any origin, as the accent), checked hard and drawn as text", async () => {
+  const page = await (await get("/v/video/art/u1/clip.mp4")).text();
+  // Accepted before the app-origin check (display-only text, like the theme); seeking stays app-only.
+  const handler = page.slice(page.indexOf("window.addEventListener('message'"));
+  assert.ok(handler.indexOf("d.ev==='chapters'") > 0 && handler.indexOf("d.ev==='chapters'") < handler.indexOf("APP.indexOf(e.origin)<0"));
+  assert.match(page, /if\(d\.ev==='chapters'\)\{setChapters\(d\.list\);return\}/);
+  // Titles only ever as text: no innerHTML near the chapter list, the tooltip or the label.
+  assert.match(page, /cn\.textContent=c\.title/);
+  assert.match(page, /htName\.textContent=/);
+  assert.match(page, /chapName\.textContent=name/);
+  assert.doesNotMatch(page, /(chapList|chapName|htName|hoverTime)\.innerHTML/);
+  // Gaps in the scrubber (a mask, so played and buffered show them), the list as a keyboard menu,
+  // the controls kept up while a menu is open, dropped past the video's end.
+  assert.match(page, /track\.style\.maskImage=g/);
+  assert.match(page, /role="menu" aria-label="Chapters"/);
+  assert.match(page, /aria-haspopup="menu" aria-expanded="false"/);
+  assert.match(page, /e\.key==='Escape'/);
+  assert.match(page, /if\(document\.querySelector\('\.menu\.open'\)\)return wake\(\)/);
+  assert.match(page, /CH_IN\.filter\(function\(c\)\{return c\.t<d\}\)/);
+  assert.match(page, /var\(--player-accent,var\(--accent-hover\)\)/);
+  assert.match(page, /prefers-reduced-motion:reduce/);
+  // The check itself, run: all or nothing.
+  const js = page.slice(page.indexOf("<script>") + 8, page.indexOf("</script>"));
+  const fn = js.slice(js.indexOf("function setChapters(list){"), js.indexOf("  // Within the video only"));
+  const run = (list) => {
+    const ctx = { CH_IN: "unset", chFor: 1, layoutChapters() {} };
+    vm.runInNewContext(fn + "\nsetChapters(LIST);", Object.assign(ctx, { LIST: list }));
+    return ctx.CH_IN === "unset" ? "unset" : JSON.parse(JSON.stringify(ctx.CH_IN));   // out of the vm's realm
+  };
+  assert.deepEqual(run([{ t: 0, title: " Intro\n<b>x</b> " }, { t: 30.5, title: "Pricing" }]),
+                   [{ t: 0, title: "Intro <b>x</b>" }, { t: 30.5, title: "Pricing" }]);   // text, kept as text
+  assert.equal(run([{ t: 0, title: "a".repeat(200) }, { t: 9, title: "b" }])[0].title.length, 80);
+  assert.deepEqual(run([]), []);                                                           // clears them
+  for (const bad of [
+    "x", null, { length: 1 }, Array.from({ length: 41 }, (_, i) => ({ t: i, title: "c" })),
+    [{ t: 5, title: "a" }, { t: 5, title: "b" }], [{ t: 9, title: "a" }, { t: 2, title: "b" }],
+    [{ t: -1, title: "a" }], [{ t: Infinity, title: "a" }], [{ t: NaN, title: "a" }], [{ t: "3", title: "a" }],
+    [{ t: 0, title: 7 }], [{ t: 0, title: "   " }], [{ t: 0 }], [null], [{ t: 1e8, title: "a" }],
+  ]) assert.equal(run(bad), "unset", JSON.stringify(bad));
+  assert.doesNotThrow(() => new vm.Script(js));
+});
+
+test("video player: a meeting recording's captions key (art/zoom/<workspace>/…) and nothing looser", async () => {
+  const ok = await (await get("/v/video/art/zoom/ws1/clip.mp4?cc=art/zoom/ws1/Ab_c-1.captions.vtt&ct=aa.bb")).text();
+  assert.match(ok, /var CC="\/r\/art\/zoom\/ws1\/Ab_c-1\.captions\.vtt\?t=aa\.bb";/);
+  for (const q of ["cc=art/zoom/ws1/x.mp4", "cc=art/zoom/a/b/x.captions.vtt", "cc=art/other/ws1/x.captions.vtt",
+                   "cc=art/zoom/../x.captions.vtt", "cc=art/zoom/ws1/..captions.vtt%2F"]) {
+    const html = await (await get(`/v/video/art/zoom/ws1/clip.mp4?${q}`)).text();
+    assert.match(html, /var CC=null;/, q);
+  }
 });
 
 test("the sheet and deck viewers tell their host which tab / slide is shown (viewer analytics)", async () => {

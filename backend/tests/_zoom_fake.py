@@ -8,7 +8,10 @@ e2e stack (frontend/e2e/pages/real/api_run.py, PB_FAKE_ZOOM=1). Nothing leaves t
 * Markdrop's Marketplace app (OAuth): ``POST /oauth/token`` (form ``grant_type=authorization_code`` with a
   code from :meth:`FakeZoom.authorize`, or ``refresh_token``: rotated, the old one stops working),
   ``POST /oauth/revoke`` (the app is removed), ``GET users/me`` (the approving admin, with ``account_id``).
-* ``https://zoom.test/rec/download/<uuid>``: the meeting's transcript (WebVTT).
+* ``https://zoom.test/rec/download/<uuid>``: the meeting's transcript (WebVTT); ``…/<uuid>.cc`` its closed
+  captions, ``….m4a`` its audio, ``….mp4`` its video, ``….timeline`` its active-speaker timeline
+  (:meth:`FakeZoom.add_media`; :attr:`FakeZoom.media_gets` counts the audio/video downloads).
+* :class:`FakeDeepgram`: ``POST https://deepgram.test/v1/listen`` (services/deepgram.py).
 
 :meth:`event` builds the webhook body Zoom would send; :meth:`limit` makes the next calls answer 429.
 """
@@ -62,6 +65,8 @@ class FakeZoom:
         self.app_scopes = ["user:read:user:admin", *ALL_SCOPES]
         self.admin_email = "zoomadmin@acme.test"
         self.app_account = ACCOUNT                # the account users/me reports (the app's installs)
+        self.files: dict[str, bytes] = {}         # "<uuid>.<ext>" → bytes (captions, audio, video, timeline)
+        self.media_gets: list[str] = []
 
     def authorize(self, redirect_uri: str) -> str:
         """An admin approved Markdrop's app: the code Zoom puts on the redirect."""
@@ -104,6 +109,32 @@ class FakeZoom:
         m["recording_files"].append({"id": f"f-{uuid}-vtt", "file_type": "TRANSCRIPT", "recording_type": "audio_transcript",
                                      "status": "completed", "download_url": f"{AUTH}/rec/download/{quote(uuid, safe='')}"})
         self.transcripts[uuid] = vtt([("Ada Lovelace", "The transcript came later."), ("Grace Hopper", "Good.")])
+
+    def add_media(self, uuid: str, *, cc: list[tuple[str, str]] | None = None, audio: bytes | None = b"m4a-audio",
+                  video: bytes | None = b"mp4-video" * 10, timeline: dict | None = None, video_kind: str = "active_speaker") -> None:
+        """Give a meeting closed captions, an audio file, a video file and a timeline (each optional);
+        its default MP4 placeholder (no bytes) is replaced."""
+        m = self.meetings[uuid]
+        files = [f for f in m["recording_files"] if f["file_type"] not in ("MP4", "M4A", "CC", "TIMELINE")]
+        base = f"{AUTH}/rec/download/{quote(uuid, safe='')}"
+        if cc is not None:
+            self.files[uuid + ".cc"] = vtt(cc).encode()
+            files.append({"id": f"f-{uuid}-cc", "file_type": "CC", "file_extension": "VTT", "recording_type": "closed_caption",
+                          "status": "completed", "download_url": base + ".cc"})
+        if audio is not None:
+            self.files[uuid + ".m4a"] = audio
+            files.append({"id": f"f-{uuid}-m4a", "file_type": "M4A", "recording_type": "audio_only", "status": "completed",
+                          "file_size": len(audio), "download_url": base + ".m4a"})
+        if video is not None:
+            self.files[uuid + ".mp4"] = video
+            files.append({"id": f"f-{uuid}-mp4", "file_type": "MP4", "recording_type": video_kind, "status": "completed",
+                          "file_size": len(video), "download_url": base + ".mp4"})
+        if timeline is not None:
+            self.files[uuid + ".timeline"] = json.dumps(timeline).encode()
+            files.append({"id": f"f-{uuid}-tl", "file_type": "TIMELINE", "recording_type": "timeline", "status": "completed",
+                          "download_url": base + ".timeline"})
+        m["recording_files"] = files
+        m["recording_count"] = len(files)
 
     def event(self, name: str, uuid: str, *, host_email: bool = True) -> dict:
         m = json.loads(json.dumps(self.meetings[uuid]))
@@ -157,6 +188,10 @@ class FakeZoom:
             if not self._authed(req):
                 return self._json(401, {"code": 124, "message": "Invalid access token."})
             uuid = unquote(req.url.raw_path.decode().split("?", 1)[0].rsplit("/", 1)[1])
+            if uuid in self.files:
+                if uuid.endswith((".m4a", ".mp4")):
+                    self.media_gets.append(uuid)
+                return httpx.Response(200, content=self.files[uuid])
             if uuid not in self.transcripts:
                 return self._json(404, {"code": 3301, "message": "No file"})
             return httpx.Response(200, content=self.transcripts[uuid].encode())
@@ -248,3 +283,40 @@ FakeZoom._app_oauth = _app_oauth
 def iso_days_ago(days: int, hour: int = 9) -> str:
     d = datetime.now(timezone.utc).replace(hour=hour, minute=0, second=0, microsecond=0) - timedelta(days=days)
     return d.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+DEEPGRAM = "https://deepgram.test/v1"
+DEEPGRAM_KEY = "dg-test-key"
+
+
+class FakeDeepgram:
+    """``POST /v1/listen``: diarized utterances for whatever audio is sent (``utterances``: [(speaker, start, end,
+    text)]); records what it received (content type, the bytes) so tests can check that only audio went."""
+
+    def __init__(self):
+        self.utterances: list[tuple[int, float, float, str]] = [
+            (0, 0.5, 4.0, "Thanks for joining the Acme call."),
+            (1, 4.5, 9.0, "Happy to. Let's look at the pricing."),
+            (0, 9.5, 14.0, "I'll send the proposal to Acme by Friday."),
+        ]
+        self.duration = 600.0
+        self.received: list[dict] = []
+        self.status = 200
+
+    def transport(self) -> httpx.MockTransport:
+        return httpx.MockTransport(self._handle)
+
+    def _handle(self, req: httpx.Request) -> httpx.Response:
+        if not str(req.url).startswith(DEEPGRAM + "/listen"):
+            return httpx.Response(404, json={"err_msg": "no route"})
+        if req.headers.get("authorization") != f"Token {DEEPGRAM_KEY}":
+            return httpx.Response(401, json={"err_msg": "Invalid credentials."})
+        body = req.read()
+        self.received.append({"content_type": req.headers.get("content-type"), "body": body, "params": dict(req.url.params)})
+        if self.status != 200:
+            return httpx.Response(self.status, json={"err_msg": "busy"})
+        return httpx.Response(200, json={
+            "metadata": {"request_id": "dg-1", "duration": self.duration, "channels": 1},
+            "results": {"channels": [], "utterances": [
+                {"start": a, "end": b, "speaker": sp, "transcript": t, "confidence": 0.98, "channel": 0}
+                for sp, a, b, t in self.utterances]}})

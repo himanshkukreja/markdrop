@@ -71,4 +71,6 @@ test("live suggestions: team first with topics, then yours; Updated … ago", as
   assert.deepEqual(homeChips({ team: sug.team.slice(0, 1), personal: sug.personal }).map((c) => c.label), ["T1: Q1?", "Catch me up on Standup"]);
   assert.equal(updatedLine(sug, Date.parse("2026-11-06T12:30:00Z")), "Updated 2 h ago.");
   assert.equal(updatedLine({ ...sug, team: [] }), "");
+  assert.equal(updatedLine({ ...sug, team: [], quiet: true }), "Nothing new here in the last 7 days.");
+  assert.equal(updatedLine({ ...sug, quiet: true }, Date.parse("2026-11-06T12:30:00Z")), "Updated 2 h ago.");
 });

@@ -145,6 +145,25 @@ async def forget_document(db: AsyncIOMotorDatabase, doc_id: str) -> None:
     await db[COLL].delete_many({"doc_id": str(doc_id)})
 
 
+async def chapters_for(db: AsyncIOMotorDatabase, raw: dict) -> list[dict]:
+    """A video's chapters for its readers (the player's progress bar): from the newest media analysis
+    of the file as it is now (same bytes, same version), never a model call. [] for anything else,
+    and always for an end-to-end encrypted file."""
+    if raw.get("kind") != "artifact" or raw.get("encrypted") or not str(raw.get("mime") or "").startswith("video/"):
+        return []
+    q = {"doc_id": str(raw["_id"]), "kind": "media", "sig": signature(raw),
+         "ver": {"$in": [None, int(raw.get("file_version") or 1)]}, "result.chapters.1": {"$exists": True}}
+    row = await db[COLL].find_one(q, {"result.chapters": 1}, sort=[("generated_at", -1)])
+    out: list[dict] = []
+    for c in ((row or {}).get("result") or {}).get("chapters") or []:
+        t = _num(c.get("t")) if isinstance(c, dict) else None
+        title = _s(c.get("title"), LEN["chapter"]) if isinstance(c, dict) else ""
+        if t is None or t < 0 or not title or (out and t <= out[-1]["t"]):
+            continue
+        out.append({"t": int(t), "title": title})
+    return out if len(out) >= 2 else []
+
+
 # ── Limits ────────────────────────────────────────────────────────────────────
 
 
