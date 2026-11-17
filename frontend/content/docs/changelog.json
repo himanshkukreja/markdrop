@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "pptx-exact-preview",
+      "date": "2026-11-17",
+      "title": "PowerPoint decks open as an exact preview",
+      "kind": "improved",
+      "area": "Files",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "A .pptx now shows every slide as PowerPoint lays it out (backgrounds, layouts, shapes, fonts) in the PDF viewer. Download still gets the original deck, and each version keeps its own preview.",
+      "body": "- **Exact slides.** Markdrop makes a preview of each uploaded deck on its servers and shows it in the same viewer as a PDF: one slide per page, hidden slides included, so a link to slide 5 opens page 5.\n- **While it's made** (a few seconds to a minute) the deck shows in the quick slide viewer with *Preparing an exact preview…*, and the page switches on its own when it's ready. If a preview can't be made, the quick viewer stays with *Preview may differ from PowerPoint*.\n- **Versions.** Replacing a deck makes a new preview; restoring an older version shows its own preview straight away.\n- **Downloads unchanged.** Download (and the API's `download_url`) is still the original `.pptx`.\n- **API and MCP.** File responses (`get_file_info`, `GET /api/v1/files/{slug}`, documents and artifacts) carry `pdf_preview`: `converting`, `ready` or `failed`."
+    },
+    {
       "id": "ask-missing-conversation",
       "date": "2026-11-17",
       "title": "Ask no longer stops at a conversation that's gone",

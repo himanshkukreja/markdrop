@@ -36,6 +36,7 @@ import {
   setArtifactCaptions,
   updateArtifactSettings,
   type ArtifactRenderer,
+  type PdfPreviewState,
   liveSocketUrl,
 } from "@/lib/api";
 import { ArtifactDock } from "./artifact/ArtifactBar";
@@ -51,6 +52,7 @@ import { ArtifactSettingsDrawer, type ArtifactSettingsState } from "./artifact/A
 import { DeleteItemDialog } from "@/components/trash/DeleteItemDialog";
 import { ArtifactVersions } from "./artifact/ArtifactVersions";
 import { ImageStage } from "./artifact/ImageStage";
+import { PreviewNote } from "./artifact/PreviewNote";
 import { FrameCover } from "./artifact/FrameCover";
 import { ReportDialog } from "./artifact/ReportDialog";
 import { basePathOf, isPaper, linkPrefixOf, shortDate, startFromHash, themedFrameSrc } from "./artifact/frame";
@@ -102,6 +104,8 @@ interface Props {
   posterUrl?: string | null;
   /** A video's captions (API `captions_url`, .vtt), shown by the player as subtitles. */
   captionsUrl?: string | null;
+  /** A PowerPoint deck's exact PDF preview (API `pdf_preview`): a note while converting or after it failed. */
+  pdfPreview?: PdfPreviewState | null;
   /** A video's chapters (API `chapters`), drawn on the player's progress bar. */
   chapters?: ViewerChapter[] | null;
   /** Opaque analytics reference (API `ref`); never the slug. */
@@ -152,6 +156,7 @@ export default function ArtifactView({
   downloadUrl: initialDownloadUrl,
   posterUrl: initialPosterUrl = null,
   captionsUrl: initialCaptionsUrl = null,
+  pdfPreview: initialPdfPreview = null,
   chapters: initialChapters = null,
   docRef = null,
   viewerChrome = "full",
@@ -181,6 +186,7 @@ export default function ArtifactView({
   const [posterUrl, setPosterUrl] = useState(initialPosterUrl);
   const captionsInput = useRef<HTMLInputElement>(null);
   const [captionsUrl, setCaptionsUrl] = useState(initialCaptionsUrl);
+  const [pdfPreview, setPdfPreview] = useState<PdfPreviewState | null>(initialPdfPreview);
   // Chapters on the player's progress bar (sent once it loads, and again when they change).
   const [chapters, setChapters] = useState<ViewerChapter[] | null>(initialChapters);
   const chaptersRef = useRef<ViewerChapter[] | null>(initialChapters);
@@ -383,6 +389,7 @@ export default function ArtifactView({
     setDownloadUrl(doc.download_url ?? null);
     setPosterUrl(doc.poster_url ?? null);
     setCaptionsUrl(doc.captions_url ?? null);
+    setPdfPreview(doc.pdf_preview ?? null);
     if (doc.chapters !== undefined) setChapters(doc.chapters ?? null);
     if (doc.renderer) setRenderer(doc.renderer);
     if (doc.track) setTrack(doc.track);
@@ -780,6 +787,9 @@ export default function ArtifactView({
     />
   ));
 
+  // A deck's exact preview being made, or not possible (artifact/PreviewNote).
+  const previewNote = !locked && renderer === "pptx" && <PreviewNote state={pdfPreview} />;
+
   const liveProgress = showLiveProgress && (
     <Progress indeterminate size="sm" aria-label="Updating to the latest version" className="absolute inset-x-0 top-0 z-20" />
   );
@@ -947,6 +957,7 @@ export default function ArtifactView({
             >
               {!immersive && frame}
               {!immersive && liveProgress}
+              {!immersive && previewNote}
               {cover}
             </div>
           ) : (
@@ -969,6 +980,7 @@ export default function ArtifactView({
         <div className={cx("fixed inset-0 z-(--z-immersive) isolate", paper ? "bg-(--qr-ground)" : "bg-bg")}>
           {frame}
           {liveProgress}
+          {previewNote}
           {cover}
           <DocPresence
             presence={presence}

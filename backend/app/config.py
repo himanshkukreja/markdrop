@@ -227,6 +227,14 @@ class Settings(BaseSettings):
     # Blank finds the binaries on PATH; missing binaries just mean no metadata.
     ffprobe_path: str = ""
     ffmpeg_path: str = ""
+    # PowerPoint decks get an exact PDF preview made by headless LibreOffice in the background
+    # (services/pptx_preview.py), shown in the PDF viewer; the .pptx stays the download.
+    # MARKDROP_PPTX_CONVERT: unset = on when `soffice` (or `libreoffice`) is on PATH; false = off
+    # (decks keep the Worker's slide viewer). The binary: blank finds it on PATH.
+    pptx_convert: bool | None = None
+    pptx_convert_bin: str = ""
+    pptx_convert_timeout_s: float = 120.0
+    pptx_convert_max_bytes: int = 100 * 1024 * 1024
     # After a file is swapped, purge the frontend's cached page
     # (POST {frontend_url}/api/revalidate). Off in tests.
     page_revalidate_enabled: bool = True

@@ -143,7 +143,9 @@ async def destroy(db: AsyncIOMotorDatabase, raw: dict, *, reason: str = "delete"
     if res.deleted_count == 0:
         return False
     await page_assets.forget_document(db, doc_id)
-    from app.services import card_preview
+    from app.services import card_preview, pptx_preview
+
+    await pptx_preview.forget_document(db, doc_id)   # a deck's PDF previews, every version's
 
     await card_preview.forget_document(db, doc_id)
     from app.services import search_index

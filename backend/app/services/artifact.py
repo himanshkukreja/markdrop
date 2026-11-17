@@ -49,7 +49,8 @@ PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presen
 #   "pdf"   → PDF.js viewer on the sandbox origin
 #   "sheet" → SheetJS grid viewer
 #   "image" → <img> (SVG included — it can carry script, so it stays sandboxed)
-#   "pptx"  → the Worker's slide viewer (parsed in the browser, no conversion server-side)
+#   "pptx"  → the Worker's slide viewer (parsed in the browser) until the deck's exact PDF preview
+#             is ready (services/pptx_preview.py: headless LibreOffice), then the PDF viewer
 #   "text"  → escaped <pre>
 #   "video" → custom player on the sandbox origin; needs range requests to seek
 #   "audio" → <audio controls> page on the sandbox origin (same range support)
@@ -374,7 +375,10 @@ def to_response(doc, *, is_owner: bool, public: bool | None = None,
             has_password=bool(doc.read_password_hash),
             access_level=getattr(doc, "access_level", "link"),
         )
+    from app.services import pptx_preview
+
     epoch, ttl = publicity.epoch_of(doc), publicity.ttl_for(doc.mime)
+    view_key, view_mime = pptx_preview.viewer_target(doc) or (doc.blob_key or "", doc.mime or "")
     return dict(
         poster_url=poster_url(doc, private=not public),
         captions_url=captions_url(doc, private=not public),
@@ -390,8 +394,9 @@ def to_response(doc, *, is_owner: bool, public: bool | None = None,
         type_label=label_for(doc.mime or ""),
         size_bytes=doc.size_bytes or 0,
         original_filename=doc.original_filename,
-        artifact_url=build_artifact_url(doc.blob_key or "", doc.mime or "", private=not public,
+        artifact_url=build_artifact_url(view_key, view_mime, private=not public,
                                         epoch=epoch, ttl=ttl),
+        pdf_preview=pptx_preview.state_of(doc),
         download_url=build_download_url(doc.blob_key or "", private=not public, epoch=epoch, ttl=ttl),
         created_at=doc.created_at,
         updated_at=doc.updated_at,

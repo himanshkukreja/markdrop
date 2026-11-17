@@ -28,7 +28,7 @@ from app.schemas.document import (
 )
 from app.services import access, analytics, artifact as art_service, document as doc_service
 from app.services import folder as folder_service
-from app.services import page_assets, pages, publicity, tickets, urls
+from app.services import page_assets, pages, pptx_preview, publicity, tickets, urls
 from app.services.doc_ref import doc_ref
 from app.utils.net import get_client_ip
 
@@ -99,6 +99,7 @@ def _to_response(doc, viewer_id: str | None = None, *, public: bool | None = Non
         poster_url=byte_urls["poster_url"],
         captions_url=byte_urls.get("captions_url"),
         captions_name=doc.captions_name if doc.kind == "artifact" else None,
+        pdf_preview=pptx_preview.state_of(doc),
         media=doc.media if doc.kind == "artifact" else None,
         # Which version of the file this is (artifacts); the engagement tracker
         # tags its sessions with it so versions can be compared.

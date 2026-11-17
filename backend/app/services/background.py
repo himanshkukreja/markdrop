@@ -39,6 +39,9 @@ one API worker runs it (§5.1, §5.5, A6):
                              next recording to copy into R2 (services/zoom_media.py: tick)
     hubspot       every 5 min  HubSpot pre-call briefs: the HubSpot team's members' HubSpot meetings starting in
                              5-60 minutes get their brief once (services/hubspot_notify.py: tick)
+    pptx_preview  every 5 s   PowerPoint decks' exact PDF previews: convert pending decks with headless
+                             LibreOffice, one at a time, and schedule a few older decks per pass
+                             (services/pptx_preview.py: tick); idle when LibreOffice isn't installed
     jira          every 60 s  Jira (services/jira*.py): tick the to-dos Jira moved while their page was
                              being edited; extend the workspaces' Jira webhooks before their 30 days run out
 
@@ -248,6 +251,12 @@ async def _ask_suggestions(db: AsyncIOMotorDatabase) -> None:
     from app.services import ask_suggestions
 
     await ask_suggestions.background(db)
+async def _pptx_preview(db: AsyncIOMotorDatabase) -> None:
+    from app.services import pptx_preview
+
+    await pptx_preview.tick(db)
+
+
 async def _jira(db: AsyncIOMotorDatabase) -> None:
     from app.services import jira, jira_links
 
@@ -292,7 +301,7 @@ def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
                               ("ask_suggestions", 300.0, _ask_suggestions),
                               ("workspace_memory", 30.0, _workspace_memory),
                               ("jira", 60.0, _jira), ("zoom", 15.0, _zoom),
-                              ("hubspot", 300.0, _hubspot),
+                              ("hubspot", 300.0, _hubspot), ("pptx_preview", 5.0, _pptx_preview),
                               ("email_retry", 60.0, _email_retry)):
         _TASKS.append(loop.create_task(_loop(name, every, get_db, body)))
 

@@ -43,7 +43,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
 from app.services import artifact as art_service
-from app.services import file_versions, live, media, r2, revalidate
+from app.services import file_versions, live, media, pptx_preview, r2, revalidate
 
 settings = get_settings()
 log = logging.getLogger(__name__)
@@ -848,6 +848,7 @@ async def _finish_new(db: AsyncIOMotorDatabase, sess: dict, slug: str, access: s
         old_sha256=None, new_sha256=sess["sha256"], size_bytes=size, version=1,
     )
     media.schedule(db, str(raw["_id"]), 1, sess["key"], sess["mime"])
+    await pptx_preview.schedule(db, str(raw["_id"]), sess["key"], sess["mime"])
     return await _result_for(db, raw, 1, sess, workspace_error)
 
 
@@ -864,6 +865,8 @@ async def after_swap(db: AsyncIOMotorDatabase, before: dict, after: dict, versio
     )
     if probe and not after.get("media"):
         media.schedule(db, str(after["_id"]), version, after["blob_key"], after.get("mime") or "")
+    # A deck's PDF preview: converted for new bytes, re-attached for a restored version's own PDF.
+    await pptx_preview.schedule(db, str(after["_id"]), after.get("blob_key"), after.get("mime"))
 
 
 # ── File info, versions, restore ──────────────────────────────────────────────
@@ -901,6 +904,7 @@ def file_info(raw: dict, *, public: bool | None = None, workspace_url: str | Non
         "poster_url": links["poster_url"],
         "download_url": links["download_url"],
         "access": access_of(raw),
+        "pdf_preview": pptx_preview.state_of(raw),
     }
 
 

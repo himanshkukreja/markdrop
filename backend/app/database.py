@@ -157,6 +157,11 @@ async def connect() -> None:
 
     await _card_preview.ensure_indexes(db)
 
+    # PowerPoint decks' PDF previews (services/pptx_preview.py): the conversion queue, by document.
+    from app.services import pptx_preview as _pptx_preview
+
+    await _pptx_preview.ensure_indexes(db)
+
     # Email campaigns + opt-out lookups for building an audience
     await db["campaigns"].create_index([("created_at", -1)])
     await db["users"].create_index("unsubscribed_at", sparse=True)

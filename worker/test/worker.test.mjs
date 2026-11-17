@@ -331,6 +331,12 @@ test("video player: captions only from a captions key (as text, never HTML), and
   assert.match(await (await get("/v/video/art/u1/clip.mp4?at=abc")).text(), /var AT=0;/);
   // The PDF viewer opens at ?at=<page>.
   assert.match(await (await get("/v/pdf/art/u1/r.pdf?at=3")).text(), /const AT_PAGE = 3;/);
+  // A deck's exact preview (<deck>.pptx.pdf): its button saves "<deck name>.pdf" and says PDF.
+  const deck = await (await get("/v/pdf/art/u1/d.pptx.pdf?fn=Board%20review%22%3E%3Cx.pptx")).text();
+  assert.match(deck, /download="Board review___x\.pdf"/);
+  assert.match(deck, /<span class="lbl">PDF<\/span>/);
+  assert.match(await (await get("/v/pdf/art/u1/d.pptx.pdf")).text(), /download="slides\.pdf"/);
+  assert.match(await (await get("/v/pdf/art/u1/r.pdf?fn=x.pptx")).text(), /id="dl" download>/);
   // The player's script parses with captions and a start time.
   const js = page.slice(page.indexOf("<script>") + 8, page.indexOf("</script>"));
   assert.doesNotThrow(() => new vm.Script(js));

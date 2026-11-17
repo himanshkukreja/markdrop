@@ -36,8 +36,10 @@ export function themedFrameSrc(
     if (at && at > 0 && (u.pathname.startsWith("/v/video/") || u.pathname.startsWith("/v/pdf/") || deck)) {
       u.searchParams.set("at", String(Math.floor(at)));
     }
-    // The slide viewer's "Original" download saves the deck under its own name.
-    if (deck && fileName) u.searchParams.set("fn", fileName.slice(0, 200));
+    // The slide viewer's "Original" download saves the deck under its own name, and a deck's exact
+    // preview (`/v/pdf/<deck>.pptx.pdf`) saves its PDF under the deck's name.
+    const deckPdf = u.pathname.startsWith("/v/pdf/") && /\.pptx\.pdf$/i.test(u.pathname);
+    if ((deck || deckPdf) && fileName) u.searchParams.set("fn", fileName.slice(0, 200));
     return u.toString();
   } catch {
     return artifactUrl;

@@ -111,6 +111,7 @@ def _doc_from_mongo(raw: dict) -> Document:
         poster_key=raw.get("poster_key"),
         captions_key=raw.get("captions_key"),
         captions_name=raw.get("captions_name"),
+        pptx_pdf=raw.get("pptx_pdf"),
         access_epoch=int(raw.get("access_epoch") or 0),
         old_slugs=list(raw.get("old_slugs") or []),
         editor=raw.get("editor"),

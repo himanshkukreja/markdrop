@@ -85,6 +85,9 @@ class Document:
     # the player shows them, search and Ask read them by minute.
     captions_key: str | None = None
     captions_name: str | None = None
+    # A PowerPoint deck's PDF preview (services/pptx_preview.py): {for: blob_key, state, pages}.
+    # Describes the current file only while ``for`` equals ``blob_key``.
+    pptx_pdf: dict | None = None
     # ── Access bookkeeping (services/access.py, services/publicity.py) ───────
     # Bumped on every narrowing; signed byte links and read tickets carry it, so
     # a bump revokes the ones already handed out. Absent on old rows = 0.

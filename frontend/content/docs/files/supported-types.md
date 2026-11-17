@@ -1,7 +1,7 @@
 ---
 title: Supported file types
 description: Every file type Markdrop renders, from HTML pages and PDFs to spreadsheets, Word documents, PowerPoint decks, images, video, audio and zipped sites.
-updated: 2026-11-06
+updated: 2026-11-17
 prerequisites: [/get-started/first-file]
 keywords: [file types, formats, pdf, xlsx, csv, docx, pptx, powerpoint, slides, html, svg, mp4, mov, zip, artifacts]
 ---
@@ -18,7 +18,7 @@ Each file you upload opens in a viewer made for its type, so readers see the con
 | PDF | `.pdf` | Pages with zoom and page count | 25 MB |
 | Spreadsheet | `.xlsx`, `.xls`, `.csv` | A grid with row numbers, column letters and a tab per sheet | 25 MB |
 | Word document | `.docx` | The document's text, headings, lists and tables | 25 MB |
-| PowerPoint deck | `.pptx` | The slides one at a time, with thumbnails and speaker notes | 25 MB |
+| PowerPoint deck | `.pptx` | An exact preview of every slide, as PowerPoint lays it out | 25 MB |
 | Image | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg` | The full-size image | 25 MB |
 | Text | `.txt`, `.json` | Text with line numbers and a **Wrap lines** toggle | 25 MB |
 | Website | `.zip` | A multi-page site, opening at its `index.html` | 25 MB zipped |
@@ -55,9 +55,15 @@ A `.docx` is converted to clean web text: headings, paragraphs, lists, tables, l
 
 ### PowerPoint decks
 
-A `.pptx` opens as slides, one at a time: each slide's title, text boxes and bullets, tables, and its pictures, in reading order. Shapes that sit side by side stay side by side. Move with the arrow buttons, the **←** and **→** keys, or a swipe on a phone; on a wide screen a strip of slide thumbnails runs down the left. **Notes** shows the slide's speaker notes, and hidden slides are marked as hidden. **Original** downloads the `.pptx` itself.
+A `.pptx` opens as an exact preview: every slide as PowerPoint lays it out, with its backgrounds, layouts, shapes, fonts and pictures, in the same viewer as a PDF (zoom, page count, one slide per page, hidden slides included). Markdrop makes the preview on its servers right after you upload the deck; **Download** still gets the original `.pptx`, byte for byte.
 
-The layout is approximated, not pixel-perfect: Markdrop reads the deck's content rather than PowerPoint's exact positions, fonts, colours, animations and backgrounds. A chart shows as a labelled box with its title, SmartArt as its text, and a picture in a format browsers can't draw (such as EMF) is named instead. If the exact look matters, export a PDF from PowerPoint and upload that instead.
+Making the preview takes a few seconds to a minute. Until it's ready, the deck shows in the quick slide viewer with **Preparing an exact preview…** at the bottom, and the page switches to the exact preview on its own when it's done. If a preview can't be made (a damaged or very large deck), the quick slide viewer stays, with **Preview may differ from PowerPoint**.
+
+The quick slide viewer shows the slides one at a time: each slide's title, text boxes and bullets, tables, and its pictures, in reading order. Move with the arrow buttons, the **←** and **→** keys, or a swipe on a phone; on a wide screen a strip of slide thumbnails runs down the left. **Notes** shows the slide's speaker notes, and hidden slides are marked as hidden. Its layout is approximated: a chart shows as a labelled box with its title, SmartArt as its text, and a picture in a format browsers can't draw (such as EMF) is named instead.
+
+Fonts: decks that use Calibri, Cambria, Arial, Helvetica, Inter or Manrope keep their look (Markdrop uses the same fonts or metric-compatible ones, so lines break where they do in PowerPoint). Another font is replaced with a close match; embed it in the deck, or export a PDF yourself, if it matters.
+
+Replacing the deck with a new version makes a new preview, and each older version keeps its own: restoring one shows its preview straight away. See [Replace a file and restore versions](/files/replace-and-versions).
 
 A deck with macros (`.pptm`, or one renamed to `.pptx`) and a password-protected deck are refused when you upload them. Save the deck as a plain `.pptx` without a password first.
 

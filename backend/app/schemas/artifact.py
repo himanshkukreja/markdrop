@@ -93,6 +93,11 @@ class ArtifactResponse(BaseModel):
     captions_url: str | None = None
     captions_name: str | None = None
     media: dict | None = None
+    # PowerPoint decks: "converting" while the exact PDF preview is made (artifact_url is the slide
+    # viewer meanwhile), "ready" (artifact_url shows the PDF; download_url is still the .pptx),
+    # "failed" (the slide viewer, which may differ from PowerPoint). Null for other files, or when
+    # previews aren't made on this server.
+    pdf_preview: str | None = None
     created_at: datetime
     updated_at: datetime
     expires_at: datetime | None = None

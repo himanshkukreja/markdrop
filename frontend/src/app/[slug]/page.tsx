@@ -142,6 +142,7 @@ export default async function SlugPage({ params }: Props) {
         downloadUrl={doc.download_url ?? null}
         posterUrl={doc.poster_url ?? null}
         captionsUrl={doc.captions_url ?? null}
+        pdfPreview={doc.pdf_preview ?? null}
         chapters={doc.chapters ?? null}
         docRef={doc.ref ?? null}
         readTicket={doc.read_ticket ?? null}

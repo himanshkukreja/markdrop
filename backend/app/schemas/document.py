@@ -138,6 +138,11 @@ class DocumentResponse(BaseModel):
     poster_url: str | None = None
     captions_url: str | None = None
     captions_name: str | None = None
+    # PowerPoint decks: "converting" while the exact PDF preview is made (artifact_url is the slide
+    # viewer meanwhile), "ready" (artifact_url shows the PDF; download_url is still the .pptx),
+    # "failed" (the slide viewer, which may differ from PowerPoint). Null for other files, or when
+    # previews aren't made on this server.
+    pdf_preview: str | None = None
     # A video's chapters [{t: seconds, title}] (the player's progress bar), when its analysis made some.
     chapters: list[dict] | None = None
     media: dict | None = None

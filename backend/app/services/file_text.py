@@ -260,6 +260,13 @@ def _drawing_text(root: ET.Element) -> str:
 
 
 def pptx_parts(data: bytes, clock: _Clock | None = None) -> list[Part]:
+    return pptx_slides(data, clock)[1]
+
+
+def pptx_slides(data: bytes, clock: _Clock | None = None) -> tuple[int, list[Part]]:
+    """(how many slides the deck has, hidden ones included; each non-empty slide's text and notes as
+    a Part labelled "slide N"). Slide N is page N of the deck's PDF preview (services/pptx_preview.py
+    exports hidden slides too)."""
     clock = clock or _Clock()
     z = SafeZip(data)
     if not z.has("ppt/presentation.xml"):
@@ -294,7 +301,7 @@ def pptx_parts(data: bytes, clock: _Clock | None = None) -> list[Part]:
             size += len(body)
         if size > MAX_TEXT:
             break
-    return parts
+    return min(len(order), SLIDES_MAX), parts
 
 
 _MACRO_PART = re.compile(r"(^|/)vbaProject\.bin$|^ppt/activeX/", re.I)

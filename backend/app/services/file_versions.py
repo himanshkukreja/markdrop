@@ -311,6 +311,11 @@ async def apply_publicity(before: dict, after: dict, *, new_blob_already: bool |
         old_poster = before.get("poster_key")
         if old_poster and old_poster != after.get("poster_key"):
             await run_in_threadpool(r2.set_public, old_poster, False, "image/jpeg", epoch)
+        from app.services import pptx_preview
+
+        old_pdf = pptx_preview.pdf_key_of(before)
+        if old_pdf and old_key != new_key:
+            await run_in_threadpool(r2.set_public, old_pdf, False, pptx_preview.PDF_MIME, epoch)
 
 
 # ── Pruning and deletion ──────────────────────────────────────────────────────
@@ -362,7 +367,15 @@ async def drop_rows(db: AsyncIOMotorDatabase, rows: list[dict]) -> list[str]:
         keys.add(r.get("poster_key") or "")
     gone = await _unreferenced(db, keys)
     await _delete_objects(gone)
+    await _forget_previews(db, gone)
     return gone
+
+
+async def _forget_previews(db: AsyncIOMotorDatabase, keys: list[str]) -> None:
+    """Decks deleted here take their PDF previews with them (services/pptx_preview.py)."""
+    from app.services import pptx_preview
+
+    await pptx_preview.forget_blobs(db, keys)
 
 
 async def prune(db: AsyncIOMotorDatabase, after: dict, extra: list[dict] | None = None) -> list[str]:
@@ -395,6 +408,7 @@ async def forget_document(db: AsyncIOMotorDatabase, doc_id: str, current: dict |
         keys.discard(current.get("blob_key") or "")  # the caller deletes it
     gone = await _unreferenced(db, keys)
     await _delete_objects(gone)
+    await _forget_previews(db, gone)
     return gone
 
 

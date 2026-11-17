@@ -542,7 +542,7 @@ function serveViewer(renderer, blobKey, url, env, request) {
   const atRaw = Number(url.searchParams.get("at"));
   const at = Number.isFinite(atRaw) && atRaw > 0 ? Math.min(Math.floor(atRaw), 1e7) : 0;
   const html =
-    renderer === "pdf" ? pdfViewer(src, theme, at)
+    renderer === "pdf" ? pdfViewer(src, theme, at, deckPdfName(blobKey, url.searchParams.get("fn")))
     : renderer === "sheet" ? sheetViewer(src, theme)
     : renderer === "docx" ? docxViewer(src, theme)
     : renderer === "pptx" ? pptxViewer(src, theme, at, url.searchParams.get("fn"))
@@ -791,7 +791,18 @@ function showUnavailable(){
   document.body.innerHTML = '<main class="na-body">' + ${JSON.stringify(NA_MARKUP)} + '</main>';
 }`;
 
-function pdfViewer(src, theme, at = 0) {
+/**
+ * A PowerPoint deck's exact preview (the API's ``<deck key>.pdf``, services/pptx_preview.py): the PDF
+ * viewer's own button then saves it as "<deck name>.pdf" and says "PDF", since the app's Download is
+ * the .pptx. ?fn= is the deck's file name, reduced to safe characters. Null for any other PDF.
+ */
+function deckPdfName(blobKey, fn) {
+  if (!/\.pptx\.pdf$/i.test(blobKey)) return null;
+  const base = (fn || "").slice(0, 200).replace(/\.pptx$/i, "").replace(/[^A-Za-z0-9 ._()-]/g, "_").trim();
+  return `${base || "slides"}.pdf`;
+}
+
+function pdfViewer(src, theme, at = 0, deckPdf = null) {
   // Rendered with PDF.js to <canvas>, NOT <embed>. A sandboxed iframe blocks
   // plugin content outright, so the browser's built-in PDF viewer silently
   // fails here. Sandboxing is non-negotiable for user files, so we draw.
@@ -833,7 +844,7 @@ function pdfViewer(src, theme, at = 0) {
 <button type="button" class="btn icon" id="zin" aria-label="Zoom in" disabled>${icon("plus")}</button>
 </div>
 <button type="button" class="btn has-lbl" id="fit" aria-pressed="true" disabled>${icon("fit")}<span class="lbl">Fit width</span></button>
-<a class="btn has-lbl" id="dl" download>${icon("download")}<span class="lbl">Download</span></a>
+<a class="btn has-lbl" id="dl" ${deckPdf ? `download="${deckPdf}" title="Download this preview as a PDF"` : "download"}>${icon("download")}<span class="lbl">${deckPdf ? "PDF" : "Download"}</span></a>
 </header>
 <main class="wrap" id="scroller"><div id="out" class="pdf"></div></main>
 <div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>

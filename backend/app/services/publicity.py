@@ -7,8 +7,8 @@ predicate, and it lives here (access policy §5.3):
 
     is_public(doc, ws) = level == link ∧ ¬password ∧ ¬ws.require_auth ∧ ¬expired
 
-It applies to the current blob, every object of a zipped site's prefix, and the
-current poster frame. Old file versions are never public.
+It applies to the current blob, every object of a zipped site's prefix, the
+current poster frame and captions, and a deck's PDF preview. Old file versions are never public.
 
 Signed links carry the document's **access epoch** (``e``). Each narrowing bumps
 ``documents.access_epoch`` and writes it onto the objects as ``ae``; the Worker
@@ -123,6 +123,12 @@ async def apply(doc: Any, public: bool, *, epoch: int | None = None) -> bool:
         if _get(doc, "captions_key"):
             ok = bool(await run_in_threadpool(
                 r2.set_public, _get(doc, "captions_key"), public, "text/vtt", epoch)) and ok
+        from app.services import pptx_preview
+
+        pdf = pptx_preview.pdf_key_of(doc)
+        if pdf:  # a deck's PDF preview (services/pptx_preview.py)
+            ok = bool(await run_in_threadpool(
+                r2.set_public, pdf, public, pptx_preview.PDF_MIME, epoch)) and ok
     except Exception:
         log.warning("R2 publicity change failed for %s", _get(doc, "slug"), exc_info=True)
         return False
@@ -186,8 +192,13 @@ def byte_urls(doc: Any, *, public: bool) -> dict[str, str | None]:
     epoch = epoch_of(doc)
     ttl = ttl_for(mime)
     if blob:
+        # A deck with a ready PDF preview opens in the PDF viewer (services/pptx_preview.py);
+        # download_url stays the deck.
+        from app.services import pptx_preview
+
+        view_key, view_mime = pptx_preview.viewer_target(doc) or (blob, mime)
         out["artifact_url"] = art_service.build_artifact_url(
-            blob, mime, private=not public, epoch=epoch, ttl=ttl)
+            view_key, view_mime, private=not public, epoch=epoch, ttl=ttl)
         out["download_url"] = art_service.build_download_url(
             blob, private=not public, epoch=epoch, ttl=ttl)
     poster = _get(doc, "poster_key")

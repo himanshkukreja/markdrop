@@ -41,6 +41,7 @@ from app.services import artifact as art_service
 from app.services import bundle
 from app.services import file_versions
 from app.services import media
+from app.services import pptx_preview
 from app.services import live
 from app.services import r2
 from app.services import revalidate
@@ -275,7 +276,13 @@ async def confirm_artifact(
     # background (services/media.py); the response doesn't wait for it.
     if doc.id and not bundle_prefix:
         media.schedule(db, doc.id, 1, blob_key, mime)
+        # A PowerPoint deck's exact PDF preview, made in the background (services/pptx_preview.py).
+        await pptx_preview.schedule(db, doc.id, blob_key, mime)
 
+    if pptx_preview.is_deck(mime) and not data.workspace:  # its preview state, just scheduled
+        from app.services.document import _doc_from_mongo
+
+        doc = _doc_from_mongo(await db["documents"].find_one({"slug": doc.slug}))
     if data.workspace:
         from app.services import library as lib_service
 
@@ -588,6 +595,7 @@ async def replace_artifact_file(
             await run_in_threadpool(r2.delete_prefix, old_key)
         else:
             await run_in_threadpool(r2.delete, old_key)
+            await pptx_preview.forget_blobs(db, [old_key])
     await file_versions.forget_document(db, str(current["_id"]), {"poster_key": current.get("poster_key")})
 
     live.publish(doc.slug, doc.rev)
@@ -623,4 +631,6 @@ async def _replace_keeping_version(db, user: User, current: dict, data: Artifact
     await file_versions.prune(db, after, plan)
     await file_uploads.after_swap(db, before, after, version, action="replace",
                                   user_id=user.id, probe=True)
+    # Re-read: a deck's preview state was set by the swap's follow-up (services/pptx_preview.py).
+    after = await db["documents"].find_one({"_id": after["_id"]}) or after
     return await _artifact_response(db, after, user)

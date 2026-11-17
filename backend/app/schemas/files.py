@@ -135,6 +135,11 @@ class FileInfoResponse(BaseModel):
     poster_url: str | None = None
     download_url: str | None = None
     access: str
+    # PowerPoint decks: "converting" while the exact PDF preview is made (artifact_url is the slide
+    # viewer meanwhile), "ready" (artifact_url shows the PDF; download_url is still the .pptx),
+    # "failed" (the slide viewer, which may differ from PowerPoint). Null for other files, or when
+    # previews aren't made on this server.
+    pdf_preview: str | None = None
 
     @model_validator(mode="after")
     def _addresses(self):

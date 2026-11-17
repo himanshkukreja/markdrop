@@ -142,6 +142,11 @@ export interface DocumentResponse {
   chapters?: { t: number; title: string }[] | null;
   /** ffprobe's reading of a video or audio file; null until known. */
   media?: MediaInfo | null;
+  /**
+   * A PowerPoint deck's exact PDF preview: "converting" (artifact_url is the slide viewer meanwhile),
+   * "ready" (artifact_url shows the PDF; download_url is still the .pptx) or "failed". Null otherwise.
+   */
+  pdf_preview?: PdfPreviewState | null;
   /** Artifacts: the live file version (1 for a never-replaced file). Sent as `ver` with analytics beacons. */
   file_version?: number | null;
   /**
@@ -186,6 +191,7 @@ export interface MediaInfo {
 }
 
 export type DocKind = "markdown" | "artifact";
+export type PdfPreviewState = "converting" | "ready" | "failed";
 export type ArtifactRenderer =
   | "html" | "pdf" | "sheet" | "docx" | "pptx" | "bundle" | "image" | "video" | "audio" | "text" | "download";
 
