@@ -159,7 +159,7 @@ class Connect(HubSpotWorld):
         c = r.json()["connection"]
         self.assertEqual(c["scopes_from"], "probe")
         self.assertEqual([m["scope"] for m in c["missing_scopes"]], ["crm.objects.companies.read"])
-        self.assertEqual(c["unchecked_scopes"], ["crm.objects.contacts.write"])
+        self.assertEqual(c["unchecked_scopes"], ["crm.objects.contacts.write", "crm.objects.deals.write"])
 
     async def test_one_hubspot_account_per_workspace(self):
         self.assertEqual((await self.hs_connect()).status_code, 200)

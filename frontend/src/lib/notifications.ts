@@ -33,7 +33,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export type NotificationKind = "mention" | "signoff_requested" | "shared"
   // Comments (backend services/comments/notify_app.py).
-  | "comment_mention" | "comment_reply" | "comment_new" | "comment_resolved" | "comment_assigned";
+  | "comment_mention" | "comment_reply" | "comment_new" | "comment_resolved" | "comment_assigned"
+  // HubSpot (backend services/hubspot_notify.py): a pre-call brief.
+  | "hubspot_precall";
 
 export interface AppNotification {
   id: string;

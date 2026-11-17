@@ -76,6 +76,14 @@ async def draft(db: AsyncIOMotorDatabase, team: dict, *, now: datetime | None = 
     for b in s["blockers"]:
         lines.append({"kind": "blocker", "text": b["text"], "person_id": (b.get("person") or {}).get("id"),
                       "sources": [x for x in [_src(b.get("source"))] if x]})
+    # HubSpot's Pipeline section (services/hubspot_deals.py): only the HubSpot team's brief, and only people
+    # who may use HubSpot see these lines (brief_out); [] when HubSpot isn't connected to this team.
+    try:
+        from app.services import hubspot_deals
+
+        lines += await hubspot_deals.brief_lines(db, team, s["week"])
+    except Exception:
+        log.warning("team brief: the HubSpot pipeline of %s failed", team["_id"], exc_info=True)
     old = await db[T.BRIEFS].find_one({"team_id": str(team["_id"]), "week": s["week"]})
     kept = [ln for ln in (old or {}).get("lines") or [] if ln.get("edited_by")]
     hidden = {wm.norm(ln.get("original") or ln["text"]) for ln in (old or {}).get("lines") or [] if ln.get("hidden")}
@@ -107,9 +115,17 @@ async def brief_out(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.C
             if not d.get("deleted_at") and await access.discoverable(actor, d, ctx):
                 ok.add(d["slug"])
     lines = []
+    crm = None
     for ln in row.get("lines") or []:
         if ln.get("hidden") and not can_edit:
             continue
+        if ln.get("kind") == "pipeline":
+            if crm is None:
+                from app.services import hubspot_deals
+
+                crm = await hubspot_deals.may_see_pipeline(db, row["workspace_id"], view.uid)
+            if not crm:
+                continue
         item = {"id": ln["id"], "kind": ln.get("kind") or "update", "text": ln["text"],
                 "person": ppl.get(ln.get("person_id") or ""), "edited": bool(ln.get("edited_by")),
                 "sources": [s for s in ln.get("sources") or [] if s["href"].lstrip("/").split("#")[0] in ok]}

@@ -178,6 +178,12 @@ export default function PrivacyPage() {
           items go to HubSpot as tasks only when someone approves them. The transcript and recording are never sent.</Li>
         <Li><strong className="text-text">Who.</strong> Only that team&rsquo;s meetings, and only by people who can open the meeting and are in
           the team (or are workspace admins). A private team&rsquo;s meetings never reach HubSpot through anyone else.</Li>
+        <Li><strong className="text-text">Suggested deal updates, account pages, briefs and Ask.</strong> After a team call matched to a deal,
+          the call&rsquo;s notes, some of its transcript lines and the deal&rsquo;s current fields are sent to Markdrop&rsquo;s AI provider
+          (see Anthropic below) to suggest changes to the deal; a change reaches HubSpot only when someone in the team applies it. Account
+          pages, pre-call briefs (in Slack and the Markdrop inbox) and the Pipeline lines of the team&rsquo;s weekly brief show deal details
+          and the team&rsquo;s calls only to the team&rsquo;s members and workspace admins; Ask reads the deal list only for them. Each person
+          can turn their pre-call briefs and Slack messages off in Settings &rsaquo; Account.</Li>
       </ul>
       <P>
         <strong className="text-text">Kept and deleted.</strong> Disconnecting HubSpot deletes the key, the cached users and stages, and every
@@ -217,7 +223,7 @@ export default function PrivacyPage() {
           only how many minutes were transcribed.</Li>
         <Li>Resend and Brevo (sign-in and notification email).</Li>
         <Li>PostHog and Google (analytics, as above).</Li>
-        <Li>Anthropic (AI in pages, guides, search, Ask, meetings, Team, analytics and Jira drafts, which are powered by Anthropic&rsquo;s Claude models): when you use an AI feature, the text it needs is sent to Anthropic&rsquo;s API to answer. For AI search and Ask, that is your question (and earlier questions in the same conversation) and short excerpts of the matching items you can open; for a workspace's Ask suggestions, the meeting topics, decisions and action items and the page titles and headings every member of it can open (never encrypted items, and only the title of a password-protected one). Nothing sent is used to train models: Anthropic doesn&rsquo;t train on data sent through its commercial API. Encrypted items are never sent. We keep only usage counts (tokens, cost, which feature), not the text sent. The one exception: your Ask conversations (questions, answers and their sources) are kept for you alone, so you can return to them, and deleted 90 days after the last question or when you clear them.</Li>
+        <Li>Anthropic (AI in pages, guides, search, Ask, meetings, Team, analytics, Jira drafts and HubSpot deal suggestions, which are powered by Anthropic&rsquo;s Claude models): when you use an AI feature, the text it needs is sent to Anthropic&rsquo;s API to answer. For AI search and Ask, that is your question (and earlier questions in the same conversation) and short excerpts of the matching items you can open; for a workspace's Ask suggestions, the meeting topics, decisions and action items and the page titles and headings every member of it can open (never encrypted items, and only the title of a password-protected one). Nothing sent is used to train models: Anthropic doesn&rsquo;t train on data sent through its commercial API. Encrypted items are never sent. We keep only usage counts (tokens, cost, which feature), not the text sent. The one exception: your Ask conversations (questions, answers and their sources) are kept for you alone, so you can return to them, and deleted 90 days after the last question or when you clear them.</Li>
       </ul>
       <P>We don&rsquo;t sell personal data, and we don&rsquo;t use it for advertising.</P>
 

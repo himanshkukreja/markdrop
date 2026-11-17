@@ -37,6 +37,8 @@ one API worker runs it (§5.1, §5.5, A6):
                              what a workspace gathered when it turns Team memory off
     zoom          every 15 s  Zoom meetings without a transcript: the next due transcription, then the
                              next recording to copy into R2 (services/zoom_media.py: tick)
+    hubspot       every 5 min  HubSpot pre-call briefs: the HubSpot team's members' HubSpot meetings starting in
+                             5-60 minutes get their brief once (services/hubspot_notify.py: tick)
     jira          every 60 s  Jira (services/jira*.py): tick the to-dos Jira moved while their page was
                              being edited; extend the workspaces' Jira webhooks before their 30 days run out
 
@@ -256,6 +258,12 @@ async def _jira(db: AsyncIOMotorDatabase) -> None:
     await jira.refresh_webhooks(db)
 
 
+async def _hubspot(db: AsyncIOMotorDatabase) -> None:
+    from app.services import hubspot_notify
+
+    await hubspot_notify.tick(db)
+
+
 async def _zoom(db: AsyncIOMotorDatabase) -> None:
     from app.services import zoom_media
 
@@ -284,6 +292,7 @@ def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
                               ("ask_suggestions", 300.0, _ask_suggestions),
                               ("workspace_memory", 30.0, _workspace_memory),
                               ("jira", 60.0, _jira), ("zoom", 15.0, _zoom),
+                              ("hubspot", 300.0, _hubspot),
                               ("email_retry", 60.0, _email_retry)):
         _TASKS.append(loop.create_task(_loop(name, every, get_db, body)))
 

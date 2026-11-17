@@ -178,6 +178,7 @@ class Transport(McpTestCase):
             "zoom_status", "import_zoom_meetings",
             # HubSpot (mcp/hubspot_tools.py).
             "hubspot_status", "hubspot_match", "log_to_hubspot", "hubspot_tasks",
+            "hubspot_suggestions", "hubspot_account", "hubspot_pipeline", "hubspot_notifications",
         # A video's captions (search and Ask read it by minute).
         "set_captions"})
         for t in tools.values():

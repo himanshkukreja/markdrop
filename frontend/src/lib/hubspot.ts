@@ -12,6 +12,11 @@
  *   POST   /api/v1/hubspot/meetings/{id}/log             Log to HubSpot
  *   POST   /api/v1/hubspot/meetings/{id}/tasks           {keys}
  *   GET    /api/v1/hubspot/deals?workspace_id=&q=        deal search (Change match)
+ *   POST   /api/v1/hubspot/meetings/{id}/suggestions     suggest deal updates again
+ *   POST   /api/v1/hubspot/meetings/{id}/suggestions/{sid}/apply | /dismiss
+ *   POST   /api/v1/hubspot/meetings/{id}/account         make or update the account page
+ *   GET    /api/v1/hubspot/pipeline?workspace_id=        deals, last call, at risk
+ *   GET    /api/v1/hubspot/me, PUT {precall?, approve?}  your own HubSpot messages
  *
  * Kept out of lib/api.ts (that one loads on public pages).
  */
@@ -20,7 +25,13 @@ import { request } from "@/lib/workspaces";
 export interface HubSpotScope { scope: string; why: string; required: boolean }
 export interface HubSpotTeam { id: string; name: string; visibility: "open" | "private"; slug?: string | null }
 
+export type HubSpotSwitch = "auto_log" | "suggest" | "accounts" | "precall" | "approve";
+
 export interface HubSpotStatus {
+  /** The workspace's switches (auto_log off by default, the rest on). */
+  switches?: Record<HubSpotSwitch, boolean>;
+  /** Whether the key may change deals (Apply on a suggested update). */
+  deals_write?: "granted" | "missing" | "unchecked" | null;
   configured: boolean;
   can_manage: boolean;
   connected: boolean;
@@ -52,7 +63,21 @@ export interface HubSpotTask {
   created: { id: string; at: string | null } | null; pending: boolean;
 }
 
+export interface HubSpotEvidence { ref: string; quote: string | null; speaker: string | null; at: string | null; href: string | null }
+
+export interface HubSpotSuggestion {
+  id: string; field: string; label: string; kind: "stage" | "date" | "number" | "text" | "enum";
+  value: string; display: string; current: string | null; why: string | null; evidence: HubSpotEvidence[];
+  state: "open" | "applying" | "applied" | "dismissed" | "failed"; error: string | null; at: string | null;
+}
+
 export interface HubSpotPanel {
+  suggestions?: {
+    enabled: boolean; state: "done" | "failed" | "skipped" | null; reason: string | null; message: string | null;
+    at: string | null; items: HubSpotSuggestion[]; can_suggest: boolean;
+  } | null;
+  account?: { name: string | null; slug: string; href: string; updated_at: string | null } | null;
+  deals_write?: "granted" | "missing" | "unchecked";
   available: boolean;
   /** Why HubSpot doesn't apply to this meeting. */
   reason: "not_connected" | "not_team" | "not_member" | null;
@@ -81,6 +106,8 @@ export const hubspotConnect = (body: { workspace_id: string; token?: string | nu
   request<HubSpotStatus>("/api/v1/hubspot/connection", json("PUT", body));
 export const hubspotSetTeam = (ws: string, team_id: string) => request<HubSpotStatus>("/api/v1/hubspot/team", json("PUT", { workspace_id: ws, team_id }));
 export const hubspotSetAutoLog = (ws: string, auto_log: boolean) => request<HubSpotStatus>("/api/v1/hubspot/settings", json("PUT", { workspace_id: ws, auto_log }));
+export const hubspotSetSwitch = (ws: string, key: HubSpotSwitch, on: boolean) =>
+  request<HubSpotStatus>("/api/v1/hubspot/settings", json("PUT", { workspace_id: ws, [key]: on }));
 export const hubspotDisconnect = (ws: string) => request<HubSpotStatus>(`/api/v1/hubspot/connection?${q(ws)}`, { method: "DELETE" });
 
 const m = (id: string) => `/api/v1/hubspot/meetings/${encodeURIComponent(id)}`;
@@ -89,6 +116,16 @@ export const hubspotRematch = (id: string) => request<HubSpotPanel>(`${m(id)}/ma
 export const hubspotSetMatch = (id: string, deal_id: string | null) => request<HubSpotPanel>(`${m(id)}/match`, json("PUT", { deal_id }));
 export const hubspotLog = (id: string) => request<HubSpotPanel>(`${m(id)}/log`, { method: "POST" });
 export const hubspotCreateTasks = (id: string, keys: string[]) => request<HubSpotPanel>(`${m(id)}/tasks`, json("POST", { keys }));
+export const hubspotSuggest = (id: string) => request<HubSpotPanel>(`${m(id)}/suggestions`, { method: "POST" });
+export const hubspotApply = (id: string, sid: string) => request<HubSpotPanel>(`${m(id)}/suggestions/${encodeURIComponent(sid)}/apply`, { method: "POST" });
+export const hubspotDismiss = (id: string, sid: string) => request<HubSpotPanel>(`${m(id)}/suggestions/${encodeURIComponent(sid)}/dismiss`, { method: "POST" });
+export const hubspotAccount = (id: string) =>
+  request<{ name: string | null; slug: string; href: string; updated_at: string | null }>(`${m(id)}/account`, { method: "POST" });
+
+export interface HubSpotMe { teams: Array<{ workspace_id: string; workspace: string | null; team: string | null }>; precall: boolean; approve: boolean }
+export const hubspotMe = () => request<HubSpotMe>("/api/v1/hubspot/me");
+export const hubspotSetMe = (body: { precall?: boolean; approve?: boolean }) => request<HubSpotMe>("/api/v1/hubspot/me", json("PUT", body));
+
 export const hubspotDeals = (ws: string, query: string) =>
   request<{ deals: HubSpotDeal[] }>(`/api/v1/hubspot/deals?${q(ws)}&q=${encodeURIComponent(query)}`);
 

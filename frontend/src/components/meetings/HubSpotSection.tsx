@@ -6,13 +6,17 @@
  * HubSpot meeting's internal notes; again updates the same one) and the action items proposed as HubSpot tasks,
  * created only when someone ticks and approves them. Shown only on the HubSpot team's meetings, to people who can
  * read the meeting and are in that team (or workspace admins); everyone else sees nothing.
+ *
+ * Phase 2: Suggested updates to the deal (stage, close date, amount, next step, the portal's own fields), each with
+ * the lines of the call that support it and Apply / Dismiss (never applied on their own), and the company's
+ * account page (a link, and Update).
  */
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button, Checkbox, Input, Spinner, useToast } from "@/components/ui";
 import { BrandMark } from "@/components/integrations/BrandMark";
 import {
-  fmtAmount, hubspotCreateTasks, hubspotDeals, hubspotLog, hubspotMeeting, hubspotRematch, hubspotSetMatch,
-  type HubSpotDeal, type HubSpotPanel,
+  fmtAmount, hubspotAccount, hubspotApply, hubspotCreateTasks, hubspotDeals, hubspotDismiss, hubspotLog, hubspotMeeting,
+  hubspotRematch, hubspotSetMatch, hubspotSuggest, type HubSpotDeal, type HubSpotPanel, type HubSpotSuggestion,
 } from "@/lib/hubspot";
 
 const HOW: Record<string, string> = {
@@ -103,6 +107,35 @@ export function HubSpotSection({ meetingId, workspaceId }: { meetingId: string; 
         </span>
       )}
 
+      {p.suggestions && p.suggestions.enabled && (d || p.suggestions.items.length > 0) && (
+        <Suggestions p={p} busy={busy}
+          onSuggest={() => void run("suggest", () => hubspotSuggest(meetingId), (n) => {
+            const k = (n.suggestions?.items ?? []).filter((i) => i.state === "open").length;
+            return k ? `${k} suggested ${k === 1 ? "update" : "updates"}.` : (n.suggestions?.message || "Nothing to change in the deal from this call.");
+          })}
+          onApply={(it) => void run(`apply:${it.id}`, () => hubspotApply(meetingId, it.id), `${it.label} updated in HubSpot.`)}
+          onDismiss={(it) => void run(`dismiss:${it.id}`, () => hubspotDismiss(meetingId, it.id), "Dismissed.")} />
+      )}
+
+      {(p.account || p.companies.length > 0) && (
+        <p className="m-0 flex flex-wrap items-center gap-2 text-[13px]" data-testid="hubspot-account">
+          {p.account
+            ? <a href={p.account.href} className="font-medium text-accent-text hover:underline">Account page: {p.account.name || "open"}</a>
+            : <span className="text-text-secondary">No account page yet.</span>}
+          <Button size="sm" variant="ghost" iconLeft="refresh" loading={busy === "account"} disabled={!!busy}
+            onClick={async () => {
+              setBusy("account");
+              try {
+                const a = await hubspotAccount(meetingId);
+                setP((cur) => (cur ? { ...cur, account: a } : cur));
+                toast.success("The account page is up to date.");
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "That didn't work. Try again.");
+              } finally { setBusy(""); }
+            }}>{p.account ? "Update" : "Make it"}</Button>
+        </p>
+      )}
+
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Button size="sm" variant={p.logged ? "secondary" : "primary"} iconLeft="send" loading={busy === "log"} disabled={!!busy || !canLog}
           data-testid="hubspot-log"
@@ -149,6 +182,59 @@ export function HubSpotSection({ meetingId, workspaceId }: { meetingId: string; 
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+const STATE_LABEL: Record<string, string> = { applied: "Applied", dismissed: "Dismissed", applying: "Applying…" };
+
+function Suggestions({ p, busy, onSuggest, onApply, onDismiss }: {
+  p: HubSpotPanel; busy: string; onSuggest: () => void; onApply: (s: HubSpotSuggestion) => void; onDismiss: (s: HubSpotSuggestion) => void;
+}) {
+  const s = p.suggestions!;
+  const open = s.items.filter((i) => i.state === "open" || i.state === "failed");
+  const done = s.items.filter((i) => !(i.state === "open" || i.state === "failed"));
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5" data-testid="hubspot-suggestions">
+      <span className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[13px] font-medium text-text">Suggested updates</span>
+        {s.can_suggest && (
+          <Button size="sm" variant="ghost" iconLeft="refresh" loading={busy === "suggest"} disabled={!!busy} onClick={onSuggest}>
+            {s.state ? "Suggest again" : "Suggest updates"}
+          </Button>
+        )}
+      </span>
+      {p.deals_write === "missing" && open.length > 0 && (
+        <p className="m-0 text-caption text-text-muted">Apply needs the HubSpot key&apos;s deals write scope: a workspace admin adds it in HubSpot.</p>
+      )}
+      {open.length === 0 && done.length === 0 && (
+        <p className="m-0 text-caption text-text-muted">
+          {s.state === "done" ? "Nothing in this call changes the deal." : s.message || "Markdrop suggests deal updates after the call's summary is written. Nothing changes in HubSpot until you apply it."}
+        </p>
+      )}
+      <ul className="m-0 flex list-none flex-col gap-1.5 p-0 text-[13px]">
+        {[...open, ...done].map((it) => (
+          <li key={it.id} className="flex min-w-0 flex-col gap-1 rounded-lg border border-border bg-bg p-2" data-testid="hubspot-suggestion">
+            <span className="min-w-0">
+              <b>{it.label}</b>: {it.current ? <span className="text-text-muted line-through">{it.current}</span> : null}{it.current ? " → " : ""}{it.display}
+              {STATE_LABEL[it.state] && <Badge size="sm" tone={it.state === "applied" ? "success" : "neutral"} className="ml-2">{STATE_LABEL[it.state]}</Badge>}
+            </span>
+            {it.why && <span className="text-text-secondary">{it.why}</span>}
+            {it.evidence.map((e) => (
+              <span key={e.ref} className="text-caption text-text-muted">
+                “{e.quote}”{e.speaker ? ` · ${e.speaker}` : ""}{e.at ? <> · {e.href ? <a href={e.href} className="hover:underline">{e.at}</a> : e.at}</> : null}
+              </span>
+            ))}
+            {it.state === "failed" && it.error && <span className="text-caption text-danger-text">{it.error}</span>}
+            {(it.state === "open" || it.state === "failed") && (
+              <span className="flex flex-wrap gap-1">
+                <Button size="sm" variant="secondary" loading={busy === `apply:${it.id}`} disabled={!!busy} onClick={() => onApply(it)}>Apply</Button>
+                <Button size="sm" variant="ghost" loading={busy === `dismiss:${it.id}`} disabled={!!busy} onClick={() => onDismiss(it)}>Dismiss</Button>
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -8,7 +8,8 @@ import {
 import { BrandMark } from "@/components/integrations/BrandMark";
 import { updateTeam } from "@/lib/teams";
 import {
-  hubspotConnect, hubspotDisconnect, hubspotSetAutoLog, hubspotSetTeam, hubspotStatus, type HubSpotStatus,
+  hubspotConnect, hubspotDisconnect, hubspotSetAutoLog, hubspotSetSwitch, hubspotSetTeam, hubspotStatus, type HubSpotStatus,
+  type HubSpotSwitch,
 } from "@/lib/hubspot";
 
 /**
@@ -94,6 +95,7 @@ export function HubSpotWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boo
           </dl>
 
           <AutoLog id={id} st={st} isAdmin={isAdmin} onSaved={setSt} />
+          <MoreSwitches id={id} st={st} isAdmin={isAdmin} onSaved={setSt} />
 
           {!st.team && (
             <Alert tone="info" title="Pick a team">
@@ -198,6 +200,54 @@ function AutoLog({ id, st, isAdmin, onSaved }: { id: string; st: HubSpotStatus; 
           : "Off: someone in the team chooses Log to HubSpot on each meeting. On: calls matched to the meeting HubSpot booked are logged after their summary is written."}
         {" "}Tasks always wait for someone to approve them.
       </p>
+    </div>
+  );
+}
+
+const MORE: Array<{ key: HubSpotSwitch; label: string; on: string; off: string }> = [
+  { key: "suggest", label: "Suggest deal updates",
+    on: "After a call matched to a deal, Markdrop suggests changes to its stage, close date, amount and next step, with the lines of the call that support them. Nothing changes in HubSpot until someone applies one.",
+    off: "Off: no suggestions after calls." },
+  { key: "accounts", label: "Account pages",
+    on: "A page per HubSpot company in the team, with its deals, calls, decisions, risks, open questions and tasks, kept up to date after each call.",
+    off: "Off: account pages aren't made or updated." },
+  { key: "precall", label: "Pre-call briefs",
+    on: "Before a team member's HubSpot meeting, a brief in Slack and their Markdrop inbox: the deal, the last call and what was promised. Each person can turn them off.",
+    off: "Off: nobody gets pre-call briefs." },
+  { key: "approve", label: "Slack buttons after calls",
+    on: "When a call's summary is ready, its host gets a Slack message with Log to HubSpot and Create tasks. Each person can turn it off.",
+    off: "Off: no Slack message after calls." },
+];
+
+function MoreSwitches({ id, st, isAdmin, onSaved }: { id: string; st: HubSpotStatus; isAdmin: boolean; onSaved: (s: HubSpotStatus) => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState("");
+  return (
+    <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-border bg-bg p-3" data-testid="hubspot-switches">
+      {MORE.map((x) => {
+        const on = st.switches?.[x.key] ?? true;
+        return (
+          <div key={x.key} className="flex min-w-0 flex-col gap-1">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+              <span className="text-[13px] font-medium text-text">{x.label}</span>
+              <Switch checked={on} disabled={!isAdmin || !!busy} aria-label={x.label} data-testid={`hubspot-switch-${x.key}`}
+                onChange={async (e) => {
+                  setBusy(x.key);
+                  try {
+                    onSaved(await hubspotSetSwitch(id, x.key, e.target.checked));
+                    toast.success(`${x.label}: ${e.target.checked ? "on" : "off"}.`);
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : "That didn't save.");
+                  } finally { setBusy(""); }
+                }} />
+            </div>
+            <p className="m-0 text-[13px] leading-5 text-text-secondary">{on ? x.on : x.off}</p>
+          </div>
+        );
+      })}
+      {st.deals_write === "missing" && (
+        <Alert tone="warning">Apply on a suggested update needs the <code>crm.objects.deals.write</code> scope on the HubSpot key. Add it in HubSpot (the key&apos;s scopes), then try Apply again.</Alert>
+      )}
     </div>
   );
 }

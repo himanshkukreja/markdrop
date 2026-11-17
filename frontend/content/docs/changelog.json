@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "hubspot-deals",
+      "date": "2026-11-17",
+      "title": "HubSpot: suggested deal updates, account pages and pre-call briefs",
+      "kind": "new",
+      "area": "Integrations",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "After a call, Markdrop suggests updates to the HubSpot deal with the lines of the call that support them, and nothing changes until you apply one. Each company gets an account page, team members get a brief before their HubSpot meetings, the host can log the call from Slack, and Ask and the weekly brief know your pipeline.",
+      "body": "- **Suggested deal updates.** Stage (only stages of the deal's pipeline), close date, amount, next step and your own competitor, budget or decision-maker fields, each with the quoted lines and their transcript time. **Apply** or **Dismiss**; never applied on its own. Apply needs the `crm.objects.deals.write` scope on the key. [Suggested deal updates](/integrations/hubspot#suggested-deal-updates)\n- **Account pages.** A page per HubSpot company in the team: deals, calls, decisions, objections and risks, open questions and tasks, kept up to date after each call; your own notes around that section stay. [Account pages](/integrations/hubspot#account-pages)\n- **Pre-call briefs.** About an hour before a HubSpot meeting, the deal, the last call and what was promised, in Slack and your inbox. Turn them off in Settings › Account. [Pre-call briefs](/integrations/hubspot#pre-call-briefs)\n- **Log from Slack.** The call's host gets **Log to HubSpot** and **Create tasks** buttons when the summary is ready. [In Slack](/integrations/hubspot#in-slack-log-and-create-tasks)\n- **Your pipeline in Ask and the weekly brief.** Ask answers questions about deals, and the HubSpot team's weekly brief lists deals that moved stage and deals at risk, for the team and workspace admins only. [Pipeline](/integrations/hubspot#your-pipeline-in-ask-and-the-weekly-brief)\n- **MCP and API.** `hubspot_suggestions`, `hubspot_account`, `hubspot_pipeline` and `hubspot_notifications`, and the matching routes under `/api/v1/hubspot`."
+    },
+    {
       "id": "hubspot",
       "date": "2026-11-17",
       "title": "Your team's calls, written up in HubSpot",

@@ -25760,7 +25760,7 @@
         "tags": [
           "hubspot"
         ],
-        "summary": "Log calls to HubSpot automatically",
+        "summary": "HubSpot's switches for the workspace",
         "operationId": "put_settings_api_v1_hubspot_settings_put",
         "requestBody": {
           "content": {
@@ -26102,6 +26102,323 @@
           "auth": "token",
           "rateLimits": [
             "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/hubspot/meetings/{meeting_id}/suggestions": {
+      "post": {
+        "tags": [
+          "hubspot"
+        ],
+        "summary": "Suggest HubSpot deal updates for a meeting",
+        "operationId": "suggest_api_v1_hubspot_meetings__meeting_id__suggestions_post",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "10/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/hubspot/meetings/{meeting_id}/suggestions/{suggestion_id}/apply": {
+      "post": {
+        "tags": [
+          "hubspot"
+        ],
+        "summary": "Apply a suggested deal update",
+        "operationId": "apply_suggestion_api_v1_hubspot_meetings__meeting_id__suggestions__suggestion_id__apply_post",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          },
+          {
+            "name": "suggestion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Suggestion Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/hubspot/meetings/{meeting_id}/suggestions/{suggestion_id}/dismiss": {
+      "post": {
+        "tags": [
+          "hubspot"
+        ],
+        "summary": "Dismiss a suggested deal update",
+        "operationId": "dismiss_suggestion_api_v1_hubspot_meetings__meeting_id__suggestions__suggestion_id__dismiss_post",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          },
+          {
+            "name": "suggestion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Suggestion Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/hubspot/meetings/{meeting_id}/account": {
+      "post": {
+        "tags": [
+          "hubspot"
+        ],
+        "summary": "Make or update a meeting's account page",
+        "operationId": "account_api_v1_hubspot_meetings__meeting_id__account_post",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/hubspot/pipeline": {
+      "get": {
+        "tags": [
+          "hubspot"
+        ],
+        "summary": "The HubSpot pipeline",
+        "operationId": "pipeline_api_v1_hubspot_pipeline_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/hubspot/me": {
+      "get": {
+        "tags": [
+          "hubspot"
+        ],
+        "summary": "Your HubSpot messages",
+        "operationId": "get_me_api_v1_hubspot_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      },
+      "put": {
+        "tags": [
+          "hubspot"
+        ],
+        "summary": "Turn your HubSpot messages on or off",
+        "operationId": "put_me_api_v1_hubspot_me_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HubSpotMeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
           ]
         }
       }
@@ -32769,6 +33086,36 @@
         "type": "object",
         "title": "HubSpotMatchIn"
       },
+      "HubSpotMeIn": {
+        "properties": {
+          "precall": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precall",
+            "description": "Pre-call briefs before your HubSpot meetings."
+          },
+          "approve": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approve",
+            "description": "The Slack message after your calls with Log to HubSpot and Create tasks."
+          }
+        },
+        "type": "object",
+        "title": "HubSpotMeIn"
+      },
       "HubSpotSettingsIn": {
         "properties": {
           "workspace_id": {
@@ -32777,15 +33124,69 @@
             "title": "Workspace Id"
           },
           "auto_log": {
-            "type": "boolean",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Auto Log",
-            "description": "Log the team's calls to HubSpot after their summary is written, when the match is confident."
+            "description": "Log the team's calls to HubSpot after their summary is written, when the match is confident (off by default)."
+          },
+          "suggest": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggest",
+            "description": "Suggest deal updates after a call matched to a deal (on by default; never applied without a person)."
+          },
+          "accounts": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accounts",
+            "description": "Keep an account page per HubSpot company (on by default)."
+          },
+          "precall": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precall",
+            "description": "Pre-call briefs to the team's members before their HubSpot meetings (on by default)."
+          },
+          "approve": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approve",
+            "description": "A Slack message to the call's host with Log to HubSpot and Create tasks buttons (on by default)."
           }
         },
         "type": "object",
         "required": [
-          "workspace_id",
-          "auto_log"
+          "workspace_id"
         ],
         "title": "HubSpotSettingsIn"
       },

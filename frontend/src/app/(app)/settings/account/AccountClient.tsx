@@ -16,6 +16,7 @@ import { useMounted } from "@/components/shell/useLocation";
 import { SettingsLoader, SwitchRow, useRequireUser } from "../settings-shared";
 import { OLD_ACCOUNT_ANCHORS } from "@/lib/integrations";
 import { PushCard } from "./PushCard";
+import { HubSpotCard } from "./HubSpotCard";
 import { ViewHistoryCard } from "./ViewHistoryCard";
 import { AccountTrackCard } from "@/components/analytics/AnalyticsSettings";
 
@@ -271,6 +272,8 @@ export default function AccountClient() {
       </Card>
 
       <PushCard />
+
+      <HubSpotCard />
 
       <Card title="Integrations" description="Slack notifications, Jira, Claude, ChatGPT, Google Docs, VS Code and more each have their own page now.">
         <Button variant="secondary" size="sm" href="/settings/integrations" iconRight="arrowRight" data-testid="account-integrations-link">Open Integrations</Button>

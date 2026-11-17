@@ -239,6 +239,10 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "hubspot_match", scope: "write" },
       { name: "log_to_hubspot", scope: "write" },
       { name: "hubspot_tasks", scope: "write" },
+      { name: "hubspot_suggestions", scope: "write" },
+      { name: "hubspot_account", scope: "write" },
+      { name: "hubspot_pipeline", scope: "read" },
+      { name: "hubspot_notifications", scope: "write" },
     ],
   },
   {

@@ -589,7 +589,7 @@ function TodaySection({ data, meetings, today, compact }: { data: HomeData | nul
                     <Avatar name={n.actor.name} src={n.actor.picture ?? undefined} size="sm" className="hm-row__avatar" />
                     <span className="hm-row__main">
                       <span className="hm-row__title ph-sensitive" dir="auto">{n.text}</span>
-                      <span className="hm-row__meta">{n.kind === "signoff_requested" ? "Sign-off request" : n.kind === "shared" ? "Shared with you" : n.kind.startsWith("comment_") ? "Comment" : "Mention"} · {relativeTime(n.created_at)}</span>
+                      <span className="hm-row__meta">{n.kind === "signoff_requested" ? "Sign-off request" : n.kind === "shared" ? "Shared with you" : n.kind === "hubspot_precall" ? "Pre-call brief" : n.kind.startsWith("comment_") ? "Comment" : "Mention"} · {relativeTime(n.created_at)}</span>
                     </span>
                   </button>
                 </li>

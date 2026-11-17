@@ -24,12 +24,27 @@ API = "https://api.hubspot.test"
 TOKEN = "fake-hubspot-key-for-tests-only"
 PORTAL = 4242
 ALL_SCOPES = ["crm.objects.contacts.read", "crm.objects.contacts.write", "crm.objects.companies.read",
-              "crm.objects.deals.read", "crm.objects.owners.read", "oauth"]
+              "crm.objects.deals.read", "crm.objects.deals.write", "crm.objects.owners.read", "oauth"]
+# The portal's deal properties (GET /crm/v3/properties/deals): HubSpot's own, plus two custom fields.
+DEAL_PROPERTIES = [
+    {"name": "dealname", "label": "Deal name", "type": "string", "fieldType": "text", "hubspotDefined": True},
+    {"name": "dealstage", "label": "Deal stage", "type": "enumeration", "fieldType": "radio", "hubspotDefined": True, "options": []},
+    {"name": "amount", "label": "Amount", "type": "number", "fieldType": "number", "hubspotDefined": True},
+    {"name": "closedate", "label": "Close date", "type": "datetime", "fieldType": "date", "hubspotDefined": True},
+    {"name": "hs_next_step", "label": "Next step", "type": "string", "fieldType": "text", "hubspotDefined": True},
+    {"name": "hs_is_closed", "label": "Is closed", "type": "bool", "fieldType": "booleancheckbox", "calculated": True,
+     "modificationMetadata": {"readOnlyValue": True}},
+    {"name": "competitor", "label": "Competitor", "type": "enumeration", "fieldType": "select",
+     "options": [{"value": "globex", "label": "Globex"}, {"value": "initech", "label": "Initech"}]},
+    {"name": "decision_maker_name", "label": "Decision maker", "type": "string", "fieldType": "text"},
+]
 NEEDS = {"contacts": "crm.objects.contacts", "companies": "crm.objects.companies", "deals": "crm.objects.deals",
          "meetings": "crm.objects.contacts", "tasks": "crm.objects.contacts"}
 
 
 def ms(dt: str) -> int:
+    if str(dt).isdigit():
+        return int(dt)
     return int(datetime.fromisoformat(dt.replace("Z", "+00:00")).timestamp() * 1000)
 
 
@@ -47,6 +62,7 @@ class FakeHubSpot:
             {"id": "qualifiedtobuy", "label": "Qualified to buy", "metadata": {"isClosed": "false"}},
             {"id": "closedwon", "label": "Closed won", "metadata": {"isClosed": "true"}},
             {"id": "closedlost", "label": "Closed lost", "metadata": {"isClosed": "true"}}]}]
+        self.deal_properties = [dict(p) for p in DEAL_PROPERTIES]
         self.calls: list[tuple[str, str]] = []
         self.bodies: list[tuple[str, str, dict | None]] = []
         self.n = 1000
@@ -116,6 +132,8 @@ class FakeHubSpot:
                                     "companyCurrency": "USD", "accountType": "STANDARD"})
         if path.rstrip("/") == "/crm/v3/owners":
             return self._need("crm.objects.owners.read") or self._json(200, {"results": self.owners})
+        if path == "/crm/v3/properties/deals":
+            return self._need("crm.objects.deals.read") or self._json(200, {"results": self.deal_properties})
         if path == "/crm/v3/pipelines/deals":
             return self._need("crm.objects.deals.read") or self._json(200, {"results": self.pipelines})
         if parts[:3] == ["crm", "v3", "objects"]:
@@ -193,6 +211,13 @@ class FakeHubSpot:
                         good &= str(v or "").casefold() in {str(x).casefold() for x in f["values"]}
                     elif op == "BETWEEN":
                         good &= v is not None and int(f["value"]) <= ms(v) <= int(f["highValue"])
+                    elif op in ("GTE", "LTE", "GT", "LT"):
+                        if v is None:
+                            good = False
+                        else:
+                            a = ms(v) if not str(v).isdigit() else int(v)
+                            b = int(f["value"])
+                            good &= {"GTE": a >= b, "LTE": a <= b, "GT": a > b, "LT": a < b}[op]
                     else:
                         good = False
                 ok |= good

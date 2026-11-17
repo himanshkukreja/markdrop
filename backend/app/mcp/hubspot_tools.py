@@ -10,6 +10,15 @@
 * ``hubspot_tasks``: ``action: "list"`` the meeting's action items as proposed HubSpot tasks (due date,
   owner, already created?); ``"create"`` creates the ones chosen by key, once each.
 
+* ``hubspot_suggestions`` (Phase 2): the deal updates suggested after the call (stage, close date, amount,
+  next step, the portal's competitor / budget / decision-maker fields) with their evidence; ``"suggest"``
+  asks again, ``"apply"`` applies one (``id``; a person's choice, never automatic), ``"dismiss"`` hides one.
+* ``hubspot_account``: the company's account page (deals, calls, decisions, objections and risks, open
+  questions and tasks); ``"refresh"`` makes or updates it.
+* ``hubspot_pipeline``: the workspace's deals with stage, amount, close date, the team's last call and why
+  they're at risk (no call in 14 days, close date passed).
+* ``hubspot_notifications``: your own pre-call briefs and Slack messages after calls (on or off).
+
 Same rules as the website: only meetings of the workspace's HubSpot team, for people who can read the
 meeting and are in that team (or workspace admins). Connecting is on the website.
 """
@@ -21,7 +30,7 @@ from fastapi import HTTPException
 from app.mcp.auth import READ, WRITE
 from app.mcp.meeting_tools import _actx, _row
 from app.mcp.tools import _WORKSPACE_ARG, Context, Tool, ToolError, _ann, _out, actor_of, http_message, resolve_workspace
-from app.services import hubspot
+from app.services import hubspot, hubspot_accounts, hubspot_deals, hubspot_notify
 
 _SETUP = "Workspace settings › Integrations › HubSpot"
 _MEETING_ARG = {"type": "string", "minLength": 1, "maxLength": 300,
@@ -154,6 +163,86 @@ async def hubspot_tasks(ctx: Context, args: dict) -> tuple[str, dict]:
             else "This meeting has no action items."), {"action": action, "tasks": tasks, "results": []}
 
 
+def _sug_text(p: dict) -> str:
+    s = p.get("suggestions") or {}
+    items = s.get("items") or []
+    if not items:
+        why = {"no_deal": "the meeting isn't matched to a deal", "no_notes": "the meeting has no notes yet"}.get(s.get("reason") or "")
+        return ("No suggested deal updates" + (f": {why}" if why else (f": {s['message']}" if s.get("message") else "")) + ".")
+    lines = []
+    for i in items:
+        ev = "; ".join(f"“{e.get('quote')}”" + (f" ({e['at']})" if e.get("at") else "") for e in i.get("evidence") or [])
+        lines.append(f"- [{i['id']}] {i['label']}: {i.get('current') or 'none'} → {i['display']} · {i['state']}"
+                     + (f" · {i['why']}" if i.get("why") else "") + (f" · evidence: {ev}" if ev else ""))
+    return "Suggested deal updates (apply with action 'apply' and the id; nothing is applied on its own):\n" + "\n".join(lines)
+
+
+async def hubspot_suggestions(ctx: Context, args: dict) -> tuple[str, dict]:
+    row, _raw = await _row(ctx, args.get("meeting") or "")
+    mid = str(row["_id"])
+    action = args.get("action") or "list"
+    actor, actx = actor_of(ctx), _actx(ctx)
+    try:
+        if action == "suggest":
+            p = await hubspot_deals.request(ctx.db, ctx.user, actor, actx, mid)
+        elif action in ("apply", "dismiss"):
+            sid = str(args.get("id") or "")
+            if not sid:
+                raise ToolError("Pass the suggestion's id (from action 'list').")
+            fn = hubspot_deals.apply if action == "apply" else hubspot_deals.dismiss
+            p = await fn(ctx.db, ctx.user, actor, actx, mid, sid)
+        else:
+            p = await hubspot.panel(ctx.db, ctx.user, actor, actx, mid)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    if not p.get("available"):
+        return _summary(p), {"action": action, "suggestions": []}
+    items = (p.get("suggestions") or {}).get("items") or []
+    text = _sug_text(p)
+    if action == "apply":
+        text = f"Applied to the HubSpot deal.\n{text}"
+    return text, {"action": action, "suggestions": items, "deals_write": p.get("deals_write")}
+
+
+async def hubspot_account(ctx: Context, args: dict) -> tuple[str, dict]:
+    row, _raw = await _row(ctx, args.get("meeting") or "")
+    try:
+        out = await hubspot_accounts.account(ctx.db, ctx.user, actor_of(ctx), _actx(ctx), str(row["_id"]),
+                                             refresh_now=(args.get("action") == "refresh"))
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    from app.services import urls
+
+    url = urls.markdrop_url(out["slug"])
+    return (f"Account page of {out.get('name')}: {url}\n\n{out['content'][:8000]}",
+            {"name": out.get("name"), "slug": out["slug"], "url": url, "content": out["content"]})
+
+
+async def hubspot_pipeline(ctx: Context, args: dict) -> tuple[str, dict]:
+    ws_id, _ws, _r = await resolve_workspace(ctx, args["workspace"])
+    try:
+        got = await hubspot_deals.pipeline_for(ctx.db, ctx.user, ws_id, fresh=bool(args.get("fresh")))
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    deals = got["deals"]
+    if args.get("at_risk_only"):
+        deals = [d for d in deals if d["risks"]]
+    lines = [hubspot_deals.deal_line(d) for d in deals[:100]]
+    head = f"{len(deals)} deal{'s' if len(deals) != 1 else ''}" + (f", {got['at_risk']} at risk" if got["at_risk"] else "") + ":"
+    return (head + "\n" + "\n".join(lines)) if lines else "No deals.", {"workspace_id": ws_id, "deals": deals, "at_risk": got["at_risk"]}
+
+
+async def hubspot_notifications(ctx: Context, args: dict) -> tuple[str, dict]:
+    if (args.get("action") or "get") == "set":
+        got = await hubspot_notify.set_me(ctx.db, ctx.user, {"precall": args.get("precall"), "approve": args.get("approve")})
+    else:
+        got = await hubspot_notify.me(ctx.db, ctx.user)
+    on = lambda b: "on" if b else "off"  # noqa: E731
+    teams = ", ".join(f"{t['team']} ({t['workspace']})" for t in got["teams"]) or "none"
+    return (f"Pre-call briefs: {on(got['precall'])}. Slack messages after your calls: {on(got['approve'])}. "
+            f"HubSpot teams you're in: {teams}."), got
+
+
 HUBSPOT_TOOLS: list[Tool] = [
     Tool(
         name="hubspot_status",
@@ -228,5 +317,76 @@ HUBSPOT_TOOLS: list[Tool] = [
                             "results": {"type": "array", "items": {"type": "object"}}}, ["action", "tasks", "results"]),
         annotations=_ann(False, False, True),
         handler=hubspot_tasks,
+    ),
+    Tool(
+        name="hubspot_suggestions",
+        title="Suggested HubSpot deal updates",
+        description=("The HubSpot deal updates suggested after a HubSpot-team call: stage (only stages of the deal's pipeline), "
+                     "close date, amount, next step and the portal's competitor, budget or decision-maker fields, each with "
+                     "its evidence (quoted line and transcript time) and state (open, applied, dismissed). action 'list' "
+                     "(default); 'suggest' asks again (one AI request); 'apply' applies one to the HubSpot deal (id); "
+                     "'dismiss' hides one (id). Nothing is ever applied automatically."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "meeting": _MEETING_ARG,
+            "action": {"type": "string", "enum": ["list", "suggest", "apply", "dismiss"], "default": "list"},
+            "id": {"type": "string", "maxLength": 12, "description": "action 'apply' or 'dismiss': the suggestion's id."}},
+            "required": ["meeting"]},
+        output_schema=_out({"action": {"type": "string"}, "suggestions": {"type": "array", "items": {"type": "object"}},
+                            "deals_write": {"type": ["string", "null"]}}, ["action", "suggestions"]),
+        annotations=_ann(False, False, False),
+        handler=hubspot_suggestions,
+    ),
+    Tool(
+        name="hubspot_account",
+        title="A HubSpot company's account page",
+        description=("The account page of the HubSpot company a meeting is matched to: a Markdrop page in the HubSpot team "
+                     "with the company's deals, the team's calls with it, decisions, objections and risks, open questions "
+                     "and open tasks (a section Markdrop keeps up to date; people's own notes around it stay). action 'get' "
+                     "(default; made if missing) or 'refresh' (rewritten now)."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "meeting": _MEETING_ARG,
+            "action": {"type": "string", "enum": ["get", "refresh"], "default": "get"}}, "required": ["meeting"]},
+        output_schema=_out({"name": {"type": ["string", "null"]}, "slug": {"type": "string"}, "url": {"type": "string"},
+                            "content": {"type": "string"}}, ["slug", "url"]),
+        annotations=_ann(False, False, True),
+        handler=hubspot_account,
+    ),
+    Tool(
+        name="hubspot_pipeline",
+        title="HubSpot pipeline",
+        description=("A workspace's HubSpot deals (open ones, and those closed in the last two weeks): stage, amount, close "
+                     "date, owner, next step, the HubSpot team's last call with the deal in Markdrop, the last contact, and "
+                     "why it's at risk (no call in 14 days, close date passed). at_risk_only: just those. The HubSpot team's "
+                     "members and workspace admins."),
+        scope=READ,
+        input_schema={"type": "object", "properties": {
+            "workspace": _WORKSPACE_ARG,
+            "at_risk_only": {"type": "boolean", "default": False},
+            "fresh": {"type": "boolean", "default": False, "description": "Read HubSpot now instead of the last 10 minutes' copy."}},
+            "required": ["workspace"]},
+        output_schema=_out({"workspace_id": {"type": "string"}, "deals": {"type": "array", "items": {"type": "object"}},
+                            "at_risk": {"type": "integer"}}, ["workspace_id", "deals"]),
+        annotations=_ann(True, False, True),
+        handler=hubspot_pipeline,
+    ),
+    Tool(
+        name="hubspot_notifications",
+        title="Your HubSpot messages",
+        description=("Your own HubSpot messages: pre-call briefs before your HubSpot meetings (precall) and the Slack message "
+                     "after your calls with Log to HubSpot and Create tasks buttons (approve). action 'get' (default) or "
+                     "'set' with precall and/or approve (true or false)."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "action": {"type": "string", "enum": ["get", "set"], "default": "get"},
+            "precall": {"type": "boolean"}, "approve": {"type": "boolean"}}, "required": []},
+        output_schema=_out({"teams": {"type": "array", "items": {"type": "object"}}, "precall": {"type": "boolean"},
+                            "approve": {"type": "boolean"}}, ["teams", "precall", "approve"]),
+        annotations=_ann(False, False, True),
+        handler=hubspot_notifications,
     ),
 ]

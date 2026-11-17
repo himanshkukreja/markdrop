@@ -18,6 +18,7 @@ Only what a request needs, and only when someone uses an AI feature (or, for mee
 - **Team**: the meetings and pages the Team board reads, to keep each person's lines up to date.
 - **Analytics**: totals and changes for your own links, their titles, and your own content where it helps. Never who visited: no IP address, visitor or session id, or email.
 - **Jira drafts**: the item you're turning into an issue.
+- **HubSpot deal suggestions**: after a HubSpot team's call matched to a deal, the call's notes, the transcript lines about money, dates, competitors and decisions, and the deal's current fields, to suggest updates someone can apply. See [HubSpot](/integrations/hubspot#suggested-deal-updates).
 - **Comments**: for Apply with AI, the thread, the text it's about and the paragraph around it; for a summary, the page's open and recently resolved threads; for @AI, the question, the thread, the page and other pages of its workspace that everyone who can see the thread can open; for the tone check, the comment you're about to post (only when it reads as harsh, or when you ask).
 
 ## What is never sent

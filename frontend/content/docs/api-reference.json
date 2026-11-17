@@ -2163,9 +2163,9 @@
       "guide": {"label": "HubSpot", "href": "/integrations/hubspot"}
     },
     "PUT /api/v1/hubspot/settings": {
-      "title": "Log calls automatically",
-      "description": "Turns Log calls automatically on or off (`auto_log`, off by default): when on, a team call whose summary is written and that matched the meeting HubSpot booked is logged on its own. Admins and owners.",
-      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#log-calls-automatically"}
+      "title": "HubSpot's switches",
+      "description": "Turns the workspace's HubSpot switches on or off; send only the ones to change. `auto_log` (Log calls automatically, off by default): a team call whose summary is written and that matched the meeting HubSpot booked is logged on its own. `suggest` (on): suggested deal updates after calls. `accounts` (on): account pages. `precall` (on): pre-call briefs to the team's members. `approve` (on): the Slack message with Log to HubSpot and Create tasks to a call's host. Returns the status. Admins and owners.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#the-hubspot-card"}
     },
     "DELETE /api/v1/hubspot/connection": {
       "title": "Disconnect HubSpot",
@@ -2174,7 +2174,7 @@
     },
     "GET /api/v1/hubspot/meetings/{meeting_id}": {
       "title": "A meeting in HubSpot",
-      "description": "The meeting panel's HubSpot section. `available` false with a `reason` (`not_connected`, `not_team`, `not_member`) when it doesn't apply. Otherwise the `match` (`how`: `meeting`, `contacts`, `names`, `user` or `none`; `confidence`; other `candidates`), the `deal` (name, stage, amount, owner, close date, link), `contacts`, `companies`, `logged` (when, by whom, `created`) and `tasks` (the action items as proposed HubSpot tasks, each with a `key`, due date, owner and whether it's `created`). Matches the meeting the first time. 404 when you can't read the meeting.",
+      "description": "The meeting panel's HubSpot section. `available` false with a `reason` (`not_connected`, `not_team`, `not_member`) when it doesn't apply. Otherwise the `match` (`how`: `meeting`, `contacts`, `names`, `user` or `none`; `confidence`; other `candidates`), the `deal` (name, stage, amount, owner, close date, link), `contacts`, `companies`, `logged` (when, by whom, `created`) and `tasks` (the action items as proposed HubSpot tasks, each with a `key`, due date, owner and whether it's `created`). Matches the meeting the first time. 404 when you can't read the meeting. Also the `suggestions` (suggested deal updates, each with its `id`, `field`, current and new value, `why`, `evidence` and `state`) and the company's `account` page when there is one.",
       "guide": {"label": "HubSpot", "href": "/integrations/hubspot#how-a-call-is-matched"}
     },
     "POST /api/v1/hubspot/meetings/{meeting_id}/match": {
@@ -2201,6 +2201,41 @@
       "title": "Search HubSpot deals",
       "description": "Up to 10 deals whose name matches `q` (the most recently changed first; empty `q`: the latest), with stage, amount, owner id, close date and link. The HubSpot team's members and admins.",
       "guide": {"label": "HubSpot", "href": "/integrations/hubspot#how-a-call-is-matched"}
+    },
+    "POST /api/v1/hubspot/meetings/{meeting_id}/suggestions": {
+      "title": "Suggest deal updates",
+      "description": "Asks again for the deal updates this call supports (one AI request, within the meetings AI's fair-use limits): stage (only stages of the deal's pipeline), close date, amount, next step and the account's competitor, budget or decision-maker fields, each with its evidence. Applied and dismissed ones are kept. Returns the meeting's HubSpot section. 409 when the meeting isn't matched to a deal. The HubSpot team's members and workspace admins who can open the meeting.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#suggested-deal-updates"}
+    },
+    "POST /api/v1/hubspot/meetings/{meeting_id}/suggestions/{suggestion_id}/apply": {
+      "title": "Apply a suggested deal update",
+      "description": "Changes that one field of the HubSpot deal (never done on its own) and marks the suggestion `applied`; applying it again changes nothing. 409 when the HubSpot key lacks `crm.objects.deals.write` (the status then lists it as missing) or the stage left the deal's pipeline. Returns the meeting's HubSpot section.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#suggested-deal-updates"}
+    },
+    "POST /api/v1/hubspot/meetings/{meeting_id}/suggestions/{suggestion_id}/dismiss": {
+      "title": "Dismiss a suggested deal update",
+      "description": "Hides one suggestion (`dismissed`); asking for suggestions again keeps it dismissed. Returns the meeting's HubSpot section.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#suggested-deal-updates"}
+    },
+    "POST /api/v1/hubspot/meetings/{meeting_id}/account": {
+      "title": "Update a meeting's account page",
+      "description": "Makes or rewrites the account page of the HubSpot company the meeting is matched to: a page in the HubSpot team with the company's deals, calls, decisions, objections and risks, open questions and tasks, in a section Markdrop keeps up to date (notes outside it stay). Returns its `name`, `slug`, `href` and `updated_at`. 409 when the meeting has no company.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#account-pages"}
+    },
+    "GET /api/v1/hubspot/pipeline": {
+      "title": "The HubSpot pipeline",
+      "description": "The workspace's HubSpot deals (open ones, and those closed in the last two weeks): stage, amount, close date, owner, next step, the team's `last_call` with the deal, `last_contact`, `days_quiet` and `risks` (no call in 14 days, close date passed), plus how many are `at_risk`. Kept for ten minutes. The HubSpot team's members and workspace admins.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#your-pipeline-in-ask-and-the-weekly-brief"}
+    },
+    "GET /api/v1/hubspot/me": {
+      "title": "Your HubSpot messages",
+      "description": "Whether you get pre-call briefs (`precall`) and the Slack message after your calls (`approve`), both on unless you turned them off, and the HubSpot `teams` you're in.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#pre-call-briefs"}
+    },
+    "PUT /api/v1/hubspot/me": {
+      "title": "Turn your HubSpot messages on or off",
+      "description": "Sets `precall` and/or `approve` for you (never anyone else). Returns the same as GET.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#pre-call-briefs"}
     },
     "GET /api/v1/zoom/status": {
       "title": "Zoom connection status",

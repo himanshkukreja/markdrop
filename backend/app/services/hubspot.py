@@ -96,11 +96,14 @@ SCOPES: list[dict] = [
     {"scope": "crm.objects.deals.read", "required": True, "why": "Find the deal, its stage, amount and close date"},
     {"scope": "crm.objects.owners.read", "required": True,
      "why": "Match the call's host to their HubSpot user, and assign tasks"},
+    # Phase 2: Apply on a suggested deal update (never automatic). Optional: everything else works without it.
+    {"scope": "crm.objects.deals.write", "required": False,
+     "why": "Apply a suggested deal update (stage, close date, amount, next step) when someone approves it"},
 ]
 # Read checks for a token HubSpot's token info doesn't describe (a service key): one cheap read per scope.
 PROBES = [("crm.objects.owners.read", "crm/v3/owners"), ("crm.objects.contacts.read", "crm/v3/objects/contacts"),
           ("crm.objects.companies.read", "crm/v3/objects/companies"), ("crm.objects.deals.read", "crm/v3/objects/deals")]
-UNPROBED = ["crm.objects.contacts.write"]
+UNPROBED = ["crm.objects.contacts.write", "crm.objects.deals.write"]
 
 WINDOW = timedelta(minutes=15)
 CACHE_TTL = timedelta(hours=6)
@@ -171,6 +174,10 @@ def mode_of(conn: dict | None) -> str | None:
 
 async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[CONNS].create_index("portal_id", unique=True, sparse=True)
+    from app.services import hubspot_accounts, hubspot_notify
+
+    await hubspot_accounts.ensure_indexes(db)
+    await hubspot_notify.ensure_indexes(db)
 
 
 async def get(db: AsyncIOMotorDatabase, workspace_id: str) -> dict | None:
@@ -326,11 +333,14 @@ def _http_error(exc: HubSpotError) -> HTTPException:
 # ── Connect ───────────────────────────────────────────────────────────────────
 
 
-def missing_scopes(granted: list[str] | None) -> list[dict]:
-    """The scopes the token lacks (None: HubSpot didn't say; nothing reported missing)."""
+def missing_scopes(granted: list[str] | None, denied: list[str] | None = None) -> list[dict]:
+    """The scopes the token lacks (None: HubSpot didn't say; nothing reported missing). ``denied``: scopes
+    HubSpot refused since (a write that can't be checked in advance, e.g. Apply on a deal)."""
     if granted is None:
-        return []
-    have = set(granted)
+        granted = []
+        if not denied:
+            return []
+    have = set(granted) - set(denied or [])
     return [{"scope": s["scope"], "why": s["why"], "required": s["required"]} for s in SCOPES if s["scope"] not in have]
 
 
@@ -410,7 +420,7 @@ async def connect(db: AsyncIOMotorDatabase, user, workspace_id: str, *, token: s
         "mode": "token", "token_enc": crypto.encrypt(tok), "portal_id": info["portal_id"], "ui_domain": info["ui_domain"],
         "time_zone": info["time_zone"], "currency": info["currency"], "scopes": info["scopes"],
         "scopes_from": info["scopes_from"], "unchecked": info["unchecked"],
-        "broken": "missing_scopes" if any(m["required"] for m in missing) else None, "last_error": None,
+        "broken": "missing_scopes" if any(m["required"] for m in missing) else None, "last_error": None, "denied": [],
         "checked_at": now, "updated_at": now, "owners": None, "owners_at": None, "stages": None, "stages_at": None,
     }
     if not old or not old.get("token_enc"):
@@ -439,11 +449,27 @@ async def set_team(db: AsyncIOMotorDatabase, user, workspace_id: str, team_id: s
 
 
 async def set_auto_log(db: AsyncIOMotorDatabase, user, workspace_id: str, on: bool) -> dict:
+    return await set_settings(db, user, workspace_id, {"auto_log": on})
+
+
+#: The workspace's switches and their defaults (Phase 2: every one that sends a message or uses AI can be
+#: turned off by a workspace admin; each person can also turn off what reaches them, services/hubspot_notify).
+SWITCHES = {"auto_log": False, "suggest": True, "accounts": True, "precall": True, "approve": True}
+
+
+def switch(conn: dict | None, key: str) -> bool:
+    v = (conn or {}).get(key)
+    return SWITCHES[key] if v is None else bool(v)
+
+
+async def set_settings(db: AsyncIOMotorDatabase, user, workspace_id: str, changes: dict) -> dict:
     await require_admin(db, user, workspace_id)
     conn = await get(db, workspace_id)
     if not is_connected(conn):
         raise HTTPException(status_code=404, detail="This workspace isn't connected to HubSpot.")
-    await db[CONNS].update_one({"_id": str(workspace_id)}, {"$set": {"auto_log": bool(on), "updated_at": now_utc()}})
+    sets = {k: bool(v) for k, v in changes.items() if k in SWITCHES and v is not None}
+    if sets:
+        await db[CONNS].update_one({"_id": str(workspace_id)}, {"$set": {**sets, "updated_at": now_utc()}})
     return await status(db, user, workspace_id)
 
 
@@ -461,6 +487,9 @@ async def disconnect(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
     await require_admin(db, user, workspace_id)
     await db[CONNS].delete_one({"_id": str(workspace_id)})
     n = await _forget_matches(db, workspace_id)
+    from app.services import hubspot_deals
+
+    await hubspot_deals.forget(db, workspace_id)       # the cached pipeline and the weekly stage snapshots
     log.info("hubspot: workspace %s disconnected HubSpot (%d matches forgotten)", workspace_id, n)
     return await status(db, user, workspace_id)
 
@@ -844,7 +873,8 @@ async def panel(db: AsyncIOMotorDatabase, user, actor, ctx, meeting_id: str) -> 
     row, _raw = await meetings.for_read(db, meeting_id, actor, ctx)
     conn = await get(db, row["workspace_id"])
     base: dict[str, Any] = {"available": False, "reason": None, "auto_log": False, "match": None, "deal": None,
-                            "contacts": [], "companies": [], "logged": None, "tasks": [], "error": None}
+                            "contacts": [], "companies": [], "logged": None, "tasks": [], "error": None,
+                            "suggestions": None, "account": None}
     if not is_connected(conn):
         return {**base, "reason": "not_connected"}
     if not in_scope(row, conn):
@@ -882,6 +912,14 @@ async def panel(db: AsyncIOMotorDatabase, user, actor, ctx, meeting_id: str) -> 
                           "meeting_id": lg.get("meeting_id"),
                           "url": (base["deal"] or {}).get("url") or (base["contacts"][0]["url"] if base["contacts"] else None)}
     base["portal_url"] = f"https://{conn.get('ui_domain') or 'app.hubspot.com'}"
+    # Phase 2: suggested deal updates (services/hubspot_deals.py) and the account page (hubspot_accounts.py).
+    from app.services import hubspot_accounts, hubspot_deals
+
+    base["suggestions"] = hubspot_deals.suggestions_view(row, conn, m, switch(conn, "suggest"))
+    base["account"] = await hubspot_accounts.link_for(db, conn, m)
+    base["deals_write"] = ("missing" if "crm.objects.deals.write" in (conn.get("denied") or []) else
+                           "granted" if "crm.objects.deals.write" in (conn.get("scopes") or []) and
+                           "crm.objects.deals.write" not in (conn.get("unchecked") or []) else "unchecked")
     return base
 
 
@@ -1208,9 +1246,15 @@ async def create_tasks(db: AsyncIOMotorDatabase, user, actor, ctx, meeting_id: s
 
 
 async def meeting_ready(db: AsyncIOMotorDatabase, meeting_id: str) -> None:
-    """The hook in meetings_ai after a meeting's summary is written: with *Log calls automatically* on,
-    log it when it's the team's, not a bulk-imported past meeting, and matched with high confidence.
-    Never raises; runs in the background."""
+    """The hook in meetings_ai after a meeting's summary is written, for the HubSpot team's meetings (never
+    raises; runs in the background):
+
+    * *Log calls automatically* (off by default): log it when it's not a bulk-imported past meeting and
+      matched with high confidence.
+    * Phase 2 (each behind a workspace switch, and never for past meetings): the suggested deal updates
+      (services/hubspot_deals.py, one AI call; never applied without a person), the company's account
+      page (services/hubspot_accounts.py), and the host's Slack message with Log / Create tasks buttons
+      (services/hubspot_notify.py)."""
     if not configured():
         return
     from app.services import meetings
@@ -1219,10 +1263,12 @@ async def meeting_ready(db: AsyncIOMotorDatabase, meeting_id: str) -> None:
     if row is None or row.get("history"):
         return
     conn = await get(db, row["workspace_id"])
-    if not (conn and conn.get("auto_log") and in_scope(row, conn) and not conn.get("broken")):
+    if not (conn and in_scope(row, conn) and not conn.get("broken")):
         return
 
     async def go() -> None:
+        from app.services import hubspot_accounts, hubspot_deals, hubspot_notify
+
         try:
             r = await meetings.get_row(db, meeting_id)
             if r is None:
@@ -1231,13 +1277,22 @@ async def meeting_ready(db: AsyncIOMotorDatabase, meeting_id: str) -> None:
             m = hs.get("match") if (hs.get("match") or {}).get("portal_id") == conn["portal_id"] else None
             if m is None:
                 m = await match(db, conn, r)
-            if m.get("confidence") != "high":
-                return
-            await _log(db, conn, r, by=None, auto=True)
-        except HTTPException as exc:
-            log.info("hubspot: auto-log %s: %s", meeting_id, exc.detail)
         except Exception:
-            log.warning("hubspot: auto-log %s failed", meeting_id, exc_info=True)
+            log.warning("hubspot: matching %s failed", meeting_id, exc_info=True)
+            return
+        if conn.get("auto_log") and m.get("confidence") == "high":
+            try:
+                await _log(db, conn, r, by=None, auto=True)
+            except HTTPException as exc:
+                log.info("hubspot: auto-log %s: %s", meeting_id, exc.detail)
+            except Exception:
+                log.warning("hubspot: auto-log %s failed", meeting_id, exc_info=True)
+        for name, step in (("suggestions", hubspot_deals.suggest_after), ("account page", hubspot_accounts.refresh_after),
+                           ("Slack offer", hubspot_notify.offer)):
+            try:
+                await step(db, conn, meeting_id, m)
+            except Exception:
+                log.warning("hubspot: %s for %s failed", name, meeting_id, exc_info=True)
 
     spawn(go())
 
@@ -1260,6 +1315,11 @@ async def status(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
         "team": ({"id": str(team["_id"]), "name": team.get("name"), "visibility": team.get("visibility") or "open",
                   "slug": team.get("slug")} if team else None),
         "auto_log": bool((conn or {}).get("auto_log")), "can_use": False, "connection": None, "teams": None,
+        "switches": {k: switch(conn, k) for k in SWITCHES},
+        "deals_write": ("missing" if "crm.objects.deals.write" in ((conn or {}).get("denied") or [])
+                        else "unchecked" if "crm.objects.deals.write" in ((conn or {}).get("unchecked") or [])
+                        else "granted" if "crm.objects.deals.write" in ((conn or {}).get("scopes") or []) else "missing")
+        if connected else None,
     }
     if connected:
         st = conn.get("stats") or {}
@@ -1270,7 +1330,8 @@ async def status(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
                              "url": f"https://{conn.get('ui_domain') or 'app.hubspot.com'}"}
         if admin:
             c.update(connected_by=await _name_of(db, conn.get("connected_by")), checked_at=iso(conn.get("checked_at")),
-                     missing_scopes=missing_scopes(conn.get("scopes")), unchecked_scopes=list(conn.get("unchecked") or []),
+                     missing_scopes=missing_scopes(conn.get("scopes"), conn.get("denied")),
+                     unchecked_scopes=[x for x in conn.get("unchecked") or [] if x not in (conn.get("denied") or [])],
                      scopes_from=conn.get("scopes_from"), last_error=conn.get("last_error"))
         out["connection"] = c
         out["can_use"] = await can_use(db, user.id, conn)

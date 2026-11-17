@@ -598,6 +598,9 @@ _COMMENT_SENTENCES = {
 
 def _sentence(kind: str, actor: str, title: str | None, label: str | None) -> str:
     where = f"“{title}”" if title else "a page you can't open"
+    if kind == "hubspot_precall":     # services/hubspot_notify.py: a pre-call brief (no actor)
+        call = f"“{label}”" if label else "Your call"
+        return f"Pre-call brief: {call} starts soon" + (f". See {where}" if title else "")
     if kind in _COMMENT_SENTENCES:
         open_, closed = _COMMENT_SENTENCES[kind]
         return open_.format(a=actor, w=where) if title else closed.format(a=actor) + " on a page you can't open"

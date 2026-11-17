@@ -190,6 +190,20 @@ async def interaction(db: AsyncIOMotorDatabase, payload: dict) -> None:
         if reply:
             await slack_api.respond(response_url, reply)
         return
+    # HubSpot (services/hubspot_notify.py): Stop these, and Log / Create tasks on the host's own message
+    # (bound to the person it was sent to, like the action-items message).
+    if parts[0] == "hsp" and len(parts) == 3 and action_id == "md_hs_stop":
+        from app.services import hubspot_notify
+
+        await slack_api.respond(response_url, kit.notice(await hubspot_notify.click_stop(db, parts)))
+        return
+    if parts[0] == "hs" and len(parts) == 3 and action_id in ("md_hs_log", "md_hs_tasks"):
+        from app.services import hubspot_notify
+
+        why = await hubspot_notify.click(db, inst, slack_user, parts, payload)
+        if why:
+            await slack_api.respond(response_url, kit.notice(why))
+        return
     user = await slack.linked_user(db, team_id, slack_user)
     if user is None:
         await slack_api.respond(response_url, kit.link_prompt(_link_page(team_id)))

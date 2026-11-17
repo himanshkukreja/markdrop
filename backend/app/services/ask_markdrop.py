@@ -755,6 +755,14 @@ async def still_readable(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
         for cloud in clouds:
             if await jira.can_use(db, actor.user_id, cloud):
                 ok |= {k for k in keys if k.startswith(f"j:{cloud}:")}
+    # HubSpot pipelines (``h:<workspace id>``): while the asker may still use HubSpot there.
+    hws = [k[2:] for k in keys if k.startswith("h:") and ObjectId.is_valid(k[2:])]
+    if hws:
+        from app.services import hubspot_deals
+
+        for ws in hws:
+            if await hubspot_deals.may_see_pipeline(db, ws, actor.user_id):
+                ok.add(f"h:{ws}")
     # Team briefs (``b:<id>``): readable by every member of their workspace.
     bids = [ObjectId(k[2:]) for k in keys if k.startswith("b:") and ObjectId.is_valid(k[2:])]
     if bids and actor.user_id:
@@ -1138,6 +1146,10 @@ async def _ask_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
     # ── Jira hook (services/jira_team.py): questions about tickets read the asker's own Jira ─────────
     if keep is None:
         sources += await _jira_sources(db, actor, standalone, [scope] if scope else list(w.member_ws), len(sources))
+    # ── HubSpot hook (services/hubspot_deals.py): questions about deals read the pipeline, for people who
+    # may use HubSpot in that workspace ───────────────────────────────────────────────────────────────
+    if keep is None:
+        sources += await _hubspot_sources(db, actor, standalone, [scope] if scope else list(w.member_ws), len(sources))
     # ── Teams: "Ask the whole company" also reads the teams' weekly briefs (the bridge) ────────────────
     if keep is None and scope and not ctx.space:
         sources += await _brief_sources(db, scope, len(sources))
@@ -1161,7 +1173,8 @@ async def _brief_sources(db: AsyncIOMotorDatabase, workspace_id: str, start: int
         if b["team_id"] in seen or b["team_id"] not in teams or len(out) >= BRIEF_SOURCES:
             continue
         seen.add(b["team_id"])
-        lines = [ln["text"] for ln in b.get("lines") or [] if not ln.get("hidden")]
+        # HubSpot's Pipeline lines are the HubSpot team's (and admins') only: never in the company-wide bridge.
+        lines = [ln["text"] for ln in b.get("lines") or [] if not ln.get("hidden") and ln.get("kind") != "pipeline"]
         if not lines:
             continue
         t = teams[b["team_id"]]
@@ -1171,6 +1184,28 @@ async def _brief_sources(db: AsyncIOMotorDatabase, workspace_id: str, start: int
         item = {"key": f"b:{b['_id']}", "n": n, "kind": "brief", "title": title, "url": url, "web_url": url, "slug": None}
         out.append(Source(n, None, item=item, text="\n".join(f"- {x}" for x in lines), tag="team_brief",
                           attrs={"title": title, "kind": "Team brief"}))
+    return out
+
+
+async def _hubspot_sources(db: AsyncIOMotorDatabase, actor: access.Actor, question: str, workspace_ids: list[str],
+                           start: int) -> list[Source]:
+    """The HubSpot pipeline as one candidate per workspace (key ``h:<workspace id>``): deals with stage,
+    amount, close date, owner, last contact and the team's last call; [] unless the question is about
+    deals and the asker may use HubSpot there."""
+    from app.services import hubspot_deals
+
+    try:
+        got = await hubspot_deals.ask_sources(db, actor.user_id, question, workspace_ids)
+    except Exception:
+        log.warning("ask: HubSpot sources failed", exc_info=True)
+        return []
+    out: list[Source] = []
+    for g in got:
+        n = start + len(out) + 1
+        item = {"key": f"h:{g['workspace_id']}", "n": n, "kind": "hubspot", "title": g["title"], "url": g["url"],
+                "web_url": g["url"], "slug": None}
+        out.append(Source(n, None, item=item, text=g["text"], tag="hubspot_deals",
+                          attrs={"title": g["title"], "kind": "HubSpot deals"}))
     return out
 
 
