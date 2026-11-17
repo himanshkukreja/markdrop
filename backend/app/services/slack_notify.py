@@ -537,6 +537,8 @@ async def _notification_message(db: AsyncIOMotorDatabase, inst: dict, row: dict,
                               where=where)
     if n["kind"] == "shared":
         return kit.dm_shared(actor, title, url, extra.get("role"), extra.get("message"), where=where)
+    if n["kind"] == "speakers_unnamed":
+        return kit.dm_name_speakers(title, url + notifications.OPEN_QUERY["speakers_unnamed"], extra.get("label"), where=where)
     if n["kind"] == "signoff_requested":
         b = signoffs.find(raw.get("content"), n.get("block_id") or "") if n.get("block_id") else None
         options = b.options if b is not None and b.person == row["user_id"] else []

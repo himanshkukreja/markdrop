@@ -60,7 +60,14 @@ function posthog(request: Request, url: URL): Promise<Response> | null {
 export default {
   async fetch(request: Request, env: Env, ctx: Ctx) {
     let url = new URL(request.url);
-    if (url.hostname === APEX) return Response.redirect(`https://www.${APEX}${url.pathname}${url.search}`, 307);
+    if (url.hostname === APEX) {
+      // The apex only redirects; it carries HSTS too (security scan: markdrop.in → www had none).
+      return new Response(null, { status: 307, headers: {
+        location: `https://www.${APEX}${url.pathname}${url.search}`,
+        "strict-transport-security": "max-age=63072000",
+        "x-content-type-options": "nosniff",
+      } });
+    }
     if (url.pathname.startsWith("/mdp/")) return (await posthog(request, url)) ?? new Response("Not found", { status: 404 });
 
     const headers = new Headers(request.headers);

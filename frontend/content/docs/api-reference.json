@@ -1863,6 +1863,23 @@
       "description": "Writes the meeting's AI sections again (summary, decisions, action items, open questions, topics) and waits for them. When nobody has edited the page since, it's rewritten; otherwise the new sections are added at the end. Anyone who can edit the page. Counts towards your AI limits.",
       "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
     },
+    "GET /api/v1/meetings/{meeting_id}/speakers": {
+      "title": "List a meeting's speakers",
+      "description": "The transcript's speakers, to name them: each label in the order they first speak (`{label, generic, lines, talk_s, samples: [{n, t, text}], guess}`; `generic` is a speech-to-text label such as \"Speaker 2\", `guess` Markdrop's suggestion for one, never applied on its own), `unnamed` (how many generic labels are left), the meeting's `attendees` to pick from, and `renames` (who renamed what, newest first). Anyone who can edit the meeting page. 60 a minute.",
+      "guide": {"label": "Name the speakers", "href": "/workspaces/meetings#name-the-speakers"}
+    },
+    "POST /api/v1/meetings/{meeting_id}/speakers": {
+      "title": "Name a meeting's speaker",
+      "description": "Names a speaker everywhere at once: `from` is the label as the transcript has it (\"Speaker 2\", or a name to fix) and `to` the person's name, or `user_id` a workspace member (their name is used). The transcript's lines, the Transcript page (written again when nobody edited it, else only each line's speaker), the attendees, the recording's captions, Ask and meeting memory all use the name, and who renamed it is recorded. The summary and Details are written by AI: write them again (`POST /api/v1/meetings/{id}/regenerate`) to use the names. Returns `{renamed: {from, to, lines, transcript, unnamed}, meeting}`; `transcript` is `rewritten`, `updated`, `left` or `none`. 404 when there's no such speaker, 400 when `to` isn't a name, 409 when the transcript changed meanwhile. Anyone who can edit the meeting page. 30 a minute.",
+      "example": {"from": "Speaker 2", "to": "Mayuri Pillay"},
+      "mcp": "rename_meeting_speaker",
+      "guide": {"label": "Name the speakers", "href": "/workspaces/meetings#name-the-speakers"}
+    },
+    "POST /api/v1/meetings/{meeting_id}/speakers/dismiss": {
+      "title": "Hide the unnamed-speakers banner",
+      "description": "Hides \"N speakers aren't named yet\" on this meeting for you (others who can edit it still see it). Anyone who can edit the meeting page. Returns `{ok}`. 30 a minute.",
+      "guide": {"label": "Name the speakers", "href": "/workspaces/meetings#name-the-speakers"}
+    },
     "POST /api/v1/meetings/{meeting_id}/ask": {
       "title": "Ask a meeting",
       "description": "Asks one meeting, as Server-Sent Events (`delta`, then `done` with the `answer` and its `citations`, or `limit` / `error`). The answer comes from the meeting's transcript (when you can open it) and its page, including edits, in English; citations open the transcript at that moment. `history` carries the last turns of the conversation (`{question, answer}`, up to 6). Counts towards your AI limits.",

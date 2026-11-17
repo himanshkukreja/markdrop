@@ -16,6 +16,7 @@ const KIND_HINTS: Record<SlackNotifyKind, string> = {
   signoff_requested: "Someone asks for your sign-off. Choose an option right in Slack.",
   shared: "Someone shares a document, page or file with you.",
   access_request: "Someone asks to open or edit something you own. Approve or decline in Slack.",
+  speakers_unnamed: "A Zoom meeting you hosted came in with voices Markdrop couldn't name (Speaker 2…).",
 };
 
 /**

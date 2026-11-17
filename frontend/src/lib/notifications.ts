@@ -35,7 +35,9 @@ export type NotificationKind = "mention" | "signoff_requested" | "shared"
   // Comments (backend services/comments/notify_app.py).
   | "comment_mention" | "comment_reply" | "comment_new" | "comment_resolved" | "comment_assigned"
   // HubSpot (backend services/hubspot_notify.py): a pre-call brief.
-  | "hubspot_precall";
+  | "hubspot_precall"
+  // From Markdrop itself (backend services/meeting_speakers.ask_to_name): a meeting's speakers to name.
+  | "speakers_unnamed";
 
 export interface AppNotification {
   id: string;

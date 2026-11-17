@@ -156,7 +156,7 @@ class Transport(McpTestCase):
             "request_edit_access", "list_access_requests", "decide_access_request",
             # Meetings (import a call, list / read meetings, ask them, automatic import status).
             "import_meeting", "list_meetings", "get_meeting", "ask_meetings", "meetings_connection", "check_meetings_now",
-            "import_meetings_bulk", "organize_meetings",
+            "import_meetings_bulk", "organize_meetings", "rename_meeting_speaker",
             # Meeting memory for writing (decisions, action items… related to a topic or a page).
             "meeting_context",
             # Markdrop for Slack: the connection, and posting a meeting to its channel.
@@ -232,7 +232,7 @@ class Transport(McpTestCase):
     async def test_modern_tools_list_and_call(self):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
-        self.assertEqual(len(r.json()["result"]["tools"]), 157)
+        self.assertEqual(len(r.json()["result"]["tools"]), 158)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")

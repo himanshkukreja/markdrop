@@ -76,6 +76,9 @@ class Naming:
     names: dict[str, str] = field(default_factory=dict)
     reason: str | None = None
     answers: list[dict] = field(default_factory=list)
+    #: "medium" answers, grounded and distinct like ``names``: shown as a guess when someone names the
+    #: speakers by hand (never applied by Markdrop).
+    guesses: dict[str, str] = field(default_factory=dict)
 
 
 def excerpt(lines: list[tuple[str, str]], unnamed: list[str], *, budget: int = EXCERPT_CHARS) -> str:
@@ -167,6 +170,15 @@ def decide(answers: list[dict], unnamed: list[str], taken: list[str], people: li
     return {lab: n for lab, n in got.items() if seen[n.casefold()] == 1}
 
 
+def guesses_of(answers: list[dict], unnamed: list[str], names: dict[str, str], taken: list[str], people: list[str],
+               said: str) -> dict[str, str]:
+    """The "medium" answers for labels still unnamed, by the same rules as :func:`decide` (grounded,
+    distinct, never a name a speaker has): a suggestion for the person naming them, never applied."""
+    rest = [lab for lab in unnamed if lab not in names]
+    medium = [{**r, "confidence": "high"} for r in answers if str(r.get("confidence") or "").lower() == "medium"]
+    return decide(medium, rest, [*taken, *names.values()], people, said)
+
+
 async def name_speakers(db: AsyncIOMotorDatabase, *, workspace_id: str, user_id: str | None,
                         lines: list[tuple[str, str]], title: str | None, host: str | None,
                         participants: list[str] | None, via: str = "background",
@@ -220,9 +232,10 @@ async def name_speakers(db: AsyncIOMotorDatabase, *, workspace_id: str, user_id:
             await run.record("error", error_code="bad_json")
             return Naming(reason="bad_output")
         names = decide(answers, unnamed, taken, people, f"{title or ''}\n{text}")
+        guesses = guesses_of(answers, unnamed, names, taken, people, f"{title or ''}\n{text}")
         run.log.update(output=json.dumps(names), results={"unnamed": len(unnamed), "named": len(names)})
         await run.record("ok", named=len(names))
-        return Naming(names=names, answers=answers)
+        return Naming(names=names, answers=answers, guesses=guesses)
     finally:
         run.release()
 
@@ -250,7 +263,7 @@ def renamed_attendees(attendees: list[dict], names: dict[str, str], people) -> l
     from app.services import meetings
 
     keep = [a for a in attendees if a.get("name") not in names]
-    return meetings.person_rows([*keep, *({"name": n} for n in names.values())], people)
+    return meetings.tidy_attendees(meetings.person_rows([*keep, *({"name": n} for n in names.values())], people), people)
 
 
 async def rename(db: AsyncIOMotorDatabase, row: dict, *, apply: bool = False) -> dict:
@@ -287,7 +300,8 @@ async def rename(db: AsyncIOMotorDatabase, row: dict, *, apply: bool = False) ->
         return out
     people = await meetings.people_of(db, row["workspace_id"])
     sets = {"segments": new_segs, "attendees": renamed_attendees(row.get("attendees") or [], got.names, people),
-            "speakers_named": {"names": got.names, "at": meetings.now_utc()}, "updated_at": meetings.now_utc()}
+            "speakers_named": {"names": got.names, "at": meetings.now_utc()}, "updated_at": meetings.now_utc(),
+            "speaker_guesses": [{"label": k, "name": v} for k, v in got.guesses.items()]}
     res = await db[meetings.COLL].update_one({"_id": row["_id"], "segments": segs}, {"$set": sets})
     if res.modified_count == 0:
         out["transcript"] = "none"
@@ -332,3 +346,199 @@ async def repair(db: AsyncIOMotorDatabase, *, apply: bool = False, workspace_id:
             out["stopped"] = got["reason"]
             break
     return out
+
+
+# ── Name this speaker (owner, 2026-11-17) ─────────────────────────────────────
+# Whoever can edit a meeting (its page's edit_content) names a "Speaker N" label, or fixes a wrong name,
+# by hand: POST /api/v1/meetings/{id}/speakers {from, to} (routers/meetings.py), MCP
+# rename_meeting_speaker, the meeting bar's "Name them" dialog. One label → one name everywhere: the
+# segments (Ask, meeting memory, the recording's captions: zoom_media.captions_fp sees the change and
+# builds them again on the next play), the attendees, the Transcript page (written again when nobody
+# edited it, else only the lines' bold "time · label" leads), the meeting page's Attendees property
+# (while Markdrop's words), and ``speaker_renames`` (who renamed what, when). The summary and Details
+# are AI's words: "Write it again" (POST /{id}/regenerate) writes them with the names; Markdrop
+# doesn't do it on its own (it would append a second set of sections to a page someone edited).
+#
+# Asking (owner, 2026-11-17): a meeting imported with "Speaker N" labels left shows a banner to the
+# people who can edit it ("3 speakers aren't named yet": dismissable per person, ``speakers_dismissed``),
+# and its host gets one notification (``speakers_unnamed``: the bell, and a Slack DM when they turned
+# that on) linking straight to the dialog: only Zoom meetings imported as they happen (never a backfill),
+# once (``speakers_asked``).
+
+MAX_SAMPLES = 3
+SAMPLE_CHARS = 220
+HISTORY_MAX = 50
+NAME_MAX = 80
+ASK_KIND = "speakers_unnamed"
+
+
+def labels_of(segments: list[dict] | None) -> list[str]:
+    return list(dict.fromkeys(str(s.get("speaker") or "") for s in segments or [] if s.get("speaker")))
+
+
+def unnamed_count(row: dict) -> int:
+    return sum(1 for lab in labels_of(row.get("segments")) if is_generic(lab))
+
+
+def guesses_map(row: dict) -> dict[str, str]:
+    labels = set(labels_of(row.get("segments")))
+    return {g["label"]: g["name"] for g in row.get("speaker_guesses") or []
+            if isinstance(g, dict) and g.get("label") in labels and g.get("name") and is_generic(g.get("label"))}
+
+
+def speaker_stats(row: dict) -> list[dict]:
+    """Each speaker label in the order they first speak: ``{label, generic, lines, talk_s, samples:
+    [{n, t, text}], guess}`` (talk time from the lines' times; a few of their longer lines, spread out)."""
+    segs = [s for s in row.get("segments") or [] if isinstance(s, dict)]
+    guesses = guesses_map(row)
+    out: dict[str, dict] = {}
+    picks: dict[str, list[tuple[int, Any, str]]] = {}
+    for i, s in enumerate(segs):
+        lab = str(s.get("speaker") or "")
+        if not lab:
+            continue
+        st = out.setdefault(lab, {"label": lab, "generic": is_generic(lab), "lines": 0, "talk_s": 0.0, "samples": [],
+                                  "guess": guesses.get(lab)})
+        text = " ".join(str(s.get("text") or "").split())
+        t, nt = s.get("t"), segs[i + 1].get("t") if i + 1 < len(segs) else None
+        span = (nt - t) if isinstance(t, (int, float)) and isinstance(nt, (int, float)) and 0 <= nt - t <= 180 else None
+        st["talk_s"] += span if span is not None else len(text.split()) / 2.5
+        st["lines"] += 1
+        picks.setdefault(lab, []).append((i + 1, t, text))
+    for lab, rows in picks.items():
+        long_ = [r for r in rows if len(r[2].split()) >= 6] or rows
+        if len(long_) > MAX_SAMPLES:
+            step = (len(long_) - 1) / (MAX_SAMPLES - 1)
+            long_ = [long_[round(k * step)] for k in range(MAX_SAMPLES)]
+        out[lab]["samples"] = [{"n": n, "t": t, "text": text[:SAMPLE_CHARS] + ("…" if len(text) > SAMPLE_CHARS else "")}
+                               for n, t, text in long_]
+        out[lab]["talk_s"] = int(round(out[lab]["talk_s"]))
+    return list(out.values())
+
+
+def relabel_transcript(content: str, frm: str, to: str) -> tuple[str, int]:
+    """An edited Transcript page with each line's bold lead "**12:34 · <frm>**" (or "**<frm>**") now
+    ``to``; nothing else on the page changes. (content, how many lines)."""
+    from app.services import meetings
+
+    old, new = meetings.md_inline(frm), meetings.md_inline(to)
+    pat = re.compile(r"^(\*\*(?:\d{1,3}:\d{2}(?::\d{2})? · )?)" + re.escape(old) + r"(\*\*)", re.M)
+    return pat.subn(lambda m: m.group(1) + new + m.group(2), content)
+
+
+def clean_target(name: Any) -> str:
+    from app.services import meeting_parse as mp
+
+    p = mp.person_of(str(name or "")[:200])
+    return _clean((p or {}).get("name") or name)[:NAME_MAX]
+
+
+async def rename_speaker(db: AsyncIOMotorDatabase, row: dict, frm: str, to: str | None, *, user,
+                         user_id: str | None = None) -> dict:
+    """Name the label ``frm`` ``to`` (or the workspace member ``user_id``) in one meeting, as ``user``
+    (who was already checked: they can edit the meeting page). ``{from, to, lines, transcript, unnamed}``;
+    ``transcript``: rewritten | updated (only its leads) | left (couldn't, or edited past recognising)
+    | none. 404: no such label; 400: not a name; 409: the transcript changed meanwhile."""
+    from fastapi import HTTPException
+
+    from app.services import access, meeting_memory, meetings, page_props
+
+    segs = list(row.get("segments") or [])
+    frm = " ".join(str(frm or "").split())
+    if not frm or frm not in labels_of(segs):
+        raise HTTPException(status_code=404, detail="No speaker by that name in this meeting's transcript.")
+    people = await meetings.people_of(db, row["workspace_id"])
+    member = None
+    if user_id:
+        member = next((m for m in people.members if m.get("id") == user_id), None)
+        if member is None or not member.get("name"):
+            raise HTTPException(status_code=400, detail="That person isn't a member of this workspace.")
+        to = member["name"]
+    name = clean_target(to)
+    if not name or is_generic(name) or not any(ch.isalpha() for ch in name):
+        raise HTTPException(status_code=400, detail="Give the speaker a person's name.")
+    # Spelled the way the meeting already has it ("mayuri pillay" → "Mayuri Pillay").
+    for known in [*(a.get("name") for a in row.get("attendees") or []), *labels_of(segs)]:
+        if known and known.casefold() == name.casefold() and not is_generic(known):
+            name = known
+            break
+    if name == frm:
+        raise HTTPException(status_code=400, detail="That's already this speaker's name.")
+    new_segs = renamed_segments(segs, {frm: name})
+    lines = sum(1 for s in segs if s.get("speaker") == frm)
+    att = list(row.get("attendees") or [])
+    if is_generic(frm) or row.get("attendees_from") == "speakers":
+        # The label was only ever a voice (or the attendees are only the speakers): the old one goes.
+        att = [a for a in att if a.get("name") != frm]
+    new_att = meetings.tidy_attendees(meetings.person_rows(
+        [*att, {"name": name, "user_id": member["id"] if member else None,
+                "email": (member or {}).get("email")}], people), people)
+    approx = bool(row.get("approx_times"))
+    traw, state = None, "none"
+    if row.get("transcript_doc_id"):
+        traw = await db["documents"].find_one({"_id": row["transcript_doc_id"]})
+        if traw is not None and traw.get("deleted_at"):
+            traw = None
+    now = meetings.now_utc()
+    res = await db[meetings.COLL].update_one(
+        {"_id": row["_id"], "segments": segs},
+        {"$set": {"segments": new_segs, "attendees": new_att, "updated_at": now},
+         "$push": {"speaker_renames": {"$each": [{"from": frm, "to": name, "by": user.id, "at": now}],
+                                       "$slice": -HISTORY_MAX}},
+         "$pull": {"speaker_guesses": {"label": frm}}})
+    if res.modified_count == 0:
+        raise HTTPException(status_code=409, detail="The transcript changed meanwhile. Reload and try again.")
+    await meeting_memory.sync_quietly(db, row["_id"])
+    if traw is not None:
+        content = traw.get("content") or ""
+        was = page_props.apply(meetings.transcript_markdown(segs, approx=approx), {"icon": meetings.TRANSCRIPT_ICON})
+        if content.strip() == was.strip():
+            after, state = page_props.apply(meetings.transcript_markdown(new_segs, approx=approx),
+                                            {"icon": meetings.TRANSCRIPT_ICON}), "rewritten"
+        else:
+            after, n = relabel_transcript(content, frm, name)
+            state = "updated" if n else "left"
+        if state != "left":
+            try:
+                await meetings._save(db, traw, after, access.Actor.of(user), access.Ctx(db))
+            except HTTPException as exc:
+                log.info("speaker names: transcript %s not written (%s)", traw.get("slug"), exc.detail)
+                state = "left"
+    await meetings.sync_attendees_property(db, row, new_att)
+    return {"from": frm, "to": name, "lines": lines, "transcript": state,
+            "unnamed": sum(1 for lab in labels_of(new_segs) if is_generic(lab))}
+
+
+async def ask_to_name(db: AsyncIOMotorDatabase, meeting_id: Any) -> bool:
+    """A meeting just imported with "Speaker N" labels left: its host (who imported it) gets one
+    notification, "Name the speakers in <meeting>" (the bell; a Slack DM when they turned that on),
+    linking to the dialog. Never for a past meeting (a backfill: ``history``), never twice. Never raises."""
+    from app.services import meetings, notifications
+
+    try:
+        row = await meetings.get_row(db, str(meeting_id))
+        if row is None or row.get("history") or row.get("speakers_asked"):
+            return False
+        n = unnamed_count(row)
+        uid = str(row.get("imported_by") or row.get("created_by") or "")
+        if not n or not uid:
+            return False
+        page = await meetings.page_of(db, row)
+        if page is None:
+            return False
+        res = await db[meetings.COLL].update_one({"_id": row["_id"], "speakers_asked": {"$exists": False}},
+                                                 {"$set": {"speakers_asked": meetings.now_utc()}})
+        if res.modified_count == 0:
+            return False
+        label = f"{n} speaker{'s' if n != 1 else ''}"
+        return await notifications.notify_markdrop(db, uid, ASK_KIND, page, extra={"label": label}) is not None
+    except Exception:
+        log.warning("speaker names: asking to name the speakers of %s failed", meeting_id, exc_info=True)
+        return False
+
+
+async def dismiss(db: AsyncIOMotorDatabase, row: dict, user_id: str) -> None:
+    """The banner "N speakers aren't named yet", hidden for this person on this meeting."""
+    from app.services import meetings
+
+    await db[meetings.COLL].update_one({"_id": row["_id"]}, {"$addToSet": {"speakers_dismissed": user_id}})

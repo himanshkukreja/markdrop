@@ -963,6 +963,56 @@ def person_rows(found: list[dict], people: People, *, limit: int = 100) -> list[
     return out
 
 
+# ── Attendees, tidied (owner, 2026-11-17) ─────────────────────────────────────
+# A transcribed Zoom call listed "Speaker 2", "Speaker 3"… (speech-to-text's labels, nobody's name) and
+# "Mayuri" (Zoom's display name) next to "Mayuri Pillay" (the speaker's / member's name) as separate people.
+
+
+def _name_words(name: str | None) -> list[str]:
+    return [w.strip(".,") for w in mp.clean_name(name).casefold().split() if w.strip(".,")]
+
+
+def _starts(short: str, long_: str) -> bool:
+    """``short`` is the first name / the first words of ``long_`` ("Mayuri" / "Mayuri Pillay")."""
+    a, b = _name_words(short), _name_words(long_)
+    return bool(a) and len(a) < len(b) and b[:len(a)] == a and len(a[0]) >= 2
+
+
+def tidy_attendees(attendees: list[dict], people: "People | None" = None) -> list[dict]:
+    """A meeting's attendees without speech-to-text's "Speaker N" labels (meeting_speakers.is_generic;
+    never a person), and one person once: a name that is the first name (or first words) of exactly
+    one other attendee's name is that person: the fuller name is kept, with the address and member of
+    either. Never when it is ambiguous: two attendees (or two workspace members, ``people``) it could
+    be ("Jason" with "Jason Chad" and "Jason Lee"), or two different addresses / members."""
+    from app.services.meeting_speakers import is_generic
+
+    rows = [dict(a) for a in attendees or [] if not (is_generic(a.get("name")) and not a.get("user_id"))]
+    member_names = [m.get("name") or "" for m in (people.members if people else [])]
+    while True:
+        merged = False
+        for i, a in enumerate(rows):
+            if not a.get("name"):
+                continue
+            hits = [j for j, b in enumerate(rows) if j != i and b.get("name") and _starts(a["name"], b["name"])]
+            if len(hits) != 1:
+                continue
+            b = rows[hits[0]]
+            others = {n.casefold() for n in member_names if n and _starts(a["name"], n)}
+            if len(others - {b["name"].casefold()}) >= 1:
+                continue    # the workspace has someone else it could be
+            if (a.get("email") and b.get("email") and a["email"].lower() != b["email"].lower()) or \
+                    (a.get("user_id") and b.get("user_id") and a["user_id"] != b["user_id"]):
+                continue
+            keep = {**b, "email": b.get("email") or a.get("email"), "user_id": b.get("user_id") or a.get("user_id")}
+            lo, hi = sorted((i, hits[0]))
+            rows[lo] = keep
+            del rows[hi]
+            merged = True
+            break
+        if not merged:
+            return rows
+
+
 def notes_attendees(notes: dict | None, invited: list[dict], people: People,
                     universe: mp.Universe | None = None) -> list[dict]:
     """Who Gemini's notes show joined a call that has nothing better (no transcript, no Attendees line):
@@ -1087,7 +1137,7 @@ def people_sets(row: dict, group: list[mp.Source], people: People) -> dict:
         att = []
     elif n_how == "notes" and rank.get(how, 0) > rank["notes"]:
         n_att = []
-    att = person_rows([*att, *n_att], people)
+    att = tidy_attendees(person_rows([*att, *n_att], people), people)
     inv = person_rows([*inv, *n_inv], people, limit=200)
     how = max((how, n_how), key=lambda h: rank.get(h, 0))
     if how in ("invited", "none") and att:
@@ -1210,6 +1260,7 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
     attendees = tidy_people(attendees, known, people)
     if attendees_from in ("invited", "none", "notes"):
         attendees, attendees_from = with_notes_people(attendees, invited, attendees_from, m.notes, people, known)
+    attendees = tidy_attendees(attendees, people)
     sources = []
     for s in group:
         inc: Incoming = s._incoming  # type: ignore[attr-defined]
@@ -1217,7 +1268,11 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
                         "url": inc.url, "format": s.format})
     organizer = organizer_of(group, people)
     # Not decided by the caller (None): 1:1s and two-person calls start restricted, 3+ the team's.
-    small = restricted is None and auto_restricts(attendees + invited, organizer)
+    # "Speaker N" voices aren't attendees (tidy_attendees), but they still count as people on the call.
+    from app.services.meeting_speakers import is_generic
+
+    voices = [{"name": v} for v in dict.fromkeys(str(s.get("speaker")) for s in m.segments or [] if is_generic(s.get("speaker")))]
+    small = restricted is None and auto_restricts(attendees + invited + voices, organizer)
     if restricted is None:
         restricted = small
     now = now_utc()
@@ -1528,6 +1583,10 @@ async def shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Ac
         "auto_restricted": bool(row.get("auto_restricted")),
         "can_manage": can_manage, "can_delete": can_delete, "can_regenerate": (await access.can(actor, raw, "edit_content", ctx)).allowed,
         "approx_times": bool(row.get("approx_times")),
+        # "Speaker N" labels left in the transcript (services/meeting_speakers: Name this speaker), and
+        # whether this person hid the banner asking to name them.
+        "unnamed_speakers": _unnamed(row),
+        "speakers_dismissed": uid in (row.get("speakers_dismissed") or []),
         "source": source_of(row),
         "history": bool(row.get("history")),   # a past meeting from a backfill (imported quietly)
         "series": row.get("series") or None,
@@ -1539,6 +1598,12 @@ async def shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Ac
 
         out["url"] = urls.markdrop_url(raw["slug"])
     return out
+
+
+def _unnamed(row: dict) -> int:
+    from app.services import meeting_speakers
+
+    return meeting_speakers.unnamed_count(row)
 
 
 def _recording_view(row: dict) -> dict | None:
@@ -1665,8 +1730,6 @@ async def repair_names(db: AsyncIOMotorDatabase, row: dict, people: People, *, a
     """One meeting's names cleaned (:func:`clean_people`); the page's Attendees property too when
     it still reads what Markdrop wrote (a value someone typed stays). True when anything changed.
     Idempotent; never touches the restriction or its grants."""
-    from app.services import page_db, user as user_service
-
     attendees, org = clean_people(row, people)
     changed = attendees != (row.get("attendees") or []) or org != row.get("organizer")
     if not apply:
@@ -1677,21 +1740,37 @@ async def repair_names(db: AsyncIOMotorDatabase, row: dict, people: People, *, a
     await db[COLL].update_one({"_id": row["_id"]}, {"$set": sets})
     if not changed:
         return False
+    await sync_attendees_property(db, row, attendees)
+    return True
+
+
+async def sync_attendees_property(db: AsyncIOMotorDatabase, row: dict, attendees: list[dict]) -> bool:
+    """The meeting page's Attendees property after ``row``'s attendees became ``attendees``: written
+    again only while it still reads what Markdrop wrote (a value someone typed stays), as the person
+    who imported it; a page nobody edited stays "unedited" (``base_rev``). True when it was written."""
+    from app.services import page_db, user as user_service
+
     page = await page_of(db, row)
     if page is None:
-        return True
+        return False
     old = ", ".join(a.get("name") or "" for a in row.get("attendees") or [])[:page_db.TEXT_MAX]
-    new = ", ".join(a["name"] for a in attendees)[:page_db.TEXT_MAX]
+    new = ", ".join(a["name"] for a in attendees if a.get("name"))[:page_db.TEXT_MAX]
     content = page.get("content") or ""
-    if old != new and page_db.read_values(content).get("attendees") == old:
-        user = await user_service.get_user_by_id(db, row.get("created_by"))
-        if user is not None:
-            unedited = int(page.get("rev") or 1) == int(row.get("base_rev") or 0)
-            after = await _save(db, page, page_db.write_values(content, {"attendees": new or None}),
-                                access.Actor.of(user), access.Ctx(db))
-            if after is not None and unedited:
-                await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"base_rev": int(after.get("rev") or 1)}})
-    return True
+    if old == new or page_db.read_values(content).get("attendees") != old:
+        return False
+    user = await user_service.get_user_by_id(db, row.get("created_by"))
+    if user is None:
+        return False
+    unedited = int(page.get("rev") or 1) == int(row.get("base_rev") or 0)
+    try:
+        after = await _save(db, page, page_db.write_values(content, {"attendees": new or None}),
+                            access.Actor.of(user), access.Ctx(db))
+    except HTTPException as exc:
+        log.info("meetings: attendees property of %s not written (%s)", page.get("slug"), exc.detail)
+        return False
+    if after is not None and unedited:
+        await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"base_rev": int(after.get("rev") or 1)}})
+    return after is not None
 
 
 async def names_tick(db: AsyncIOMotorDatabase, *, batch: int = 50) -> int:
@@ -1733,6 +1812,42 @@ async def count_dirty_names(db: AsyncIOMotorDatabase, *, workspace_id: str | Non
             out["would_change"] += 1
             if len(out["examples"]) < 5:
                 out["examples"].append([a.get("name") for a in (row.get("attendees") or [])[:3]])
+    return out
+
+
+async def tidy_existing_attendees(db: AsyncIOMotorDatabase, *, workspace_id: str | None = None, apply: bool = False,
+                                  on_row=None) -> dict:
+    """scripts/fix_meeting_attendees.py --tidy (owner, 2026-11-17): every meeting's attendees as
+    :func:`tidy_attendees` makes new ones ("Speaker N" out; "Mayuri" + "Mayuri Pillay" as one person),
+    and the page's Attendees property where it still reads Markdrop's words. Dry run unless ``apply``.
+    The restriction and its grants are left as they are. Idempotent."""
+    q: dict[str, Any] = {"attendees.0": {"$exists": True}}
+    if workspace_id:
+        q["workspace_id"] = workspace_id
+    out = {"meetings": 0, "changed": 0, "dropped_labels": 0, "merged": 0}
+    cache: dict[str, People] = {}
+    async for row in db[COLL].find(q, {"segments": 0, "notes": 0, "generated": 0}):
+        out["meetings"] += 1
+        ws = row["workspace_id"]
+        cache[ws] = cache.get(ws) or await people_of(db, ws)
+        before = list(row.get("attendees") or [])
+        after = tidy_attendees(before, cache[ws])
+        if after == before:
+            continue
+        from app.services.meeting_speakers import is_generic
+
+        labels = sum(1 for a in before if is_generic(a.get("name")) and not a.get("user_id"))
+        out["changed"] += 1
+        out["dropped_labels"] += labels
+        out["merged"] += len(before) - labels - len(after)
+        if on_row:
+            on_row(row, before, after)
+        if not apply:
+            continue
+        res = await db[COLL].update_one({"_id": row["_id"], "attendees": before},
+                                        {"$set": {"attendees": after, "updated_at": now_utc()}})
+        if res.modified_count:
+            await sync_attendees_property(db, row, after)
     return out
 
 

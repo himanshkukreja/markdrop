@@ -52,7 +52,7 @@ class FakeZoom:
         self.scopes = list(ALL_SCOPES)
         self.users: dict[str, dict] = {}          # id → {id, email, first_name, last_name}
         self.meetings: dict[str, dict] = {}       # uuid → meeting object (with recording_files)
-        self.participants: dict[str, list[str]] = {}
+        self.participants: dict[str, list] = {}   # names, or {name, user_email} rows as Zoom sends them
         self.transcripts: dict[str, str] = {}
         self.tokens: dict[str, float] = {}
         self.calls: list[tuple[str, str]] = []
@@ -85,7 +85,7 @@ class FakeZoom:
         return next((u["id"] for u in self.users.values() if u["email"].lower() == email.lower()), None)
 
     def add_meeting(self, uuid: str, topic: str, host_email: str, start: str, *, duration: int = 30,
-                    transcript: bool = True, participants: list[str] | None = None,
+                    transcript: bool = True, participants: list | None = None,
                     lines: list[tuple[str, str]] | None = None, tz: str = "Asia/Kolkata") -> dict:
         host = self.uid_of(host_email)
         files = [{"id": f"f-{uuid}-mp4", "file_type": "MP4", "recording_type": "shared_screen_with_speaker_view",
@@ -236,7 +236,8 @@ class FakeZoom:
             uuid = unquote(unquote(parts[1]))
             if uuid not in self.participants:
                 return self._json(404, {"code": 3001, "message": "Meeting does not exist."})
-            return self._json(200, {"participants": [{"id": f"p{i}", "name": n} for i, n in enumerate(self.participants[uuid])],
+            return self._json(200, {"participants": [{"id": f"p{i}", **({"name": n} if isinstance(n, str) else n)}
+                                                     for i, n in enumerate(self.participants[uuid])],
                                     "next_page_token": ""})
         return self._json(404, {"code": 404, "message": f"No route {path}"})
 

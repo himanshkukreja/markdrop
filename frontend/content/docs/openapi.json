@@ -19335,6 +19335,154 @@
         }
       }
     },
+    "/api/v1/meetings/{meeting_id}/speakers": {
+      "get": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "A meeting's speakers",
+        "description": "For naming them (whoever can edit the meeting): each speaker label in the order they first speak,\nwith their talk time, a few of their lines, and Markdrop's guess for a \"Speaker N\" (never applied\non its own); the meeting's attendees to pick from; and who renamed what.",
+        "operationId": "get_speakers_api_v1_meetings__meeting_id__speakers_get",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      },
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Name a meeting's speaker",
+        "description": "Name a speaker (\"Speaker 2\" → \"Mayuri Pillay\", or fix a wrong name) everywhere: the transcript's\nlines, the Transcript page, the attendees, the recording's captions, Ask and meeting memory. The\nsummary and Details are AI's words: \"Write it again\" (POST /{id}/regenerate) uses the names.",
+        "operationId": "rename_speaker_api_v1_meetings__meeting_id__speakers_post",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeakerBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meetings/{meeting_id}/speakers/dismiss": {
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Hide the unnamed-speakers banner",
+        "operationId": "dismiss_speakers_api_v1_meetings__meeting_id__speakers_dismiss_post",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/meetings/{meeting_id}/ask": {
       "post": {
         "tags": [
@@ -35490,6 +35638,17 @@
               }
             ],
             "title": "Comment Assigned"
+          },
+          "speakers_unnamed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speakers Unnamed"
           }
         },
         "type": "object",
@@ -36631,6 +36790,48 @@
         },
         "type": "object",
         "title": "SourceIn"
+      },
+      "SpeakerBody": {
+        "properties": {
+          "from": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "From",
+            "description": "The speaker label as the transcript has it (\"Speaker 2\", or a name to fix)."
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To",
+            "description": "The person's name."
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id",
+            "description": "Or a workspace member: their name is used."
+          }
+        },
+        "type": "object",
+        "required": [
+          "from"
+        ],
+        "title": "SpeakerBody"
       },
       "Subscription": {
         "properties": {

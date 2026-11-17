@@ -64,6 +64,32 @@
       "body": "- **Back.** A small chip in the corner opposite Show details, shown only in the installed app (browsers have their own Back). It returns to where you came from, or home if you opened the link directly.\n- **Over video** it hides with the player's controls, like Show details."
     },
     {
+      "id": "name-the-speakers",
+      "date": "2026-11-17",
+      "title": "Name a meeting's speakers",
+      "kind": "new",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "When speech-to-text couldn't tell who someone is, their lines show as Speaker 2, Speaker 3. Now the meeting asks you to name them, and one name is used everywhere: the transcript, who was there, the recording's captions and Ask. Who was there no longer lists Speaker 2 or the same person twice.",
+      "body": "- **Markdrop asks.** A meeting with unnamed speakers shows **3 speakers aren't named yet** to everyone who can edit it, and a Zoom meeting's host gets one notification (the bell, and Slack if it's on) linking straight to the list. [Name the speakers](/workspaces/meetings#name-the-speakers)\n- **Pick who it is.** Each speaker shows how long they talked and a few of their lines. Pick from the people who were there or the workspace's members, or type a name. Markdrop's guess, when it had one, is shown as a guess and used only if you click it.\n- **One name everywhere.** The transcript's lines, the Transcript page (only the speaker names, when someone edited it), who was there, the recording's captions, Ask and meeting memory. **Write it again** then writes the summary and Details with the names.\n- **Fix a wrong name** the same way. Who renamed which speaker is kept.\n- **Cleaner attendees.** Speaker 2 and the like aren't listed as people, and a Zoom name like \"Mayuri\" counts as \"Mayuri Pillay\" when she's the only Mayuri on the call. Two people who share a first name stay apart.\n- **From your AI app and the API.** New MCP tool `rename_meeting_speaker`; API `GET` and `POST /api/v1/meetings/{id}/speakers`."
+    },
+    {
+      "id": "zoom-attendee-emails",
+      "date": "2026-11-17",
+      "title": "Zoom meetings keep attendees' email addresses, and resume after a restart",
+      "kind": "improved",
+      "area": "Integrations",
+      "products": [
+        "web"
+      ],
+      "summary": "Meetings from Zoom now keep each attendee's email address when Zoom gives one, so members are recognised and HubSpot finds attendees' contacts by address. A Zoom meeting or recording that was being brought in when Markdrop restarted is picked up again on its own.",
+      "body": "- **Attendees' addresses.** From Zoom's participants list, as Google Meet imports already do. They aren't shown on the meeting. [Zoom](/integrations/zoom)\n- **Better HubSpot matches.** Attendees are looked up as HubSpot contacts by email first, rather than only by name. [How a call is matched](/integrations/hubspot#how-a-call-is-matched)\n- **Nothing stuck.** A meeting or recording left half imported by a restart goes back in the queue within about 20 minutes; after a few interrupted tries it shows **Didn't import** with the reason, and **Import past meetings** brings it in."
+    },
+    {
       "id": "video-chapters",
       "date": "2026-11-16",
       "title": "Chapters on the video player, and captions on meeting recordings",

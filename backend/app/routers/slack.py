@@ -91,6 +91,7 @@ class PrefsIn(BaseModel):
     action_items: bool | None = None
     comment_mention: bool | None = None
     comment_assigned: bool | None = None
+    speakers_unnamed: bool | None = None
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────
