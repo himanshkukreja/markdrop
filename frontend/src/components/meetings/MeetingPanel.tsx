@@ -27,6 +27,7 @@ import {
 import { openAssistant } from "@/components/assistant/store";
 import { MeetingRecording, type RecordingSeek } from "./MeetingRecording";
 import { HubSpotSection } from "./HubSpotSection";
+import { NameSpeakersHost, SpeakersBanner, isGenericSpeaker, openNameSpeakers } from "./NameSpeakers";
 import { citeSeconds, lineSeconds } from "./recordingSeek.mjs";
 import { track } from "@/lib/track";
 import "@/components/pages/ai/ask-pill.css";
@@ -67,7 +68,7 @@ function useMeeting(id: string): [Meeting | null, (m: Meeting) => void, () => Pr
  * people do next — read the transcript, ask the meeting. On the transcript: back to the meeting, ask.
  */
 export function MeetingHeader({ meetingId, role, extra }: { meetingId: string; role?: string; extra?: React.ReactNode }) {
-  const [m, , reload] = useMeeting(meetingId);
+  const [m, setM, reload] = useMeeting(meetingId);
   const [playing, setPlaying] = useState(false);
   const [seek, setSeek] = useState<RecordingSeek | null>(null);
   const hasRecording = !!m?.recording;
@@ -106,6 +107,32 @@ export function MeetingHeader({ meetingId, role, extra }: { meetingId: string; r
       delete root.dataset.mtRec;
     };
   }, [hasRecording, onTranscript, transcriptSlug]);
+  // On the transcript, a "Speaker N" lead ("12:34 · Speaker 2") names that speaker, for people who can
+  // edit the meeting (with a kept recording, a click on the lead plays it from there instead).
+  const canName = !!m?.can_regenerate && onTranscript && !hasRecording;
+  useEffect(() => {
+    if (!canName) return;
+    const root = document.documentElement;
+    root.dataset.mtName = "";
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const el = e.target instanceof Element ? e.target : null;
+      if (!el || !el.closest(".pb-body") || el.closest('[contenteditable="true"]')) return;
+      const lead = el.closest("strong");
+      const block = lead?.parentElement?.closest<HTMLElement>("[data-bid]");
+      if (!lead || !block || lead.parentElement !== block || block.firstElementChild !== lead || !/^b-t\d+$/.test(block.dataset.bid ?? "")) return;
+      const label = (lead.textContent ?? "").split(" · ").pop()?.trim() ?? "";
+      if (!isGenericSpeaker(label)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openNameSpeakers(label);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => {
+      document.removeEventListener("click", onClick, true);
+      delete root.dataset.mtName;
+    };
+  }, [canName]);
   if (!m) return null;
   // Who joined; with nobody known to have joined, the calendar invite, worded "invited" (never "people").
   const invitedOnly = m.attendees.length === 0 && (m.invited?.length ?? 0) > 0;
@@ -144,6 +171,7 @@ export function MeetingHeader({ meetingId, role, extra }: { meetingId: string; r
         <Button size="sm" iconLeft="sparkle" onClick={ask} data-testid="meeting-ask">Ask this meeting</Button>
       </div>
     </div>
+    <SpeakersBanner m={m} onChange={setM} />
     {playing && m.recording && (
       <MeetingRecording m={m} seek={seek} onClose={() => { setPlaying(false); setSeek(null); }} onRemoved={() => { setPlaying(false); setSeek(null); void reload(); }} />
     )}
@@ -228,6 +256,7 @@ export function MeetingLauncher({ meetingId }: { meetingId: string; role?: strin
               <IconButton icon="x" label="Close" size="sm" onClick={close} />
             </header>
             <Details m={m} onChange={setM} onDeleted={() => { close(); router.push(meetingsHref(m.workspace_id)); }}
+              onNameSpeakers={() => { close(); openNameSpeakers(); }}
               hubspot={opened ? <HubSpotSection meetingId={m.id} workspaceId={m.workspace_id} /> : null}
               top={(
                 <>
@@ -241,6 +270,7 @@ export function MeetingLauncher({ meetingId }: { meetingId: string; role?: strin
         </div>,
         document.body,
       )}
+      <NameSpeakersHost m={m} onChange={setM} />
     </>
   );
 }
@@ -269,8 +299,9 @@ function SeriesField({ value, disabled, onCommit }: { value: string; disabled: b
   );
 }
 
-function Details({ m, onChange, onDeleted, top, hubspot }: {
+function Details({ m, onChange, onDeleted, top, hubspot, onNameSpeakers }: {
   m: Meeting; onChange: (m: Meeting) => void; onDeleted: () => void; top?: React.ReactNode; hubspot?: React.ReactNode;
+  onNameSpeakers?: () => void;
 }) {
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
@@ -338,6 +369,20 @@ function Details({ m, onChange, onDeleted, top, hubspot }: {
           <p className="mt-cost" data-testid="meeting-attendees-from-notes" style={{ margin: "6px 0 0" }}>From Google&apos;s notes: the people they name.</p>
         )}
       </div>
+
+      {m.can_regenerate && m.has_transcript && onNameSpeakers && (
+        <div data-testid="meeting-panel-speakers">
+          <p className="pa-sources__label" style={{ margin: "0 0 6px" }}>Speakers</p>
+          <p className="mt-cost" style={{ margin: "0 0 8px" }}>
+            {(m.unnamed_speakers ?? 0) > 0
+              ? `${m.unnamed_speakers} ${m.unnamed_speakers === 1 ? "speaker isn't" : "speakers aren't"} named yet (Speaker 2…).`
+              : "Every speaker has a name. Fix one that's wrong."}
+          </p>
+          <Button size="sm" variant="secondary" iconLeft="mic" onClick={onNameSpeakers}>
+            {(m.unnamed_speakers ?? 0) > 0 ? "Name the speakers" : "Rename a speaker"}
+          </Button>
+        </div>
+      )}
 
       <div>
         <p className="pa-sources__label" style={{ margin: "0 0 6px" }}>Sources</p>

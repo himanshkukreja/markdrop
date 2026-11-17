@@ -359,3 +359,29 @@ html[data-mt-rec="summary"] .pb-body a[href*="#b-t"]::before { content: "\25B6\F
 .mt-linkres__row[data-status="needs_access"] svg, .mt-linkres__row[data-status="error"] svg { color: var(--danger-text, var(--danger)); }
 .mt-linkres__row a { color: var(--accent-text); }
 .mt-linkres__url { overflow-wrap: anywhere; font-weight: 500; color: var(--text); }
+
+/* Name the speakers (NameSpeakers.tsx) */
+.mt-spk-banner { margin: 8px 0 0; flex-wrap: wrap; }
+.mt-spk-banner__text { flex: 1 1 220px; min-width: 0; }
+.mt-spks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.mt-spk { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.mt-spk[data-generic] { border-color: var(--accent-border, var(--border)); }
+.mt-spk__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mt-spk__head > b { font-size: 14px; }
+.mt-spk__head > .md-btn { margin-left: auto; }
+.mt-spk__lines { list-style: none; margin: 8px 0 0; padding: 0 0 0 10px; border-left: 2px solid var(--border); display: grid; gap: 4px; font-size: 13px; line-height: 19px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.mt-spk__lines .mt-cost { margin-right: 6px; font-variant-numeric: tabular-nums; }
+.mt-spk__guess { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 8px 0 0; font-size: 13px; }
+.mt-spk-pick { margin-top: 10px; display: grid; gap: 8px; }
+.mt-spk-pick__list { display: grid; gap: 2px; max-height: 240px; overflow: auto; }
+.mt-spk-opt { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: var(--radius-md, 8px); background: none; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; min-height: 32px; }
+.mt-spk-opt:hover:not(:disabled), .mt-spk-opt:focus-visible { background: var(--surface-inset); }
+.mt-spk-opt--guess { background: var(--accent-soft); color: var(--accent-text); }
+.mt-spk-opt:disabled { opacity: .6; cursor: default; }
+.mt-spk-pick__foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.mt-spk-hist { margin: 12px 0 0; }
+.mt-spk-again { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; font-size: 13px; }
+.mt-spk-again > span { flex: 1 1 200px; }
+/* A "Speaker N" lead on the transcript names that speaker (MeetingHeader sets data-mt-name for editors). */
+html[data-mt-name] .pb-body [data-bid^="b-t"] > strong:first-child { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+html[data-mt-name] .pb-body [data-bid^="b-t"] > strong:first-child:hover { color: var(--accent-text); }

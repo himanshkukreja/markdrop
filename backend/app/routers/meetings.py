@@ -22,6 +22,12 @@
                                                      notes (whoever can read the meeting; services/zoom_media.py)
     DELETE /api/v1/meetings/{id}/recording           remove it (whoever can delete the meeting)
     POST   /api/v1/meetings/{id}/regenerate          writes the AI sections again (waits)
+    GET    /api/v1/meetings/{id}/speakers            the transcript's speakers: talk time, a few lines each,
+                                                     Markdrop's guess for a "Speaker N", who renamed what
+    POST   /api/v1/meetings/{id}/speakers            {from, to | user_id}: name a speaker everywhere
+                                                     (services/meeting_speakers.rename_speaker)
+    POST   /api/v1/meetings/{id}/speakers/dismiss    hide "N speakers aren't named yet" for me on this meeting
+                                                     (the three: whoever can edit the meeting page)
     POST   /api/v1/meetings/{id}/ask         SSE     {question, history?: [{question, answer}]}
     POST   /api/v1/meetings/ask              SSE     {workspace, question, series?, since?, until?}
     (Import past meetings and /series: routers/meetings_backfill.py)
@@ -175,6 +181,15 @@ class PatchBody(BaseModel):
     type: str | None = Field(None, max_length=20)
     # The meeting's series (services/meeting_series.py); null or "" takes it out of its series.
     series: str | None = Field(None, max_length=60)
+
+
+class SpeakerBody(BaseModel):
+    from_: str = Field(..., alias="from", min_length=1, max_length=120,
+                       description='The speaker label as the transcript has it ("Speaker 2", or a name to fix).')
+    to: str | None = Field(None, max_length=120, description="The person's name.")
+    user_id: str | None = Field(None, max_length=40, description="Or a workspace member: their name is used.")
+
+    model_config = {"populate_by_name": True}
 
 
 class AskBody(BaseModel):
@@ -609,6 +624,66 @@ async def regenerate(request: Request, meeting_id: str, db: AsyncIOMotorDatabase
     await meetings_ai.generate(db, str(row["_id"]), user)
     row = await meetings.get_row(db, meeting_id)
     return await meetings.shape(db, row, raw, actor, ctx)
+
+
+async def _editable(request: Request, db, user: User, meeting_id: str):
+    actor, ctx = _ac(request, db, user)
+    row, raw = await meetings.for_read(db, meeting_id, actor, ctx)
+    await access.require(actor, raw, "edit_content", ctx)
+    return actor, ctx, row, raw
+
+
+@router.get("/{meeting_id}/speakers", summary="A meeting's speakers")
+@limiter.limit("60/minute")
+async def get_speakers(request: Request, meeting_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                       user: User = Depends(require_user)):
+    """For naming them (whoever can edit the meeting): each speaker label in the order they first speak,
+    with their talk time, a few of their lines, and Markdrop's guess for a "Speaker N" (never applied
+    on its own); the meeting's attendees to pick from; and who renamed what."""
+    from app.services import meeting_speakers
+
+    _actor, _ctx, row, _raw = await _editable(request, db, user, meeting_id)
+    names = {}
+    renames = list(row.get("speaker_renames") or [])[-20:]
+    for uid in {r.get("by") for r in renames if r.get("by")}:
+        p = await meetings._person(db, uid)
+        names[uid] = (p or {}).get("name")
+    return {
+        "speakers": meeting_speakers.speaker_stats(row),
+        "unnamed": meeting_speakers.unnamed_count(row),
+        "attendees": [{"name": a["name"], "user_id": a.get("user_id")} for a in row.get("attendees") or [] if a.get("name")],
+        "renames": [{"from": r.get("from"), "to": r.get("to"), "by": names.get(r.get("by")),
+                     "at": meetings.iso(r.get("at"))} for r in reversed(renames)],
+    }
+
+
+@router.post("/{meeting_id}/speakers", summary="Name a meeting's speaker")
+@limiter.limit("30/minute")
+async def rename_speaker(request: Request, meeting_id: str, body: SpeakerBody,
+                         db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """Name a speaker ("Speaker 2" → "Mayuri Pillay", or fix a wrong name) everywhere: the transcript's
+    lines, the Transcript page, the attendees, the recording's captions, Ask and meeting memory. The
+    summary and Details are AI's words: "Write it again" (POST /{id}/regenerate) uses the names."""
+    from app.services import meeting_speakers
+
+    actor, ctx, row, raw = await _editable(request, db, user, meeting_id)
+    if not body.user_id and not (body.to or "").strip():
+        raise HTTPException(status_code=422, detail="Give a name (to) or a workspace member (user_id).")
+    got = await meeting_speakers.rename_speaker(db, row, body.from_, body.to, user=user, user_id=body.user_id)
+    row = await meetings.get_row(db, meeting_id)
+    raw = await meetings.page_of(db, row) or raw
+    return {"renamed": got, "meeting": await meetings.shape(db, row, raw, actor, ctx)}
+
+
+@router.post("/{meeting_id}/speakers/dismiss", summary="Hide the unnamed-speakers banner")
+@limiter.limit("30/minute")
+async def dismiss_speakers(request: Request, meeting_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                           user: User = Depends(require_user)):
+    from app.services import meeting_speakers
+
+    _actor, _ctx, row, _raw = await _editable(request, db, user, meeting_id)
+    await meeting_speakers.dismiss(db, row, user.id)
+    return {"ok": True}
 
 
 @router.post("/{meeting_id}/ask")

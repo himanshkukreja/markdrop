@@ -94,7 +94,12 @@ EMAIL_LOG = "notification_email_log"
 WITHDRAWN = "notification_withdrawn"   # delivered-then-withdrawn rows, for the 24-hour dedupe
 KINDS = ("mention", "signoff_requested", "shared",
          # Comments (services/comments/notify_app.py): one row per person + thread + kind while unread.
-         "comment_mention", "comment_reply", "comment_new", "comment_resolved", "comment_assigned")
+         "comment_mention", "comment_reply", "comment_new", "comment_resolved", "comment_assigned",
+         # From Markdrop itself, no actor (:func:`notify_markdrop`): a meeting whose speakers need names.
+         "speakers_unnamed")
+MARKDROP_KINDS = ("speakers_unnamed",)
+#: Where a notification from Markdrop opens on its page (the meeting's "Name the speakers" dialog).
+OPEN_QUERY = {"speakers_unnamed": "?speakers=name"}
 COMMENT_KINDS = ("comment_mention", "comment_reply", "comment_new", "comment_resolved", "comment_assigned")
 # Email (Track C, comments): which notification kinds may email, and which setting (users.email_notify.<pref>)
 # each one follows. Comment mentions and assignments share one setting, replies / new comments / resolved
@@ -220,6 +225,36 @@ def _clean_extra(extra: dict | None) -> dict:
 
 
 # ── notify ────────────────────────────────────────────────────────────────────
+
+
+async def notify_markdrop(db: AsyncIOMotorDatabase, user_id: str, kind: str, doc: Any,
+                          extra: dict | None = None) -> dict | None:
+    """A notification from Markdrop itself (no person acted: ``MARKDROP_KINDS``), once per person, page
+    and kind: the bell, and a Slack DM for a linked account that turned that kind on (never email or push).
+    Same privacy rules as :func:`notify`: nobody is told about a page they can't open. None when nobody is
+    notified."""
+    if kind not in MARKDROP_KINDS:
+        raise ValueError(f"not a Markdrop notification kind {kind!r}")
+    user_id = str(user_id or "")
+    raw = await _load_doc(db, doc)
+    if not user_id or raw is None or raw.get("encrypted"):
+        return None
+    recipient = await _user_row(db, user_id)
+    if recipient is None or not await can_open(db, recipient, raw):
+        return None
+    doc_id = str(raw["_id"])
+    if await db[COLL].find_one({"user_id": user_id, "kind": kind, "doc_id": doc_id}, {"_id": 1}) is not None:
+        return None
+    now = _now()
+    row = {"user_id": user_id, "kind": kind, "doc_id": doc_id, "block_id": None, "actor_id": None,
+           "actor_name": "Markdrop", "via": None, "extra": _clean_extra(extra), "created_at": now, "read_at": None,
+           "email": "off", "email_at": now, "emailed_at": None}
+    res = await db[COLL].insert_one(row)
+    row["_id"] = res.inserted_id
+    from app.services import slack_notify
+
+    await slack_notify.queue_notification(db, row)
+    return row
 
 
 async def notify(db: AsyncIOMotorDatabase, user_id: str, kind: str, doc: Any, block_id: str | None = None,
@@ -606,6 +641,9 @@ def _sentence(kind: str, actor: str, title: str | None, label: str | None) -> st
         return f"{actor} asked you to sign off on {what}" + (f" in {where}" if title else f" on {where}")
     if kind == "shared":
         return f"{actor} shared {where} with you" if title else f"{actor} shared a page with you that you can't open now"
+    if kind == "speakers_unnamed":
+        return (f"Name the speakers in {where}" + (f": {label} not named yet" if label and title else "")
+                if title else "Name the speakers in a meeting you can't open now")
     return f"{actor} mentioned you in {where}" if title else f"{actor} mentioned you on {where}"
 
 
@@ -636,6 +674,7 @@ async def _view(db: AsyncIOMotorDatabase, rows: list[dict], user_row: dict) -> l
         extra = r.get("extra") or {}
         block = r.get("block_id") if ok else None
         frag = f"#c-{r['thread_id']}" if r.get("thread_id") else (f"#{block}" if block else "")
+        frag = OPEN_QUERY.get(r["kind"], "") + frag
         href = (f"/{d['slug']}" + frag) if ok else None
         actor = r.get("actor_name") or "Someone"
         page_meta = {"slug": d["slug"], "title": title} if ok else None
@@ -717,7 +756,8 @@ async def open_one(db: AsyncIOMotorDatabase, user_id: str, notification_id: str)
     if row.get("thread_id"):
         return {"href": f"/{doc['slug']}#c-{row['thread_id']}", "slug": doc["slug"], "block": None,
                 "thread_id": row["thread_id"]}
-    return {"href": f"/{doc['slug']}" + (f"#{block}" if block else ""), "slug": doc["slug"], "block": block}
+    return {"href": f"/{doc['slug']}" + OPEN_QUERY.get(row.get("kind") or "", "") + (f"#{block}" if block else ""),
+            "slug": doc["slug"], "block": block}
 
 
 # ── Email ─────────────────────────────────────────────────────────────────────

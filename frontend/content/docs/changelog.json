@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "name-the-speakers",
+      "date": "2026-11-17",
+      "title": "Name a meeting's speakers",
+      "kind": "new",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "When speech-to-text couldn't tell who someone is, their lines show as Speaker 2, Speaker 3. Now the meeting asks you to name them, and one name is used everywhere: the transcript, who was there, the recording's captions and Ask. Who was there no longer lists Speaker 2 or the same person twice.",
+      "body": "- **Markdrop asks.** A meeting with unnamed speakers shows **3 speakers aren't named yet** to everyone who can edit it, and a Zoom meeting's host gets one notification (the bell, and Slack if it's on) linking straight to the list. [Name the speakers](/workspaces/meetings#name-the-speakers)\n- **Pick who it is.** Each speaker shows how long they talked and a few of their lines. Pick from the people who were there or the workspace's members, or type a name. Markdrop's guess, when it had one, is shown as a guess and used only if you click it.\n- **One name everywhere.** The transcript's lines, the Transcript page (only the speaker names, when someone edited it), who was there, the recording's captions, Ask and meeting memory. **Write it again** then writes the summary and Details with the names.\n- **Fix a wrong name** the same way. Who renamed which speaker is kept.\n- **Cleaner attendees.** Speaker 2 and the like aren't listed as people, and a Zoom name like \"Mayuri\" counts as \"Mayuri Pillay\" when she's the only Mayuri on the call. Two people who share a first name stay apart.\n- **From your AI app and the API.** New MCP tool `rename_meeting_speaker`; API `GET` and `POST /api/v1/meetings/{id}/speakers`."
+    },
+    {
       "id": "zoom-attendee-emails",
       "date": "2026-11-17",
       "title": "Zoom meetings keep attendees' email addresses, and resume after a restart",

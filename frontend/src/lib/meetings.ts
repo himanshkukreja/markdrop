@@ -10,6 +10,9 @@
  *   PATCH  /api/v1/meetings/{id}                  {restricted?, type?}
  *   DELETE /api/v1/meetings/{id}
  *   POST   /api/v1/meetings/{id}/regenerate
+ *   GET    /api/v1/meetings/{id}/speakers            the speakers to name (editors)
+ *   POST   /api/v1/meetings/{id}/speakers            {from, to | user_id}: name one everywhere
+ *   POST   /api/v1/meetings/{id}/speakers/dismiss    hide "N speakers aren't named yet" for me
  *   POST   /api/v1/meetings/{id}/ask      (SSE)   Ask this meeting
  *   POST   /api/v1/meetings/ask           (SSE)   Ask across meetings
  *   GET    /api/v1/meetings/connection?workspace=  Connect Google Meet: mine, and others sending here
@@ -91,6 +94,9 @@ export interface Meeting {
   decisions?: number;
   open_questions?: number;
   cover?: string | null;
+  /** "Speaker N" labels left in the transcript (Name the speakers), and whether I hid the banner asking. */
+  unnamed_speakers?: number;
+  speakers_dismissed?: boolean;
   /** The meeting's Zoom recording kept in Markdrop (Transcribe and keep recordings); played via getMeetingRecording. */
   recording?: { size: number | null; duration_s: number | null; source: "zoom" } | null;
 }
@@ -367,6 +373,40 @@ export function patchMeeting(id: string, body: { restricted?: boolean; type?: st
 
 export function deleteMeeting(id: string) {
   return request<{ deleted: boolean }>(`/api/v1/meetings/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/** One speaker label of a meeting's transcript (GET /meetings/{id}/speakers). */
+export interface MeetingSpeaker {
+  label: string;
+  /** A speech-to-text label ("Speaker 2"), nobody's name yet. */
+  generic: boolean;
+  lines: number;
+  talk_s: number;
+  samples: Array<{ n: number; t: number | null; text: string }>;
+  /** Markdrop's unsure guess for a "Speaker N" (never applied on its own). */
+  guess: string | null;
+}
+
+export interface MeetingSpeakers {
+  speakers: MeetingSpeaker[];
+  unnamed: number;
+  attendees: Array<{ name: string; user_id: string | null }>;
+  renames: Array<{ from: string; to: string; by: string | null; at: string | null }>;
+}
+
+export function getMeetingSpeakers(id: string) {
+  return request<MeetingSpeakers>(`/api/v1/meetings/${encodeURIComponent(id)}/speakers`);
+}
+
+export function renameMeetingSpeaker(id: string, from: string, to: { name?: string; userId?: string }) {
+  return request<{ renamed: { from: string; to: string; lines: number; transcript: "rewritten" | "updated" | "left" | "none"; unnamed: number }; meeting: Meeting }>(
+    `/api/v1/meetings/${encodeURIComponent(id)}/speakers`,
+    { method: "POST", body: JSON.stringify({ from, ...(to.userId ? { user_id: to.userId } : { to: to.name }) }) },
+  );
+}
+
+export function dismissMeetingSpeakers(id: string) {
+  return request<{ ok: boolean }>(`/api/v1/meetings/${encodeURIComponent(id)}/speakers/dismiss`, { method: "POST" });
 }
 
 export function regenerateMeeting(id: string) {

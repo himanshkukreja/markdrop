@@ -407,6 +407,17 @@ async def named_from_words(db: AsyncIOMotorDatabase, conn: dict, obj: dict, utts
         log.warning("zoom: naming a meeting's speakers failed", exc_info=True)
         return {}
     by_label = {v: k for k, v in label.items()}
+    if got.guesses:
+        # Markdrop's unsure guesses, offered (never applied) when someone names the speakers by hand:
+        # kept with the import, put on the meeting row once it exists (zoom.handle_recording).
+        from app.services import zoom
+
+        guesses = [{"label": lab, "name": n} for lab, n in got.guesses.items() if lab in by_label]
+        try:
+            await db[zoom.MEETINGS].update_one({"_id": f"{conn['_id']}:{obj.get('uuid') or ''}"},
+                                               {"$set": {"speaker_guesses": guesses}})
+        except Exception:
+            log.warning("zoom: keeping a meeting's speaker guesses failed", exc_info=True)
     return {by_label[lab]: n for lab, n in got.names.items() if lab in by_label and by_label[lab] not in names}
 
 

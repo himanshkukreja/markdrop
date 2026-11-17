@@ -180,6 +180,7 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "meeting_context", scope: "read" },
       { name: "meetings_connection", scope: "read" },
       { name: "check_meetings_now", scope: "read" },
+      { name: "rename_meeting_speaker", scope: "write" },
     ],
   },
   {

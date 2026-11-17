@@ -1,8 +1,8 @@
 ---
 title: Meetings
 description: Turn every team call into a page with an AI summary, decisions and action items, keep the transcript, and ask questions across all your meetings.
-updated: 2026-11-16
-keywords: [meetings, meeting details, detailed notes, zoom notes, write it again, mentions in meetings, meeting notifications, no notifications, meetings page, all meetings, meeting cards, search meetings, sort meetings, meeting date, one-offs, meeting folders, subfolders, other meetings, organize meetings, organize into folders, organize progress, organise meetings, meeting notes, transcript, google meet, gemini, gemini notes, take notes for me, notes by gemini, meeting page, meeting cover, series cover, summary, decisions, action items, open questions, topics, team memory, meetings folder, auto import, import meetings automatically, series, recurring meetings, daily standup, by month, by series, delete meeting, organize_meetings, meeting memory, /meetings]
+updated: 2026-11-17
+keywords: [meetings, name the speakers, name speakers, speaker 1, speaker 2, unnamed speakers, rename speaker, wrong speaker name, who is speaking, rename_meeting_speaker, meeting details, detailed notes, zoom notes, write it again, mentions in meetings, meeting notifications, no notifications, meetings page, all meetings, meeting cards, search meetings, sort meetings, meeting date, one-offs, meeting folders, subfolders, other meetings, organize meetings, organize into folders, organize progress, organise meetings, meeting notes, transcript, google meet, gemini, gemini notes, take notes for me, notes by gemini, meeting page, meeting cover, series cover, summary, decisions, action items, open questions, topics, team memory, meetings folder, auto import, import meetings automatically, series, recurring meetings, daily standup, by month, by series, delete meeting, organize_meetings, meeting memory, /meetings]
 ---
 
 Meetings turns a call into a page in your workspace. Bring in Google Meet's transcript, Gemini's meeting notes, or both, and Markdrop writes:
@@ -127,6 +127,21 @@ Markdrop never notifies anyone about the @mentions it writes into a meeting: no 
 
 The page is an ordinary page. Edit it like any other: fix a name, add notes, tick off action items. Everything AI writes is in **English**, even when the call mixes Hindi and English or another language. The transcript stays as it was spoken.
 
+## Name the speakers
+
+Speech-to-text tells voices apart, but not who they are. When Markdrop couldn't work out who someone is, their lines show as **Speaker 2**, **Speaker 3**. Name them once and the name is used everywhere.
+
+- **Markdrop asks.** While a meeting still has unnamed speakers, its page and its transcript show **3 speakers aren't named yet** to everyone who can edit the meeting. Choose **Name them**, or hide it for yourself with **×**. When a Zoom meeting comes in this way, its host also gets one notification, **Name the speakers in** *the meeting*, in the bell and (if they turned Slack notifications on) in Slack, linking straight to the list. Meetings brought in with Import past meetings don't notify anyone.
+- **Who is who.** Each speaker shows how long they talked and a few of their lines. Pick the person from the people who were there, search the workspace's members, or type any name. When Markdrop had an idea but wasn't sure, it shows it as **Markdrop's guess**. It's never used until you click it.
+- **Anywhere it's shown.** On the transcript, click a **Speaker 2** line's name. In the meeting panel, choose **Name the speakers** under **Speakers**.
+- **One name everywhere.** The transcript's lines, the **Transcript** page, who was there, the recording's captions, Ask and meeting memory all use the name. If someone edited the Transcript page, only the speaker at the start of each line changes and their edits stay.
+- **Fix a wrong name** the same way: **Rename a speaker**, then **Change** next to it.
+- **Then write it again.** The summary and **Details** were written with the old labels. Choose **Write it again** in the list (or in the panel) to write them with the names. Markdrop doesn't do this on its own, so a page someone edited doesn't get a second set of sections.
+
+You need to be able to edit the meeting. Markdrop keeps a record of who renamed which speaker, shown at the bottom of the list.
+
+Who was there doesn't list **Speaker 2** and the like, since they aren't anyone's name. A first name that matches exactly one other person on the call ("Mayuri" from Zoom and "Mayuri Pillay") counts as that person. Two people who share a first name stay apart.
+
 ![The Meeting details panel: Ask this meeting, the date, type, series, transcript, action items, organizer, who imported it, Invited (7, on the calendar invite, joined or not), who was there (4), the sources, the Only the people who were there switch and the AI summary.](/docs-assets/workspaces/meetings/meeting-details.webp)
 
 ## Action items in Slack
@@ -139,7 +154,7 @@ When your workspace has [Jira connected](/integrations/jira), a meeting's decisi
 
 ## From an AI app
 
-With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`, from text, a file or a Google Drive link) or many past ones (`import_meetings_bulk`), list meetings (`list_meetings`, filtered by series, dates or how they came in), read one (`get_meeting`), ask them (`ask_meetings`, scoped to a series or dates), get what was decided about a topic while writing a document (`meeting_context`), file every meeting into its series folder (`organize_meetings`, workspace admins), check whether automatic import is on and what's waiting for Gemini's notes (`meetings_connection`), check for new meetings now (`check_meetings_now`), and post a meeting to the workspace's Slack channel (`post_meeting_to_slack`). See [MCP tools](/ai/tools#meetings).
+With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`, from text, a file or a Google Drive link) or many past ones (`import_meetings_bulk`), list meetings (`list_meetings`, filtered by series, dates or how they came in), read one (`get_meeting`), ask them (`ask_meetings`, scoped to a series or dates), get what was decided about a topic while writing a document (`meeting_context`), file every meeting into its series folder (`organize_meetings`, workspace admins), check whether automatic import is on and what's waiting for Gemini's notes (`meetings_connection`), check for new meetings now (`check_meetings_now`), name a speaker or fix a wrong name (`rename_meeting_speaker`; without a name, it lists the speakers with their lines and Markdrop's guesses), and post a meeting to the workspace's Slack channel (`post_meeting_to_slack`). See [MCP tools](/ai/tools#meetings).
 
 ## While you write
 

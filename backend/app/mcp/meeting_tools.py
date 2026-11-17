@@ -14,6 +14,9 @@
   Read-only: never the token or the script (connecting is done on the website).
 * ``check_meetings_now``: "Check for new meetings": the workspace's connected scripts (with Check now
   turned on) run now instead of at their next scheduled run; says what arrived.
+* ``rename_meeting_speaker``: name a transcript's speaker ("Speaker 2" → a person, or fix a wrong
+  name) everywhere (services/meeting_speakers.rename_speaker); without ``to``, lists the speakers.
+  Whoever can edit the meeting page.
 
 ``import_meeting`` dedupes like the Google Meet script's inbox: the same call (name, date, start
 time) already in the workspace with that half is returned as a duplicate, and the other half of a
@@ -288,6 +291,36 @@ async def get_meeting(ctx: Context, args: dict) -> tuple[str, dict]:
     return text, out
 
 
+async def rename_meeting_speaker(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import meeting_speakers
+
+    row, raw = await _row(ctx, args["meeting"])
+    actor, actx = actor_of(ctx), _actx(ctx)
+    if not (await access_service.can(actor, raw, "edit_content", actx)).allowed:
+        raise ToolError("The user can't edit this meeting, so they can't name its speakers.")
+    if not args.get("from") or not (args.get("to") or args.get("user_id")):
+        stats = meeting_speakers.speaker_stats(row)
+        out = {"speakers": [{k: s[k] for k in ("label", "generic", "lines", "talk_s", "guess", "samples")} for s in stats],
+               "unnamed": meeting_speakers.unnamed_count(row),
+               "attendees": [a["name"] for a in row.get("attendees") or [] if a.get("name")]}
+        lines = [f"{s['label']}: {s['lines']} lines, {s['talk_s']}s" + (f" (Markdrop's guess: {s['guess']})" if s.get("guess") else "")
+                 + "".join(f"\n    “{x['text']}”" for x in s["samples"]) for s in stats]
+        return ("Speakers (give from and to to name one):\n" + "\n".join(lines)
+                + "\nAttendees: " + (", ".join(out["attendees"]) or "none")), out
+    try:
+        got = await meeting_speakers.rename_speaker(ctx.db, row, args["from"], args.get("to"), user=ctx.user,
+                                                    user_id=args.get("user_id"))
+    except HTTPException as exc:
+        raise ToolError(http_message(exc)) from exc
+    url = urls.markdrop_url(raw["slug"])
+    text = (f"Named {got['from']} {got['to']} in {got['lines']} transcript lines ({url}). "
+            + {"rewritten": "The Transcript page was written again.", "updated": "The Transcript page's lines were updated.",
+               "left": "The Transcript page was edited by someone and left as it is.", "none": ""}[got["transcript"]]
+            + (f" {got['unnamed']} speakers still need names." if got["unnamed"] else "")
+            + " The summary and Details still use the old label until the meeting is written again (Write it again on the website).")
+    return text.strip(), {**got, "url": url}
+
+
 async def ask_meetings(ctx: Context, args: dict) -> tuple[str, dict]:
     from app.services import pages_ai
 
@@ -560,5 +593,29 @@ MEETING_TOOLS: list[Tool] = [
                             "connections": {"type": "array", "items": {"type": "object"}}}),
         annotations=_ann(False, False, False),
         handler=check_meetings_now,
+    ),
+    Tool(
+        name="rename_meeting_speaker",
+        title="Name a meeting's speaker",
+        description=("Name a speaker in a meeting's transcript: a speech-to-text label such as 'Speaker 2' becomes a "
+                     "person, or a wrong name is fixed, everywhere at once (the transcript lines, the Transcript page, "
+                     "the attendees, the recording's captions, Ask and meeting memory). Give from (the label as the "
+                     "transcript has it) and to (the person's name) or user_id (a workspace member). Without to/user_id "
+                     "it lists the speakers: their talk time, a few lines each and Markdrop's guess, plus the "
+                     "attendees, to decide who is who. Only for someone who can edit the meeting; it records who "
+                     "renamed what. The summary and Details keep the old label until the meeting is written again."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "meeting": _MEETING_REF,
+            "from": {"type": "string", "maxLength": 120, "description": "The speaker label as the transcript has it, e.g. 'Speaker 2'."},
+            "to": {"type": "string", "maxLength": 120, "description": "The person's name."},
+            "user_id": {"type": "string", "maxLength": 40, "description": "Or a workspace member's id: their name is used."},
+        }, "required": ["meeting"]},
+        output_schema=_out({"from": {"type": "string"}, "to": {"type": "string"}, "lines": {"type": "integer"},
+                            "transcript": {"type": "string"}, "unnamed": {"type": "integer"}, "url": {"type": "string"},
+                            "speakers": {"type": "array"}, "attendees": {"type": "array"}}),
+        annotations=_ann(False, False, False),
+        handler=rename_meeting_speaker,
     ),
 ]

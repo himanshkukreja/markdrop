@@ -458,6 +458,17 @@ def dm_shared(actor: str, title: str, url: str, role: str | None, message_: str 
     ], f"{actor} shared {cut(title, 80)} with you")
 
 
+def dm_name_speakers(title: str, url: str, count: str | None, *, where: str | None = None) -> dict:
+    """A meeting you imported has "Speaker N" voices left (services/meeting_speakers.ask_to_name)."""
+    who = f"{esc(count)} not named yet" if count else "some of its speakers aren't named yet"
+    return message([
+        eyebrow("Name the speakers", where),
+        section(f"*{link(url, cut(title, 120))}*: {who}. Pick who each one is, so the notes and Ask use their names."),
+        actions(open_button(url, "Name them", primary=True)),
+        dm_footer(),
+    ], f"Name the speakers in {cut(title, 80)}")
+
+
 def dm_signoff(team_id: str, actor: str | None, title: str, url: str, label_: str | None, doc_id: str, block: str,
                options: list[str], done: str | None = None, *, where: str | None = None) -> dict:
     what = f" on *{esc(cut(label_, 120))}*" if label_ else ""

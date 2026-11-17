@@ -1082,8 +1082,16 @@ async def handle_recording(db: AsyncIOMotorDatabase, workspace_id: str, obj: dic
     if obj.get("duration") and not row.get("duration_s"):
         fix["duration_s"] = int(obj["duration"]) * 60
     if status_ == "imported":
+        kept = await db[MEETINGS].find_one({"_id": key}, {"speaker_guesses": 1}) or {}
+        if kept.get("speaker_guesses"):
+            fix["speaker_guesses"] = kept["speaker_guesses"]
         await db[meetings.COLL].update_one({"_id": row["_id"]}, {"$set": {
             **fix, "zoom": {"uuid": uuid, "meeting_id": base["meeting_id"], "transcript_from": source}}})
+        if via == "webhook":
+            # "Speaker N" voices left: ask the host to name them, once (never for a backfill).
+            from app.services import meeting_speakers
+
+            await meeting_speakers.ask_to_name(db, row["_id"])
     await _finish(db, key, status_, meeting_row_id=str(row["_id"]), slug=row.get("slug"), reason=None, due_at=None)
     await _count(db, workspace_id, "imported" if status_ == "imported" else "duplicates",
                  {"last_import_at": now_utc(), "last_error": None} if status_ == "imported" else None)

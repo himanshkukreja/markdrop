@@ -1,8 +1,8 @@
 ---
 title: Slack
 description: Meeting notes with Done buttons in a channel, each person's own action items after a meeting, search and ask from Slack, link previews, and Slack notifications.
-updated: 2026-11-07
-keywords: [slack, slack app, integration, integrations tab, add to slack, not set up yet, connected, meetings channel, channel picker, don't post meetings, post new meetings automatically, post to slack, private channel, /invite @markdrop, /markdrop, slash command, /markdrop link, /markdrop unlink, /markdrop help, search, ask, ai answers, meeting notes, action items, done button, unfurl, link preview, direct messages, notifications, slack notifications, get notifications in slack, turn on, turn off, off by default, opt in, found by email, users:read.email, update permissions, update markdrop for slack, look again, mentions, sign-off, access requests, approve, decline, slack connect, disconnect slack, slack_status, post_meeting_to_slack, action items after meetings, your action items, direct message, stop these, turn back on, send each person their action items, daily syncup, not in markdrop, ask for access]
+updated: 2026-11-17
+keywords: [slack, slack app, integration, integrations tab, add to slack, not set up yet, connected, meetings channel, channel picker, don't post meetings, post new meetings automatically, post to slack, private channel, /invite @markdrop, /markdrop, slash command, /markdrop link, /markdrop unlink, /markdrop help, search, ask, ai answers, meeting notes, action items, done button, unfurl, link preview, direct messages, notifications, slack notifications, get notifications in slack, turn on, turn off, off by default, opt in, found by email, users:read.email, update permissions, update markdrop for slack, look again, mentions, sign-off, access requests, approve, decline, slack connect, disconnect slack, slack_status, post_meeting_to_slack, action items after meetings, your action items, direct message, stop these, turn back on, send each person their action items, daily syncup, not in markdrop, ask for access, meeting speakers to name]
 ---
 
 Markdrop for Slack connects one Slack workspace to one Markdrop workspace. It does five things:
@@ -177,7 +177,8 @@ Markdrop can send you a direct message in Slack, from the Markdrop app, when:
 - someone asks for your **sign-off** (**Sign-off requests**). Choose an option from the message;
 - someone **shares** something with you (**Shared with you**), with what you can do with it and their note;
 - someone **mentions you in a comment** (**Mentions in comments**) or **assigns you a comment thread** (**Comments assigned to you**). Select **Reply** to answer in a box right in Slack (posted as you), or **Resolve** to resolve the thread if you started it, it's assigned to you, or you can edit the page. See [Comments](/collaboration/notifications#slack);
-- someone asks to **open or edit** something you own (**Access requests**). Select **Approve** or **Decline**, or **Review in Markdrop**. When the item's owner can't approve it, the workspace's admins get the message, marked "You're getting this as a workspace admin".
+- someone asks to **open or edit** something you own (**Access requests**). Select **Approve** or **Decline**, or **Review in Markdrop**. When the item's owner can't approve it, the workspace's admins get the message, marked "You're getting this as a workspace admin";
+- a Zoom meeting you hosted came in with speakers Markdrop couldn't name (**Meeting speakers to name**), with **Name them**. See [Name the speakers](/workspaces/meetings#name-the-speakers).
 
 After you choose, the message changes to say what you did, like "Approved by you: they can edit it now." If someone else answered first, Slack tells you.
 

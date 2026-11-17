@@ -21,7 +21,7 @@
  */
 import { request } from "@/lib/workspaces";
 
-export type SlackNotifyKind = "mention" | "signoff_requested" | "shared" | "access_request";
+export type SlackNotifyKind = "mention" | "signoff_requested" | "shared" | "access_request" | "speakers_unnamed";
 
 export interface SlackChannel { id: string; name: string; private: boolean; shared?: boolean }
 
