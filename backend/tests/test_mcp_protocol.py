@@ -179,6 +179,8 @@ class Transport(McpTestCase):
             # HubSpot (mcp/hubspot_tools.py).
             "hubspot_status", "hubspot_match", "log_to_hubspot", "hubspot_tasks",
             "hubspot_suggestions", "hubspot_account", "hubspot_pipeline", "hubspot_notifications",
+            # Folder access (mcp/folder_access_tools.py).
+            "get_folder_access", "set_folder_access", "share_folder",
         # A video's captions (search and Ask read it by minute).
         "set_captions"})
         for t in tools.values():
