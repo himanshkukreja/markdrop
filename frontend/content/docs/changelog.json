@@ -116,6 +116,18 @@
       "body": "- **Attendees' addresses.** From Zoom's participants list, as Google Meet imports already do. They aren't shown on the meeting. [Zoom](/integrations/zoom)\n- **Better HubSpot matches.** Attendees are looked up as HubSpot contacts by email first, rather than only by name. [How a call is matched](/integrations/hubspot#how-a-call-is-matched)\n- **Nothing stuck.** A meeting or recording left half imported by a restart goes back in the queue within about 20 minutes; after a few interrupted tries it shows **Didn't import** with the reason, and **Import past meetings** brings it in."
     },
     {
+      "id": "mcp-file-text-by-page",
+      "date": "2026-11-17",
+      "title": "AI apps can read PDFs, decks and large HTML files page by page",
+      "kind": "improved",
+      "area": "AI",
+      "products": [
+        "mcp"
+      ],
+      "summary": "get_document and fetch now return a PDF's text by page, a PowerPoint deck's by slide, and a large HTML file's visible text in parts, a few pages per call, so an assistant can read a 40-page PDF to the end.",
+      "body": "- **PDFs and decks.** `get_document` and `fetch` return the text under `--- Page N ---` (or `--- Slide N ---` for a .pptx, with speaker notes), about 40,000 characters per call. `page_from` and `page_to` (1-based, inclusive) choose the pages; `total_pages` and `next_page_from` say where to continue. Word and Excel files come back by section and sheet the same way.\n- **Scanned PDFs** say \"No extractable text (looks scanned)\" instead of returning nothing. OCR isn't available yet.\n- **Large HTML files** come back as their visible text (scripts and styles out, headings and link text kept) in parts: `part`, `total_parts`, `next_part`. Smaller HTML files still return their source unless you pass `format: text`.\n- **Access is unchanged**: a file you can't open returns nothing."
+    },
+    {
       "id": "video-chapters",
       "date": "2026-11-16",
       "title": "Chapters on the video player, and captions on meeting recordings",
