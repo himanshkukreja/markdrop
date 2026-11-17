@@ -2,12 +2,12 @@
 title: Install the markdrop CLI
 nav: Install
 description: Install the markdrop command-line tool on macOS, Linux or Windows with Homebrew, the install script or a release package.
-updated: 2026-11-05
+updated: 2026-11-17
 checked: 2026-10-30
 keywords: [cli, install, homebrew, brew, curl, powershell, deb, rpm, apk, terminal]
 ---
 
-The markdrop CLI is a single binary for macOS, Linux and Windows. It sends files peer to peer (`send`, `get`), publishes files behind a link you can replace later (`upload`, `replace`), writes and exports pages (`page`, `export`), and runs a local MCP server for AI apps on your computer (`mcp`). The current release is 0.6.1.
+The markdrop CLI is a single binary for macOS, Linux and Windows. It sends files peer to peer (`send`, `get`), publishes files behind a link you can replace later (`upload`, `replace`), writes and exports pages (`page`, `export`), and runs a local MCP server for AI apps on your computer (`mcp`). The current release is 0.7.0.
 
 ## Install
 

@@ -2,10 +2,10 @@
 title: Add the local MCP server
 nav: Local MCP server
 description: Run markdrop mcp so an AI app on your computer can publish files from disk, put images into pages, export pages and send or receive files peer to peer.
-updated: 2026-11-04
+updated: 2026-11-17
 prerequisites: [/cli/install, /cli/login-and-tokens]
 since: CLI 0.3.0
-keywords: [markdrop mcp, local server, stdio, claude desktop, claude code, cursor, vs code, upload_file, share_files, p2p, upload_page_image, export_page]
+keywords: [markdrop mcp, local server, stdio, claude desktop, claude code, cursor, vs code, upload_file, upload_folder, share_files, p2p, upload_page_image, export_page]
 ---
 
 The markdrop CLI includes a local MCP server, `markdrop mcp`. An AI app on your computer starts it and talks to it over standard input and output. Because it runs next to your files, your assistant can publish a 2 GB video or send a folder without passing the file through the conversation.
@@ -107,6 +107,7 @@ Don't commit a configuration file that contains your token. In a shared project,
 | Tool | What it does | Token |
 |---|---|---|
 | `upload_file` | Publish a file from disk (up to 2 GB for video and audio) and return its link | Yes |
+| `upload_folder` | Publish every file in a folder, each behind its own link (sub-folders become workspace folders) | Yes |
 | `replace_file` | Swap the file behind a link, keeping the link; the old version is kept | Yes |
 | `list_file_versions` | A file's versions, newest first | Yes |
 | `restore_file_version` | Make an earlier version current again | Yes |
@@ -124,7 +125,7 @@ Inputs and results for each tool are in [MCP tools](/ai/tools#local-server-tools
 
 ### Publishing files
 
-`upload_file` and `replace_file` work like [`markdrop upload` and `markdrop replace`](/cli/upload-and-replace): the file is hashed, sent in parts and checked by Markdrop before it goes live, and nothing changes if the check fails. If the app cancels a long upload, calling the tool again with the same arguments resumes it. Apps that show progress get progress updates with the bytes sent.
+`upload_file`, `upload_folder` and `replace_file` work like [`markdrop upload` and `markdrop replace`](/cli/upload-and-replace): the file is hashed, sent in parts and checked by Markdrop before it goes live, and nothing changes if the check fails. If the app cancels a long upload, calling the tool again with the same arguments resumes it. Apps that show progress get progress updates with the bytes sent.
 
 New uploads are open to anyone with the link unless the assistant sets `access` to `private`, `password` or `workspace`. With `workspace` (and optionally `folder`), the file goes into one of your workspaces, and the link returned is on the workspace's custom domain when it has a live one. A file uploaded into a workspace with no `access` set gets `workspace` access: only the workspace's members can open it.
 

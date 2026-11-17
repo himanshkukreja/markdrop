@@ -2,7 +2,7 @@
 title: CLI reference
 nav: Command reference
 description: Every markdrop command, flag, default, environment variable and exit code in CLI 0.6.1.
-updated: 2026-11-05
+updated: 2026-11-17
 since: CLI 0.5.0
 keywords: [reference, flags, commands, options, environment variables, exit codes, help, completion, page, export, trash, search, access, link]
 ---
@@ -15,7 +15,7 @@ This page covers the markdrop CLI 0.6.1. Run `markdrop <command> --help` for the
 |---|---|---|
 | [`send <file\|folder>`](#send) | Share a file or folder peer to peer and wait for one recipient | Optional |
 | [`get <room-id\|url>`](#get) | Download a peer-to-peer share | No |
-| [`upload <path>`](#upload) | Publish a file and print its link | Yes |
+| [`upload <file|folder>`](#upload) | Publish a file, or every file in a folder, and print the link(s) | Yes |
 | [`replace <slug-or-url> <path>`](#replace) | Swap the file behind a link, keeping the link | Yes |
 | [`versions <slug-or-url>`](#versions) | List a file's versions | Yes |
 | [`restore <slug-or-url> <version>`](#restore) | Make an earlier version current again | Yes |
@@ -86,19 +86,19 @@ A `<slug-or-url>` can be a slug (`demo`), a markdrop.in link, or a link on a wor
 ### upload
 
 ```text
-markdrop upload <path> [flags]
+markdrop upload <file|folder> [flags]
 ```
 
 | Flag | Default | What it does |
 |---|---|---|
-| `--title` | The file name | Title shown on the page. |
-| `--access` | `link`; `workspace` with `--workspace`; `password` with `--password` | `link`, `private`, `password` or `workspace`. |
+| `--title` | The file name | Title shown on the page. A single file only. |
+| `--access` | `link`; `workspace` with `--workspace` (a folder: the workspace folder's "new items start as"); `password` with `--password` | `link`, `private`, `password` or `workspace`. |
 | `--password` | | Password for `--access password`. |
-| `--slug` | From the file name | Custom address: 3 to 50 letters, digits, `-` or `_`. Fails if taken. |
+| `--slug` | From the file name | Custom address: 3 to 50 letters, digits, `-` or `_`. Fails if taken. A single file only. |
 | `--workspace` | | A workspace id, name or custom domain to file it in. |
 | `--folder` | | An existing folder of that workspace: a path (`guides/setup`) or an id. Needs `--workspace`. |
 
-Prints the link on standard output. Resumes an interrupted upload when run again with the same file and options. Guide: [Upload and replace files](/cli/upload-and-replace).
+Prints the link on standard output. Resumes an interrupted upload when run again with the same file and options. Given a folder, it publishes every file in it (recursively, hidden files skipped) with one batch call, prints one `<link>⇥<path>` line per file, and, with `--workspace`, files sub-folders as workspace folders under `--folder`; it exits with `1` if any file wasn't published. Guide: [Upload and replace files](/cli/upload-and-replace).
 
 ### replace
 

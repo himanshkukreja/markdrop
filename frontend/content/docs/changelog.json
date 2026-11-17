@@ -24,6 +24,28 @@
   "next": [],
   "entries": [
     {
+      "id": "batch-uploads-cli-0-7-0",
+      "date": "2026-11-17",
+      "title": "Upload many files at once: short upload links, batch MCP tools and markdrop upload <folder> (CLI 0.7.0)",
+      "kind": "new",
+      "area": "Files",
+      "products": [
+        "mcp",
+        "cli",
+        "api"
+      ],
+      "versions": {
+        "cli": "0.7.0"
+      },
+      "summary": "An AI assistant now uploads sixteen files with one create_uploads call, one shell block and one complete_uploads call, using short single-use links instead of long signed URLs. markdrop upload takes a folder, and the local MCP server has upload_folder.",
+      "body": "- **Short upload links.** `create_upload`, `create_page_image_upload` and the new batch tools hand out `https://api.markdrop.in/u/<token>` links instead of ~600-character signed URLs: each takes one file part, once, within 60 minutes, with `curl -T FILE <link>`. The size is checked as the bytes arrive, and a one-part file whose bytes don't match its SHA-256 is refused before it is stored.\n- **`create_uploads` / `complete_uploads`** (MCP): up to 50 files per call, with per-file `title`, `slug`, `folder` and `access` (or defaults for all), one `script` with every `curl` line, and per-file results: one bad file never sinks the others.\n- **`create_page_image_uploads` / `complete_page_image_uploads`** (MCP): up to 25 images for one page.\n- **API:** `POST /api/v1/files/uploads/batch` and `POST /api/v1/files/uploads/batch/complete`.\n- **CLI 0.7.0:** `markdrop upload <folder>` publishes every file in it (recursively) with the batch API; with `--workspace`, sub-folders become workspace folders under `--folder`. The local MCP server (`markdrop mcp`) adds `upload_folder`. Update with `brew upgrade markdrop`.\n- See [MCP tools](/ai/tools#files-and-uploads) and [Upload and replace files](/cli/upload-and-replace#publish-a-whole-folder).",
+      "docs": [
+        "/ai/tools",
+        "/cli/upload-and-replace",
+        "/ai/local-mcp"
+      ]
+    },
+    {
       "id": "ask-missing-conversation",
       "date": "2026-11-17",
       "title": "Ask no longer stops at a conversation that's gone",
