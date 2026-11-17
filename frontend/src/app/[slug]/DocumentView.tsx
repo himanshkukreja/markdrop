@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import ImmersiveExit from "@/components/ImmersiveExit";
+import PwaBack from "@/components/pwa/PwaBack";
 import AccessGate from "@/components/access/AccessGate";
 import { RequestEditDialog, useEditRequest } from "@/components/access/RequestEditAccess";
 import { PRIMARY_HOST } from "@/lib/hosts";
@@ -1379,6 +1380,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 {showImmersive && !(viewerChrome === "none" && !user) && (
                   <ImmersiveExit onExit={() => v.toggleImmersive(false)} />
                 )}
+                {showImmersive && <PwaBack />}
               </div>
             )}
           </div>

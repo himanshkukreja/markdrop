@@ -38,6 +38,18 @@
       "body": "- **Connect once.** A HubSpot admin creates a service key with five scopes; a workspace admin pastes it into **Workspace settings › Integrations › HubSpot** and picks the team, such as Sales. Markdrop checks the key and lists any missing scopes. [Set up HubSpot](/integrations/hubspot#set-up-hubspot)\n- **Matched to the right deal.** Each call is matched to the meeting HubSpot booked for it (same host, within 15 minutes), else through its attendees' contacts to their open deal; otherwise pick the deal. The meeting panel shows the deal's stage, amount, owner and close date. [How a call is matched](/integrations/hubspot#how-a-call-is-matched)\n- **Log to HubSpot, never a duplicate.** The summary, next steps and decisions go into the HubSpot meeting's internal notes, with a link back; the attendee-facing description and your reps' own notes are left alone. Logging again updates the same meeting. [Log to HubSpot](/integrations/hubspot#log-to-hubspot)\n- **Log calls automatically.** Off by default; when an admin turns it on, calls matched to the meeting HubSpot booked are logged after their summary is written. [Log calls automatically](/integrations/hubspot#log-calls-automatically)\n- **Action items as tasks.** Each with a due date and an owner; tick the ones you want and they're created on the deal, once. [Tasks](/integrations/hubspot#tasks)\n- **Only the team's calls.** Only that team's meetings, only by people who can open them, and only to the workspace's own HubSpot account. The [privacy policy](https://markdrop.in/privacy#hubspot) has a HubSpot section.\n- **From an AI app and the API.** `hubspot_status`, `hubspot_match`, `log_to_hubspot` and `hubspot_tasks`, and the `/api/v1/hubspot` routes. [Tools](/ai/tools#hubspot)"
     },
     {
+      "id": "pwa-back",
+      "date": "2026-11-17",
+      "title": "Back button in the installed app",
+      "kind": "fixed",
+      "area": "App",
+      "products": [
+        "web"
+      ],
+      "summary": "In the installed app on a phone or tablet, a full-screen document, page or file now has a Back button, so you no longer have to close and reopen the app to leave it.",
+      "body": "- **Back.** A small chip in the corner opposite Show details, shown only in the installed app (browsers have their own Back). It returns to where you came from, or home if you opened the link directly.\n- **Over video** it hides with the player's controls, like Show details."
+    },
+    {
       "id": "video-chapters",
       "date": "2026-11-16",
       "title": "Chapters on the video player, and captions on meeting recordings",
