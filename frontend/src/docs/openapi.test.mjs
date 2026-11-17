@@ -131,6 +131,15 @@ test("auto mode: an operation that doesn't build is left out with a problem, not
   assert.match(ref.problems[0], /^GET \/bad: left out \(unresolved \$ref/);
 });
 
+test("auto mode: a file upload is a file in both encodings (format: binary, and 3.1's contentMediaType)", () => {
+  const upload = (file) => op({ requestBody: { required: true, content: { "multipart/form-data": { schema: { type: "object", required: ["file"], properties: { file } } } } } });
+  const ref = build(spec({
+    "/old": { post: upload({ type: "string", format: "binary" }) },
+    "/new": { post: upload({ type: "string", contentMediaType: "application/octet-stream" }) },
+  }));
+  for (const o of ref.ops) assert.equal(o.body.fields.find((f) => f.name === "file").binary, true, o.key);
+});
+
 test("auto mode: examples come from the description; an operation's parameter overrides the path item's", () => {
   const ref = build(
     spec({
