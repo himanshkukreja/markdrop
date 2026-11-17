@@ -523,3 +523,32 @@ class DryRunAndMCP(HubSpotWorld):
         token = await self.mcp_token("wv")
         code, res = await self.mcp_call(token, "log_to_hubspot", {"meeting": mid})
         self.assertTrue(res.get("isError"), res)
+
+
+class WriteGuard(__import__("unittest").TestCase):
+    """Markdrop never deletes or overwrites in a customer's HubSpot (Senseloaf, 2026-11-17)."""
+
+    def test_allowed_and_refused(self):
+        from app.services import hubspot as H
+        from app.services.hubspot_api import HubSpotError
+        conn = {"_id": "w"}
+        ok = [("GET", "crm/v3/objects/deals/1", None), ("POST", "crm/v3/objects/meetings/search", {}),
+              ("POST", "crm/v4/associations/meetings/deals/batch/read", {}), ("POST", "crm/v3/objects/meetings", {"properties": {}}),
+              ("POST", "crm/v3/objects/tasks", {"properties": {}}),
+              ("PUT", "crm/v4/objects/meetings/12/associations/default/deals/34", None),
+              ("PATCH", "crm/v3/objects/meetings/12", {"properties": {"hs_internal_meeting_notes": "x"}})]
+        for m, p, j in ok:
+            H.guard(conn, m, p, j)
+        refused = [("DELETE", "crm/v3/objects/meetings/12", None), ("DELETE", "crm/v3/objects/deals/9", None),
+                   ("PATCH", "crm/v3/objects/meetings/12", {"properties": {"hs_meeting_body": "x"}}),
+                   ("PATCH", "crm/v3/objects/meetings/12", {"properties": {"hs_internal_meeting_notes": "x", "hs_meeting_title": "y"}}),
+                   ("PATCH", "crm/v3/objects/deals/9", {"properties": {"dealstage": "x"}}),
+                   ("PATCH", "crm/v3/objects/contacts/5", {"properties": {"email": "x"}}),
+                   ("PATCH", "crm/v3/objects/companies/5", {"properties": {"name": "x"}}),
+                   ("POST", "crm/v3/objects/deals", {"properties": {}}), ("POST", "crm/v3/objects/contacts", {"properties": {}}),
+                   ("POST", "crm/v3/objects/deals/batch/archive", {}), ("PUT", "crm/v3/objects/deals/9", {})]
+        for m, p, j in refused:
+            with self.assertRaises(HubSpotError, msg=f"{m} {p}"):
+                H.guard(conn, m, p, j)
+        # A deal field only when the workspace turned deal updates on.
+        H.guard({"_id": "w", "deal_updates": True}, "PATCH", "crm/v3/objects/deals/9", {"properties": {"dealstage": "x"}})

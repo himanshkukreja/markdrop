@@ -38,6 +38,21 @@ Markdrop checks the key with HubSpot: which HubSpot account it's for and which s
 
 One HubSpot account connects to one Markdrop workspace.
 
+
+## What Markdrop writes to HubSpot
+
+Markdrop never deletes anything in HubSpot and never overwrites what people wrote there. Every request it sends is checked against this list first, and anything else is refused before it reaches HubSpot:
+
+| Markdrop may | Never |
+| --- | --- |
+| Read contacts, companies, deals, owners and meetings | Delete any record |
+| Add its notes to a call's **internal notes** (your own notes there are kept) | Change a meeting's description, title or time |
+| Create a meeting when HubSpot has none for the call | Change contacts or companies |
+| Create tasks you approved | Create or change deals |
+| Link a meeting or task to its contact, company and deal | Remove links |
+
+Changing a deal field (from **Apply** on a suggested update) is off unless a workspace admin turns on deal updates, and the HubSpot key also needs `crm.objects.deals.write`. A read-only key (only `.read` permissions) makes HubSpot refuse every write as well.
+
 ## How a call is matched
 
 Open a meeting of the team and its **Meeting** panel shows a **HubSpot** section. Markdrop looks for the call in this order:

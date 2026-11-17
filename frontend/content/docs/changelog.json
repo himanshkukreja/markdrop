@@ -24,6 +24,19 @@
   "next": [],
   "entries": [
     {
+      "id": "hubspot-write-guard",
+      "date": "2026-11-17",
+      "title": "HubSpot: Markdrop never deletes or overwrites",
+      "kind": "improved",
+      "area": "Integrations",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "Every request Markdrop sends to HubSpot is checked against a short list of allowed writes: notes into a call's internal notes (yours kept), new meetings and tasks, and links. Deletes and changes to deals, contacts and companies are refused before they're sent.",
+      "body": "- **Never deletes, never overwrites.** See [What Markdrop writes to HubSpot](/integrations/hubspot#what-markdrop-writes-to-hubspot).\n- **Deal changes off by default.** Apply on a suggested deal update needs a workspace admin to turn on deal updates, and the HubSpot key's deals write permission."
+    },
+    {
       "id": "pptx-exact-preview",
       "date": "2026-11-17",
       "title": "PowerPoint decks open as an exact preview",

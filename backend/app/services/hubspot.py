@@ -295,10 +295,41 @@ def token_of(conn: dict) -> str:
     return crypto.decrypt(conn["token_enc"])
 
 
+#: What Markdrop may write to a customer's HubSpot (Senseloaf, 2026-11-17: never delete, never overwrite, never
+#: change deals). Reads and searches; new meetings and tasks; adding links between records; a meeting's internal
+#: notes (merge_notes keeps what people wrote there). A deal field only when the workspace turned on
+#: ``deal_updates`` (off by default) and someone clicks Apply. Anything else is refused before it is sent.
+_WRITE_OK = (
+    ("POST", re.compile(r"^crm/v3/objects/(meetings|tasks)$")),
+    ("PUT", re.compile(r"^crm/v4/objects/[a-z_]+/\d+/associations/default/[a-z_]+/\d+$")),
+)
+_MEETING = re.compile(r"^crm/v3/objects/meetings/\d+$")
+_DEAL = re.compile(r"^crm/v3/objects/deals/\d+$")
+
+
+def guard(conn: dict, method: str, path: str, json: Any = None) -> None:
+    """Raise unless this request is one Markdrop is allowed to make in HubSpot (:data:`_WRITE_OK`)."""
+    m, p = method.upper(), path.strip("/").split("?", 1)[0]
+    if m == "GET" or (m == "POST" and (p.endswith("/search") or p.endswith("/batch/read"))):
+        return
+    if any(m == wm and rx.match(p) for wm, rx in _WRITE_OK):
+        return
+    props = set(((json or {}).get("properties") or {}) if isinstance(json, dict) else {})
+    if m == "PATCH" and _MEETING.match(p) and props and props <= {"hs_internal_meeting_notes"}:
+        return
+    if m == "PATCH" and _DEAL.match(p) and props and switch(conn, "deal_updates"):
+        return
+    log.warning("hubspot: refused %s %s for %s (not an allowed write)", m, p, conn.get("_id"))
+    raise HubSpotError(409, "Markdrop doesn't make this change in HubSpot: it never deletes or overwrites records there.",
+                       category="MARKDROP_GUARD")
+
+
 async def call(db: AsyncIOMotorDatabase | None, conn: dict, method: str, path: str, *, params: dict | None = None,
                json: Any = None) -> Any:
     """A REST call with the workspace's token: paced, and retried on 429/5xx with HubSpot's Retry-After or
-    an exponential backoff (up to :data:`RETRIES` times). A rejected token marks the connection broken."""
+    an exponential backoff (up to :data:`RETRIES` times). A rejected token marks the connection broken.
+    Every write passes :func:`guard` first."""
+    guard(conn, method, path, json)
     search = path.rstrip("/").endswith("/search")
     tok = token_of(conn)
     for attempt in range(RETRIES + 1):
@@ -454,7 +485,7 @@ async def set_auto_log(db: AsyncIOMotorDatabase, user, workspace_id: str, on: bo
 
 #: The workspace's switches and their defaults (Phase 2: every one that sends a message or uses AI can be
 #: turned off by a workspace admin; each person can also turn off what reaches them, services/hubspot_notify).
-SWITCHES = {"auto_log": False, "suggest": True, "accounts": True, "precall": True, "approve": True}
+SWITCHES = {"auto_log": False, "suggest": True, "accounts": True, "precall": True, "approve": True, "deal_updates": False}
 
 
 def switch(conn: dict | None, key: str) -> bool:
