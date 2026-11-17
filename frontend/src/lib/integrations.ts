@@ -8,11 +8,11 @@
 import type { DocsTopic } from "@/lib/docsLinks";
 
 export type BrandId =
-  | "slack" | "jira" | "zoom" | "google-meet" | "google-docs" | "github" | "claude" | "chatgpt" | "cursor" | "vscode";
+  | "slack" | "jira" | "zoom" | "hubspot" | "google-meet" | "google-docs" | "github" | "claude" | "chatgpt" | "cursor" | "vscode";
 
 export type IntegrationScope = "workspace" | "account";
 
-export type IntegrationGroup = "Meetings" | "Chat" | "Work tracking" | "AI apps" | "Documents" | "Developer";
+export type IntegrationGroup = "Meetings" | "Chat" | "Work tracking" | "CRM" | "AI apps" | "Documents" | "Developer";
 
 export interface IntegrationStep { title: string; body?: string }
 
@@ -115,6 +115,27 @@ const WORKSPACE: IntegrationInfo[] = [
       { q: "Issues don't update in Markdrop", a: "The Jira webhook may have expired. An admin opens Change projects and saves again." },
     ],
     docs: "jiraIntegration",
+  },
+  {
+    id: "hubspot", scope: "workspace", name: "HubSpot", group: "CRM", brand: "hubspot",
+    blurb: "Your team's calls written up in HubSpot, on the right deal.",
+    what: [
+      "Each call of the chosen team is matched to its HubSpot meeting, contacts, company and deal.",
+      "Log to HubSpot puts the summary, next steps and decisions in the meeting's internal notes, with a link back. It fills the meeting HubSpot booked; it never makes a duplicate.",
+      "Action items become HubSpot tasks once someone approves them.",
+      "Only the chosen team's calls, only for people who can open them.",
+    ],
+    steps: [
+      { title: "Create a service key in HubSpot", body: "A HubSpot super admin creates a service key with the scopes listed in Settings below, and copies it." },
+      { title: "Connect it here", body: "A workspace admin pastes the key and picks the team; Markdrop checks it with HubSpot." },
+      { title: "Log calls", body: "Open a meeting, check the deal in the HubSpot section and choose Log to HubSpot. Optional: turn on Log calls automatically." },
+    ],
+    troubleshooting: [
+      { q: "“Pick the deal”", a: "Markdrop didn't find the call's HubSpot meeting or its attendees' contacts. Search for the deal in the meeting's HubSpot section." },
+      { q: "“The HubSpot key is missing scopes”", a: "Edit the service key in HubSpot, add the scopes listed here, then save the key again." },
+      { q: "“HubSpot no longer accepts the key”", a: "The key was rotated or deleted. Paste the new one." },
+    ],
+    docs: "hubspotIntegration",
   },
 ];
 
@@ -299,7 +320,7 @@ const ACCOUNT: IntegrationInfo[] = [
 export const WORKSPACE_INTEGRATIONS = WORKSPACE;
 export const ACCOUNT_INTEGRATIONS = ACCOUNT;
 
-export const GROUP_ORDER: IntegrationGroup[] = ["Meetings", "Chat", "Work tracking", "AI apps", "Documents", "Developer"];
+export const GROUP_ORDER: IntegrationGroup[] = ["Meetings", "Chat", "Work tracking", "CRM", "AI apps", "Documents", "Developer"];
 
 export function findIntegration(scope: IntegrationScope, id: string): IntegrationInfo | null {
   return (scope === "workspace" ? WORKSPACE : ACCOUNT).find((i) => i.id === id) ?? null;

@@ -11,7 +11,7 @@ import { WORKSPACE_INTEGRATIONS, integrationHref, type IntegrationInfo } from "@
 import type { WsTabProps } from "../ws-shared";
 
 /**
- * Workspace settings › Integrations: a grid of cards (Zoom, Google Meet, Slack, Jira), each with its status,
+ * Workspace settings › Integrations: a grid of cards (Zoom, Google Meet, Slack, Jira, HubSpot), each with its status,
  * one action and Details, which opens the integration's own page (/settings/workspaces/<id>/integrations/<id>)
  * with its settings, setup steps and troubleshooting. Back from Slack or Atlassian with the old
  * `?tab=integrations&slack=…|jira=…` query (links made before the grid): that integration's page.

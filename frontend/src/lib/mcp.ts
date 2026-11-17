@@ -15,7 +15,7 @@ export interface McpToolName {
 }
 
 /**
- * The hosted server's 134 tools, grouped as the docs group them (docs: ai/tools "Hosted server
+ * The hosted server's 153 tools, grouped as the docs group them (docs: ai/tools "Hosted server
  * tools"). Keep in step with the backend's tool list and that page.
  */
 export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToolName[] }> = [
@@ -229,6 +229,16 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
     tools: [
       { name: "zoom_status", scope: "read" },
       { name: "import_zoom_meetings", scope: "write" },
+    ],
+  },
+  {
+    title: "HubSpot",
+    icon: "building",
+    tools: [
+      { name: "hubspot_status", scope: "read" },
+      { name: "hubspot_match", scope: "write" },
+      { name: "log_to_hubspot", scope: "write" },
+      { name: "hubspot_tasks", scope: "write" },
     ],
   },
   {

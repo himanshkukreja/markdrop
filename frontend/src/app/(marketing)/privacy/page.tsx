@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacy" },
 };
 
-const UPDATED = "16 November 2026";
+const UPDATED = "17 November 2026";
 
 function H2({ id, children }: { id: string; children: React.ReactNode }) {
   return <h2 id={id} className="mt-12 mb-3 scroll-mt-24 text-h3 text-text">{children}</h2>;
@@ -160,6 +160,32 @@ export default function PrivacyPage() {
         <a className={link} href="https://docs.markdrop.in/integrations/zoom#removing-the-app">Removing the app</a>.
       </P>
 
+      <H2 id="hubspot">HubSpot</H2>
+      <P>
+        A workspace admin can connect the company&rsquo;s own HubSpot account with a key the company creates in HubSpot, and picks one
+        team (for example Sales). The key is stored encrypted. HubSpot is the company&rsquo;s own CRM: Markdrop reads from it and writes
+        to it for that workspace only.
+      </P>
+      <ul className="mb-4 list-disc pl-5">
+        <Li><strong className="text-text">What Markdrop reads from HubSpot.</strong> The account&rsquo;s ID, time zone and currency; its users
+          (name and email, to match a call&rsquo;s host and assign tasks) and deal stages, kept for a few hours to save requests; and, for a
+          meeting of that team, the HubSpot meeting booked for it (title and time), the contacts that match its attendees&rsquo; emails or
+          names, their companies and deals (name, stage, amount, owner, close date). What a meeting matched (record IDs, not their
+          content) is stored with the meeting; deal details are fetched again when someone opens it.</Li>
+        <Li><strong className="text-text">What Markdrop sends to HubSpot.</strong> Only when someone in the team chooses Log to HubSpot, or
+          the workspace turned on Log calls automatically: the meeting&rsquo;s summary, next steps and decisions and a link to the meeting
+          page, written into the HubSpot meeting&rsquo;s internal notes (or a new meeting on the deal, with its title, time and owner). Action
+          items go to HubSpot as tasks only when someone approves them. The transcript and recording are never sent.</Li>
+        <Li><strong className="text-text">Who.</strong> Only that team&rsquo;s meetings, and only by people who can open the meeting and are in
+          the team (or are workspace admins). A private team&rsquo;s meetings never reach HubSpot through anyone else.</Li>
+      </ul>
+      <P>
+        <strong className="text-text">Kept and deleted.</strong> Disconnecting HubSpot deletes the key, the cached users and stages, and every
+        meeting&rsquo;s match right away. Markdrop keeps only the IDs of the HubSpot meetings and tasks it wrote, so connecting the same account
+        again updates them instead of making duplicates. Notes and tasks already in HubSpot are the company&rsquo;s records and stay there
+        under HubSpot&rsquo;s own terms. HubSpot data isn&rsquo;t sold, used for advertising or used to train AI models.
+      </P>
+
       <H2 id="integrations">Other integrations</H2>
       <P>
         Each integration is off until you, or an admin of your workspace, connect it, and it can be disconnected at any
@@ -178,7 +204,7 @@ export default function PrivacyPage() {
       <P>
         Markdrop&rsquo;s use and transfer of information received from Google APIs adheres to the{" "}
         <a className={link} href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
-        including the Limited Use requirements. Data from Google, Zoom, Slack, Atlassian and GitHub isn&rsquo;t sold, used
+        including the Limited Use requirements. Data from Google, Zoom, HubSpot, Slack, Atlassian and GitHub isn&rsquo;t sold, used
         for advertising or used to train AI models.
       </P>
 

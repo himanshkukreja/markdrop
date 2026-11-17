@@ -4,7 +4,8 @@
  * The meeting panel on a meeting page (and its transcript): the "Meeting" pill opens a side panel on
  * desktop and a bottom sheet on phones with the meeting's details: date, type, who was there, where it
  * came from (links back to Google's Docs), the AI summary's state (Regenerate), Restrict to attendees
- * (the page's owner), Delete (the importer or a workspace admin), and All meetings.
+ * (the page's owner), HubSpot (the HubSpot team's meetings: HubSpotSection, loaded when the panel first opens),
+ * Delete (the importer or a workspace admin), and All meetings.
  *
  * Asking is Ask Markdrop's (components/assistant): the meeting bar's "Ask this meeting", ✦ Ask in the
  * top bar, ⌘J and a card's "Ask this meeting" (?ask=1) open it on this meeting.
@@ -25,6 +26,7 @@ import {
 } from "@/lib/meetings";
 import { openAssistant } from "@/components/assistant/store";
 import { MeetingRecording, type RecordingSeek } from "./MeetingRecording";
+import { HubSpotSection } from "./HubSpotSection";
 import { citeSeconds, lineSeconds } from "./recordingSeek.mjs";
 import { track } from "@/lib/track";
 import "@/components/pages/ai/ask-pill.css";
@@ -161,6 +163,9 @@ export function MeetingLauncher({ meetingId }: { meetingId: string; role?: strin
   const toast = useToast();
   const [m, setM, load] = useMeeting(meetingId);
   const [open, setOpen] = useState(false);
+  // HubSpot asks the server (and HubSpot) only once someone opens the panel.
+  const [opened, setOpened] = useState(false);
+  useEffect(() => { if (open) setOpened(true); }, [open]);
   const pill = useRef<HTMLButtonElement>(null);
 
   // A card's "Ask this meeting" (?ask=1): Ask Markdrop on this meeting.
@@ -223,6 +228,7 @@ export function MeetingLauncher({ meetingId }: { meetingId: string; role?: strin
               <IconButton icon="x" label="Close" size="sm" onClick={close} />
             </header>
             <Details m={m} onChange={setM} onDeleted={() => { close(); router.push(meetingsHref(m.workspace_id)); }}
+              hubspot={opened ? <HubSpotSection meetingId={m.id} workspaceId={m.workspace_id} /> : null}
               top={(
                 <>
                   <SummaryBanner m={m} />
@@ -263,7 +269,9 @@ function SeriesField({ value, disabled, onCommit }: { value: string; disabled: b
   );
 }
 
-function Details({ m, onChange, onDeleted, top }: { m: Meeting; onChange: (m: Meeting) => void; onDeleted: () => void; top?: React.ReactNode }) {
+function Details({ m, onChange, onDeleted, top, hubspot }: {
+  m: Meeting; onChange: (m: Meeting) => void; onDeleted: () => void; top?: React.ReactNode; hubspot?: React.ReactNode;
+}) {
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
@@ -359,6 +367,8 @@ function Details({ m, onChange, onDeleted, top }: { m: Meeting; onChange: (m: Me
         <Switch checked={m.restricted} disabled={!m.can_manage || !!busy} aria-label="Restrict to attendees" data-testid="meeting-restrict"
           onChange={(e) => void run("restrict", () => patchMeeting(m.id, { restricted: e.target.checked }), e.target.checked ? "Only attendees can open it now." : "The team can open it again.")} />
       </div>
+
+      {hubspot}
 
       <div>
         <p className="pa-sources__label" style={{ margin: "0 0 6px" }}>AI summary</p>
