@@ -218,6 +218,13 @@ class Settings(BaseSettings):
     file_upload_url_ttl: int = 3600
     # An upload session stays usable this long; its row is purged (TTL) a day later.
     file_upload_session_hours: int = 24
+    # Short upload links (services/upload_links.py): <base>/u/<token> instead of a
+    # ~600-character presigned URL in what the MCP upload tools hand an agent. The
+    # API takes the PUT and sends it on to storage, so nginx must let /u/ bodies of
+    # file_part_size through (backend/deploy/nginx-upload-links.conf). Off: the
+    # tools hand out the presigned URLs as before. Blank base = api_base_url.
+    upload_short_links: bool = True
+    upload_link_base: str = ""
     # A page image sent straight to storage (create_page_image_upload) that isn't
     # completed within this many hours is aborted (its parts are dropped).
     page_image_upload_hours: int = 6

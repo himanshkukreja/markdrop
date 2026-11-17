@@ -85,6 +85,56 @@ class UploadResult(BaseModel):
         return self
 
 
+class UploadBatchCreateRequest(BaseModel):
+    # Each file is an ordinary upload (UploadCreateRequest), checked on its own.
+    files: list[UploadCreateRequest] = Field(..., min_length=1, max_length=50)
+    # Also mint a short single-use link (https://api.markdrop.in/u/<token>) per part.
+    short_links: bool = False
+
+
+class UploadBatchPart(BaseModel):
+    part_number: int
+    url: str
+    short_url: str | None = None
+
+
+class UploadBatchItem(BaseModel):
+    index: int
+    ok: bool
+    file_name: str
+    upload_id: str | None = None
+    part_size: int | None = None
+    part_count: int | None = None
+    parts: list[UploadBatchPart] | None = None
+    expires_at: datetime | None = None
+    # An open session for the same file was handed back (a re-run): ask
+    # GET /uploads/{id} which parts it already holds.
+    resumed: bool = False
+    error: str | None = None
+    status: int | None = None
+
+
+class UploadBatchCreateResponse(BaseModel):
+    uploads: list[UploadBatchItem]
+
+
+class UploadBatchCompleteRequest(BaseModel):
+    upload_ids: list[str] = Field(..., min_length=1, max_length=50)
+
+
+class UploadBatchCompleteItem(BaseModel):
+    upload_id: str
+    # The status complete answers with for this upload alone: 200 done, 202 verifying, else an error.
+    status: int
+    state: str
+    result: UploadResult | None = None
+    error: str | None = None
+
+
+class UploadBatchCompleteResponse(BaseModel):
+    results: list[UploadBatchCompleteItem]
+
+
 class UploadPartStatus(BaseModel):
     part_number: int
     etag: str

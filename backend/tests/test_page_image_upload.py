@@ -94,8 +94,9 @@ class PageImageUpload(PageWorld):
         up = await self.start("wm", page["slug"], data, "Architecture diagram.png")
         self.assertEqual((len(up["parts"]), up["parts"][0]["part_number"], up["slug"]), (1, 1, page["slug"]))
         self.assertTrue(up["upload_id"].startswith("up_"))
-        self.assertIn("curl -sS --fail -X PUT --upload-file", up["instructions"])
-        self.assertIn(up["parts"][0]["url"], up["instructions"])
+        self.assertIn("curl -sS --fail-with-body -T \"$FILE\"", up["instructions"])
+        self.assertIn(up["parts"][0]["short_url"], up["instructions"])
+        self.assertNotIn(up["parts"][0]["url"], up["instructions"])  # the long presigned URL stays out
         self.assertIn("complete_page_image_upload", up["instructions"])
         self.assertNotIn("split", up["instructions"])
         sess = await self.db["file_uploads"].find_one({"_id": up["upload_id"]})

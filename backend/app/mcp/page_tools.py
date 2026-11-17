@@ -870,6 +870,22 @@ def page_image_instructions(file_name: str, upload_id: str, part_size: int, part
     then = (f'Then call complete_page_image_upload with upload_id "{upload_id}" (parts are optional: '
             "omitted, the parts storage received are used).")
     lines = [f"FILE={shlex.quote(file_name)}   # use the file's full path"]
+    if all(p.get("short_url") for p in parts):
+        # Short single-use links (services/upload_links.py): the same PUT, a link an agent can carry.
+        prefix = f"/tmp/md-{upload_id}.part."
+        if len(parts) == 1:
+            lines.append(f"curl -sS --fail-with-body -T \"$FILE\" '{parts[0]['short_url']}'; echo")
+        else:
+            lines.append(f'split -b {part_size} -d -a 4 "$FILE" {prefix}')
+            lines += [f"curl -sS --fail-with-body -T {prefix}{int(p['part_number']) - 1:04d} '{p['short_url']}'; echo"
+                      for p in parts]
+            lines.append(f"rm -f {prefix}*")
+        head = (f"Upload {file_name} with the shell commands below (each curl prints {{\"ok\":true,…}} when its "
+                f"part is in). {then} Each link works once, for {url_ttl} minutes; calling "
+                "create_page_image_upload again with the same arguments returns fresh ones. Use curl -T as "
+                "shown: storage needs the Content-Length, so never stream from stdin. Several images? "
+                "create_page_image_uploads does them all with one shell block.")
+        return head + "\n\n" + "\n".join(lines)
     if len(parts) == 1:
         lines.append(f"curl -sS --fail -X PUT --upload-file \"$FILE\" '{parts[0]['url']}' -D - -o /dev/null "
                      "| grep -i '^etag'")
@@ -902,7 +918,9 @@ async def create_page_image_upload(ctx: Context, args: dict) -> tuple[str, dict]
             content_type=args.get("content_type"), alt=(args.get("alt") or "").strip() or None)
     except HTTPException as exc:
         raise ToolError(http_message(exc))
-    out = jsonable(sess)
+    from app.services import upload_links
+
+    out = jsonable(await upload_links.add_short_urls(ctx.db, sess))
     out["instructions"] = page_image_instructions(name, out["upload_id"], out["part_size"], out["parts"])
     return out["instructions"], out
 
@@ -1511,8 +1529,9 @@ PAGE_TOOLS: list[Tool] = [
             "Add an image file to a page without base64: from the machine you run shell commands on, a "
             f"PNG, JPEG, GIF or WebP up to {page_asset_uploads.MAX_BYTES // (1024 * 1024)} MB. Give the "
             "page, the file's name, exact size in bytes and sha256 (e.g. `wc -c < FILE` and "
-            "`shasum -a 256 FILE`). Returns presigned part URLs plus the exact shell command(s) (curl) "
-            "that send the bytes straight to storage; then call complete_page_image_upload, which "
+            "`shasum -a 256 FILE`). Returns the upload link(s) (short_url, single use, 60 minutes) plus the "
+            "exact shell command(s) (curl) that send the bytes; several images: "
+            "create_page_image_uploads. Then call complete_page_image_upload, which "
             "returns asset:<id> and the Markdown ![alt](asset:<id>) to put in the page, or to pass as "
             "set_page_properties cover / icon. The image belongs to the page: anyone who can read the "
             "page sees it, nobody else. Never put file contents in an argument. An upload not completed "
@@ -1542,7 +1561,9 @@ PAGE_TOOLS: list[Tool] = [
         output_schema=_out({
             "upload_id": {"type": "string"}, "part_size": {"type": "integer"},
             "parts": {"type": "array", "items": _out({"part_number": {"type": "integer"},
-                                                       "url": {"type": "string"}})},
+                                                       "url": {"type": "string"},
+                                                       "short_url": {"type": "string"}},
+                                                      ["part_number", "url"])},
             "expires_at": {"type": "string"}, "instructions": {"type": "string"}, "slug": {"type": "string"},
         }),
         annotations=_ann(False, False, False),

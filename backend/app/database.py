@@ -220,6 +220,9 @@ async def connect() -> None:
     await db["file_uploads"].create_index("purge_at", expireAfterSeconds=0)
     # The background sweeper's pass over every account's lapsed sessions.
     await db["file_uploads"].create_index([("state", 1), ("expires_at", 1)])
+    # Short upload links (services/upload_links.py): dropped a day after they expire.
+    await db["upload_links"].create_index("purge_at", expireAfterSeconds=0)
+    await db["upload_links"].create_index("upload_id")
     await db["file_events"].create_index([("user_id", 1), ("ts", -1)])
 
     # Access policy (services/access.py, lifecycle.py, revalidate.py).

@@ -56,6 +56,7 @@ from app.routers.comments_review import router as comments_review_router
 from app.routers.comments_insights import router as comments_insights_router
 from app.routers.feedback import router as feedback_router
 from app.routers.files import router as files_router
+from app.routers.upload_links import router as upload_links_router
 from app.routers.workspaces import router as workspaces_router
 from app.routers.domains import router as domains_router
 from app.routers.email_public import router as email_public_router
@@ -284,6 +285,7 @@ app.include_router(web_embeds_router)
 app.include_router(link_preview_router)
 app.include_router(artifacts_router)
 app.include_router(files_router)
+app.include_router(upload_links_router)  # PUT /u/{token}: short upload links
 app.include_router(share_router)
 app.include_router(google_router)
 # Admin, tracking and email-link routes are internal: kept out of the public OpenAPI schema

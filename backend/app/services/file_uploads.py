@@ -56,7 +56,8 @@ MIN_PART = 5 * 1024 * 1024
 STALE_AFTER = timedelta(minutes=2)
 HEARTBEAT_S = 5.0
 # Open sessions per account. Each one is an R2 multipart upload holding parts.
-MAX_OPEN_SESSIONS = 20
+# Room for a full batch (create_uploads takes up to 50 files) plus a few more.
+MAX_OPEN_SESSIONS = 60
 PURGE_AFTER = timedelta(hours=24)  # after expires_at, the row itself goes (TTL)
 
 _RUNNING: dict[str, asyncio.Task] = {}
@@ -315,7 +316,7 @@ async def create(db: AsyncIOMotorDatabase, user, data, *, scope: str | None = No
     if same is not None:
         if password_hash:
             await db[SESSIONS].update_one({"_id": same["_id"]}, {"$set": {"read_password_hash": password_hash}})
-        return _session_out(same)
+        return {**_session_out(same), "resumed": True}
 
     if await db[SESSIONS].count_documents(
         {"user_id": user.id, "state": "uploading", "expires_at": {"$gt": now}}
