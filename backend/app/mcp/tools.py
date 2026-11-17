@@ -936,17 +936,65 @@ async def _doc_meta(ctx: Context, raw: dict) -> dict:
     return {"workspace_id": raw.get("workspace_id"), "folder": folder}
 
 
+def _page_args(args: dict) -> tuple[int | None, int | None, int | None]:
+    """page_from / page_to / part, 1-based; ToolError for a bad one."""
+    out = []
+    for k in ("page_from", "page_to", "part"):
+        v = args.get(k)
+        if v is None or v == "":
+            out.append(None)
+            continue
+        try:
+            n = int(v)
+        except (TypeError, ValueError):
+            raise ToolError(f"{k} must be a whole number (1 is the first).")
+        if n < 1:
+            raise ToolError(f"{k} must be 1 or more.")
+        out.append(n)
+    if out[0] and out[1] and out[1] < out[0]:
+        raise ToolError("page_to must be at least page_from.")
+    return out[0], out[1], out[2]
+
+
+_PAGED_KEYS = ("unit", "total_pages", "page_from", "page_to", "next_page_from", "scanned",
+               "part", "total_parts", "next_part")
+
+
+async def file_text_paged(raw: dict, doc, args: dict, source: str | None = None,
+                          *, html_mode: bool = False, db=None) -> dict | None:
+    """A PDF's / deck's / Word or Excel file's text by page, or an HTML file's visible text by part
+    (services/doc_text.py); None for other files. {content?, note, unit/total_pages/… or part/…}."""
+    from app.services import doc_text
+
+    page_from, page_to, part = _page_args(args)
+    try:
+        if html_mode:
+            return await doc_text.html_paged(raw, part, source)
+        if doc.bundle_prefix or not doc_text.pages_for(doc.mime):
+            return None
+        return await doc_text.paged(raw, page_from, page_to, db=db)
+    except doc_text.Unreadable as exc:
+        return {"note": str(exc)}
+    except ValueError as exc:
+        raise ToolError(str(exc))
+
+
 async def get_document(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import doc_text
+
     raw = await load_for(ctx, args["document"], "read", "read")
     from app.services.document import _doc_from_mongo
 
     doc = _doc_from_mongo(raw)
     if doc.encrypted:
         raise ToolError(ENCRYPTED_READ)
+    fmt = args.get("format") or "source"
+    if fmt not in ("source", "text"):
+        raise ToolError("format must be source or text.")
     urls_out = await url_pair(ctx, raw)
     meta = await _doc_meta(ctx, raw)
     if doc.kind == "artifact" and (not art_service.is_syncable(doc.mime) or doc.bundle_prefix):
-        # A video, PDF or image has no text to return: describe the file instead.
+        # A video, PDF or image: describe the file, plus a PDF's / deck's text by page.
         info = jsonable(await file_uploads.file_info_for(ctx.db, raw))
         out = {
             **urls_out,
@@ -961,8 +1009,21 @@ async def get_document(ctx: Context, args: dict) -> tuple[str, dict]:
             **meta,
             "file": info,
         }
-        return f"{out['title'] or doc.slug} ({out['url']}): {describe_file(info)}", out
+        head = f"{out['title'] or doc.slug} ({out['url']}): {describe_file(info)}"
+        pg = await file_text_paged(raw, doc, args, db=ctx.db)
+        if pg is None:
+            return head, out
+        out.update({k: pg[k] for k in (*_PAGED_KEYS, "content", "note") if pg.get(k) not in (None, "")
+                    or (k in _PAGED_KEYS and k in pg)})
+        body = pg.get("content")
+        return head + (f"\n{pg['note']}" if pg.get("note") else "") + (f"\n\n{body}" if body else ""), out
     content, note = await text_of(doc)
+    paged = None
+    if doc.kind == "artifact" and doc_text.is_html(doc.mime) and (
+            fmt == "text" or args.get("part") or content is None or len(content) > MAX_RETURNED_CHARS):
+        # A large HTML file (or one asked for as text): its visible text, a part at a time.
+        paged = await file_text_paged(raw, doc, args, content, html_mode=True)
+        content, note = paged.get("content"), paged.get("note")
     if doc.kind != "artifact":
         # Person mentions name people only inside the page's circle (services/pages.py).
         from app.services import pages
@@ -971,6 +1032,8 @@ async def get_document(ctx: Context, args: dict) -> tuple[str, dict]:
     content, clipped = _clip(content)
     if clipped:
         note = f"Only the first {MAX_RETURNED_CHARS:,} characters are included."
+        if doc.kind == "artifact" and not doc_text.is_html(doc.mime):
+            note += " (Only HTML files can be read in parts.)"
     out: dict[str, Any] = {
         **urls_out,
         "slug": doc.slug,
@@ -985,6 +1048,11 @@ async def get_document(ctx: Context, args: dict) -> tuple[str, dict]:
         "rev": int(doc.rev or 1),
         **meta,
     }
+    if paged is not None:
+        out.update({k: paged[k] for k in _PAGED_KEYS if k in paged})
+        out["format"] = "text"
+    elif doc.kind == "artifact" and doc_text.is_html(doc.mime):
+        out["format"] = "source"
     if content is not None:
         out["content"] = content
     if note:
@@ -1820,10 +1888,23 @@ async def ask_suggestions(ctx: Context, args: dict) -> tuple[str, dict]:
 
 
 async def fetch(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import doc_text
+
     doc = await read_doc(ctx, args["id"])
     if doc.encrypted:
         raise ToolError(ENCRYPTED_READ)
-    content, note = await text_of(doc)
+    extra: dict[str, Any] = {}
+    if doc.kind == "artifact" and (doc_text.pages_for(doc.mime) or doc_text.is_html(doc.mime)) \
+            and not doc.bundle_prefix:
+        # A PDF / deck by page, an HTML file's visible text by part (services/doc_text.py).
+        raw = await load_raw(ctx.db, doc.slug)
+        pg = await file_text_paged(raw, doc, args, html_mode=doc_text.is_html(doc.mime), db=ctx.db)
+        content, note = pg.get("content"), pg.get("note")
+        extra = {k: pg[k] for k in (*_PAGED_KEYS, "note") if k in pg}
+        if not content:
+            content = None
+    else:
+        content, note = await text_of(doc)
     if doc.kind != "artifact" and content and (":person[" in content or "markdrop" in content):
         from app.services import pages
 
@@ -1836,7 +1917,7 @@ async def fetch(ctx: Context, args: dict) -> tuple[str, dict]:
         "title": display_title(doc) or doc.slug,
         "text": content if content is not None else (note or ""),
         "url": (await url_pair(ctx, doc))["url"],
-        "metadata": {"kind": kind_of(doc.kind), "updated_at": iso(doc.updated_at)},
+        "metadata": {"kind": kind_of(doc.kind), "updated_at": iso(doc.updated_at), **extra},
     }
     return json.dumps(out), out
 
@@ -2650,6 +2731,25 @@ def _out(properties: dict, required: list[str] | None = None) -> dict:
     return {"type": "object", "properties": properties, "required": req}
 
 
+_PAGE_PARAMS = {
+    "page_from": {"type": "integer", "minimum": 1,
+                  "description": "PDF, deck, Word or Excel files: the first page (slide, part) to return, 1-based. Default 1."},
+    "page_to": {"type": "integer", "minimum": 1,
+                "description": "The last page to return (inclusive). Default: as many as fit (about 40,000 characters)."},
+    "part": {"type": "integer", "minimum": 1,
+             "description": "HTML files: which part of the visible text to return, 1-based. Default 1."},
+}
+_NULLABLE_INT = {"type": ["integer", "null"]}
+_PAGED_OUT = {
+    "unit": {"type": "string", "enum": ["page", "slide", "part"]},
+    "total_pages": {"type": "integer"}, "page_from": _NULLABLE_INT, "page_to": _NULLABLE_INT,
+    "next_page_from": {**_NULLABLE_INT, "description": "Pass as page_from for the rest; null when done."},
+    "scanned": {"type": "boolean"},
+    "part": _NULLABLE_INT, "total_parts": {"type": "integer"},
+    "next_part": {**_NULLABLE_INT, "description": "Pass as part for the next part; null when done."},
+}
+
+
 _DOMAIN_URL = {"type": ["string", "null"],
                "description": "The workspace's own domain address when it has a live one, else null."}
 
@@ -2804,10 +2904,19 @@ TOOLS: list[Tool] = [
             "Read a Markdrop document or text file by slug or link — a markdrop.in link or a link on "
             "a workspace's own custom domain: its content, title, access, view count and workspace. "
             "Works for documents the user can open (their own, shared with them, their workspaces', "
-            "and anyone-with-the-link ones). Password-protected and encrypted documents can't be read."
+            "and anyone-with-the-link ones). Password-protected and encrypted documents can't be read. "
+            "For a PDF, PowerPoint deck, Word or Excel file: its text by page ('--- Page N ---', "
+            "'--- Slide N ---'), about 40,000 characters per call, with total_pages and next_page_from "
+            "(call again with page_from=next_page_from until it's null); a scanned PDF with no text says "
+            "so. For an HTML file: its source, or — when it's larger than 200,000 characters, or with "
+            "format=text or part — its visible text in parts (part, total_parts, next_part)."
         ),
         scope=READ,
-        input_schema={"type": "object", "properties": {"document": _DOC_REF}, "required": ["document"]},
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF, **_PAGE_PARAMS,
+            "format": {"type": "string", "enum": ["source", "text"],
+                       "description": "HTML files: source (the default, when it fits) or text (visible text in parts)."},
+        }, "required": ["document"]},
         output_schema=_out(
             {
                 **_URL_PROPS, "slug": {"type": "string"}, "title": _NULLABLE_STR,
@@ -2819,6 +2928,8 @@ TOOLS: list[Tool] = [
                 "updated_at": {"type": "string"}, "views": {"type": "integer"}, "rev": {"type": "integer"},
                 "owner": {"type": "string", "enum": ["you", "someone else"]},
                 "file": _FILE_INFO,
+                **_PAGED_OUT,
+                "format": {"type": "string", "enum": ["source", "text"]},
             },
             ["url", "slug", "title", "kind", "access", "created_at", "updated_at", "views", "owner"],
         ),
@@ -3285,15 +3396,23 @@ TOOLS: list[Tool] = [
     Tool(
         name="fetch",
         title="Fetch a document",
-        description="Fetch the full text of a document by the id returned from search (a slug or Markdrop link).",
+        description=(
+            "Fetch the full text of a document by the id returned from search (a slug or Markdrop link). "
+            "A PDF, PowerPoint deck, Word or Excel file comes back by page ('--- Page N ---', '--- Slide N ---'), "
+            "about 40,000 characters per call: metadata has total_pages and next_page_from (pass it as "
+            "page_from for the rest). An HTML file comes back as its visible text in parts (part, total_parts, "
+            "next_part). A scanned PDF with no text says so."
+        ),
         scope=READ,
-        input_schema={"type": "object", "properties": {"id": {**_DOC_REF, "description": "An id from search, or a slug or link."}},
+        input_schema={"type": "object", "properties": {"id": {**_DOC_REF, "description": "An id from search, or a slug or link."},
+                                                       **_PAGE_PARAMS},
                       "required": ["id"]},
         output_schema=_out({
             "id": {"type": "string"}, "title": {"type": "string"}, "text": {"type": "string"},
             "url": {"type": "string"},
             "metadata": _out({"kind": {"type": "string", "enum": ["document", "artifact"]},
-                              "updated_at": {"type": "string"}}),
+                              "updated_at": {"type": "string"}, **_PAGED_OUT,
+                              "note": {"type": "string"}}, ["kind", "updated_at"]),
         }),
         annotations=_ann(True, False, True),
         handler=fetch,
