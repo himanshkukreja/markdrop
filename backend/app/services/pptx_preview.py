@@ -413,6 +413,8 @@ async def process(db: AsyncIOMotorDatabase, row: dict) -> str:
 
 
 _ONE_AT_A_TIME = asyncio.Lock()
+_BACKFILL = {"next": 0.0}
+BACKFILL_IDLE_S = 600.0
 
 
 async def tick(db: AsyncIOMotorDatabase) -> int:
@@ -422,7 +424,11 @@ async def tick(db: AsyncIOMotorDatabase) -> int:
 
     if not enabled():
         return 0
-    await backfill(db)
+    # The backfill scans documents: every pass while it finds a full batch, else every 10 minutes.
+    loop_now = asyncio.get_running_loop().time()
+    if loop_now >= _BACKFILL["next"]:
+        found = await backfill(db)
+        _BACKFILL["next"] = loop_now + (0 if found >= BACKFILL_BATCH else BACKFILL_IDLE_S)
     done = 0
     deadline = asyncio.get_running_loop().time() + 60
     async with _ONE_AT_A_TIME:

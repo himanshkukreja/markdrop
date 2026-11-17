@@ -85,6 +85,7 @@ class Queue(FilesTestCase):
         await super().asyncSetUp()
         self.converted: list[int] = []
         self.fail_with: str | None = None
+        pptx_preview._BACKFILL["next"] = 0.0      # the backfill's throttle starts fresh per test
 
         async def fake_convert(data: bytes) -> bytes:
             self.converted.append(len(data))
