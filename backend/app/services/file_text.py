@@ -259,7 +259,9 @@ def _drawing_text(root: ET.Element) -> str:
     return "\n".join(lines)
 
 
-def pptx_parts(data: bytes, clock: _Clock | None = None) -> list[Part]:
+def pptx_slide_texts(data: bytes, clock: _Clock | None = None) -> list[str]:
+    """Every slide's text and speaker notes in deck order (an empty string for a slide with none),
+    at most :data:`SLIDES_MAX` slides and about :data:`MAX_TEXT` characters."""
     clock = clock or _Clock()
     z = SafeZip(data)
     if not z.has("ppt/presentation.xml"):
@@ -275,11 +277,12 @@ def pptx_parts(data: bytes, clock: _Clock | None = None) -> list[Part]:
     if not order:   # no slide list: the slide files in number order
         order = sorted((n for n in z.names if re.match(r"^ppt/slides/slide\d+\.xml$", n)),
                        key=lambda n: int(re.findall(r"\d+", n)[-1]))
-    parts = []
+    out: list[str] = []
     size = 0
-    for n, path in enumerate(order[:SLIDES_MAX], 1):
+    for path in order[:SLIDES_MAX]:
         clock.check()
         if not z.has(path):
+            out.append("")
             continue
         text = _drawing_text(z.xml(path))
         notes = ""
@@ -288,13 +291,17 @@ def pptx_parts(data: bytes, clock: _Clock | None = None) -> list[Part]:
                 notes = _drawing_text(z.xml(target))
                 # The notes page repeats the slide number as its own text: drop a bare number.
                 notes = "\n".join(l for l in notes.split("\n") if not l.strip().isdigit())
-        body = text + (f"\nNotes: {notes}" if notes.strip() else "")
-        if body.strip():
-            parts.append(Part(body.strip(), f"slide {n}", f"slide={n}"))
-            size += len(body)
+        body = (text + (f"\nNotes: {notes}" if notes.strip() else "")).strip()
+        out.append(body)
+        size += len(body)
         if size > MAX_TEXT:
             break
-    return parts
+    return out
+
+
+def pptx_parts(data: bytes, clock: _Clock | None = None) -> list[Part]:
+    return [Part(body, f"slide {n}", f"slide={n}")
+            for n, body in enumerate(pptx_slide_texts(data, clock), 1) if body]
 
 
 _MACRO_PART = re.compile(r"(^|/)vbaProject\.bin$|^ppt/activeX/", re.I)
@@ -416,29 +423,45 @@ def csv_parts(data: bytes) -> list[Part]:
 # ── PDF ───────────────────────────────────────────────────────────────────────
 
 
-def pdf_parts(data: bytes, clock: _Clock | None = None) -> list[Part]:
-    clock = clock or _Clock()
-    try:
-        from pypdf import PdfReader
-    except ImportError:  # pragma: no cover - pypdf is in requirements.txt
-        return []
+def _clean_page(t: str) -> str:
+    t = re.sub(r"[ \t]+", " ", t or "")
+    return re.sub(r"\n{2,}", "\n", t).strip()
+
+
+def pdf_reader(data: bytes):
+    """A pypdf reader over ``data``; :class:`Refused` for an encrypted or unreadable PDF."""
+    from pypdf import PdfReader
+
     try:
         reader = PdfReader(io.BytesIO(data))
     except Exception as exc:
         raise Refused("not a readable PDF") from exc
     if reader.is_encrypted:
         raise Refused("encrypted PDF")
+    return reader
+
+
+def pdf_page_text(reader, n: int) -> str:
+    """Page ``n``'s (1-based) text, cleaned; "" for a page with none (a scan) or one that fails."""
+    try:
+        return _clean_page(reader.pages[n - 1].extract_text() or "")
+    except Exception:
+        return ""
+
+
+def pdf_parts(data: bytes, clock: _Clock | None = None) -> list[Part]:
+    clock = clock or _Clock()
+    try:
+        import pypdf  # noqa: F401
+    except ImportError:  # pragma: no cover - pypdf is in requirements.txt
+        return []
+    reader = pdf_reader(data)
     parts, size = [], 0
-    for n, page in enumerate(reader.pages, 1):
+    for n in range(1, len(reader.pages) + 1):
         if n > PDF_MAX_PAGES:
             break
         clock.check()
-        try:
-            t = page.extract_text() or ""
-        except Exception:
-            t = ""
-        t = re.sub(r"[ \t]+", " ", t)
-        t = re.sub(r"\n{2,}", "\n", t).strip()
+        t = pdf_page_text(reader, n)
         if t:
             parts.append(Part(t, f"page {n}", f"page={n}"))
             size += len(t)
