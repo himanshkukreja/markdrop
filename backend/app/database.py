@@ -298,6 +298,9 @@ async def connect() -> None:
         from app.services import teams as _teams
 
         await _teams.ensure_indexes(db)
+        from app.services import folder_access as _folder_access
+
+        await _folder_access.ensure_indexes(db)
         from app.services import favorites as _favorites
 
         await _favorites.ensure_indexes(db)

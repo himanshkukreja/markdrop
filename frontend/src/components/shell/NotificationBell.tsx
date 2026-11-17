@@ -107,12 +107,12 @@ function Sentence({ n }: { n: AppNotification }) {
 }
 
 function KindMark({ kind }: { kind: AppNotification["kind"] }) {
-  const cls = kind === "signoff_requested" ? s.kindSignoff : kind === "shared" ? s.kindShared : undefined;
+  const cls = kind === "signoff_requested" ? s.kindSignoff : kind === "shared" || kind === "folder_shared" ? s.kindShared : undefined;
   return (
     <span className={cx(s.kind, cls)} aria-hidden>
       <span>
         {kind === "mention" || kind === "comment_mention" ? <b style={{ fontSize: 10.5, lineHeight: 1, fontWeight: 800 }}>@</b>
-          : <Icon name={kind === "shared" ? "userPlus" : kind === "speakers_unnamed" ? "mic" : kind.startsWith("comment_") && kind !== "comment_resolved" ? "message" : "check"} size={10} />}
+          : <Icon name={kind === "shared" || kind === "folder_shared" ? "userPlus" : kind === "speakers_unnamed" ? "mic" : kind.startsWith("comment_") && kind !== "comment_resolved" ? "message" : "check"} size={10} />}
       </span>
     </span>
   );

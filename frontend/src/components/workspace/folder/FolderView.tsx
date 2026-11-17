@@ -46,6 +46,7 @@ import { parseFolderHref, registerListing, type FolderTarget } from "@/lib/folde
 import { Listing, Person, ViewSwitch, useListingView, type FolderEntryProps, type ItemEntryProps } from "./Listing";
 import { AddExistingDialog, DeleteFolderDialog, MAX_FOLDER_DEPTH, MoveToDialog, RenameFolderDialog, type MoveTarget } from "./FolderDialogs";
 import ShareFolderDialog, { type ShareFolderTab } from "./ShareFolderDialog";
+import FolderAccessDialog from "./FolderAccessDialog";
 import { FolderDefaultDialog } from "./ExposureBar";
 import ItemSheet, { type SheetAction } from "./ItemSheet";
 import PreviewMode from "./PreviewMode";
@@ -389,6 +390,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
   const [deleteFor, setDeleteFor] = useState<TreeFolder | null>(null);
   const [shareTab, setShareTab] = useState<ShareFolderTab | null>(null);
   const [defaultFor, setDefaultFor] = useState<TreeFolder | null>(null);
+  const [accessFor, setAccessFor] = useState<TreeFolder | null>(null);
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
   const [shareFor, setShareFor] = useState<WorkspaceItem | null>(null);
   const [removeFor, setRemoveFor] = useState<WorkspaceItem[] | null>(null);
@@ -490,6 +492,8 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
   ];
 
   const moreMenu: MenuEntry[] = [];
+  // Who can access it (people, teams, restricted): every member sees it; managers change it there.
+  if (folder && role) moreMenu.push({ label: "Who can access…", icon: "lock", onClick: () => setAccessFor(folder) });
   if (folder && isAdmin) {
     moreMenu.push({ label: "Rename folder…", icon: "edit", onClick: () => setRenameFor(folder) });
     moreMenu.push({ label: "Move folder to…", icon: "folder", onClick: () => setMoveTarget({ kind: "folder", folder }) });
@@ -723,6 +727,17 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
                           <>
                             <span aria-hidden>·</span>
                             <code className="ph-sensitive ph-mask max-w-full truncate rounded-sm bg-surface-inset px-1.5 py-px font-mono text-caption text-text-secondary">{address}</code>
+                          </>
+                        )}
+                        {folder?.access && (
+                          <>
+                            <span aria-hidden>·</span>
+                            <button type="button" onClick={() => setAccessFor(folder)} data-testid="folder-access-chip"
+                              className="md-focus inline-flex cursor-pointer items-center gap-1 rounded-sm bg-transparent p-0 text-inherit hover:underline">
+                              <Icon name={folder.access.restricted ? "lock" : "users"} size={12} />
+                              {folder.access.restricted ? "Restricted" : "Shared"}
+                              {folder.access.teams + folder.access.people > 0 && <> · {folder.access.teams ? `${folder.access.teams} team${folder.access.teams === 1 ? "" : "s"}` : ""}{folder.access.teams && folder.access.people ? ", " : ""}{folder.access.people ? `${folder.access.people} ${folder.access.people === 1 ? "person" : "people"}` : ""}</>}
+                            </button>
                           </>
                         )}
                         {folder?.share && (
@@ -1035,6 +1050,13 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
         canLink={canShareFolders}
         onClose={() => setShareTab(null)}
         onPreview={openPreview}
+      />
+
+      <FolderAccessDialog
+        workspaceId={workspaceId}
+        folder={accessFor}
+        team={team}
+        onClose={() => setAccessFor(null)}
       />
 
       <FolderDefaultDialog

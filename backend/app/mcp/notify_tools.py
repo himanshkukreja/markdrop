@@ -89,8 +89,99 @@ async def mark_notifications_read(ctx: Context, args: dict) -> tuple[str, dict]:
     return f"Marked {marked} notification{'s' if marked != 1 else ''} read; {left} unread.", out
 
 
+MAX_DOCUMENTS = 50
+
+
+async def _share_folder(ctx: Context, args: dict, emails: list[str], role: str, notify_them: bool,
+                        message: str | None) -> tuple[str, dict]:
+    """share_with_people with ``folder``: the folder's people (services/folder_access.share)."""
+    from app.mcp.folder_access_tools import share_folder
+
+    if not args.get("workspace"):
+        raise ToolError("A folder needs its workspace: give workspace (name, id or domain) too.")
+    text, out = await share_folder(ctx, {"workspace": args["workspace"], "folder": args["folder"], "people": emails,
+                                         "role": role, "notify": notify_them, "message": message})
+    added = set(out.get("added_people") or [])
+    told = set(out.get("notified") or [])
+    people = [{"email": access_service.normalize_email(e), "role": role,
+               "added": access_service.normalize_email(e) in added,
+               "notified": access_service.normalize_email(e) in told, "error": None} for e in emails]
+    return text, {"url": None, "markdrop_url": None, "workspace_url": None, "slug": None,
+                  "folder": {"id": out["folder_id"], "path": out["path"]}, "people": people, "documents": []}
+
+
+async def _share_many(ctx: Context, refs: list[str], emails: list[str], role: str, notify_them: bool,
+                      message: str | None) -> tuple[str, dict]:
+    """share_with_people with ``documents``: a grant per (document, person); ONE email and one notification per
+    person for all of them."""
+    from app.services import mailer, urls
+
+    actor = actor_of(ctx)
+    docs, errors = [], []
+    for ref in dict.fromkeys(refs):
+        try:
+            docs.append(await load_for(ctx, ref, "share", "share"))
+        except ToolError as exc:
+            errors.append({"document": ref, "error": str(exc)})
+    per_person: dict[str, list[dict]] = {}
+    people_out: dict[str, dict] = {}
+    doc_out = []
+    for raw in docs:
+        row = {"slug": raw["slug"], "url": urls.markdrop_url(raw["slug"]), "people": []}
+        for email in dict.fromkeys(emails):
+            actx = access_service.Ctx(ctx.db, surface="mcp")
+            fresh = await ctx.db["documents"].find_one({"_id": raw["_id"]}) or raw
+            try:
+                g = await svc.share_with(ctx.db, fresh, email, role, actor, actx, notify_them=False)
+            except HTTPException as exc:
+                row["people"].append({"email": email, "added": False, "error": http_message(exc)})
+                people_out.setdefault(email, {"email": email, "role": None, "added": False, "notified": False,
+                                              "error": http_message(exc)})
+                continue
+            row["people"].append({"email": g.email, "added": not g.unchanged, "error": None})
+            p = people_out.setdefault(g.email, {"email": g.email, "role": g.role, "added": False, "notified": False,
+                                                "error": None})
+            p["role"], p["error"] = g.role, None
+            if not g.unchanged:
+                p["added"] = True
+                per_person.setdefault(g.email, []).append(fresh)
+        doc_out.append(row)
+    if notify_them:
+        sharer = getattr(ctx.user, "name", None) or ctx.user.email or "Someone"
+        for email, items in per_person.items():
+            sent = False
+            if mailer.is_configured():
+                try:
+                    await mailer.send_folder_share_email(
+                        to_email=email, folder_name=items[0].get("title") or f"/{items[0]['slug']}", workspace_name=None,
+                        url=urls.markdrop_url(items[0]["slug"]), sharer_name=sharer, role=role,
+                        items=[(i.get("title") or f"/{i['slug']}", urls.markdrop_url(i["slug"])) for i in items[:10]],
+                        total=len(items), message=message, folder=False)
+                    sent = True
+                    for i in items:
+                        g = await access_service.grant_for(ctx.db, str(i["_id"]), email)
+                        if g is not None:
+                            await access_service.mark_notified(ctx.db, g.id)
+                except Exception:
+                    sent = False
+            target = await ctx.db["users"].find_one({"email": email}, {"_id": 1})
+            if target is not None:
+                await svc.notify(ctx.db, str(target["_id"]), "shared", items[0], None, actor,
+                                 {"message": message, "role": role, "count": len(items)})
+            people_out[email]["notified"] = sent
+    people = list(people_out.values())
+    parts = [f"{p['email']}: " + (f"not shared ({p['error']})" if p["error"] else
+                                  ("got access" + ((" and one email for all of them" if p["notified"] else
+                                                    " (the email didn't send)") if notify_them else "")
+                                   if p["added"] else "already had access (nothing sent)"))
+             for p in people]
+    parts += [f"{e['document']}: {e['error']}" for e in errors]
+    text = f"Sharing {len(docs)} item{'s' if len(docs) != 1 else ''}:\n" + "\n".join(f"- {x}" for x in parts)
+    return text, {"url": None, "markdrop_url": None, "workspace_url": None, "slug": None, "people": people,
+                  "documents": doc_out, "errors": errors}
+
+
 async def share_with_people(ctx: Context, args: dict) -> tuple[str, dict]:
-    raw = await load_for(ctx, args["document"], "share", "share")
     emails = [e.strip() for e in args.get("emails") or [] if isinstance(e, str) and e.strip()]
     if not emails:
         raise ToolError("Give at least one email address.")
@@ -101,6 +192,17 @@ async def share_with_people(ctx: Context, args: dict) -> tuple[str, dict]:
     message = (args.get("message") or "").strip() or None
     if message and not notify_them:
         raise ToolError("A message goes with the notification: leave notify on (or drop the message).")
+    targets = [k for k in ("document", "documents", "folder") if args.get(k)]
+    if len(targets) != 1:
+        raise ToolError("Give exactly one of: document, documents (a list) or folder (with workspace).")
+    if args.get("folder"):
+        return await _share_folder(ctx, args, emails, role, notify_them, message)
+    if args.get("documents"):
+        refs = [d for d in args["documents"] if isinstance(d, str) and d.strip()]
+        if len(refs) > MAX_DOCUMENTS:
+            raise ToolError(f"Share at most {MAX_DOCUMENTS} documents at a time (or share their folder).")
+        return await _share_many(ctx, refs, emails, role, notify_them, message)
+    raw = await load_for(ctx, args["document"], "share", "share")
     actor = actor_of(ctx)
     people = []
     for email in dict.fromkeys(emails):
@@ -172,7 +274,10 @@ NOTIFY_TOOLS: list[Tool] = [
         name="share_with_people",
         title="Share a document with people",
         description=("Give named people access to a page, document or file by email address, like Share → Add "
-                     "people in the app: role viewer (can view, the default) or editor (can edit). They sign in "
+                     "people in the app — or to a list of them at once (documents), or to everything in a folder "
+                     "(folder + workspace: the folder's people, see share_folder) — with role viewer (can view, the "
+                     "default) or editor (can edit). With a list or a folder each person gets ONE email and one "
+                     "notification, not one per item. They sign in "
                      "with that address to open it. With notify (default true) each one gets an email with the "
                      "link (and the optional message) and, if they have a Markdrop account, a notification under "
                      "the bell; nobody is told twice, and someone who already had that access gets nothing. The "
@@ -183,21 +288,28 @@ NOTIFY_TOOLS: list[Tool] = [
         writes=True,
         input_schema={"type": "object", "properties": {
             "document": _DOC_REF,
+            "documents": {"type": "array", "items": _DOC_REF, "minItems": 1, "maxItems": MAX_DOCUMENTS,
+                          "description": "Several documents at once (instead of document)."},
+            "folder": {"type": "string", "minLength": 1, "maxLength": 400,
+                       "description": "A folder (path or id) instead of documents: everything in it, now and later."},
+            "workspace": {"type": "string", "maxLength": 300, "description": "The folder's workspace (with folder)."},
             "emails": {"type": "array", "items": {"type": "string", "format": "email", "maxLength": 254},
                        "minItems": 1, "maxItems": MAX_PEOPLE},
             "role": {"type": "string", "enum": ["viewer", "editor"], "description": "Default viewer."},
             "notify": {"type": "boolean", "description": "Email them (and notify them in Markdrop). Default true."},
             "message": {"type": "string", "maxLength": 500,
                         "description": "Optional note included in the email and the notification."},
-        }, "required": ["document", "emails"]},
+        }, "required": ["emails"]},
         output_schema=_out({
             "url": {"type": "string"}, "markdrop_url": {"type": ["string", "null"]},
-            "workspace_url": {"type": ["string", "null"]}, "slug": {"type": "string"},
+            "workspace_url": {"type": ["string", "null"]}, "slug": {"type": ["string", "null"]},
+            "documents": {"type": "array", "description": "With documents: per item, who was added."},
+            "folder": {"type": ["object", "null"], "description": "With folder: {id, path}."},
             "people": {"type": "array", "items": {"type": "object", "properties": {
                 "email": {"type": "string"}, "role": _NULLABLE_STR, "added": {"type": "boolean"},
                 "notified": {"type": "boolean"}, "error": _NULLABLE_STR,
             }, "required": ["email", "role", "added", "notified", "error"]}},
-        }, ["url", "markdrop_url", "slug", "people"]),
+        }, ["people"]),
         annotations=_ann(False, False, True),
         handler=share_with_people,
     ),

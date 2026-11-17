@@ -163,6 +163,9 @@ class DocumentResponse(BaseModel):
     # re-derives it: {edit, replace, settings, access, rename, delete, share,
     # move, unshare}.
     can: dict | None = None
+    # Why the signed-in caller can open it (services/folder_access.explain): {role, source, text, folder}.
+    # e.g. text "Inherited from sales/ · Sales team". Absent for anonymous reads.
+    access_why: dict | None = None
     # HMAC ticket for the live socket (?t=) and the view/read beacons ("ticket"),
     # needed for any document an anonymous visitor could not read (§2.7).
     read_ticket: str | None = None

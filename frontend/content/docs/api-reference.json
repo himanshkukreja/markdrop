@@ -1314,6 +1314,29 @@
       "title": "Stop sharing a folder",
       "description": "Turns off the folder's link."
     },
+    "GET /api/v1/workspaces/{workspace_id}/folders/{folder_id}/access": {
+      "title": "Get who can access a folder",
+      "description": "The folder's people and teams (with the folder above that names them, when inherited), whether it is restricted and by which folder, what new items start as, `can_manage`, a re-apply `job` in progress and the last changes. Workspace members.",
+      "guide": { "label": "Folder access", "href": "/workspaces/folder-access" }
+    },
+    "PUT /api/v1/workspaces/{workspace_id}/folders/{folder_id}/access": {
+      "title": "Set who can access a folder",
+      "description": "Restrict a folder to its people and teams, replace its own people / teams, and set what new items start as (`folder` = its people and teams). Everything inside, including subfolders and items added later, follows at once. Workspace admins, the folder's creator and its editors.",
+      "example": { "restricted": true, "teams": [{ "team_id": "sales", "role": "editor" }], "people": [{ "email": "sam@example.com", "role": "viewer" }], "default_access": "folder", "notify": true },
+      "guide": { "label": "Folder access", "href": "/workspaces/folder-access" }
+    },
+    "POST /api/v1/workspaces/{workspace_id}/folders/{folder_id}/access/share": {
+      "title": "Share a folder with people or teams",
+      "description": "Gives people (by email) and teams access to everything in the folder that isn't private, now and later. Each person newly given access gets one email and one notification for the whole folder, never one per item.",
+      "example": { "emails": ["sam@example.com"], "team_ids": ["sales"], "role": "viewer", "notify": true },
+      "guide": { "label": "Folder access", "href": "/workspaces/folder-access" }
+    },
+    "PUT /api/v1/documents/{slug}/access/folder-override": {
+      "title": "Open an item beyond its folder",
+      "description": "`override: true` lets an item in a restricted folder use its own access setting again (for example a public link); `false` puts it back under the folder. Its editors only; every change is logged.",
+      "example": { "override": true, "reason": "Press kit" },
+      "guide": { "label": "Folder access", "href": "/workspaces/folder-access" }
+    },
     "GET /api/v1/folders/shared/{share_id}": {
       "title": "Open a shared folder",
       "description": "What a shared folder link shows: the folder, its subfolders and the documents in it that you can open. A folder shared with `workspace` access needs a member's token."

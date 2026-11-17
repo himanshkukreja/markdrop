@@ -141,8 +141,19 @@ async def add_document(
             "access_level": new_level}
     narrows = (access.LEVEL_RANK[new_level] < access.LEVEL_RANK[current]
                or (require_auth and new_level == "link" and existing != workspace_id))
+    # Into a restricted folder (services/folder_access.py): its bytes stop being public.
+    from app.services import folder_access
+
+    capped = not raw.get("folder_override") and await folder_access.capped_for(db, workspace_id, folder_id)
+    unset: list[str] = []
+    if capped:
+        sets["folder_capped"] = True
+        narrows = narrows or (not raw.get("folder_capped") and publicity.is_public(
+            raw, require_auth=await publicity.workspace_requires_auth(db, raw.get("workspace_id"))))
+    elif raw.get("folder_capped"):
+        unset.append("folder_capped")
     after = await transitions.change(
-        db, raw, sets=sets, cas={"owner_id": user.id, "workspace_id": raw.get("workspace_id")},
+        db, raw, sets=sets, unset=unset, cas={"owner_id": user.id, "workspace_id": raw.get("workspace_id")},
         narrows=narrows, require_auth_after=require_auth,
     )
     # C8: the folder may have been deleted while we wrote: root it.

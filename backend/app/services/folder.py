@@ -70,7 +70,17 @@ async def effective_default_access(db: AsyncIOMotorDatabase, workspace_id: str |
         except Exception:
             raw = None
         if raw and raw.get("default_access") in FOLDER_DEFAULT_LEVELS:
-            return raw["default_access"]
+            # "folder" = the folder's people and teams: stored as "workspace" on the item, which the
+            # folder's restriction narrows to them.
+            return "workspace" if raw["default_access"] == "folder" else raw["default_access"]
+    if folder_id:
+        # "folder" (the folder's people and teams), or nothing of its own in a restricted folder:
+        # services/folder_access.py.
+        from app.services import folder_access
+
+        eff = await folder_access.effective_default(db, workspace_id, folder_id, None)
+        if eff is not None:
+            return eff
     if workspace is None:
         from app.services import workspace as ws_service
 
@@ -593,6 +603,8 @@ async def create_folder(
         "parent_id": parent_id or None,
         "created_at": now,
         "updated_at": now,
+        # Who made it: they manage its access with the workspace's admins (services/folder_access.py).
+        "created_by": getattr(actor, "user_id", None),
     }
     result = await db["folders"].insert_one(doc)
     doc["_id"] = result.inserted_id
@@ -748,6 +760,12 @@ async def update_folder(
         below = set(subtree_ids(current, folder_id))
         shares = [f.share.get("id") for f in current if f.share and f.id in below]
         await _purge(db, workspace_id, slugs, shares)
+    if "parent_id" in updates:
+        # Under other parents now: their people, teams and restriction apply (services/folder_access.py).
+        from app.services import folder_access
+
+        if (await folder_access.load_rules(db, workspace_id)).any:
+            await folder_access.after_rule_change(db, workspace_id, [folder_id])
     return _to_folder(raw)
 
 
@@ -918,6 +936,12 @@ async def delete_folder(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: 
         slugs.extend(await _reindex_subtree(db, workspace_id, str(child["_id"])))
     share_id = (raw.get("share") or {}).get("id")
     await _purge(db, workspace_id, slugs, [share_id] if share_id else [])
+    # What was in a restricted folder may be out of it now (services/folder_access.py): its bytes follow.
+    capped = [d["_id"] for d in inside if d.get("folder_capped") and d.get("parent_id") is None]
+    if capped:
+        from app.services import folder_access
+
+        await folder_access._apply(db, workspace_id, capped)
     return inside
 
 
@@ -935,12 +959,31 @@ async def file_document(db: AsyncIOMotorDatabase, raw: dict, workspace_id: str,
     if (folder_id or None) != (raw.get("folder_id") or None):
         await assert_doc_fits(db, workspace_id, folder_id, raw.get("slug"))
     path = await path_of(db, workspace_id, folder_id) if folder_id else []
-    after = await db["documents"].find_one_and_update(
-        {"_id": raw["_id"], "workspace_id": workspace_id},
-        {"$set": {"folder_id": folder_id or None, "folder_path": path,
-                  "updated_at": datetime.now(timezone.utc)}},
-        return_document=True,
-    )
+    from app.services import folder_access
+
+    want = await folder_access.desired_capped(db, {**raw, "workspace_id": workspace_id, "folder_id": folder_id or None})
+    if want != bool(raw.get("folder_capped")):
+        # Into (or out of) a restricted folder (services/folder_access.py): the move goes through the
+        # access transition, so its bytes close before it lands there (or open once it has left).
+        from app.services import transitions
+
+        sets = {"folder_id": folder_id or None, "folder_path": path, "updated_at": datetime.now(timezone.utc)}
+        if want:
+            sets["folder_capped"] = True
+        try:
+            after = await transitions.change(db, raw, sets=sets, unset=[] if want else ["folder_capped"],
+                                             cas={"workspace_id": workspace_id})
+        except HTTPException as exc:
+            if exc.status_code != 409:
+                raise
+            after = None
+    else:
+        after = await db["documents"].find_one_and_update(
+            {"_id": raw["_id"], "workspace_id": workspace_id},
+            {"$set": {"folder_id": folder_id or None, "folder_path": path,
+                      "updated_at": datetime.now(timezone.utc)}},
+            return_document=True,
+        )
     if after is None:
         raise HTTPException(status_code=404, detail="That document isn't in this workspace.")
     if folder_id and not await unfile_if_folder_gone(db, after):

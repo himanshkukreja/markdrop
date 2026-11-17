@@ -209,6 +209,17 @@ class Ctx:
     _inherit: dict = field(default_factory=dict, repr=False)
     _grants_sub: dict = field(default_factory=dict, repr=False)
     _teams: dict = field(default_factory=dict, repr=False)
+    _folders: dict = field(default_factory=dict, repr=False)
+
+    async def folder_rules(self, workspace_id: str | None):
+        """services/folder_access.Rules of one workspace (its folders' people, teams and restrictions), read once."""
+        from app.services import folder_access
+
+        if not workspace_id:
+            return folder_access.EMPTY
+        if workspace_id not in self._folders:
+            self._folders[workspace_id] = await folder_access.load_rules(self.db, workspace_id)
+        return self._folders[workspace_id]
 
     async def team_view(self, workspace_id: str, user_id: str | None):
         """services/teams.TeamView of one person in one workspace (teams + projects, read once)."""
@@ -284,6 +295,7 @@ class Ctx:
             self._ws.clear()
             self._inherit.clear()
             self._teams.clear()
+            self._folders.clear()
         else:
             # A change to a page can change what its sub-pages inherit, so the
             # inheritance cache goes whole (per request, cheap to refill).
@@ -406,7 +418,8 @@ async def effective_doc(db: AsyncIOMotorDatabase, doc: dict, ctx: "Ctx | None" =
     src = inh.source
     return {**doc, "access_level": src.get("access_level") or "link",
             "read_password_hash": src.get("read_password_hash"),
-            "workspace_id": src.get("workspace_id")}
+            "workspace_id": src.get("workspace_id"),
+            "folder_capped": doc.get("folder_capped") or src.get("folder_capped")}
 
 
 @dataclass
@@ -428,6 +441,12 @@ class Facts:
     inherited: bool = False
     # Teams (services/teams.py): the item is company-wide, or one of its teams/projects is readable.
     team_ok: bool = True
+    # Folder access (services/folder_access.py): what the folder's people / teams give the caller, how
+    # ({"kind": "person"|"team", "folder_id", "team_id"?}), and whether a restriction narrows the item
+    # (no membership reach for non-admins, no link reach; the item hasn't been opened beyond its folder).
+    folder_role: str | None = None
+    folder_via: dict | None = None
+    capped: bool = False
 
 
 def _max_role(a: str | None, b: str | None) -> str | None:
@@ -477,6 +496,20 @@ async def facts(actor: Actor, doc: dict, ctx: Ctx) -> Facts:
                 member_doc_role = None
             elif member_doc_role == "editor" and not teams_service.item_member(tv, doc):
                 member_doc_role = "viewer"   # read through an open team / project only
+    folder_role = folder_via = None
+    capped = False
+    if ws_id:
+        rules = await ctx.folder_rules(ws_id)
+        frule = rules.rule(doc.get("folder_id") or src.get("folder_id")) if rules.any else None
+        if frule is not None:
+            if uid and level != "private":
+                member_teams = (await ctx.team_view(ws_id, uid)).member_teams if (frule.teams and ws_role) else set()
+                folder_role, folder_via = rules.role_for(doc.get("folder_id") or src.get("folder_id"),
+                                                         actor.email, member_teams, ws_role)
+            if frule.restricted and not doc.get("folder_override"):
+                capped = True
+                if not ws_role_allows(ws_role, "admin"):
+                    member_doc_role = None
     grant_role = None
     if uid and doc.get("_id") is not None:
         mine = await ctx.grants_for(actor.email)
@@ -490,7 +523,7 @@ async def facts(actor: Actor, doc: dict, ctx: Ctx) -> Facts:
                 grant_role = _max_role(grant_role, below.get(str(p["_id"])))
                 if p.get("owner_id") and p.get("owner_id") == uid:
                     grant_role = _max_role(grant_role, "editor")
-    role = "owner" if is_owner else _max_role(grant_role, member_doc_role)
+    role = "owner" if is_owner else _max_role(_max_role(grant_role, member_doc_role), folder_role)
     f = Facts(
         level=level, has_password=bool(src.get("read_password_hash")), ws_id=ws_id, ws=ws,
         require_auth=bool(ws is not None and ws.settings.require_auth_to_view),
@@ -498,6 +531,7 @@ async def facts(actor: Actor, doc: dict, ctx: Ctx) -> Facts:
         member_doc_role=member_doc_role, role=role,
         doc_role="owner" if (is_owner or secret_ok) else role,
         pw_doc=src, inherited=inh is not None, team_ok=team_ok,
+        folder_role=folder_role, folder_via=folder_via, capped=capped,
     )
     ctx._facts[key] = f
     return f
@@ -635,7 +669,7 @@ def _no_read(actor: Actor, *, password_gate: bool) -> Decision:
 async def _read(actor: Actor, doc: dict, f: Facts, ctx: Ctx) -> Decision:
     if f.doc_role is not None:
         return _allow(f.doc_role)
-    if f.require_auth or f.level != "link":
+    if f.require_auth or f.level != "link" or f.capped:
         return _no_read(actor, password_gate=False)
     if not f.has_password:
         return _allow(None)
@@ -892,7 +926,7 @@ async def discoverable(actor: Actor, doc: dict | None, ctx: Ctx) -> bool:
     if doc is None or not (await can(actor, doc, "read", ctx)).allowed:
         return False
     f = await facts(actor, doc, ctx)
-    return f.team_ok or f.is_owner or f.grant_role is not None
+    return f.team_ok or f.is_owner or f.grant_role is not None or f.folder_role is not None
 
 
 def not_expired_clause(now: datetime) -> dict:
@@ -961,16 +995,35 @@ async def readable_filter(actor: Actor, workspace_id: str, ctx: Ctx) -> Readable
     def _t(c: dict) -> dict:
         return {"$and": [c, tclause]} if tclause else c
 
+    # Folder access (services/folder_access.py): a restricted folder's items reach no membership but its
+    # people's / teams' (admins excepted) and no link; its people and teams reach every non-private item.
+    rules = await ctx.folder_rules(workspace_id)
+    folder_hidden: list[str] = []
+    folder_closed: list[str] = []
+    folder_granted: list[str] = []
+    if rules.any:
+        member_teams = (await ctx.team_view(workspace_id, uid)).member_teams if (uid and role) else set()
+        folder_hidden = rules.hidden_ids(actor.email, member_teams, role, ws_role_allows(role, "admin"))
+        folder_closed = rules.restricted_ids()
+        folder_granted = rules.granted_ids(actor.email, member_teams, role) if uid else []
+
+    def _fc(c: dict, hidden: list[str]) -> dict:
+        if not hidden:
+            return c
+        return {"$and": [c, {"$or": [{"folder_id": {"$nin": hidden}}, {"folder_override": {"$ne": None}}]}]}
+
+    via_folder = ([{"folder_id": {"$in": folder_granted}, "access_level": {"$ne": "private"}}]
+                  if folder_granted else [])
     if role is not None:
-        readable = {"$or": [{"owner_id": uid}, _t({"access_level": {"$ne": "private"}}),
-                            {"_id": {"$in": granted}}]}
+        readable = {"$or": [{"owner_id": uid}, _fc(_t({"access_level": {"$ne": "private"}}), folder_hidden),
+                            {"_id": {"$in": granted}}, *via_folder]}
     elif uid:
-        ors: list[dict] = [{"owner_id": uid}, {"_id": {"$in": granted}}]
+        ors: list[dict] = [{"owner_id": uid}, {"_id": {"$in": granted}}, *via_folder]
         if not require_auth:
-            ors.append(_t(public_clause()))
+            ors.append(_fc(_t(public_clause()), folder_closed))
         readable = {"$or": ors}
     else:
-        readable = nothing if require_auth else _t(public_clause())
+        readable = nothing if require_auth else _fc(_t(public_clause()), folder_closed)
     redacted = None
     if ws_role_allows(role, "admin"):
         redacted = {"access_level": "private", "owner_id": {"$ne": uid}, "_id": {"$nin": granted}}
@@ -1263,6 +1316,10 @@ async def add_grant(db: AsyncIOMotorDatabase, raw_doc: dict, email: str, role: G
             if "sub_role" in own:
                 page_only = _min_role(role, own.get("sub_role"))
         elif f.ws_id is not None and grant_role_allows(f.member_doc_role, role):
+            granted_via = f.ws_id
+        elif f.ws_id is not None and f.ws_role is not None and grant_role_allows(f.folder_role, role):
+            # A member who reaches it through its folder's people / teams (services/folder_access.py):
+            # on the authority of their membership, like a member's share.
             granted_via = f.ws_id
         else:
             raise HTTPException(status_code=403,

@@ -37,7 +37,9 @@ export type NotificationKind = "mention" | "signoff_requested" | "shared"
   // HubSpot (backend services/hubspot_notify.py): a pre-call brief.
   | "hubspot_precall"
   // From Markdrop itself (backend services/meeting_speakers.ask_to_name): a meeting's speakers to name.
-  | "speakers_unnamed";
+  | "speakers_unnamed"
+  // A folder shared with them (backend services/folder_access.py): one per person, not per item.
+  | "folder_shared";
 
 export interface AppNotification {
   id: string;

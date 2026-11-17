@@ -1,7 +1,7 @@
 ---
 title: Share a folder
 description: Send one link that lists a folder's contents. A folder link never opens anything by itself; each visitor sees only what they could already open.
-updated: 2026-11-05
+updated: 2026-11-17
 prerequisites: [/workspaces/folders, /workspaces/privacy]
 keywords: [folder link, share folder, f link, public folder, team link, slack, link preview, unfurl]
 ---
@@ -9,6 +9,8 @@ keywords: [folder link, share folder, f link, public folder, team link, slack, l
 A folder link is one address, like `markdrop.in/f/…`, that opens a page listing a folder's contents and its subfolders. It's handy for a set of handouts, a release's files, or a team's guides.
 
 A folder link never opens anything by itself. Each visitor sees only the items they could already open on their own. Sharing a folder doesn't change any item's setting.
+
+To give people or teams access to everything in a folder, or to keep everyone else out, use [Folder access](/workspaces/folder-access) instead.
 
 ## Share it
 

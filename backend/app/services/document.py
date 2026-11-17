@@ -218,6 +218,13 @@ async def create_document(
     if data.read_password:
         read_pwd_hash = await hash_secret(data.read_password)
 
+    # Filed straight into a restricted folder (or under a page that is): its bytes are never public
+    # (services/folder_access.py). A copy of the parent's flags for a sub-page.
+    if extra and (extra.get("folder_id") or extra.get("parent_id") is not None):
+        from app.services import folder_access
+
+        extra = {**extra, **await folder_access.stamp_new(db, extra)}
+
     def _build(slug: str) -> dict:
         return {
             "slug": slug,

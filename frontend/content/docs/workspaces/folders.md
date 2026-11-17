@@ -1,14 +1,14 @@
 ---
 title: Folders
 description: File a workspace's documents into folders. On your own domain, a folder becomes part of each link, like docs.acme.com/guides/setup.
-updated: 2026-11-07
+updated: 2026-11-17
 prerequisites: [/workspaces/create]
 keywords: [filter by type, type filter, videos, pdfs, folder, subfolder, move, rename, delete folder, organize, redirect, on_conflict, path, address, list view, grid view, cards, card view, previews, default view, owner, create_folder, rename_folder, move_folder, delete_folder, move_to_parent, idempotency_key]
 ---
 
 Folders keep a workspace tidy, and on your own domain they shape the address. A document filed under **Guides › Setup** is served at `docs.acme.com/guides/setup/<document>`.
 
-Folders decide where something appears and what its address is. They never decide who can open it: that stays with each item's own setting and the workspace's [privacy](/workspaces/privacy).
+Folders decide where something appears and what its address is. Who can open an item is its own setting and the workspace's [privacy](/workspaces/privacy), unless the folder has [access of its own](/workspaces/folder-access): people and teams it is shared with, or a restriction that keeps everyone else out.
 
 ## Browse a workspace
 

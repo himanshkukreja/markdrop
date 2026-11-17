@@ -163,6 +163,20 @@
       "body": "- **One block.** `replace_block`, `insert_after_block` and `delete_block` find a block by its `{#b-…}` anchor, inside callouts and columns too. A replaced block keeps its anchor, so links and comments on it still land there.\n- **One table row.** `update_table_row` picks the table (anchor, number or the heading it's under) and the row (`match` on a column, or its number), and changes just the cells you give. Cell colours are kept.\n- **Sections.** `replace_section` matches a heading by the text you see, ignoring its anchor and colours, or by its anchor; `heading: null` replaces the text before the first heading, like a header table.\n- **Read less.** `get_page` with `outline_only` returns headings, tables and anchored blocks without the text; `sections` returns only the sections you name.\n- **No waiting.** Edits to part of a page work while someone has it open in the editor: the change shows there at once, merged with what they're typing. Only a whole-page `update_page` still waits for them.\n- **Also.** `create_page` takes `access` (`private`, `workspace` or `link`); `list_workspace_items` filters by `access`; `create_folder` answers with the folder that's already there (`existed: true`), or refuses with `if_exists: \"error\"`.\n- **Fixed.** A Mermaid diagram no longer opens as code in your editor when a teammate's or an AI app's change lands while the page is open."
     },
     {
+      "id": "folder-access",
+      "date": "2026-11-17",
+      "title": "Folder access: restrict a folder to people and teams",
+      "kind": "new",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "A folder can be restricted to people and teams. Everything inside follows, including subfolders and anything created, uploaded or moved in later, and every item says why you can open it.",
+      "body": "- **Restrict a folder.** **⋯ › Who can access…** names people and [teams](/teams/overview), each with **Can view** or **Can edit**. Restricted, nobody else in the workspace (except admins) and no public link opens anything inside; item owners and people an item was shared with keep it. [Folder access](/workspaces/folder-access)\n- **Inherited everywhere.** Subfolders, new pages and uploads, and items moved in follow at once. Adding someone to the team gives them everything shared with it.\n- **One message per person.** Sharing a folder sends each person one email and one notification, never one per item.\n- **New items start as** can be the folder's people and teams.\n- **Why you can open it.** The item's **Share** dialog says, for example, \"Inherited from sales/ · Sales team\"; an editor can open one item beyond its folder, and that's logged.\n- **MCP and API.** `get_folder_access`, `set_folder_access` and `share_folder`; `share_with_people` takes a list of `documents` or a `folder`; `access_why` on `get_page`, `get_document` and `get_file_info`; routes under `/api/v1/workspaces/{id}/folders/{folder}/access`."
+    },
+    {
       "id": "video-chapters",
       "date": "2026-11-16",
       "title": "Chapters on the video player, and captions on meeting recordings",

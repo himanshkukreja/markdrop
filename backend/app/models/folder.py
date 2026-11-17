@@ -6,15 +6,14 @@ from datetime import datetime
 class Folder:
     """A place to put documents, scoped to one workspace.
 
-    Folders *do* appear in URLs -- a document filed under Data/Reports is served
-    at ``/data/reports/<slug>`` on the workspace's own domain. They still do not
-    change **who** can read a document: read access comes from the document's own
-    password, expiry and workspace, exactly as before. Filing decides where a
-    document appears and what its address is; it never decides who gets in.
+    Folders appear in URLs -- a document filed under Data/Reports is served at
+    ``/data/reports/<slug>`` on the workspace's own domain.
 
-    Keeping those two apart matters. The moment a folder grants or withholds
-    access, there are two systems deciding who can read a document and the
-    quieter one wins by accident.
+    Since 2026-11-17 a folder may also say who can open what is inside
+    (``access``: people, teams, restricted -- services/folder_access.py). That
+    rule is evaluated inside the one access decision (services/access.py
+    ``facts``), never by a second system: a folder's people and teams act like a
+    share of every non-private item inside, and a restriction narrows them.
     """
 
     id: str
@@ -39,4 +38,5 @@ class Folder:
     meetings_sub: bool = False
 
 
-FOLDER_DEFAULT_LEVELS = ("private", "workspace", "link")
+# "folder": the folder's people and teams (services/folder_access.py).
+FOLDER_DEFAULT_LEVELS = ("private", "folder", "workspace", "link")

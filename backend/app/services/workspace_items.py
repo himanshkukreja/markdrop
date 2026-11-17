@@ -350,6 +350,24 @@ async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
     fteams = {str(r["_id"]): [str(t) for t in r.get("team_ids") or []] for r in await db["folders"].find(
         {"workspace_id": workspace_id, "team_ids": {"$exists": True}}, {"team_ids": 1}).to_list(length=5000)}
     ws_default = ws.settings.default_access if ws else "link"
+    frules = await ctx.folder_rules(workspace_id)
+
+    def _faccess(fid: str) -> dict:
+        r = frules.rule(fid)
+        own = (frules.folders.get(fid) or {}).get("access") or {}
+        if r is None:
+            return {}
+        return {"access": {"restricted": r.restricted, "restricted_here": bool(own.get("restricted")),
+                           "people": len(r.people), "teams": len(r.teams)}}
+
+    def _eff_default(f) -> str:
+        if f.default_access == "folder":
+            return "workspace"
+        if f.default_access:
+            return f.default_access
+        r = frules.rule(f.id)
+        return "workspace" if (r and r.restricted) else ws_default
+
     return {
         "workspace": {"id": workspace_id, "name": ws.name if ws else None, "role": role,
                       "primary_host": await urls.live_primary_host(db, workspace_id),
@@ -362,7 +380,8 @@ async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
                 "share": ({"id": f.share.get("id"), "level": f.share.get("level")}
                           if f.share and f.share.get("id") else None),
                 "default_access": f.default_access,
-                "effective_default_access": f.default_access or ws_default,
+                "effective_default_access": _eff_default(f),
+                **_faccess(f.id),
                 "exposure": per.get(f.id) or _empty_exposure(),
                 "updated_at": activity[f.id]["updated_at"] or f.updated_at,
                 "people": people(f.id),

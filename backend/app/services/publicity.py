@@ -5,7 +5,9 @@ only when its R2 metadata says ``public == "1"``. Everything that writes an
 object or changes who can read a document therefore has to agree on one
 predicate, and it lives here (access policy §5.3):
 
-    is_public(doc, ws) = level == link ∧ ¬password ∧ ¬ws.require_auth ∧ ¬expired
+    is_public(doc, ws) = level == link ∧ ¬password ∧ ¬ws.require_auth ∧ ¬expired ∧ ¬folder_capped
+
+``folder_capped``: the item is in a restricted folder (services/folder_access.py), which no link reaches.
 
 It applies to the current blob, every object of a zipped site's prefix, the
 current poster frame and captions, and a deck's PDF preview. Old file versions are never public.
@@ -71,6 +73,7 @@ def is_public(doc: Any, *, require_auth: bool, now: datetime | None = None) -> b
         and not _get(doc, "read_password_hash")
         and not require_auth
         and not is_expired(doc, now)
+        and not _get(doc, "folder_capped")
     )
 
 

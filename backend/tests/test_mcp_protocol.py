@@ -183,6 +183,8 @@ class Transport(McpTestCase):
             # HubSpot (mcp/hubspot_tools.py).
             "hubspot_status", "hubspot_match", "log_to_hubspot", "hubspot_tasks",
             "hubspot_suggestions", "hubspot_account", "hubspot_pipeline", "hubspot_notifications",
+            # Folder access (mcp/folder_access_tools.py).
+            "get_folder_access", "set_folder_access", "share_folder",
         # A video's captions (search and Ask read it by minute).
         "set_captions"})
         for t in tools.values():
@@ -236,7 +238,7 @@ class Transport(McpTestCase):
     async def test_modern_tools_list_and_call(self):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
-        self.assertEqual(len(r.json()["result"]["tools"]), 162)
+        self.assertEqual(len(r.json()["result"]["tools"]), 169)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")

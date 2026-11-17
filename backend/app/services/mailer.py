@@ -408,6 +408,75 @@ async def send_document_share_email(
     await _send(to_email, mail, purpose="share", kind="share", ref=slug)
 
 
+def compose_folder_share(*, folder_name: str, workspace_name: str | None, url: str, sharer_name: str, role: str,
+                         items: list[tuple[str, str]], total: int, message: str | None, folder: bool = True) -> dict:
+    """One email for a whole folder (services/folder_access.py): what they can open in it now, and that what
+    is added later reaches them too."""
+    can = _SHARE_ROLE.get(role, "read it")
+    if not folder:
+        # Several items at once (share_with_people with a list): one email naming them all.
+        return _compose_items_share(url=url, sharer_name=sharer_name, can=can, items=items, total=total,
+                                    message=message)
+    where = f"“{folder_name}”" + (f" in {workspace_name}" if workspace_name else "")
+    listed = [K.item(K.link(u, t), last=i == len(items) - 1, pad=8) for i, (t, u) in enumerate(items)]
+    more = total - len(items)
+    body = [
+        K.eyebrow("Shared with you"),
+        K.title(f"{sharer_name} shared the folder {where} with you"),
+        K.quote(message, who=sharer_name) if message else None,
+        K.doc_card(folder_name, url, meta=f"You can {can} everything in it"
+                   + (f" · {total} item{'s' if total != 1 else ''} now" if total else "")),
+        K.rows(listed, margin="0 0 8px") if listed else None,
+        K.small(f"And {more} more." if more > 0 else "", margin="0 0 8px") if more > 0 else None,
+        K.small("Anything added to the folder later reaches you too."),
+        K.button(url, "Open the folder" if "/f/" in url else "Open it", margin="4px 0 24px"),
+        K.small(["Sign in to Markdrop with ", K.strong("this email address"), " to open it. Access is tied to the "
+                 "address, not to a link anyone could forward."]),
+    ]
+    e = K.layout(title_=folder_name or "Shared with you",
+                 preheader=f"{sharer_name} shared the folder {where} with you on Markdrop.", base=_base(),
+                 body=[b for b in body if b is not None],
+                 footer=Footer(why="Didn't expect this? You can ignore it: nothing opens until you sign in with this address."))
+    return _mail(f"{sharer_name} shared the folder “{folder_name}” with you",
+                 f"{sharer_name} shared the folder {where} with you on Markdrop.", e)
+
+
+def _compose_items_share(*, url: str, sharer_name: str, can: str, items: list[tuple[str, str]], total: int,
+                         message: str | None) -> dict:
+    first = items[0][0] if items else "an item"
+    head = f"“{first}”" + (f" and {total - 1} more" if total > 1 else "")
+    listed = [K.item(K.link(u, t), last=i == len(items) - 1, pad=8) for i, (t, u) in enumerate(items)]
+    body = [
+        K.eyebrow("Shared with you"),
+        K.title(f"{sharer_name} shared {head} with you"),
+        K.quote(message, who=sharer_name) if message else None,
+        K.rows(listed, margin="0 0 8px") if listed else None,
+        K.small(f"And {total - len(items)} more." if total > len(items) else "", margin="0 0 8px")
+        if total > len(items) else None,
+        K.small(f"You can {can}."),
+        K.button(url, "Open it", margin="4px 0 24px"),
+        K.small(["Sign in to Markdrop with ", K.strong("this email address"), " to open them. Access is tied to the "
+                 "address, not to a link anyone could forward."]),
+    ]
+    e = K.layout(title_="Shared with you", preheader=f"{sharer_name} shared {head} with you on Markdrop.",
+                 base=_base(), body=[b for b in body if b is not None],
+                 footer=Footer(why="Didn't expect this? You can ignore it: nothing opens until you sign in with this address."))
+    return _mail(f"{sharer_name} shared {head} with you", f"{sharer_name} shared {head} with you on Markdrop.", e)
+
+
+async def send_folder_share_email(*, to_email: str, folder_name: str, workspace_name: str | None, url: str,
+                                  sharer_name: str, role: str, items: list[tuple[str, str]], total: int,
+                                  message: str | None = None, folder: bool = True) -> None:
+    """Tell someone a folder (or, ``folder=False``, several items) was shared with them: one email, however
+    many items. Raises on failure."""
+    mail = compose_folder_share(folder_name=folder_name, workspace_name=workspace_name, url=url,
+                                sharer_name=sharer_name, role=role, items=items, total=total, message=message,
+                                folder=folder)
+    if folder:
+        mail["subject"] = f"{_one_line(sharer_name, 60)} shared the folder “{_one_line(folder_name)}” with you"
+    await _send(to_email, mail, purpose="share", kind="share", ref=url[-60:])
+
+
 # ── Access requests ────────────────────────────────────────────────────────────
 
 

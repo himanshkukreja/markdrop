@@ -62,7 +62,31 @@ export interface DocCan {
   edit_locked?: boolean;
 }
 
+/** Why the caller can open it (backend services/folder_access.explain). */
+export interface AccessWhy {
+  role: "owner" | "editor" | "viewer" | null;
+  source: "owner" | "edit_link" | "shared" | "folder_person" | "folder_team" | "workspace" | "workspace_admin" | "link";
+  /** e.g. "Inherited from sales/ · Sales team" */
+  text: string;
+  folder: { id: string; path: string; restricted: boolean; restricted_by: string | null; override: boolean; capped: boolean } | null;
+}
+
+/** The item's folder rule, when its folder (or one above) names people / teams or is restricted. */
+export interface ItemFolderAccess {
+  folder_id: string;
+  path: string;
+  name: string | null;
+  restricted: boolean;
+  restricted_by: string | null;
+  /** Opened beyond its restricted folder by an editor (logged). */
+  override: boolean;
+  can_override: boolean;
+  summary: string;
+}
+
 export interface AccessState {
+  why?: AccessWhy | null;
+  folder_access?: ItemFolderAccess | null;
   level: AccessLevel;
   allow_resharing: boolean;
   is_password_protected: boolean;
@@ -134,4 +158,11 @@ export const removePerson = (slug: string, email: string) =>
   request<void>(
     `/api/v1/documents/${encodeURIComponent(slug)}/access/people/${encodeURIComponent(email)}`,
     { method: "DELETE" }
+  );
+
+/** Open an item beyond its restricted folder (or put it back under it). Editors; logged. */
+export const setFolderOverride = (slug: string, override: boolean, reason?: string) =>
+  request<{ why: AccessWhy | null; folder_access: ItemFolderAccess | null }>(
+    `/api/v1/documents/${encodeURIComponent(slug)}/access/folder-override`,
+    { method: "PUT", body: JSON.stringify({ override, reason: reason || null }) }
   );

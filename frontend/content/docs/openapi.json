@@ -15453,6 +15453,192 @@
         }
       }
     },
+    "/api/v1/workspaces/{workspace_id}/folders/{folder_id}/access": {
+      "get": {
+        "tags": [
+          "folders"
+        ],
+        "summary": "Get Folder Access",
+        "description": "The folder's people, teams (each with the folder above that names them, if inherited), whether it is\nrestricted (and where), what new items start as, ``can_manage``, a re-apply ``job`` in progress and the\nlast changes (``log``). Workspace members.",
+        "operationId": "get_folder_access_api_v1_workspaces__workspace_id__folders__folder_id__access_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "put": {
+        "tags": [
+          "folders"
+        ],
+        "summary": "Put Folder Access",
+        "description": "Restrict the folder, name its people and teams, set what new items start as. Everything inside —\npages, files, subfolders, and what is added later — follows at once. Returns the folder's access (as\nGET) plus ``notified``.",
+        "operationId": "put_folder_access_api_v1_workspaces__workspace_id__folders__folder_id__access_put",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderAccessUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/folders/{folder_id}/access/share": {
+      "post": {
+        "tags": [
+          "folders"
+        ],
+        "summary": "Share Folder With",
+        "description": "Share the folder with people and/or teams: they reach everything inside that isn't private, now and\nlater. One notification and one email per person newly given access (not one per item).",
+        "operationId": "share_folder_with_api_v1_workspaces__workspace_id__folders__folder_id__access_share_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderShareRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/folders/shared/{share_id}": {
       "get": {
         "tags": [
@@ -16662,6 +16848,63 @@
           "auth": "token",
           "rateLimits": [
             "60/hour"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/access/folder-override": {
+      "put": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Set Folder Override",
+        "description": "Open this item beyond its restricted folder (``override: true``: its own access setting applies\nagain, e.g. a public link), or put it back under the folder's restriction. Its editors only; logged in\nthe folder's log and, for a page, its version history. Returns ``{why, folder_access}``.",
+        "operationId": "set_folder_override_api_v1_documents__slug__access_folder_override_put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderOverrideUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
           ]
         }
       }
@@ -27824,6 +28067,30 @@
             "type": "boolean",
             "title": "Comments Public",
             "default": false
+          },
+          "why": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why"
+          },
+          "folder_access": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Access"
           }
         },
         "type": "object",
@@ -30641,6 +30908,18 @@
             ],
             "title": "Can"
           },
+          "access_why": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Why"
+          },
           "read_ticket": {
             "anyOf": [
               {
@@ -31246,6 +31525,18 @@
               }
             ],
             "title": "Can"
+          },
+          "access_why": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Why"
           },
           "read_ticket": {
             "anyOf": [
@@ -32819,6 +33110,91 @@
         "type": "object",
         "title": "FocusBody"
       },
+      "FolderAccessUpdate": {
+        "properties": {
+          "restricted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restricted",
+            "description": "Only the folder's people and teams (and item owners, people an item is shared with, workspace admins) open what's inside."
+          },
+          "people": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PersonEntry"
+                },
+                "type": "array",
+                "maxItems": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "People"
+          },
+          "teams": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TeamEntry"
+                },
+                "type": "array",
+                "maxItems": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teams"
+          },
+          "default_access": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "private",
+                  "folder",
+                  "workspace",
+                  "link"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Access",
+            "description": "What new items here start as; send null to clear (the workspace's default)."
+          },
+          "notify": {
+            "type": "boolean",
+            "title": "Notify",
+            "description": "Tell people newly given access (one email / notification each).",
+            "default": false
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "title": "FolderAccessUpdate",
+        "description": "Present fields change; absent ones are kept. ``people`` / ``teams`` replace the folder's own lists\n(people and teams named on folders above it still reach it)."
+      },
       "FolderCreate": {
         "properties": {
           "name": {
@@ -32917,6 +33293,32 @@
         ],
         "title": "FolderListResponse"
       },
+      "FolderOverrideUpdate": {
+        "properties": {
+          "override": {
+            "type": "boolean",
+            "title": "Override"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "override"
+        ],
+        "title": "FolderOverrideUpdate",
+        "description": "Open one item beyond its restricted folder (``override``), or put it back under it. Logged."
+      },
       "FolderPatch": {
         "properties": {
           "name": {
@@ -32961,9 +33363,10 @@
               {
                 "type": "string",
                 "enum": [
-                  "link",
                   "private",
-                  "workspace"
+                  "folder",
+                  "workspace",
+                  "link"
                 ]
               },
               {
@@ -33061,6 +33464,67 @@
           "level"
         ],
         "title": "FolderShare"
+      },
+      "FolderShareRequest": {
+        "properties": {
+          "emails": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Emails"
+          },
+          "team_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Team Ids",
+            "description": "Team ids, slugs or names."
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "viewer",
+              "editor"
+            ],
+            "title": "Role",
+            "default": "viewer"
+          },
+          "notify": {
+            "type": "boolean",
+            "title": "Notify",
+            "default": true
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "restrict": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restrict",
+            "description": "Also restrict the folder to its people and teams (true), or lift the restriction (false). Absent: unchanged."
+          }
+        },
+        "type": "object",
+        "title": "FolderShareRequest"
       },
       "FolderTeams": {
         "properties": {
@@ -35614,6 +36078,30 @@
         "type": "object",
         "title": "PatchBody"
       },
+      "PersonEntry": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "minLength": 3,
+            "title": "Email"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "viewer",
+              "editor"
+            ],
+            "title": "Role",
+            "default": "viewer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "PersonEntry"
+      },
       "PreferencesUpdate": {
         "properties": {
           "analytics_digest": {
@@ -37343,6 +37831,31 @@
           "name"
         ],
         "title": "TeamCreate"
+      },
+      "TeamEntry": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Team Id",
+            "description": "The team's id, slug or name."
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "viewer",
+              "editor"
+            ],
+            "title": "Role",
+            "default": "editor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id"
+        ],
+        "title": "TeamEntry"
       },
       "TeamIn": {
         "properties": {

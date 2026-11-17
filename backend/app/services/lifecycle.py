@@ -198,7 +198,8 @@ def level_after_leaving(raw: dict, require_auth: bool) -> str:
     level = raw.get("access_level") or "link"
     if level == "workspace":
         return "private"
-    if level == "link" and require_auth:
+    if level == "link" and (require_auth or raw.get("folder_capped")):
+        # (A link item in a restricted folder reached no link: services/folder_access.py.)
         return "private"
     return level
 
@@ -218,7 +219,8 @@ async def release_from_workspace(db: AsyncIOMotorDatabase, raw: dict, workspace_
             "updated_at": _now()}
     try:
         after = await transitions.change(
-            db, raw, sets=sets, cas={"workspace_id": workspace_id},
+            db, raw, sets=sets, unset=["folder_capped"] if raw.get("folder_capped") else None,
+            cas={"workspace_id": workspace_id},
             narrows=level != current, require_auth_after=False, inline_purge=True,
         )
     except HTTPException as exc:
@@ -249,7 +251,8 @@ async def release_db_first(db: AsyncIOMotorDatabase, raw: dict, workspace_id: st
     current = raw.get("access_level") or "link"
     narrows = level != current
     update: dict = {"$set": {"workspace_id": None, "folder_id": None, "folder_path": [],
-                             "access_level": level, "access_dirty": True, "updated_at": _now()}}
+                             "access_level": level, "access_dirty": True, "updated_at": _now()},
+                    "$unset": {"folder_capped": ""}}
     if narrows:
         update["$inc"] = {"access_epoch": 1}
     after = await db["documents"].find_one_and_update(

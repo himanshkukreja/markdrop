@@ -47,6 +47,7 @@ from app.mcp.tools import (
     slug_error,
     url_pair,
 )
+from app.mcp.tools import access_why  # folder access: why the user can open a page
 from app.services import access as access_service
 from app.services import live, page_asset_uploads, page_assets, page_blocks, page_props, page_templates, pages, revalidate
 
@@ -502,6 +503,7 @@ async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
     if lock:
         out["editing"] = lock["name"]
         out["edit_lock"] = {"holder": lock["name"], **pages.lock_facts(lock)}
+    out["access_why"] = await access_why(ctx, raw)  # why the user can open it (services/folder_access.py)
     head = f"{raw.get('title') or raw['slug']} ({out['url']}), revision {out['rev']}"
     if lock:
         f = pages.lock_facts(lock)
