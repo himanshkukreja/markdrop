@@ -24,6 +24,7 @@ const instructions = `Markdrop on this computer does two things with local files
 
 Publish a file behind a lasting link (needs MARKDROP_TOKEN or ` + "`markdrop login`" + `):
 - upload_file publishes a file from this computer (video up to 2 GB, PDF, HTML page, image, spreadsheet, .docx, .pptx, …) and returns its link. The bytes go from here straight to storage, so use this (not the remote Markdrop server) for files on this machine. When the user mentions a workspace, team or custom domain, pass workspace (and folder) — find them with list_workspaces and list_folders; the link is then on the workspace's custom domain when it has a live one (markdrop_url is the markdrop.in link). slug picks the address.
+- upload_folder publishes every file in a folder in one go (recursively; with workspace, sub-folders become workspace folders under folder) and returns each file's link.
 - replace_file swaps the file behind an existing link: the link, access, title and views stay the same and the previous version is kept. Use it to update something already published instead of uploading a new copy.
 - list_file_versions, restore_file_version (undo a replace) and get_file_info (size, sha256, version, video duration/resolution).
 Uploads are verified by sha256 and resume if interrupted: call the same tool again with the same arguments. Markdown documents are written with the remote server's publish_document/update_document, not these tools.

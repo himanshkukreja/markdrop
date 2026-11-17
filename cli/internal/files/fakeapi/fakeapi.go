@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"path"
@@ -66,14 +67,18 @@ type Server struct {
 	BeforePut func(slug string)
 
 	// Counters and logs.
-	PartPuts     map[int]int // PUT attempts per part number (any outcome)
-	PartsStored  map[int]int // successful PUTs per part number
-	Creates      int
-	Completes    int
-	URLRefreshes []([]int) // part_numbers of each /urls call (nil = all)
-	StatusGets   int
-	LastCreate   map[string]any
-	AuthHeaders  []string // Authorization headers of API calls
+	PartPuts    map[int]int // PUT attempts per part number (any outcome)
+	PartsStored map[int]int // successful PUTs per part number
+	Creates     int
+	Completes   int
+	// Batch calls (POST /files/uploads/batch, …/batch/complete) and folders made.
+	BatchCreates   int
+	BatchCompletes int
+	FoldersMade    []string
+	URLRefreshes   []([]int) // part_numbers of each /urls call (nil = all)
+	StatusGets     int
+	LastCreate     map[string]any
+	AuthHeaders    []string // Authorization headers of API calls
 	// PartCredentials counts part PUTs that carried an Authorization or
 	// Cookie header (must stay 0: pre-signed URLs need no credentials).
 	PartCredentials int
@@ -352,6 +357,7 @@ var (
 	reVersions = regexp.MustCompile(`^/api/v1/files/([A-Za-z0-9_-]+)/versions$`)
 	reRestore  = regexp.MustCompile(`^/api/v1/files/([A-Za-z0-9_-]+)/versions/(\d+)/restore$`)
 	reTree     = regexp.MustCompile(`^/api/v1/workspaces/([^/]+)/tree$`)
+	reFolders  = regexp.MustCompile(`^/api/v1/workspaces/([^/]+)/folders$`)
 	customSlug = regexp.MustCompile(`^[A-Za-z0-9_-]{3,50}$`)
 	rePart     = regexp.MustCompile(`^/r2/([^/]+)/(\d+)$`)
 	hex64      = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -379,6 +385,12 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.listWorkspaces(w, user)
 	case r.Method == http.MethodGet && reTree.MatchString(p):
 		s.tree(w, user, reTree.FindStringSubmatch(p)[1])
+	case r.Method == http.MethodPost && p == "/api/v1/files/uploads/batch":
+		s.batchCreate(w, r, user)
+	case r.Method == http.MethodPost && p == "/api/v1/files/uploads/batch/complete":
+		s.batchComplete(w, r, user)
+	case r.Method == http.MethodPost && reFolders.MatchString(p):
+		s.createFolder(w, r, user, reFolders.FindStringSubmatch(p)[1])
 	case r.Method == http.MethodPost && reUploads.MatchString(p):
 		s.create(w, r, user)
 	case r.Method == http.MethodPost && reURLs.MatchString(p):
@@ -1050,4 +1062,145 @@ func (s *Server) AddAcme() {
 		},
 	})
 	s.AddWorkspace(Workspace{ID: "ws_side", Name: "Side", Members: map[string]string{Token: "owner"}})
+}
+
+// ── Batches and folders ─────────────────────────────────────────────────────
+
+// batchCreate is POST /files/uploads/batch: create for each file, per-file
+// results; an open session for the same file is handed back (resumed).
+func (s *Server) batchCreate(w http.ResponseWriter, r *http.Request, user string) {
+	var body struct {
+		Files []map[string]any `json:"files"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || len(body.Files) == 0 || len(body.Files) > 50 {
+		detail(w, 422, "files: 1 to 50")
+		return
+	}
+	s.mu.Lock()
+	s.BatchCreates++
+	s.mu.Unlock()
+	out := []map[string]any{}
+	for i, f := range body.Files {
+		item := map[string]any{"index": i, "ok": false, "file_name": f["file_name"]}
+		s.mu.Lock()
+		var open *session
+		for _, ses := range s.sessions {
+			if ses.Owner == user && ses.State == "uploading" && ses.SHA == f["sha256"] && ses.FileName == f["file_name"] {
+				open = ses
+			}
+		}
+		if open != nil {
+			var parts []map[string]any
+			for n := 1; n <= s.nParts(open); n++ {
+				parts = append(parts, map[string]any{"part_number": n, "url": s.partURL(open.ID, n)})
+			}
+			maps.Copy(item, map[string]any{"ok": true, "upload_id": open.ID, "part_size": open.PartSize,
+				"part_count": len(parts), "parts": parts, "expires_at": iso(time.Now().Add(s.URLTTL)), "resumed": true})
+			s.mu.Unlock()
+			out = append(out, item)
+			continue
+		}
+		s.mu.Unlock()
+		raw, _ := json.Marshal(f)
+		rec := httptest.NewRecorder()
+		s.create(rec, httptest.NewRequest(http.MethodPost, "/api/v1/files/uploads", bytes.NewReader(raw)), user)
+		var res map[string]any
+		_ = json.Unmarshal(rec.Body.Bytes(), &res)
+		if rec.Code != 200 {
+			item["error"], item["status"] = res["detail"], rec.Code
+		} else {
+			parts, _ := res["parts"].([]any)
+			maps.Copy(item, map[string]any{"ok": true, "upload_id": res["upload_id"], "part_size": res["part_size"],
+				"part_count": len(parts), "parts": parts, "expires_at": res["expires_at"]})
+		}
+		out = append(out, item)
+	}
+	writeJSON(w, 200, map[string]any{"uploads": out})
+}
+
+// batchComplete is POST /files/uploads/batch/complete: complete each upload
+// with the parts storage holds.
+func (s *Server) batchComplete(w http.ResponseWriter, r *http.Request, user string) {
+	var body struct {
+		UploadIDs []string `json:"upload_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || len(body.UploadIDs) == 0 {
+		detail(w, 422, "upload_ids: 1 to 50")
+		return
+	}
+	s.mu.Lock()
+	s.BatchCompletes++
+	s.mu.Unlock()
+	out := []map[string]any{}
+	for _, id := range body.UploadIDs {
+		type part struct {
+			PartNumber int    `json:"part_number"`
+			ETag       string `json:"etag"`
+		}
+		var parts []part
+		s.mu.Lock()
+		if ses := s.sessions[id]; ses != nil {
+			for n := 1; n <= s.nParts(ses); n++ {
+				if e := ses.ETags[n]; e != "" {
+					parts = append(parts, part{n, e})
+				}
+			}
+		}
+		s.mu.Unlock()
+		raw, _ := json.Marshal(map[string]any{"parts": parts})
+		rec := httptest.NewRecorder()
+		s.complete(rec, httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(raw)), user, id)
+		var res map[string]any
+		_ = json.Unmarshal(rec.Body.Bytes(), &res)
+		switch rec.Code {
+		case 200:
+			out = append(out, map[string]any{"upload_id": id, "status": 200, "state": "done", "result": res})
+		case 202:
+			out = append(out, map[string]any{"upload_id": id, "status": 202, "state": "verifying"})
+		default:
+			out = append(out, map[string]any{"upload_id": id, "status": rec.Code, "state": "error", "error": res["detail"]})
+		}
+	}
+	writeJSON(w, 200, map[string]any{"results": out})
+}
+
+// createFolder is POST /workspaces/{id}/folders.
+func (s *Server) createFolder(w http.ResponseWriter, r *http.Request, user, id string) {
+	var body struct {
+		Name     string `json:"name"`
+		ParentID string `json:"parent_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Name == "" {
+		detail(w, 422, "name is required")
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ws := s.workspace(id)
+	if ws == nil || ws.Members[user] == "" || ws.Members[user] == "viewer" {
+		detail(w, 403, "This action requires the member role or higher.")
+		return
+	}
+	slug := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(body.Name), " ", "-"))
+	p := slug
+	if body.ParentID != "" {
+		parent := ws.folder(body.ParentID)
+		if parent == nil {
+			detail(w, 404, "Parent folder not found")
+			return
+		}
+		p = parent.Path + "/" + slug
+	}
+	if ws.folder(p) != nil {
+		detail(w, 409, "A folder with that name already exists here.")
+		return
+	}
+	f := Folder{ID: "f_" + randomID()[:8], Name: body.Name, Slug: slug, ParentID: body.ParentID, Path: p}
+	ws.Folders = append(ws.Folders, f)
+	s.FoldersMade = append(s.FoldersMade, p)
+	var parent any
+	if f.ParentID != "" {
+		parent = f.ParentID
+	}
+	writeJSON(w, 201, map[string]any{"id": f.ID, "name": f.Name, "slug": f.Slug, "parent_id": parent, "path": f.Path})
 }

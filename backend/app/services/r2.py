@@ -333,6 +333,15 @@ def upload_part(key: str, upload_id: str, part_number: int, data: bytes) -> str:
     return (r.get("ETag") or "").strip('"')
 
 
+def upload_part_file(key: str, upload_id: str, part_number: int, fileobj, size: int) -> str:
+    """Upload one part from a seekable file (a short upload link's spooled body,
+    services/upload_links.py); returns its ETag. Network call; raises on failure."""
+    fileobj.seek(0)
+    r = _client().upload_part(Bucket=settings.r2_bucket, Key=key, UploadId=upload_id,
+                              PartNumber=int(part_number), Body=fileobj, ContentLength=int(size))
+    return (r.get("ETag") or "").strip('"')
+
+
 def complete_multipart(key: str, upload_id: str, parts: list[dict[str, Any]]) -> None:
     """Stitch the parts into the final object. Network call; raises on failure
     (a wrong or missing ETag, an upload that was aborted or expired)."""

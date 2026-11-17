@@ -675,7 +675,7 @@ make test           # go test ./...
 ```
 
 The version `markdrop --version` reports comes from the latest `v*` tag (`git describe`); set it
-yourself with `make build VERSION=0.6.1`.
+yourself with `make build VERSION=0.7.0`.
 
 ---
 

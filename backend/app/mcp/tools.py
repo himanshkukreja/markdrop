@@ -2315,41 +2315,62 @@ def _require_files() -> None:
 
 
 def upload_instructions(file_name: str, upload_id: str, part_size: int, parts: list[dict]) -> str:
-    """The exact commands that send a file's parts to their presigned URLs.
+    """The exact commands that send a file's parts: to each part's short link
+    (``short_url``, services/upload_links.py) when it has one, else to its
+    presigned URL.
 
     `split` makes files of exactly part_size bytes (R2 wants every part but the
     last the same size), and `curl --upload-file` sends each with a
     Content-Length: R2 refuses chunked uploads, so never pipe from stdin."""
     import shlex
 
+    ttl = settings.file_upload_url_ttl // 60
     prefix = f"/tmp/md-{upload_id}.part."
-    lines = [
-        f"FILE={shlex.quote(file_name)}   # use the file's full path",
-        f'split -b {part_size} -d -a 4 "$FILE" {prefix}',
-    ]
-    for p in parts:
+    lines = [f"FILE={shlex.quote(file_name)}   # use the file's full path"]
+    short = all(p.get("short_url") for p in parts)
+    split = not (short and len(parts) == 1)  # one short-linked part is the whole file: no split
+    if split:
+        lines.append(f'split -b {part_size} -d -a 4 "$FILE" {prefix}')
+    else:
+        lines.append(f"curl -sS --fail-with-body -T \"$FILE\" '{parts[0]['short_url']}'; echo")
+    for p in parts if split else []:
         n = int(p["part_number"])
-        lines.append(
-            f"printf '{n} '; curl -sS --fail -X PUT --upload-file {prefix}{n - 1:04d} "
-            f"'{p['url']}' -D - -o /dev/null | grep -i '^etag'"
+        if short:
+            lines.append(f"curl -sS --fail-with-body -T {prefix}{n - 1:04d} '{p['short_url']}'; echo")
+        else:
+            lines.append(
+                f"printf '{n} '; curl -sS --fail -X PUT --upload-file {prefix}{n - 1:04d} "
+                f"'{p['url']}' -D - -o /dev/null | grep -i '^etag'"
+            )
+    if split:
+        lines.append(f"rm -f {prefix}*")
+    if short:
+        head = (
+            f"Upload {file_name} in {len(parts)} part(s) of {part_size:,} bytes with the shell commands "
+            "below. Each curl prints {\"ok\":true,…} with the part's number and ETag. Then call "
+            f'complete_upload with upload_id "{upload_id}" (parts can be left out). Each link works '
+            f"once, for {ttl} minutes; calling create_upload again with the same arguments returns "
+            "fresh links for the same upload. Use curl -T as shown: storage needs each part's "
+            "Content-Length, so never stream a part from stdin. Several files? create_uploads does "
+            "them all with one shell block."
         )
-    lines.append(f"rm -f {prefix}*")
-    head = (
-        f"Upload {file_name} in {len(parts)} part(s) of {part_size:,} bytes with the shell commands "
-        "below. Each curl prints the part number and its ETag. Then call complete_upload with "
-        f'upload_id "{upload_id}" and parts [{{"part_number": N, "etag": "..."}}] (or omit parts '
-        "to use the parts storage received). The URLs expire in "
-        f"{settings.file_upload_url_ttl // 60} minutes; calling create_upload again with the same "
-        "arguments returns fresh ones for the same upload. Use curl --upload-file as shown: "
-        "storage needs each part's Content-Length, so never stream a part from stdin."
-    )
+    else:
+        head = (
+            f"Upload {file_name} in {len(parts)} part(s) of {part_size:,} bytes with the shell commands "
+            "below. Each curl prints the part number and its ETag. Then call complete_upload with "
+            f'upload_id "{upload_id}" and parts [{{"part_number": N, "etag": "..."}}] (or omit parts '
+            f"to use the parts storage received). The URLs expire in {ttl} minutes; calling "
+            "create_upload again with the same arguments returns fresh ones for the same upload. Use "
+            "curl --upload-file as shown: storage needs each part's Content-Length, so never stream a "
+            "part from stdin."
+        )
     return head + "\n\n" + "\n".join(lines)
 
 
-async def create_upload(ctx: Context, args: dict) -> tuple[str, dict]:
+async def _open_upload(ctx: Context, args: dict, ws_cache: dict | None = None) -> tuple[str, dict]:
+    """Open one upload session from create_upload's arguments: (file name, session)."""
     from app.schemas.files import UploadCreateRequest
 
-    _require_files()
     target = None
     target_scope = None
     if args.get("target_slug"):
@@ -2366,13 +2387,20 @@ async def create_upload(ctx: Context, args: dict) -> tuple[str, dict]:
     if args.get("workspace"):
         if target is not None:
             raise ToolError("workspace and folder apply to new uploads only.")
-        ws_id, _folder_id = await precheck_workspace(ctx, args)
+        key = (args["workspace"], args.get("folder"))
+        if ws_cache is not None and key in ws_cache:
+            ws_id = ws_cache[key]
+        else:
+            ws_id, _folder_id = await precheck_workspace(ctx, args)
+            if ws_cache is not None:
+                ws_cache[key] = ws_id
+    size = args.get("size_bytes", args.get("size"))
     try:
         data = UploadCreateRequest(
-            file_name=args["file_name"].strip().replace("\\", "/").rsplit("/", 1)[-1][:255],
-            size_bytes=args["size_bytes"],
+            file_name=(args.get("file_name") or "").strip().replace("\\", "/").rsplit("/", 1)[-1][:255],
+            size_bytes=size,
             content_type=args.get("content_type") or "",
-            sha256=args["sha256"],
+            sha256=args.get("sha256") or "",
             target_slug=target,
             title=(args.get("title") or "").strip() or None,
             access=access,
@@ -2388,10 +2416,105 @@ async def create_upload(ctx: Context, args: dict) -> tuple[str, dict]:
         session = await file_uploads.create(ctx.db, ctx.user, data, scope=target_scope)
     except HTTPException as exc:
         raise _http_tool_error(exc)
-    out = jsonable(session)
-    out["instructions"] = upload_instructions(data.file_name, out["upload_id"], out["part_size"],
-                                              out["parts"])
+    return data.file_name, session
+
+
+async def create_upload(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import upload_links
+
+    _require_files()
+    name, session = await _open_upload(ctx, args)
+    session.pop("resumed", None)
+    out = jsonable(await upload_links.add_short_urls(ctx.db, session))
+    out["instructions"] = upload_instructions(name, out["upload_id"], out["part_size"], out["parts"])
     return out["instructions"], out
+
+
+async def create_uploads(ctx: Context, args: dict) -> tuple[str, dict]:
+    """Open an upload for each file (up to 50); per-file results and one shell block."""
+    from app.services import upload_batch
+
+    _require_files()
+    files = args.get("files") or []
+    if not files:
+        raise ToolError("Pass files: a list of {file_name, size_bytes, sha256, …}, at most 50.")
+    if len(files) > upload_batch.MAX_FILES:
+        raise ToolError(f"At most {upload_batch.MAX_FILES} files per call; split the list.")
+    common = {k: args[k] for k in ("workspace", "folder", "access", "password") if args.get(k)}
+    dups = upload_batch.duplicate_slugs([f.get("slug") for f in files])
+    ws_cache: dict = {}
+    results, entries = [], []
+    for i, f in enumerate(files):
+        one = {**common, **{k: v for k, v in f.items() if v not in (None, "")}}
+        if f.get("access") and not f.get("password") and f.get("access") != "password":
+            one.pop("password", None)
+        row = {"index": i, "file_name": f.get("file_name") or ""}
+        if f.get("path"):
+            row["path"] = f["path"]
+        try:
+            if i in dups:
+                raise ToolError(dups[i])
+            name, session = await _open_upload(ctx, one, ws_cache)
+            row.update(ok=True, file_name=name, **jsonable(await upload_batch.with_links(ctx.db, session)))
+            entries.append({"path": f.get("path") or name, **row})
+        except ToolError as exc:
+            row.update(ok=False, error=str(exc))
+        results.append(row)
+    ok = [r for r in results if r["ok"]]
+    out = {"uploads": results, "count": len(ok), "failed": len(results) - len(ok)}
+    lines = [f"{len(ok)} of {len(results)} upload(s) opened."]
+    for r in results:
+        if not r["ok"]:
+            lines.append(f"- {r['file_name'] or '#' + str(r['index'] + 1)}: {r['error']}")
+    if ok:
+        ids = ", ".join(f'"{r["upload_id"]}"' for r in ok)
+        finish = f"complete_uploads with upload_ids [{ids}]"
+        out["script"] = upload_batch.script(entries, finish=finish)
+        out["upload_ids"] = [r["upload_id"] for r in ok]
+        ttl = settings.file_upload_url_ttl // 60
+        lines.append(f"Run this shell block (each link works once, for {ttl} minutes; calling create_uploads "
+                     f"again with the same files returns fresh links), then call {finish}:")
+        lines.append("")
+        lines.append(out["script"])
+    return "\n".join(lines), out
+
+
+async def complete_uploads(ctx: Context, args: dict) -> tuple[str, dict]:
+    """Finish many file uploads at once; per-file results."""
+    from app.services import upload_batch
+
+    _require_files()
+    ids = upload_batch.dedupe([str(i) for i in (args.get("upload_ids") or [])])
+    if not ids:
+        raise ToolError("Pass upload_ids: the ids create_uploads returned.")
+    if len(ids) > upload_batch.MAX_FILES:
+        raise ToolError(f"At most {upload_batch.MAX_FILES} uploads per call; split the list.")
+    rows = await upload_batch.complete_files(ctx.db, ctx.user.id, ids)
+    results, lines = [], []
+    for uid, status, body in rows:
+        if status == 200:
+            r = {"upload_id": uid, "state": "done", **jsonable(body)}
+            r["markdrop_url"] = public_url(body["slug"])
+            if body.get("workspace_error"):
+                r["note"] = body["workspace_error"]
+            lines.append(f"- done: {r['url']} (version {r['version']}, {human_bytes(r['size_bytes'])})")
+        elif status == 202:
+            r = {"upload_id": uid, "state": "verifying"}
+            lines.append(f"- {uid}: still verifying (call complete_uploads again, or get_upload_status)")
+        else:
+            r = {"upload_id": uid, "state": body.get("state") or "error",
+                 "error": body.get("detail") or "The upload couldn't be completed."}
+            lines.append(f"- {uid}: {r['state']}: {r['error']}")
+        results.append(r)
+    counts = {s: sum(1 for r in results if r["state"] == s) for s in ("done", "verifying")}
+    out = {"results": results, "done": counts["done"], "verifying": counts["verifying"],
+           "failed": len(results) - counts["done"] - counts["verifying"]}
+    head = f"{out['done']} of {len(results)} upload(s) done"
+    if out["verifying"]:
+        head += f", {out['verifying']} still verifying (large files take a while: call complete_uploads again)"
+    if out["failed"]:
+        head += f", {out['failed']} not done"
+    return head + ".\n" + "\n".join(lines), out
 
 
 async def complete_upload(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -3368,9 +3491,10 @@ TOOLS: list[Tool] = [
             "HTML, spreadsheet, Word .docx, PowerPoint .pptx...) as a Markdrop link, or replace the file behind an existing link "
             "with target_slug: the link, access, title and views stay the same and the previous "
             "version is kept and can be restored. Give the file's name, exact size in bytes and "
-            "sha256 (e.g. `shasum -a 256 FILE`). Returns presigned part URLs plus the exact shell "
-            "commands (split + curl) that send the bytes straight to storage; then call "
-            "complete_upload. Never put file contents in an argument. If the user's computer runs "
+            "sha256 (e.g. `shasum -a 256 FILE`). Returns each part's upload link (short_url, "
+            "https://api.markdrop.in/u/…, single use, 60 minutes; url is the long presigned form) plus "
+            "the exact shell commands (split + curl) that send the bytes; then call complete_upload. "
+            "Several files: create_uploads does them in one call. Never put file contents in an argument. If the user's computer runs "
             "the local Markdrop server (markdrop mcp), its upload_file / replace_file tools are simpler."
         ),
         scope=WRITE,
@@ -3405,7 +3529,9 @@ TOOLS: list[Tool] = [
         output_schema=_out({
             "upload_id": {"type": "string"}, "part_size": {"type": "integer"},
             "parts": {"type": "array", "items": _out({"part_number": {"type": "integer"},
-                                                       "url": {"type": "string"}})},
+                                                       "url": {"type": "string"},
+                                                       "short_url": {"type": "string"}},
+                                                      ["part_number", "url"])},
             "expires_at": {"type": "string"}, "instructions": {"type": "string"},
         }),
         annotations=_ann(False, False, False),
@@ -3445,6 +3571,106 @@ TOOLS: list[Tool] = [
         ),
         annotations=_ann(False, False, True),
         handler=complete_upload,
+    ),
+    Tool(
+        name="create_uploads",
+        title="Start many file uploads",
+        description=(
+            "Upload several files at once (up to 50) from the machine you run shell commands on: one "
+            "call here, one shell block, then one complete_uploads. Give each file's name, exact size "
+            "in bytes and sha256 (e.g. `wc -c < F; shasum -a 256 F`), and optionally its local path "
+            "(used in the shell block), title, slug, folder and access; workspace, folder and access "
+            "given at the top apply to every file that doesn't say otherwise. Returns, per file, "
+            "upload_id and short upload link(s) (https://api.markdrop.in/u/…, each works once, for 60 "
+            "minutes), and script: the curl lines that send every file. A file that can't be uploaded "
+            "(wrong type, taken slug, …) is reported with its error; the others go ahead. Never put "
+            "file contents in an argument. To replace the file behind an existing link use "
+            "create_upload with target_slug (or the local server's replace_file)."
+        ),
+        scope=WRITE,
+        writes=True,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "files": {
+                    "type": "array", "minItems": 1, "maxItems": 50,
+                    "description": "The files, at most 50.",
+                    "items": {"type": "object", "properties": {
+                        "file_name": {"type": "string", "minLength": 1, "maxLength": 255,
+                                      "description": "The file's name with its extension, e.g. 'q3.pdf'."},
+                        "size_bytes": {"type": "integer", "minimum": 1, "description": "Exact size in bytes."},
+                        "size": {"type": "integer", "minimum": 1, "description": "Same as size_bytes."},
+                        "sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$",
+                                   "description": "Hex sha256 of the file; the upload is verified against it."},
+                        "path": {"type": "string", "maxLength": 1024, "description": (
+                            "Optional: the file's path on the machine that will run the shell block "
+                            "(default: file_name, run from its folder).")},
+                        "content_type": {"type": "string", "maxLength": 255,
+                                         "description": "Optional MIME type; the extension decides when omitted."},
+                        "title": {"type": "string", "maxLength": 200, "description": "Optional title."},
+                        "slug": {**_PUBLISH_OPTIONS["slug"], "description": (
+                            "Optional custom address (markdrop.in/<slug>), 3-50 letters, digits, - or _. "
+                            "Taken or reserved is that file's error, never a silent rename.")},
+                        "access": {**_PUBLISH_OPTIONS["access"], "description": (
+                            "Optional: 'link', 'private', 'password' or 'workspace'. Default: the top-level "
+                            "access, else the folder's \"new items start as\" (else the workspace's default, "
+                            "else 'link').")},
+                        "password": _PUBLISH_OPTIONS["password"],
+                        "workspace": {**_WORKSPACE_ARG, "description": "Optional: this file's workspace (overrides the top-level one)."},
+                        "folder": {**_FOLDER_ARG, "description": "Optional: an existing folder of the workspace."},
+                    }, "required": ["file_name", "sha256"]},
+                },
+                "workspace": {**_WORKSPACE_ARG, "description": "Optional: file every upload in this workspace (id, name or custom domain)."},
+                "folder": {**_FOLDER_ARG, "description": "Optional: an existing folder of that workspace, for every file."},
+                "access": {**_PUBLISH_OPTIONS["access"], "description": (
+                    "Optional default access for every file: 'link', 'private', 'password' or 'workspace'.")},
+                "password": _PUBLISH_OPTIONS["password"],
+            },
+            "required": ["files"],
+        },
+        output_schema=_out({
+            "uploads": {"type": "array", "items": {"type": "object", "properties": {
+                "index": {"type": "integer"}, "ok": {"type": "boolean"}, "file_name": {"type": "string"},
+                "upload_id": {"type": "string"}, "url": {"type": "string"},
+                "part_size": {"type": "integer"}, "part_count": {"type": "integer"},
+                "parts": {"type": "array", "items": {"type": "object", "properties": {
+                    "part_number": {"type": "integer"}, "url": {"type": "string"}}}},
+                "expires_at": {"type": "string"}, "resumed": {"type": "boolean"}, "error": {"type": "string"},
+            }, "required": ["index", "ok", "file_name"]}},
+            "count": {"type": "integer"}, "failed": {"type": "integer"},
+            "upload_ids": {"type": "array", "items": {"type": "string"}}, "script": {"type": "string"},
+        }, ["uploads", "count", "failed"]),
+        annotations=_ann(False, False, False),
+        handler=create_uploads,
+    ),
+    Tool(
+        name="complete_uploads",
+        title="Finish many file uploads",
+        description=(
+            "Finish uploads started with create_uploads (or create_upload), once the shell block ran: "
+            "each file is assembled, its size and sha256 checked, and it is published. Returns per file "
+            "state 'done' with its link, 'verifying' (a large file still being checked: call again) or "
+            "an error (the others are not affected). Safe to call again."
+        ),
+        scope=WRITE,
+        writes=True,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "upload_ids": {"type": "array", "minItems": 1, "maxItems": 50,
+                               "items": {**_UPLOAD_ID, "description": "An upload_id from create_uploads."},
+                               "description": "The upload_ids create_uploads returned (at most 50)."},
+            },
+            "required": ["upload_ids"],
+        },
+        output_schema=_out({
+            "results": {"type": "array", "items": {"type": "object", "properties": {
+                "upload_id": {"type": "string"}, "state": {"type": "string"}, "error": {"type": "string"},
+                **_RESULT_PROPS}, "required": ["upload_id", "state"]}},
+            "done": {"type": "integer"}, "verifying": {"type": "integer"}, "failed": {"type": "integer"},
+        }),
+        annotations=_ann(False, False, True),
+        handler=complete_uploads,
     ),
     Tool(
         name="get_upload_status",
@@ -3726,6 +3952,10 @@ TOOLS += [
 from app.mcp.page_tools import PAGE_TOOLS  # noqa: E402  (it imports helpers from here)
 
 TOOLS += PAGE_TOOLS
+# Many page images at once (create_page_image_uploads, complete_page_image_uploads): app/mcp/upload_batch_tools.py.
+from app.mcp.upload_batch_tools import UPLOAD_BATCH_TOOLS  # noqa: E402
+
+TOOLS += UPLOAD_BATCH_TOOLS
 # A page's version history: app/mcp/history_tools.py.
 from app.mcp.history_tools import HISTORY_TOOLS  # noqa: E402
 

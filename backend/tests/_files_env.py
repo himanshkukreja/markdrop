@@ -62,7 +62,7 @@ class FakeR2:
     def patches(self) -> list:
         names = ("is_configured", "head", "delete", "set_public", "set_public_prefix", "delete_prefix",
                  "put_bytes", "get_bytes", "copy_object", "presign_put", "presign_get", "presign_upload_part",
-                 "create_multipart", "list_parts", "complete_multipart", "abort_multipart", "sha256_of", "upload_part")
+                 "create_multipart", "list_parts", "complete_multipart", "abort_multipart", "sha256_of", "upload_part", "upload_part_file")
         return [mock.patch.object(r2, n, getattr(self, n)) for n in names]
 
     # objects
@@ -147,6 +147,15 @@ class FakeR2:
         if upload_id not in self.uploads:
             raise FakeClientError("NoSuchUpload")
         return self.put_part(upload_id, int(part_number), bytes(data))
+
+    def upload_part_file(self, key, upload_id, part_number, fileobj, size):
+        """r2.upload_part_file: a part a short upload link took (services/upload_links.py)."""
+        if upload_id not in self.uploads:
+            raise FakeClientError("NoSuchUpload")
+        fileobj.seek(0)
+        data = fileobj.read()
+        assert len(data) == size, (len(data), size)
+        return self.put_part(upload_id, int(part_number), data)
 
     def list_parts(self, key, upload_id):
         up = self.uploads.get(upload_id)

@@ -94,6 +94,7 @@ func TestToolsListed(t *testing.T) {
 		"receive_share": {false, false, false, true},
 
 		"upload_file":          {false, false, false, true},
+		"upload_folder":        {false, false, false, true},
 		"replace_file":         {false, false, false, true},
 		"list_file_versions":   {true, false, true, false},
 		"restore_file_version": {false, false, false, true},

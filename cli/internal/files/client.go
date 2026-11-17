@@ -659,3 +659,79 @@ func ParseVersion(s string) (int, error) {
 	}
 	return n, nil
 }
+
+// ── Batches (POST /api/v1/files/uploads/batch, …/batch/complete) ────────────
+
+// BatchItem is one file of a batch create: an upload session, or why it
+// couldn't be opened.
+type BatchItem struct {
+	Index     int       `json:"index"`
+	OK        bool      `json:"ok"`
+	FileName  string    `json:"file_name"`
+	UploadID  string    `json:"upload_id"`
+	PartSize  int64     `json:"part_size"`
+	PartCount int       `json:"part_count"`
+	Parts     []PartURL `json:"parts"`
+	ExpiresAt string    `json:"expires_at"`
+	Resumed   bool      `json:"resumed"`
+	Error     string    `json:"error"`
+	Status    int       `json:"status"`
+}
+
+// BatchCompleteItem is one upload of a batch complete: 200 done (Result),
+// 202 still verifying, else an error.
+type BatchCompleteItem struct {
+	UploadID string          `json:"upload_id"`
+	Status   int             `json:"status"`
+	State    string          `json:"state"`
+	Result   json.RawMessage `json:"result"`
+	Error    string          `json:"error"`
+}
+
+// MaxBatch is how many files one batch call takes.
+const MaxBatch = 50
+
+// CreateUploads opens an upload for each file (at most MaxBatch); one bad
+// file is reported in its item and doesn't stop the others.
+func (c *Client) CreateUploads(ctx context.Context, reqs []CreateUploadRequest) ([]BatchItem, error) {
+	var out struct {
+		Uploads []BatchItem `json:"uploads"`
+	}
+	if _, err := c.do(ctx, http.MethodPost, "/api/v1/files/uploads/batch", map[string]any{"files": reqs},
+		&out, "start the uploads"); err != nil {
+		return nil, err
+	}
+	if len(out.Uploads) != len(reqs) {
+		return nil, fmt.Errorf("the server answered for %d of %d files", len(out.Uploads), len(reqs))
+	}
+	return out.Uploads, nil
+}
+
+// CompleteUploads finishes uploads together (the parts storage holds are used).
+func (c *Client) CompleteUploads(ctx context.Context, uploadIDs []string) ([]BatchCompleteItem, error) {
+	var out struct {
+		Results []BatchCompleteItem `json:"results"`
+	}
+	if _, err := c.do(ctx, http.MethodPost, "/api/v1/files/uploads/batch/complete",
+		map[string]any{"upload_ids": uploadIDs}, &out, "finish the uploads"); err != nil {
+		return nil, err
+	}
+	return out.Results, nil
+}
+
+// CreateFolder makes a folder in a workspace (parentID "" = at its root).
+func (c *Client) CreateFolder(ctx context.Context, workspaceID, name, parentID string) (*Folder, error) {
+	body := map[string]any{"name": name}
+	if parentID != "" {
+		body["parent_id"] = parentID
+	}
+	var out Folder
+	if _, err := c.do(ctx, http.MethodPost, "/api/v1/workspaces/"+url.PathEscape(workspaceID)+"/folders",
+		body, &out, "create the folder "+name); err != nil {
+		return nil, err
+	}
+	if out.ID == "" {
+		return nil, fmt.Errorf("the server created folder %s without an id", name)
+	}
+	return &out, nil
+}

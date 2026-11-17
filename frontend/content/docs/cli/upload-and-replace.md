@@ -2,10 +2,10 @@
 title: Upload and replace files from the terminal
 nav: Upload and replace
 description: Publish a video, PDF or HTML page with markdrop upload, swap the file behind the same link with markdrop replace, and restore earlier versions.
-updated: 2026-11-10
+updated: 2026-11-17
 prerequisites: [/cli/install, /cli/login-and-tokens]
 since: CLI 0.4.0
-keywords: [upload, replace, versions, restore, info, video, pdf, resume, sha256, json, same link]
+keywords: [upload, upload folder, batch, many files, replace, versions, restore, info, video, pdf, resume, sha256, json, same link]
 ---
 
 `markdrop upload` publishes a file from your computer and prints its link. `markdrop replace` puts a new file behind a link you already shared: the link, its access setting, title and view count stay the same, and the previous file is kept as a version you can bring back.
@@ -49,6 +49,28 @@ markdrop upload spec.pdf --workspace Acme --folder guides/setup
 | `--token` | Use this API token for this command only. |
 
 To learn what each access level means for the people you send the link to, see [Who can open a link](/sharing/who-can-open).
+
+## Publish a whole folder
+
+Give `markdrop upload` a folder to publish every file in it at once, each behind its own link. Sub-folders are included; hidden files and folders (`.git`, `.DS_Store`, …) are skipped.
+
+```bash
+markdrop upload ./q3-exports --workspace Acme --folder sales/q3
+```
+
+```text
+https://acme.example/sales/q3/pipeline	pipeline.pdf
+https://acme.example/sales/q3/decks/kickoff	decks/kickoff.pdf
+  ✓ Published 2 of 2 file(s)
+```
+
+- One call opens every upload, the files are sent, and one call publishes them, so sixteen files take seconds rather than sixteen separate runs.
+- With `--workspace`, the folder's sub-folders become folders of the workspace under `--folder`, created when they don't exist yet. Without a workspace, every file is a link of its own.
+- With no `--access`, each file gets the workspace folder's **New items start as** setting. Pass `--access private` (or another level) to set it for every file.
+- One file that can't be published (an unsupported type, over the size limit) is listed with its reason; the others still go up, and the command exits with `1`. Run the same command again to resume anything that didn't finish.
+- `--title` and `--slug` are for a single file. `--json` prints `{"files":[{"path","url","slug","folder","error"}],"done","failed"}`.
+
+Requires CLI 0.7.0 or later (`brew upgrade markdrop`).
 
 ## What you can upload
 

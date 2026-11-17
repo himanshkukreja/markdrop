@@ -883,6 +883,25 @@
       "responses": { "409": "The address you asked for is taken, or reserved.", "413": "The file is over the size limit for its type.", "507": "Your storage is full." },
       "guide": { "label": "Large uploads", "href": "/files/large-uploads" }
     },
+    "POST /api/v1/files/uploads/batch": {
+      "title": "Start many file uploads",
+      "description": "Opens an upload for each of up to 50 files in one call. Each file is checked on its own, exactly as [Start a file upload](/api/files/start-a-file-upload): a file that can't be uploaded comes back with `ok: false`, its `error` and `status`, and the others are opened. With `short_links: true` every part also gets a `short_url` ([upload one part](/api/files/upload-one-part-to-a-short-upload-link)). `resumed: true` means an open upload for the same file was handed back: ask [Check an upload](/api/files/check-an-upload) which parts it already holds.",
+      "cli": "markdrop upload ./exports --workspace Acme --folder sales/q3",
+      "mcp": "create_uploads",
+      "example": { "files": [{ "file_name": "deck.pdf", "size_bytes": 1048576, "sha256": "SHA256_OF_THE_FILE" }, { "file_name": "notes.pdf", "size_bytes": 20480, "sha256": "SHA256_OF_THE_FILE", "access": "private" }], "short_links": true }
+    },
+    "POST /api/v1/files/uploads/batch/complete": {
+      "title": "Finish many file uploads",
+      "description": "Publishes up to 50 uploads at once, with the parts storage received, waiting for their checks together. Per upload, `status` is what [Finish a file upload](/api/files/finish-a-file-upload) would answer: `200` with `result`, `202` still checking (poll its status), or an error with `error`.",
+      "cli": "markdrop upload ./exports",
+      "mcp": "complete_uploads",
+      "example": { "upload_ids": ["up_UPLOAD_ID_1", "up_UPLOAD_ID_2"] }
+    },
+    "PUT /u/{token}": {
+      "title": "Upload one part to a short upload link",
+      "description": "Sends the bytes of one upload part to its short link (`https://api.markdrop.in/u/<token>`), which the MCP upload tools and `short_links: true` hand out instead of a long presigned URL. No sign-in: the link is the permission. It takes exactly the part's size, once, within 60 minutes; send it with its length (`curl -T FILE <link>`), never a piped body. For a one-part upload the SHA-256 is checked here too, and a mismatch stores nothing. Returns the part's number and ETag.",
+      "responses": { "200": "Stored. Returns `{ok, upload_id, part_number, part_count, size, etag}`.", "410": "The link expired, was already used, or its upload ended.", "411": "No Content-Length: send the file with `curl -T`.", "422": "A one-part upload whose bytes don't match its SHA-256." }
+    },
     "POST /api/v1/files/uploads/{upload_id}/urls": {
       "title": "Get fresh part URLs",
       "description": "New presigned URLs for parts of an upload in progress, for when the first ones expired before you used them.",

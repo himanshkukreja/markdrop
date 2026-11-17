@@ -7567,6 +7567,102 @@
         }
       }
     },
+    "/api/v1/files/uploads/batch": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Create Upload Batch",
+        "description": "Open an upload for each file (each one is ``POST /uploads`` with its own\nchecks). A file that can't be uploaded gets ``ok: false`` with its error\nand status; the others are opened.",
+        "operationId": "create_upload_batch_api_v1_files_uploads_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadBatchCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadBatchCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "10/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/files/uploads/batch/complete": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Complete Upload Batch",
+        "description": "Complete each upload (``POST /uploads/{id}/complete`` with the parts\nstorage received), waiting for their checks together. Per upload: status\n200 with ``result``, 202 still verifying (poll ``GET /uploads/{id}``), or\nan error.",
+        "operationId": "complete_upload_batch_api_v1_files_uploads_batch_complete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadBatchCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadBatchCompleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/files/uploads/{upload_id}/urls": {
       "post": {
         "tags": [
@@ -7983,6 +8079,64 @@
           "auth": "token",
           "rateLimits": [
             "30/minute"
+          ]
+        }
+      }
+    },
+    "/u/{token}": {
+      "put": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Upload one part to a short upload link",
+        "description": "The request body is the part's exact bytes, with a Content-Length (no\nchunked bodies). A link takes one part, once, within 60 minutes.",
+        "operationId": "put_upload_part_u__token__put",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored. Body: {ok, upload_id, file_name, part_number, part_count, size, etag}; the ETag header carries the part's ETag too.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Fewer bytes than the part's size arrived."
+          },
+          "404": {
+            "description": "No such link."
+          },
+          "409": {
+            "description": "The link is in use by another request."
+          },
+          "410": {
+            "description": "The link expired or was already used, or its upload ended."
+          },
+          "411": {
+            "description": "No Content-Length (a chunked or piped body)."
+          },
+          "413": {
+            "description": "More bytes than the part's size."
+          },
+          "422": {
+            "description": "A one-part upload whose bytes don't match its declared sha256."
+          }
+        },
+        "x-markdrop": {
+          "auth": "none",
+          "rateLimits": [
+            "600/minute"
           ]
         }
       }
@@ -37870,6 +38024,261 @@
           "lang"
         ],
         "title": "TranslateBody"
+      },
+      "UploadBatchCompleteItem": {
+        "properties": {
+          "upload_id": {
+            "type": "string",
+            "title": "Upload Id"
+          },
+          "status": {
+            "type": "integer",
+            "title": "Status"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UploadResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "upload_id",
+          "status",
+          "state"
+        ],
+        "title": "UploadBatchCompleteItem"
+      },
+      "UploadBatchCompleteRequest": {
+        "properties": {
+          "upload_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Upload Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "upload_ids"
+        ],
+        "title": "UploadBatchCompleteRequest"
+      },
+      "UploadBatchCompleteResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/UploadBatchCompleteItem"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "results"
+        ],
+        "title": "UploadBatchCompleteResponse"
+      },
+      "UploadBatchCreateRequest": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/UploadCreateRequest"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Files"
+          },
+          "short_links": {
+            "type": "boolean",
+            "title": "Short Links",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "title": "UploadBatchCreateRequest"
+      },
+      "UploadBatchCreateResponse": {
+        "properties": {
+          "uploads": {
+            "items": {
+              "$ref": "#/components/schemas/UploadBatchItem"
+            },
+            "type": "array",
+            "title": "Uploads"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uploads"
+        ],
+        "title": "UploadBatchCreateResponse"
+      },
+      "UploadBatchItem": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "file_name": {
+            "type": "string",
+            "title": "File Name"
+          },
+          "upload_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upload Id"
+          },
+          "part_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Size"
+          },
+          "part_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Count"
+          },
+          "parts": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/UploadBatchPart"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parts"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "resumed": {
+            "type": "boolean",
+            "title": "Resumed",
+            "default": false
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "ok",
+          "file_name"
+        ],
+        "title": "UploadBatchItem"
+      },
+      "UploadBatchPart": {
+        "properties": {
+          "part_number": {
+            "type": "integer",
+            "title": "Part Number"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "short_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Short Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "part_number",
+          "url"
+        ],
+        "title": "UploadBatchPart"
       },
       "UploadCompleteRequest": {
         "properties": {

@@ -28,6 +28,31 @@ type UploadFileInput struct {
 	Slug      string `json:"slug,omitempty" jsonschema:"Custom address: markdrop.in/<slug>, 3-50 letters, digits, - or _. Default: from the file name. If it is taken the call fails (never a silent rename)."`
 }
 
+// UploadFolderInput is upload_folder's input.
+type UploadFolderInput struct {
+	Path      string `json:"path" jsonschema:"The folder to publish: absolute, ~/..., or relative to the app's working folder. Every file in it, recursively; hidden files and folders are skipped."`
+	Access    string `json:"access,omitempty" jsonschema:"Who can open each link: link, private, password or workspace. Default: with a workspace, its folder's 'new items start as' setting; else link."`
+	Password  string `json:"password,omitempty" jsonschema:"Password for access=password (implies it)"`
+	Workspace string `json:"workspace,omitempty" jsonschema:"File everything in this workspace: its id, name or custom domain (see list_workspaces). Sub-folders then become folders of the workspace (created when missing)."`
+	Folder    string `json:"folder,omitempty" jsonschema:"An existing folder of that workspace to upload into, as a path like sales/q3 or an id (see list_folders). Needs workspace."`
+}
+
+// FolderFileResult is one file of upload_folder's output.
+type FolderFileResult struct {
+	Path   string `json:"path" jsonschema:"The file, relative to the folder"`
+	URL    string `json:"url,omitempty" jsonschema:"Its link, when it was published"`
+	Slug   string `json:"slug,omitempty"`
+	Folder string `json:"folder,omitempty" jsonschema:"The workspace folder it was filed in"`
+	Error  string `json:"error,omitempty" jsonschema:"Why it wasn't published"`
+}
+
+// UploadFolderOutput is upload_folder's output.
+type UploadFolderOutput struct {
+	Files  []FolderFileResult `json:"files"`
+	Done   int                `json:"done"`
+	Failed int                `json:"failed"`
+}
+
 // WorkspaceRefInput names one workspace.
 type WorkspaceRefInput struct {
 	Workspace string `json:"workspace" jsonschema:"A workspace the user belongs to: its id, name or custom domain (see list_workspaces)"`
@@ -342,6 +367,82 @@ func addFileTools(s *mcp.Server, m *Manager) {
 				"link later, use replace_file.%s", res.Slug, humanBytes(res.SizeBytes), res.URL, alsoAt(res), res.Slug,
 				res.Version, workspaceWarning(res))),
 			fileResult(res), nil
+	})
+
+	folderSchema := mustSchema[UploadFolderInput]()
+	folderSchema.Properties["path"].MinLength = jsonschema.Ptr(1)
+	folderSchema.Properties["access"].Enum = []any{"link", "private", "password", "workspace"}
+	mcp.AddTool(s, &mcp.Tool{
+		Name:  "upload_folder",
+		Title: "Publish every file in a folder",
+		Description: "Publishes every file in a folder on this computer (recursively; hidden files skipped) on Markdrop in " +
+			"one go, each behind its own link, and returns the links. With workspace, the files are filed in it under " +
+			"folder, and the folder's sub-folders become folders of the workspace (created when missing). One file " +
+			"failing doesn't stop the others; calling it again resumes what didn't finish. Needs MARKDROP_TOKEN. " +
+			"Folders holding secrets (~/.ssh, ~/.aws, .env files, private keys, …) are refused.",
+		InputSchema: folderSchema,
+		Annotations: &mcp.ToolAnnotations{
+			Title: "Publish every file in a folder", ReadOnlyHint: false, DestructiveHint: boolPtr(false),
+			IdempotentHint: false, OpenWorldHint: boolPtr(true),
+		},
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in UploadFolderInput) (*mcp.CallToolResult, UploadFolderOutput, error) {
+		access := strings.ToLower(strings.TrimSpace(in.Access))
+		if access == "" && in.Password != "" {
+			access = "password"
+		}
+		if access == "password" && in.Password == "" {
+			return nil, UploadFolderOutput{}, errors.New("access=password needs a password")
+		}
+		if access == "workspace" && strings.TrimSpace(in.Workspace) == "" {
+			return nil, UploadFolderOutput{}, errors.New("access=workspace needs a workspace")
+		}
+		folder := strings.Trim(strings.TrimSpace(in.Folder), "/")
+		if folder != "" && strings.TrimSpace(in.Workspace) == "" {
+			return nil, UploadFolderOutput{}, errors.New("folder needs a workspace")
+		}
+		client, err := m.fileClient()
+		if err != nil {
+			return nil, UploadFolderOutput{}, err
+		}
+		abs, err := m.cfg.Guard.CheckSharePath(in.Path)
+		if err != nil {
+			return nil, UploadFolderOutput{}, errors.New(strings.Replace(err.Error(), "refused to share", "refused to upload", 1))
+		}
+		if fi, err := os.Stat(abs); err != nil || !fi.IsDir() {
+			return nil, UploadFolderOutput{}, fmt.Errorf("%s is not a folder; use upload_file for one file", abs)
+		}
+		wsID := ""
+		if strings.TrimSpace(in.Workspace) != "" {
+			ws, err := client.ResolveWorkspace(ctx, in.Workspace)
+			if err != nil {
+				return nil, UploadFolderOutput{}, err
+			}
+			wsID = ws.ID
+		}
+		m.cfg.Log.Printf("upload folder %s", abs)
+		res, err := m.cfg.NewUploader(client).UploadDir(ctx, files.DirOptions{
+			Path: abs, Access: access, Password: in.Password, Workspace: wsID, Folder: folder,
+			OnProgress: progressNotifier(ctx, req),
+			OnNotice:   func(s string) { m.cfg.Log.Printf("upload %s: %s", abs, s) },
+		})
+		if res == nil {
+			return nil, UploadFolderOutput{}, err
+		}
+		out := UploadFolderOutput{Done: res.Done, Failed: res.Failed, Files: []FolderFileResult{}}
+		var b strings.Builder
+		fmt.Fprintf(&b, "Published %d of %d file(s) from %s:\n", res.Done, len(res.Files), abs)
+		for _, f := range res.Files {
+			out.Files = append(out.Files, FolderFileResult{Path: f.Path, URL: f.URL, Slug: f.Slug, Folder: f.Folder, Error: f.Error})
+			if f.Error != "" {
+				fmt.Fprintf(&b, "- %s: not published: %s\n", f.Path, f.Error)
+			} else if f.URL != "" {
+				fmt.Fprintf(&b, "- %s: %s\n", f.Path, f.URL)
+			}
+		}
+		if err != nil {
+			fmt.Fprintf(&b, "Stopped early: %v. Call upload_folder again with the same arguments to resume.\n", err)
+		}
+		return text(strings.TrimRight(b.String(), "\n")), out, nil
 	})
 
 	mcp.AddTool(s, &mcp.Tool{

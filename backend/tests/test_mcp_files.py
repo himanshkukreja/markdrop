@@ -53,25 +53,27 @@ class McpFiles(FilesTestCase):
         self.assertEqual(set(out), {"upload_id", "part_size", "parts", "expires_at", "instructions"})
         self.assertEqual(text, out["instructions"])
         uid = out["upload_id"]
-        self.assertIn(f"split -b {out['part_size']} -d -a 4 \"$FILE\" /tmp/md-{uid}.part.", text)
         self.assertIn("FILE='My Demo.mp4'", text)
-        curl = [l for l in text.splitlines() if l.startswith("printf")]
+        curl = [l for l in text.splitlines() if l.startswith("curl ")]
         self.assertEqual(len(curl), 1)
-        self.assertRegex(curl[0], r"^printf '1 '; curl -sS --fail -X PUT --upload-file "
-                                  rf"/tmp/md-{re.escape(uid)}\.part\.0000 'https://r2\.example/[^']+' "
-                                  r"-D - -o /dev/null \| grep -i '\^etag'$")
+        # One part is the whole file: no split, one curl.
+        self.assertNotIn("split", text)
+        self.assertRegex(curl[0], r"^curl -sS --fail-with-body -T \"\$FILE\" "
+                                  r"'https://api\.markdrop\.in/u/[A-Za-z0-9_-]{16}'; echo$")
+        self.assertEqual(out["parts"][0]["short_url"], curl[0].split("'")[1])
+        self.assertNotIn("r2.example", text)  # the presigned URL stays in structuredContent only
         self.assertIn("complete_upload", text)
-        self.assertIn("expire in 60 minutes", text)
+        self.assertIn("once, for 60 minutes", text)
         self.assertTrue(isinstance(out["expires_at"], str) and out["expires_at"].endswith("Z"))
 
     async def test_many_parts_get_one_curl_each(self):
         with mock.patch.object(settings, "file_part_size", 10 * 1024 * 1024):
             _t, out = await self.tool("create_upload", file_name="big.mp4", size_bytes=95 * 1024 * 1024,
                                       sha256="a" * 64)
-        lines = [l for l in out["instructions"].splitlines() if l.startswith("printf")]
+        lines = [l for l in out["instructions"].splitlines() if l.startswith("curl ")]
         self.assertEqual(len(lines), 10)
         self.assertIn(".part.0009 ", lines[-1])
-        self.assertTrue(lines[-1].startswith("printf '10 '"))
+        self.assertIn(out["parts"][9]["short_url"], lines[-1])
 
     async def test_upload_then_replace_then_restore(self):
         res = await self.mcp_upload(DATA, "demo.mp4", title="Demo")
@@ -225,7 +227,10 @@ class OverJsonRpc(McpTestCase):
                                                           "sha256": sha(DATA)})
         self.assertFalse(result["isError"], result["content"][0]["text"])
         up = result["structuredContent"]
-        self.assertIn("split -b", result["content"][0]["text"])
+        # One part is the whole file: one curl -T to its short link, no split (multi-part files
+        # still split: test_many_parts_get_one_curl_each).
+        self.assertIn("curl -sS --fail-with-body -T \"$FILE\" 'https://api.markdrop.in/u/", result["content"][0]["text"])
+        self.assertNotIn("split -b", result["content"][0]["text"])
         sess = await self.db["file_uploads"].find_one({"_id": up["upload_id"]})
         etag = self.r2.put_part(sess["r2_upload_id"], 1, DATA)
         result = await self.call(token, "complete_upload", {"upload_id": up["upload_id"],

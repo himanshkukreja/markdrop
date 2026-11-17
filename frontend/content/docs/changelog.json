@@ -128,6 +128,28 @@
       "body": "- **PDFs and decks.** `get_document` and `fetch` return the text under `--- Page N ---` (or `--- Slide N ---` for a .pptx, with speaker notes), about 40,000 characters per call. `page_from` and `page_to` (1-based, inclusive) choose the pages; `total_pages` and `next_page_from` say where to continue. Word and Excel files come back by section and sheet the same way.\n- **Scanned PDFs** say \"No extractable text (looks scanned)\" instead of returning nothing. OCR isn't available yet.\n- **Large HTML files** come back as their visible text (scripts and styles out, headings and link text kept) in parts: `part`, `total_parts`, `next_part`. Smaller HTML files still return their source unless you pass `format: text`.\n- **Access is unchanged**: a file you can't open returns nothing."
     },
     {
+      "id": "batch-uploads-cli-0-7-0",
+      "date": "2026-11-17",
+      "title": "Upload many files at once: short upload links, batch MCP tools and markdrop upload <folder> (CLI 0.7.0)",
+      "kind": "new",
+      "area": "Files",
+      "products": [
+        "mcp",
+        "cli",
+        "api"
+      ],
+      "versions": {
+        "cli": "0.7.0"
+      },
+      "summary": "An AI assistant now uploads sixteen files with one create_uploads call, one shell block and one complete_uploads call, using short single-use links instead of long signed URLs. markdrop upload takes a folder, and the local MCP server has upload_folder.",
+      "body": "- **Short upload links.** `create_upload`, `create_page_image_upload` and the new batch tools hand out `https://api.markdrop.in/u/<token>` links instead of ~600-character signed URLs: each takes one file part, once, within 60 minutes, with `curl -T FILE <link>`. The size is checked as the bytes arrive, and a one-part file whose bytes don't match its SHA-256 is refused before it is stored.\n- **`create_uploads` / `complete_uploads`** (MCP): up to 50 files per call, with per-file `title`, `slug`, `folder` and `access` (or defaults for all), one `script` with every `curl` line, and per-file results: one bad file never sinks the others.\n- **`create_page_image_uploads` / `complete_page_image_uploads`** (MCP): up to 25 images for one page.\n- **API:** `POST /api/v1/files/uploads/batch` and `POST /api/v1/files/uploads/batch/complete`.\n- **CLI 0.7.0:** `markdrop upload <folder>` publishes every file in it (recursively) with the batch API; with `--workspace`, sub-folders become workspace folders under `--folder`. The local MCP server (`markdrop mcp`) adds `upload_folder`. Update with `brew upgrade markdrop`.\n- See [MCP tools](/ai/tools#files-and-uploads) and [Upload and replace files](/cli/upload-and-replace#publish-a-whole-folder).",
+      "docs": [
+        "/ai/tools",
+        "/cli/upload-and-replace",
+        "/ai/local-mcp"
+      ]
+    },
+    {
       "id": "video-chapters",
       "date": "2026-11-16",
       "title": "Chapters on the video player, and captions on meeting recordings",

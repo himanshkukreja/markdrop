@@ -7,6 +7,8 @@ version rules. Everything requires a signed-in user (session or ``mdk_`` API
 token).
 
     POST   /api/v1/files/uploads                       open an upload (part URLs)
+    POST   /api/v1/files/uploads/batch                 open up to 50 uploads (per-file results)
+    POST   /api/v1/files/uploads/batch/complete        complete up to 50 uploads (per-file results)
     POST   /api/v1/files/uploads/{id}/urls             fresh part URLs
     GET    /api/v1/files/uploads/{id}                  state, parts received, result
     POST   /api/v1/files/uploads/{id}/complete         verify + publish (200 | 202)
@@ -28,6 +30,10 @@ from app.models.user import User
 from app.routers.artifacts import _require_configured
 from app.routers.auth import require_user
 from app.schemas.files import (
+    UploadBatchCompleteRequest,
+    UploadBatchCompleteResponse,
+    UploadBatchCreateRequest,
+    UploadBatchCreateResponse,
     FileInfoResponse,
     FileVersionsResponse,
     UploadCompleteRequest,
@@ -36,7 +42,7 @@ from app.schemas.files import (
     UploadStatusResponse,
     UploadUrlsRequest,
 )
-from app.services import file_uploads
+from app.services import file_uploads, upload_batch, upload_links
 
 router = APIRouter(prefix="/api/v1/files", tags=["files"])
 
@@ -55,6 +61,67 @@ async def create_upload(
 ):
     _require_configured()
     return await file_uploads.create(db, user, data)
+
+
+@router.post("/uploads/batch", response_model=UploadBatchCreateResponse)
+@limiter.limit("10/minute")
+async def create_upload_batch(
+    request: Request,
+    data: UploadBatchCreateRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Open an upload for each file (each one is ``POST /uploads`` with its own
+    checks). A file that can't be uploaded gets ``ok: false`` with its error
+    and status; the others are opened."""
+    _require_configured()
+    dups = upload_batch.duplicate_slugs([f.slug for f in data.files])
+    out = []
+    for i, f in enumerate(data.files):
+        row = {"index": i, "ok": False, "file_name": f.file_name}
+        if i in dups:
+            row.update(error=dups[i], status=409)
+            out.append(row)
+            continue
+        try:
+            sess = await file_uploads.create(db, user, f)
+        except HTTPException as exc:
+            row.update(error=str(exc.detail), status=exc.status_code)
+            out.append(row)
+            continue
+        if data.short_links:
+            sess = await upload_links.add_short_urls(db, sess)
+        row.update(ok=True, upload_id=sess["upload_id"], part_size=sess["part_size"],
+                   part_count=len(sess["parts"]), parts=sess["parts"], expires_at=sess["expires_at"],
+                   resumed=bool(sess.get("resumed")))
+        out.append(row)
+    return {"uploads": out}
+
+
+@router.post("/uploads/batch/complete", response_model=UploadBatchCompleteResponse)
+@limiter.limit("30/minute")
+async def complete_upload_batch(
+    request: Request,
+    data: UploadBatchCompleteRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Complete each upload (``POST /uploads/{id}/complete`` with the parts
+    storage received), waiting for their checks together. Per upload: status
+    200 with ``result``, 202 still verifying (poll ``GET /uploads/{id}``), or
+    an error."""
+    _require_configured()
+    rows = await upload_batch.complete_files(db, user.id, upload_batch.dedupe(data.upload_ids))
+    out = []
+    for uid, status, body in rows:
+        if status == 200:
+            out.append({"upload_id": uid, "status": 200, "state": "done", "result": body})
+        elif status == 202:
+            out.append({"upload_id": uid, "status": 202, "state": "verifying"})
+        else:
+            out.append({"upload_id": uid, "status": status, "state": body.get("state") or "error",
+                        "error": body.get("detail")})
+    return {"results": out}
 
 
 @router.post("/uploads/{upload_id}/urls", response_model=UploadSessionResponse)

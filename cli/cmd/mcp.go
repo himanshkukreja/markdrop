@@ -26,6 +26,7 @@ var mcpCmd = &cobra.Command{
   start it themselves; you don't run it by hand. It gives them these tools:
 
     upload_file           publish a local file (video, PDF, …) behind a markdrop.in link
+    upload_folder         publish every file in a local folder, each behind its own link
     replace_file          swap the file behind an existing link (same link, old version kept)
     list_file_versions    a published file's versions
     restore_file_version  make an earlier version current again
