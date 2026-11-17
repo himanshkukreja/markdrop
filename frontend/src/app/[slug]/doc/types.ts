@@ -65,7 +65,7 @@ export interface PageFields {
   cover_auto?: boolean;
   cover_pending?: boolean;
   /** Meetings: this page is a meeting (or its transcript); the reader mounts the meeting panel. */
-  meeting?: { id: string; role: string } | null;
+  meeting?: { id: string; role: string; has_recording?: boolean } | null;
 }
 
 /** The page fields of a document read (null when it says nothing about pages). */

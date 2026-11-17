@@ -37,7 +37,7 @@ SSE events: ``status {stage}``, ``results {items}`` (across meetings), ``delta {
 ``limit {reason, message}``, ``error {detail, code}``.
 
 Signed-in members of the workspace only (a workspace domain's session is not on the tenant
-allowlist); the inbox takes only a ``meetings:import`` token (services/meetings_inbox.py). Every meeting read is decided on its page with ``access.can``: a restricted meeting is
+allowlist, except GET /{id}/recording: read-only, decided on the meeting page with the pinned actor); the inbox takes only a ``meetings:import`` token (services/meetings_inbox.py). Every meeting read is decided on its page with ``access.can``: a restricted meeting is
 404 to everyone it wasn't shared with.
 """
 

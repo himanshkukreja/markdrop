@@ -177,6 +177,19 @@
       "body": "- **Restrict a folder.** **⋯ › Who can access…** names people and [teams](/teams/overview), each with **Can view** or **Can edit**. Restricted, nobody else in the workspace (except admins) and no public link opens anything inside; item owners and people an item was shared with keep it. [Folder access](/workspaces/folder-access)\n- **Inherited everywhere.** Subfolders, new pages and uploads, and items moved in follow at once. Adding someone to the team gives them everything shared with it.\n- **One message per person.** Sharing a folder sends each person one email and one notification, never one per item.\n- **New items start as** can be the folder's people and teams.\n- **Why you can open it.** The item's **Share** dialog says, for example, \"Inherited from sales/ · Sales team\"; an editor can open one item beyond its folder, and that's logged.\n- **MCP and API.** `get_folder_access`, `set_folder_access` and `share_folder`; `share_with_people` takes a list of `documents` or a `folder`; `access_why` on `get_page`, `get_document` and `get_file_info`; routes under `/api/v1/workspaces/{id}/folders/{folder}/access`."
     },
     {
+      "id": "meeting-recording-on-domain",
+      "date": "2026-11-17",
+      "title": "Meeting recordings play on the workspace's own domain",
+      "kind": "improved",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "A meeting page on a workspace's custom domain now shows its Recording button, so signed-in readers who can read the meeting play the recording there, with captions and chapters, as on markdrop.in.",
+      "body": "- **Where.** The meeting page's header on the workspace's own domain, for signed-in readers who can read the meeting. Signed-out readers of a public meeting page don't see it: playing needs sign-in.\n- **Times.** A line's time on the meeting's **Transcript** page plays the recording from that moment.\n- **API.** A meeting page's read says `meeting.has_recording`, and `GET /api/v1/meetings/{id}/recording` works with a workspace domain's session, for that workspace's meetings only."
+    },
+    {
       "id": "video-chapters",
       "date": "2026-11-16",
       "title": "Chapters on the video player, and captions on meeting recordings",

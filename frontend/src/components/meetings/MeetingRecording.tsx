@@ -35,7 +35,9 @@ const SEEK_WAIT_MS = 900;
 export type RecordingSeek = { t: number; n: number };
 
 export function MeetingRecording({ m, seek = null, onClose, onRemoved }: {
-  m: Meeting; seek?: RecordingSeek | null; onClose: () => void; onRemoved: () => void;
+  /** A whole meeting, or on a workspace's own domain just what the page knows (can_delete false). */
+  m: Pick<Meeting, "id" | "title" | "workspace_id" | "can_delete">; seek?: RecordingSeek | null;
+  onClose: () => void; onRemoved: () => void;
 }) {
   const { resolved } = useTheme();
   const toast = useToast();

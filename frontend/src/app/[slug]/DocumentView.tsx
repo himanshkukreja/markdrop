@@ -95,6 +95,8 @@ const pagesApi = () => import("@/lib/pages");
 // Meetings (components/meetings): a meeting page's own pill and panel (Ask this meeting, details).
 const MeetingLauncher = dynamic(() => import("@/components/meetings/MeetingPanel").then((m) => m.MeetingLauncher), { ssr: false, loading: () => null });
 const MeetingHeader = dynamic(() => import("@/components/meetings/MeetingPanel").then((m) => m.MeetingHeader), { ssr: false, loading: () => null });
+// On a workspace's own domain: just the meeting's Recording button and player.
+const TenantRecording = dynamic(() => import("@/components/meetings/TenantRecording").then((m) => m.TenantRecording), { ssr: false, loading: () => null });
 import { usePageJira } from "@/components/jira/usePageJira";
 import { CommentsHost, CommentsButton, CommentsPanel, CommentLayer } from "@/components/comments";
 import { onExportRequest } from "@/lib/commentsInsights";
@@ -974,8 +976,13 @@ export default function DocumentView(props: DocumentViewProps) {
   const othersEditing = otherEditor ? otherEditor.name || (otherEditor.animal ? `Anonymous ${otherEditor.animal}` : "Someone") : null;
   const pageBacklinks = !tenant ? <Backlinks key={user?.id ?? "anon"} slug={slug} addressing={addressing} /> : null;
   // A meeting page (or its transcript): who was there, who can open it, Transcript and Ask.
-  const meetingBar = readable && !!user && isPage && page?.meeting && !tenant
-    ? <MeetingHeader meetingId={page.meeting.id} role={page.meeting.role} extra={pageJira.bulkButton} /> : null;
+  // On the workspace's own domain: only its Recording button, when the read says there is one to play.
+  const meetingBar = readable && !!user && isPage && page?.meeting
+    ? (!tenant ? <MeetingHeader meetingId={page.meeting.id} role={page.meeting.role} extra={pageJira.bulkButton} />
+      : page.meeting.has_recording
+        ? <TenantRecording meetingId={page.meeting.id} role={page.meeting.role} title={displayTitle} workspaceId={page.workspace_id ?? null} />
+        : null)
+    : null;
   // From meetings in View mode (signed-in members of the page's workspace; the server decides what
   // they see): related decisions and action items for the section in view. Insert, for someone who
   // can edit, opens Edit with it after that section, as Ask Markdrop's Insert does.

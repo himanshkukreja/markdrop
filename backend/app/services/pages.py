@@ -1182,6 +1182,27 @@ async def icon_fields(db: AsyncIOMotorDatabase, row: dict) -> dict:
     return {"icon": icon, "icon_url": url}
 
 
+async def _meeting_has_recording(db: AsyncIOMotorDatabase, meeting_id: str, actor: access.Actor,
+                                 ctx: access.Ctx) -> bool:
+    """Does this meeting have a recording this reader could play (GET /meetings/{id}/recording)?
+
+    Lets the page show its Recording button without another call, on markdrop.in and on the
+    workspace's own domain alike. False for a signed-out reader (playing needs sign-in) and for anyone
+    who can't read the meeting itself (a transcript page's meeting is decided again, on its own page;
+    the actor carries a tenant token's workspace, so it is pinned like every read)."""
+    from app.services import meetings, zoom_media
+
+    if not actor.user_id:
+        return False
+    try:
+        row = await meetings.get_row(db, str(meeting_id))
+        if row is None or zoom_media.view(row) is None:
+            return False
+        return await meetings.readable(db, row, actor, ctx) is not None
+    except Exception:
+        return False
+
+
 async def page_fields(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx: access.Ctx) -> dict:
     """``editor``, ``parent`` (readable only), ``breadcrumbs`` (readable
     ancestors, root first), ``children_count`` (readable), ``access_inherit``,
@@ -1211,6 +1232,8 @@ async def page_fields(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
         "meeting": ({"id": raw["meeting_id"], "role": raw.get("meeting_role") or "page"}
                     if raw.get("meeting_id") else None),
     }
+    if out["meeting"] is not None:
+        out["meeting"]["has_recording"] = await _meeting_has_recording(db, raw["meeting_id"], actor, ctx)
     if raw.get("editor") == "blocks" and not raw.get("encrypted"):
         # Auto covers (services/page_covers.py): was this cover picked for the page, is one on its way.
         from app.services import page_covers
