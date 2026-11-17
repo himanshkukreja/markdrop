@@ -84,8 +84,9 @@ const errStatus = (e: unknown): number => (e instanceof PagesApiError || e insta
  * - renamed while open (`gone` + the old address answering `moved`): saves follow the new
  *   address and `onMoved` takes the tab there; deleted, or no longer readable: read only, saying
  *   why, the text stays on screen and in this browser's draft;
- * - a live `appended` event goes straight into the editor at the end (`onAppend`); while the lock
- *   isn't ours, any change is shown as it lands (unless this editor has text on its way);
+ * - a live `appended` event goes straight into the editor at the end (`onAppend`) when it is the
+ *   next version; any other change (another person's once the lock isn't ours, an AI app's edit to
+ *   part of the page even while it is) is shown as it lands, or merged under unsaved text (catchUp);
  * - an auto cover (live `cover`, or `remoteCover` from a poll) goes into the page's front matter
  *   (`onCover`) without counting as an edit; a 409 whose only difference is that cover is merged
  *   too, so the page never loses it to a save that started before it landed.
@@ -681,15 +682,17 @@ export function usePageEditSession({
         return;
       }
       if (msg.type === "appended" && typeof msg.markdown === "string") {
-        if (lockRef.current.kind === "mine") {
-          // Only appends can land while we hold the lock: the server now has what we last saved
-          // plus this, at `rev`.
-          if (rev !== null && baseRev.current !== null && rev <= baseRev.current) return;
+        if (rev !== null && baseRev.current !== null && rev <= baseRev.current) return;
+        // The very next version, while we hold the lock: the server has what we last saved plus
+        // this, so it goes in at the end here. Anything else came in between (an AI app's edit to a
+        // section or a block lands while we hold it too): read the page and show it, or merge it
+        // under what's unsaved here (catchUp).
+        if (lockRef.current.kind === "mine" && (rev === null || baseRev.current === null || rev === baseRev.current + 1)) {
           base.current = { ...base.current, content: `${base.current.content.replace(/\s+$/, "")}\n\n${msg.markdown.trim()}\n` };
           if (rev !== null) baseRev.current = rev;
           cbs.current.onAppend(msg.markdown);
-        } else if (!dirty.current) {
-          void fetchLatest().then(adopt).catch(() => {});
+        } else {
+          void catchUp.current();
         }
         return;
       }
@@ -700,10 +703,11 @@ export function usePageEditSession({
           void fetchLatest().then(adopt).catch(() => {});
           return;
         }
-        // Someone else's edit: show it, unless this editor has text on its way to the server (that
-        // save then meets the newer version and merges). Held or not: a lock that lapsed while this
-        // laptop slept lets others write, and with nothing unsaved here there's nothing to lose.
-        if (!dirty.current && !saving.current) void fetchLatest().then(adopt).catch(() => {});
+        // Someone else's edit (an AI app's edit to a section, a block or a table row lands while we
+        // hold the lock too; a lock that lapsed while this laptop slept lets others write): show
+        // it, or merge it now under what's unsaved here, line by line (catchUp: a clash asks). Text
+        // on its way to the server meets the newer version (409) and merges there instead.
+        void catchUp.current();
         return;
       }
       // Renamed, deleted or no longer readable while open.

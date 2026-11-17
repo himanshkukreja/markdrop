@@ -50,7 +50,7 @@ If you closed a page before your changes were saved, the next time you open it y
 AI apps write to pages with the same rules as people:
 
 - `update_page` takes the `base_rev` that `get_page` returned. If the page changed since, nothing is written and the app is told to read it again.
-- `replace_section`, `set_page_properties` and `insert_embed` change the page as it is when they run, never an older copy.
+- `replace_section`, `replace_block`, `insert_after_block`, `delete_block`, `update_table_row`, `set_page_properties` and `insert_embed` change the page as it is when they run, never an older copy. The edits to part of a page also take an optional `base_rev`, and they go ahead while someone is editing: the change merges into their open editor.
 - `append_blocks` adds to the end, even while someone is typing.
 - Every write tool takes an optional `idempotency_key`: an app that retries after a timeout with the same key gets the first result, so nothing is added twice. See [MCP tools](/ai/tools).
 - `update_document` takes an optional `base_rev` (the `rev` from `get_document`). With it, a document that changed since is never overwritten. Without it, the app replaces whatever is there, so apps should always pass it.

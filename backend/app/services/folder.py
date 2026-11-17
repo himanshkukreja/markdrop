@@ -619,17 +619,14 @@ async def ensure_path(db: AsyncIOMotorDatabase, workspace_id: str, path: str, *,
     parent: str | None = None
     created: list[str] = []
     for segment in segments:
-        existing = await _resolve_by_names(db, workspace_id, [segment]) if parent is None else None
-        if parent is not None:
-            rows = await db["folders"].find({"workspace_id": workspace_id, "parent_id": parent},
-                                            {"name": 1, "slug": 1}).to_list(length=MAX_FOLDERS_PER_WORKSPACE)
-            hit = next((r for r in rows if (r.get("name") or "").lower() == segment.lower()
-                        or r.get("slug") == segment), None)
-            existing = str(hit["_id"]) if hit else None
-        elif existing is None:
-            hit = await db["folders"].find_one({"workspace_id": workspace_id, "parent_id": None,
-                                                "slug": segment}, {"_id": 1})
-            existing = str(hit["_id"]) if hit else None
+        # The folder already there: by its name or its address, case ignored ("Release-Notes" finds
+        # release-notes), so a reused path answers with it instead of a clash or a "-2".
+        rows = await db["folders"].find({"workspace_id": workspace_id, "parent_id": parent},
+                                        {"name": 1, "slug": 1}).to_list(length=MAX_FOLDERS_PER_WORKSPACE)
+        want = segment.strip().lower()
+        hit = (next((r for r in rows if (r.get("name") or "").strip().lower() == want), None)
+               or next((r for r in rows if (r.get("slug") or "").lower() == want), None))
+        existing = str(hit["_id"]) if hit else None
         if existing is None:
             folder = await create_folder(db, workspace_id, segment, parent,
                                          on_conflict=on_conflict, actor=actor, ctx=ctx)

@@ -190,7 +190,6 @@ class PageLockIdle(AccessWorld):
         await self.lock(p["slug"], "ge", intent="edit", dirty=True)
         await self.age(p["slug"], edited_at=30)
         for tool, args in (("update_page", {"markdown": "# x\n", "base_rev": 1}),
-                           ("replace_section", {"heading": "Plan", "markdown": "y"}),
                            ("set_page_properties", {"full_width": True}),
                            ("set_slug", {"slug": "new-slug-1"})):
             res = await self.mcp("owner", tool, {"document": p["slug"], **args})
@@ -208,6 +207,10 @@ class PageLockIdle(AccessWorld):
             self.assertIn("take_over: true", text)
         res = await self.mcp("wm", "update_page", {"document": p["slug"], "markdown": "# x\n", "base_rev": 1})
         self.assertFalse(res["structuredContent"]["can_take_over"])
+        # An edit to part of the page isn't refused: it merges into GE's open editor (the lock stays GE's).
+        res = await self.mcp("owner", "replace_section", {"document": p["slug"], "heading": "Plan", "markdown": "y"})
+        self.assertFalse(res["isError"], res)
+        self.assertEqual((await self.doc(p["slug"]))["edit_lock"]["user_id"], self.uid["ge"])
         # get_page says who and how idle.
         res = await self.mcp("owner", "get_page", {"document": p["slug"]})
         self.assertEqual(res["structuredContent"]["edit_lock"]["holder"], "GE")
@@ -270,8 +273,9 @@ class PageLockIdle(AccessWorld):
         self.assertEqual((out["mine"], out["reason"], out["taken_over"]["by"]), (False, "taken_over", "OWNER"))
         # take_over isn't sticky: the next call without it is refused again once someone holds it.
         await self.lock(p["slug"], "ge", intent="edit")
-        res = await self.mcp("owner", "replace_section", {"document": p["slug"], "heading": "By AI", "markdown": "z"})
+        res = await self.mcp("owner", "update_page", {"document": p["slug"], "markdown": "z", "base_rev": 2})
         self.assertTrue(res["isError"])
+        self.assertEqual(res["structuredContent"]["error"], "locked")
         # A workspace admin's AI app may take over too (set_page_properties, set_slug, restore).
         res = await self.mcp("wa", "set_page_properties", {"document": p["slug"], "full_width": True,
                                                            "take_over": True})

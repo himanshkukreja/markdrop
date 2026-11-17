@@ -84,7 +84,8 @@ class FolderMcp(AccessWorld):
         self.assertEqual(out["path"], "product-hub/prds/feat-0001-talent-pool-2")
         # Asking again finds that folder by its name: idempotent, nothing new.
         again = await self.ok("wm", "create_folder", {"workspace": WS, "path": "product-hub/prds/feat-0001-talent-pool"})
-        self.assertEqual((again["folder_id"], again["created"]), (out["folder_id"], []))
+        self.assertEqual((again["folder_id"], again["created"], again["existed"]), (out["folder_id"], [], True))
+        self.assertFalse(out["existed"])
 
     async def test_create_folder_clash_with_a_document_the_caller_cant_read_is_not_named(self):
         # Never named and never a refusal (C-N7: no answer that differs from a free address but the
@@ -104,9 +105,16 @@ class FolderMcp(AccessWorld):
 
     async def test_create_folder_clash_with_a_sibling_folder_names_it(self):
         await self.folder("Release Notes")  # address release-notes
-        text = await self.err("wm", "create_folder", {"workspace": WS, "path": "Release-Notes"})
-        self.assertIn("“Release Notes”", text)
-        self.assertEqual(set(await self.folders()), {"release-notes"})
+        await self.folder("Release")  # address release
+        text = await self.err("wm", "create_folder", {"workspace": WS, "path": "Release!"})
+        self.assertIn("“Release”", text)
+        self.assertEqual(set(await self.folders()), {"release-notes", "release"})
+        # Its address in another case finds it: the folder that's there, existed: true.
+        out = await self.ok("wm", "create_folder", {"workspace": WS, "path": "Release-Notes"})
+        self.assertEqual((out["path"], out["created"], out["existed"]), ("release-notes", [], True))
+        self.assertIn("already exists", await self.err("wm", "create_folder", {"workspace": WS, "path": "release notes",
+                                                                         "if_exists": "error"}))
+        self.assertEqual(set(await self.folders()), {"release-notes", "release"})
         # Its own address or name finds it (nothing new).
         out = await self.ok("wm", "create_folder", {"workspace": WS, "path": "release-notes/2026"})
         self.assertEqual((out["path"], out["created"]), ("release-notes/2026", ["2026"]))

@@ -1932,7 +1932,7 @@ async def list_workspace_items(ctx: Context, args: dict) -> tuple[str, dict]:
         res = await workspace_items.items(
             ctx.db, access_service.Actor.of(ctx.user), access_service.Ctx(ctx.db), ws_id,
             folder=folder, q=args.get("query"), cursor=args.get("cursor"),
-            limit=int(args.get("limit") or 50))
+            limit=int(args.get("limit") or 50), access_level=args.get("access") or None)
     except HTTPException as exc:
         raise ToolError(http_message(exc))
     items = [{
@@ -2038,9 +2038,13 @@ async def create_folder(ctx: Context, args: dict) -> tuple[str, dict]:
             raise ToolError(f"{http_message(exc)} Nothing was created. To use the next free address "
                             "instead (…-2), call again with on_conflict: \"suffix\".")
         raise ToolError(http_message(exc))
-    out = {"workspace_id": ws_id, "folder_id": folder_id, "path": "/".join(path), "created": created}
+    out = {"workspace_id": ws_id, "folder_id": folder_id, "path": "/".join(path), "created": created,
+           "existed": not created}
     if not created:
-        return f"The folder {out['path']} already exists.", out
+        if args.get("if_exists") == "error":
+            raise ToolError(f"The folder {out['path']} already exists (folder id {folder_id}). Nothing was "
+                            "created. Use it as it is, or call again without if_exists: \"error\".")
+        return f"The folder {out['path']} already exists: nothing was created (existed: true).", out
     # Only the first folder made can have met a taken address (the rest are inside it).
     first = path[len(path) - len(created)] if len(path) >= len(created) else None
     note = (folder_service.suffixed_note(folder_service.base_slug(created[0]), first)
@@ -3519,6 +3523,10 @@ TOOLS += [
         input_schema={"type": "object", "properties": {
             "workspace": _WORKSPACE_ARG,
             "folder": {**_FOLDER_ARG, "description": "Optional: only this folder (path)."},
+            "access": {"type": "string", "enum": ["private", "workspace", "link"], "description": (
+                "Optional: only items with this access: 'private' (only their owner and people they're "
+                "shared with), 'workspace' (members) or 'link' (anyone with the link, with or without a "
+                "password).")},
             "query": {"type": "string", "maxLength": 200},
             "cursor": {"type": "string", "maxLength": 300},
             "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50},
@@ -3565,7 +3573,9 @@ TOOLS += [
         name="create_folder",
         title="Create a folder",
         description=("Create a folder in a workspace by path ('guides/setup'), including any missing parent "
-                     "folders; folders that already exist along the path are used as they are. If the new "
+                     "folders; folders that already exist along the path are used as they are (matched by "
+                     "name, case ignored, or address), and a path that's all there returns that folder "
+                     "with existed: true (if_exists: \"error\" refuses instead). If the new "
                      "folder's address is already taken where it goes (a page, document, file or another "
                      "folder there has that slug), nothing is created and the error says what holds it — never "
                      "a silent '-2'. on_conflict: \"suffix\" takes the next free address instead. Members "
@@ -3577,9 +3587,14 @@ TOOLS += [
             "path": {"type": "string", "minLength": 1, "maxLength": 400,
                      "description": "Folder path, e.g. 'guides/setup'."},
             "on_conflict": _ON_CONFLICT_ARG,
+            "if_exists": {"type": "string", "enum": ["return", "error"], "default": "return", "description": (
+                "When the whole path is already there: \"return\" (default) answers with that folder and "
+                "existed: true; \"error\" refuses. Either way nothing new is made.")},
         }, "required": ["workspace", "path"]},
         output_schema=_out({"workspace_id": {"type": "string"}, "folder_id": {"type": "string"},
                             "path": {"type": "string"}, "created": {"type": "array"},
+                            "existed": {"type": "boolean", "description": "The folder was already there "
+                                                                           "(nothing created)."},
                             "note": {"type": "string", "description": "Set when the address had to be "
                                                                       "suffixed (an item the user can't open has it)."}},
                            ["workspace_id", "folder_id", "path", "created"]),
