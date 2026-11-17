@@ -24,6 +24,18 @@
   "next": [],
   "entries": [
     {
+      "id": "zoom-attendee-emails",
+      "date": "2026-11-17",
+      "title": "Zoom meetings keep attendees' email addresses, and resume after a restart",
+      "kind": "improved",
+      "area": "Integrations",
+      "products": [
+        "web"
+      ],
+      "summary": "Meetings from Zoom now keep each attendee's email address when Zoom gives one, so members are recognised and HubSpot finds attendees' contacts by address. A Zoom meeting or recording that was being brought in when Markdrop restarted is picked up again on its own.",
+      "body": "- **Attendees' addresses.** From Zoom's participants list, as Google Meet imports already do. They aren't shown on the meeting. [Zoom](/integrations/zoom)\n- **Better HubSpot matches.** Attendees are looked up as HubSpot contacts by email first, rather than only by name. [How a call is matched](/integrations/hubspot#how-a-call-is-matched)\n- **Nothing stuck.** A meeting or recording left half imported by a restart goes back in the queue within about 20 minutes; after a few interrupted tries it shows **Didn't import** with the reason, and **Import past meetings** brings it in."
+    },
+    {
       "id": "hubspot",
       "date": "2026-11-17",
       "title": "Your team's calls, written up in HubSpot",

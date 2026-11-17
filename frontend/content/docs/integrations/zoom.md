@@ -10,6 +10,7 @@ Connect your company's Zoom account and every **recorded** Zoom meeting hosted b
 - **One team.** Pick the team, for example **Sales**. Only meetings whose **host** is a member of that team come in. Meetings hosted by anyone else are ignored, and Markdrop doesn't keep anything about them.
 - **Visible to that team.** A Zoom meeting lands in the team, so the team's members can read it, and so can workspace admins, as with all [team](/teams/overview) content. If the team is **open**, everyone in the workspace can read its meetings: the Zoom card suggests making it **private**.
 - **The host's meeting.** Each meeting is imported as its host's, with the host as organizer. It isn't restricted to its attendees, so the whole team sees it.
+- **Who joined.** The meeting's attendees come from Zoom's participants list, with each person's email address when Zoom gives one (usually people in your Zoom account and signed-in guests). Addresses are used to recognise your workspace's members and, with [HubSpot](/integrations/hubspot), to find attendees' contacts; they aren't shown on the meeting.
 
 Zoom meetings need a **cloud recording**. The transcript comes from, in this order:
 
@@ -109,7 +110,7 @@ Each meeting from Zoom shows one state:
 | --- | --- |
 | **Imported** | It's a meeting in the team now. Choose it to open it. |
 | **Already here** | It was imported before. Markdrop never makes the same Zoom meeting twice. |
-| **Transcribing** | Markdrop is transcribing it from its recording, or waiting a few minutes for Zoom's own transcript first. It comes in on its own. |
+| **Transcribing** | Markdrop is transcribing it from its recording, or waiting a few minutes for Zoom's own transcript first. It comes in on its own, and if Markdrop restarts while importing a meeting, it picks it up again within about 20 minutes. |
 | **No transcript** | Zoom recorded it without a transcript or captions. Turn on **Create audio transcript** (step 8 of the Server-to-Server setup, or step 5 of one-click connect), or [Transcribe and keep recordings](#transcribe-and-keep-recordings); if Zoom makes the transcript later, the meeting comes in then. |
 | **Didn't import** | Something went wrong, with the reason. Zoom meetings that didn't import can be brought in with **Import past meetings**. |
 
