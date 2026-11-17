@@ -487,9 +487,9 @@ class Import(MeetingsWorld):
         self.assertEqual(page["access_level"], "workspace")
         self.assertEqual(page["meeting_id"], m["id"])
         r = await self.get(m["slug"], self.session("wm"))
-        self.assertEqual(r.json()["meeting"], {"id": m["id"], "role": "page"})
+        self.assertEqual(r.json()["meeting"], {"id": m["id"], "role": "page", "has_recording": False})
         r = await self.get(m["transcript_slug"], self.session("wm"))
-        self.assertEqual(r.json()["meeting"], {"id": m["id"], "role": "transcript"})
+        self.assertEqual(r.json()["meeting"], {"id": m["id"], "role": "transcript", "has_recording": False})
         c = page["content"]
         self.assertIn("icon: 🎙️", c)
         self.assertIn('date: "2026-11-04"', c)
