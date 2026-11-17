@@ -543,7 +543,8 @@ async def _set_state(db, row: dict, item_id: str, sets: dict, *, only: list[str]
     q: dict[str, Any] = {"_id": row["_id"]}
     el: dict[str, Any] = {"id": item_id}
     if only:
-        el["state"] = {"$in": only}
+        # An Apply that never finished (a stopped process) can be tried again after a couple of minutes.
+        el["$or"] = [{"state": {"$in": only}}, {"state": "applying", "at": {"$lt": now_utc() - timedelta(minutes=2)}}]
     q["hubspot.suggestions.items"] = {"$elemMatch": el}
     res = await db[meetings.COLL].update_one(q, {"$set": {f"hubspot.suggestions.items.$.{k}": v for k, v in sets.items()}})
     return res.modified_count > 0
