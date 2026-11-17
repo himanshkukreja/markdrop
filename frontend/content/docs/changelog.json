@@ -24,6 +24,18 @@
   "next": [],
   "entries": [
     {
+      "id": "pwa-back",
+      "date": "2026-11-17",
+      "title": "Back button in the installed app",
+      "kind": "fixed",
+      "area": "App",
+      "products": [
+        "web"
+      ],
+      "summary": "In the installed app on a phone or tablet, a full-screen document, page or file now has a Back button, so you no longer have to close and reopen the app to leave it.",
+      "body": "- **Back.** A small chip in the corner opposite Show details, shown only in the installed app (browsers have their own Back). It returns to where you came from, or home if you opened the link directly.\n- **Over video** it hides with the player's controls, like Show details."
+    },
+    {
       "id": "video-chapters",
       "date": "2026-11-16",
       "title": "Chapters on the video player, and captions on meeting recordings",

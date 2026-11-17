@@ -516,6 +516,9 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 .md-immersive .md-icon { font-size: 16px; }
 .md-immersive--br { right: var(--space-4); bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px)); }
 .md-immersive--tr { right: var(--space-4); top: calc(var(--space-4) + env(safe-area-inset-top, 0px)); }
+/* The installed app's Back (PwaBack): the left corner of the same edge as Show details. */
+.md-immersive--bl { left: var(--space-4); bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px)); }
+.md-immersive--tl { left: var(--space-4); top: calc(var(--space-4) + env(safe-area-inset-top, 0px)); }
 @media (hover: none) { .md-immersive__kbd { display: none; } }
 /* Over a playing video it leaves with the player's own controls; keyboard focus brings it back. */
 .md-immersive--hidden:not(:focus-visible) { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .2s ease, visibility 0s linear .2s; }

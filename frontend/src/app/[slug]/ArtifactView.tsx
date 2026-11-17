@@ -14,6 +14,7 @@ import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAccess, removePerson } from "@/lib/access";
 import { purgeDocument } from "@/lib/workspaces";
+import PwaBack from "@/components/pwa/PwaBack";
 import { sendViewerAccent, sendViewerChapters, useWorkspaceAccent, type ViewerChapter } from "@/lib/workspaceAccent";
 import { PRIMARY_HOST, signInUrlFor } from "@/lib/hosts";
 
@@ -987,6 +988,8 @@ export default function ArtifactView({
               className={renderer === "video" && !playerUi ? "md-immersive--hidden" : undefined}
             />
           )}
+          <PwaBack edge={renderer === "video" ? "top" : "bottom"}
+            className={renderer === "video" && !playerUi ? "md-immersive--hidden" : undefined} />
         </div>
       )}
 
