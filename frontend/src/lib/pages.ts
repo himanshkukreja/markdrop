@@ -103,7 +103,11 @@ export interface PageDocument extends DocumentResponse {
   /** Auto covers: one is being picked right now (the editor fades it in when it lands). */
   cover_pending?: boolean;
   /** Meetings: this page is a meeting (or its transcript); the reader shows the meeting panel. */
-  meeting?: { id: string; role: "page" | "transcript" } | null;
+  meeting?: {
+    id: string; role: "page" | "transcript";
+    /** A kept recording this reader can play (signed in, can read the meeting): the Recording button. */
+    has_recording?: boolean;
+  } | null;
 }
 
 export interface PageTemplate {

@@ -28,8 +28,7 @@ import { openAssistant } from "@/components/assistant/store";
 import { MeetingRecording, type RecordingSeek } from "./MeetingRecording";
 import { HubSpotSection } from "./HubSpotSection";
 import { NameSpeakersHost, SpeakersBanner, isGenericSpeaker, openNameSpeakers } from "./NameSpeakers";
-import { citeSeconds, lineSeconds } from "./recordingSeek.mjs";
-import { track } from "@/lib/track";
+import { useRecordingSeek } from "./useRecordingSeek";
 import "@/components/pages/ai/ask-pill.css";
 import "@/components/pages/ai/ask.css";
 import "./meetings.css";
@@ -74,39 +73,11 @@ export function MeetingHeader({ meetingId, role, extra }: { meetingId: string; r
   const hasRecording = !!m?.recording;
   const transcriptSlug = m?.transcript_slug ?? null;
   const onTranscript = role === "transcript";
-  // A kept recording: the times in the notes play it from there (a summary's transcript citation, a
-  // transcript line's "12:34 · Ada"). Reading view only (never inside the editor); a modified click keeps
-  // the link's own behaviour. Capture phase, so the page's link handling never navigates first.
-  useEffect(() => {
-    if (!hasRecording) return;
-    const root = document.documentElement;
-    root.dataset.mtRec = onTranscript ? "transcript" : "summary";
-    const onClick = (e: MouseEvent) => {
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      const el = e.target instanceof Element ? e.target : null;
-      if (!el || !el.closest(".pb-body") || el.closest('[contenteditable="true"]')) return;
-      let t: number | null = null;
-      if (onTranscript) {
-        const lead = el.closest("strong");
-        const block = lead?.parentElement?.closest<HTMLElement>("[data-bid]");
-        if (lead && block && lead.parentElement === block && block.firstElementChild === lead) t = lineSeconds(block.dataset.bid, lead.textContent);
-      } else {
-        const a = el.closest("a");
-        if (a) t = citeSeconds(a.getAttribute("href"), a.textContent, transcriptSlug, window.location.origin);
-      }
-      if (t == null) return;
-      e.preventDefault();
-      e.stopPropagation();
-      setSeek((x) => ({ t: t!, n: (x?.n ?? 0) + 1 }));
-      setPlaying(true);
-      track("meeting_recording_seek", { from: onTranscript ? "transcript" : "summary" });
-    };
-    document.addEventListener("click", onClick, true);
-    return () => {
-      document.removeEventListener("click", onClick, true);
-      delete root.dataset.mtRec;
-    };
-  }, [hasRecording, onTranscript, transcriptSlug]);
+  // A kept recording: the times in the notes play it from there (useRecordingSeek).
+  useRecordingSeek(hasRecording, onTranscript, transcriptSlug, (t) => {
+    setSeek((x) => ({ t, n: (x?.n ?? 0) + 1 }));
+    setPlaying(true);
+  });
   // On the transcript, a "Speaker N" lead ("12:34 · Speaker 2") names that speaker, for people who can
   // edit the meeting (with a kept recording, a click on the lead plays it from there instead).
   const canName = !!m?.can_regenerate && onTranscript && !hasRecording;

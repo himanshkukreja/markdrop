@@ -24,6 +24,19 @@
   "next": [],
   "entries": [
     {
+      "id": "meeting-recording-on-domain",
+      "date": "2026-11-17",
+      "title": "Meeting recordings play on the workspace's own domain",
+      "kind": "improved",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "A meeting page on a workspace's custom domain now shows its Recording button, so signed-in readers who can read the meeting play the recording there, with captions and chapters, as on markdrop.in.",
+      "body": "- **Where.** The meeting page's header on the workspace's own domain, for signed-in readers who can read the meeting. Signed-out readers of a public meeting page don't see it: playing needs sign-in.\n- **Times.** A line's time on the meeting's **Transcript** page plays the recording from that moment.\n- **API.** A meeting page's read says `meeting.has_recording`, and `GET /api/v1/meetings/{id}/recording` works with a workspace domain's session, for that workspace's meetings only."
+    },
+    {
       "id": "mcp-file-text-by-page",
       "date": "2026-11-17",
       "title": "AI apps can read PDFs, decks and large HTML files page by page",

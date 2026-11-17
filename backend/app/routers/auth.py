@@ -134,6 +134,10 @@ _TENANT_ALLOWED = (
     ("POST", re.compile(r"^/api/v1/ai/pages/[^/]+/ask$")),
     # Export a page (routers/page_export.py): can(read), then the page's allow_export.
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/export$")),
+    # A meeting page's recording (routers/meetings.get_recording): a short-lived player link with
+    # captions and chapters. Read-only; meetings.for_read decides with access.can(read) on the meeting
+    # page with the pinned actor, so another workspace's meeting is a 404 like any document read.
+    ("GET", re.compile(r"^/api/v1/meetings/[^/]+/recording$")),
     # ── Editing on the workspace's own domain (2026-11-04) ──
     #
     # Someone the page's permissions let edit (workspace role, a grant, the edit secret) edits it
