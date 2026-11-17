@@ -22,7 +22,7 @@
     { "id": "team", "title": "Team", "tags": ["team"] },
     { "id": "teams", "title": "Teams", "tags": ["teams"] },
     { "id": "slack", "title": "Slack", "tags": ["slack"] },
-    { "id": "jira", "title": "Jira", "tags": ["jira"] }, {"id": "zoom", "title": "Zoom", "tags": ["zoom"]},
+    { "id": "jira", "title": "Jira", "tags": ["jira"] }, {"id": "zoom", "title": "Zoom", "tags": ["zoom"]}, {"id": "hubspot", "title": "HubSpot", "tags": ["hubspot"]},
     { "id": "domains", "title": "Custom domains", "tags": ["domains"] },
     { "id": "analytics", "title": "Analytics", "tags": ["creator-analytics", "analytics-ai", "analytics-settings"] },
     { "id": "account", "title": "Account", "tags": ["auth", "me", "personal", "oauth"] }
@@ -2146,6 +2146,61 @@
       "title": "A person's Jira issues",
       "description": "One member's issues grouped as overdue, blocked, in progress, to do and done lately (details), or their counts (no connection).",
       "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "GET /api/v1/hubspot/status": {
+      "title": "HubSpot connection status",
+      "description": "What Workspace settings › Integrations › HubSpot shows: whether HubSpot works on this server (`configured`), whether the workspace is connected (`connected`, `mode`), the team whose calls go to HubSpot (`team`), whether Log calls automatically is on (`auto_log`), whether you can change the settings (`can_manage`: admins and owners) and use HubSpot on the team's meetings (`can_use`: the team's members and admins), and the HubSpot account and counts (`connection`). Admins also get the scopes the key needs (`scopes_needed`), the ones it's missing (`connection.missing_scopes`) and the ones HubSpot couldn't confirm (`connection.unchecked_scopes`). Never returns the key. Members of the workspace only.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot"}
+    },
+    "PUT /api/v1/hubspot/connection": {
+      "title": "Connect HubSpot",
+      "description": "Saves the workspace's HubSpot service key (or a legacy private app's access token) in `token`, checked with HubSpot first: the account it's for and the scopes it has. A blank `token` checks the saved one again. Optional `team_id`: the team whose calls go to HubSpot. One HubSpot account connects to one workspace (409 otherwise); 400 when HubSpot doesn't accept the key. Admins and owners.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#set-up-hubspot"}
+    },
+    "PUT /api/v1/hubspot/team": {
+      "title": "Pick the HubSpot team",
+      "description": "Sets the team (`team_id`) whose meetings are matched and logged to HubSpot. Not the company-wide team. Admins and owners.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot"}
+    },
+    "PUT /api/v1/hubspot/settings": {
+      "title": "Log calls automatically",
+      "description": "Turns Log calls automatically on or off (`auto_log`, off by default): when on, a team call whose summary is written and that matched the meeting HubSpot booked is logged on its own. Admins and owners.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#log-calls-automatically"}
+    },
+    "DELETE /api/v1/hubspot/connection": {
+      "title": "Disconnect HubSpot",
+      "description": "Deletes the key, the cached HubSpot users and stages, and every meeting's match. Notes and tasks already in HubSpot stay there; Markdrop keeps only their ids. Admins and owners.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#disconnect"}
+    },
+    "GET /api/v1/hubspot/meetings/{meeting_id}": {
+      "title": "A meeting in HubSpot",
+      "description": "The meeting panel's HubSpot section. `available` false with a `reason` (`not_connected`, `not_team`, `not_member`) when it doesn't apply. Otherwise the `match` (`how`: `meeting`, `contacts`, `names`, `user` or `none`; `confidence`; other `candidates`), the `deal` (name, stage, amount, owner, close date, link), `contacts`, `companies`, `logged` (when, by whom, `created`) and `tasks` (the action items as proposed HubSpot tasks, each with a `key`, due date, owner and whether it's `created`). Matches the meeting the first time. 404 when you can't read the meeting.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#how-a-call-is-matched"}
+    },
+    "POST /api/v1/hubspot/meetings/{meeting_id}/match": {
+      "title": "Match a meeting again",
+      "description": "Looks for the meeting in HubSpot again (replacing a deal someone picked) and returns the section as `GET /api/v1/hubspot/meetings/{meeting_id}` does.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#how-a-call-is-matched"}
+    },
+    "PUT /api/v1/hubspot/meetings/{meeting_id}/match": {
+      "title": "Pick a meeting's deal",
+      "description": "Sets the meeting's deal (`deal_id`, from `GET /api/v1/hubspot/deals`); its contacts and company come with it. `null`: none. The HubSpot meeting found for the call stays the one Log fills.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#how-a-call-is-matched"}
+    },
+    "POST /api/v1/hubspot/meetings/{meeting_id}/log": {
+      "title": "Log a meeting to HubSpot",
+      "description": "Writes the meeting's summary, next steps and decisions, with a link to its page, into the internal notes of its HubSpot meeting (the one HubSpot booked, else a new completed meeting on the matched deal, contacts and company). The attendee-facing description and notes others typed are kept. Again: the same HubSpot meeting is updated. 409 when nothing matched (pick the deal first) or it's being logged right now.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#log-to-hubspot"}
+    },
+    "POST /api/v1/hubspot/meetings/{meeting_id}/tasks": {
+      "title": "Create HubSpot tasks",
+      "description": "Creates the chosen proposed tasks (`keys`) in HubSpot, on the deal and contacts, each once: `results` says `created`, `exists` or `failed` for each.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#tasks"}
+    },
+    "GET /api/v1/hubspot/deals": {
+      "title": "Search HubSpot deals",
+      "description": "Up to 10 deals whose name matches `q` (the most recently changed first; empty `q`: the latest), with stage, amount, owner id, close date and link. The HubSpot team's members and admins.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#how-a-call-is-matched"}
     },
     "GET /api/v1/zoom/status": {
       "title": "Zoom connection status",

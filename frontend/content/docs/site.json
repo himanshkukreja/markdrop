@@ -309,7 +309,8 @@
         "/integrations/overview",
         "/integrations/slack",
         "/integrations/jira",
-        "/integrations/zoom"
+        "/integrations/zoom",
+        "/integrations/hubspot"
       ]
     },
     {
