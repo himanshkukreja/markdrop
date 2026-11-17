@@ -33,6 +33,11 @@ short-lived signed link to the files origin's video player (services/artifact.bu
 Deleting the meeting (or Disconnect › delete the imported meetings) deletes the video; so does the
 meeting page being deleted for good (lifecycle.destroy → :func:`forget_document`).
 
+**After a restart** (2026-11-17): an import left ``processing`` (its ``at`` is refreshed between steps)
+for :data:`zoom.PROCESSING_STALE` goes back to ``waiting`` with ``tries`` + 1 (:func:`zoom.reclaim`, each
+:func:`tick`), ``failed`` after :data:`MAX_TRIES`; a copy left ``copying`` (``rec_at`` refreshed per part)
+for :data:`STALE` is taken again, ``failed`` once ``rec_tries`` reaches :data:`MAX_TRIES`.
+
 zoom_meetings fields used here: ``state`` (… | waiting), ``due_at``, ``tries``, ``source``
 (transcript | captions | transcribe), ``rec_state`` (queued | copying | ready | failed | none | off |
 too_big | gone), ``rec_at``, ``rec_tries``.
@@ -66,8 +71,9 @@ log = logging.getLogger("markdrop.zoom")
 FEATURE = "zoom_transcribe"
 WAIT = timedelta(minutes=20)              # Zoom's own transcript usually follows recording.completed
 RETRY = timedelta(minutes=15)
-STALE = timedelta(hours=2)                # a copy or a transcription a stopped process left running
+STALE = timedelta(minutes=20)             # a copy a stopped process left running (a running one refreshes rec_at)
 MAX_TRIES = 3
+INTERRUPTED_COPY = "Copying the recording was interrupted a few times."
 MAX_AUDIO_BYTES = 1024 * 1024 * 1024
 PART = 16 * 1024 * 1024                   # R2 multipart part (all but the last the same size)
 CHUNK = 1024 * 1024
@@ -430,8 +436,11 @@ def blob_key(workspace_id: str) -> str:
     return f"art/zoom/{workspace_id}/{secrets.token_urlsafe(18)}.mp4"
 
 
-async def _to_r2(db: AsyncIOMotorDatabase, conn: dict, url: str, key: str, max_bytes: int) -> int:
-    """Stream a Zoom video into R2 as a multipart upload (a part at a time in memory). The bytes."""
+async def _to_r2(db: AsyncIOMotorDatabase, conn: dict, url: str, key: str, max_bytes: int,
+                 row_key: str | None = None) -> int:
+    """Stream a Zoom video into R2 as a multipart upload (a part at a time in memory). The bytes. Each
+    part refreshes the zoom_meetings row's ``rec_at`` (``row_key``): a copy still running is never taken
+    for one a stopped process left."""
     from app.services import r2
 
     for attempt in range(2):
@@ -452,6 +461,8 @@ async def _to_r2(db: AsyncIOMotorDatabase, conn: dict, url: str, key: str, max_b
                         etag = await run_in_threadpool(r2.upload_part, key, upload_id, n, bytes(buf[:PART]))
                         parts.append({"part_number": n, "etag": etag})
                         del buf[:PART]
+                        if row_key is not None:
+                            await _beat(db, row_key)
             if buf or not parts:
                 n = len(parts) + 1
                 etag = await run_in_threadpool(r2.upload_part, key, upload_id, n, bytes(buf))
@@ -466,6 +477,19 @@ async def _to_r2(db: AsyncIOMotorDatabase, conn: dict, url: str, key: str, max_b
     raise zoom_api.ZoomError(401, "Zoom didn't accept the token.")
 
 
+async def _beat(db: AsyncIOMotorDatabase, key: str) -> None:
+    from app.services import zoom
+
+    await db[zoom.MEETINGS].update_one({"_id": key, "rec_state": "copying"}, {"$set": {"rec_at": now_utc()}})
+
+
+def _copy_due(now: datetime) -> list[dict]:
+    """Recordings to copy: queued; a copy a stopped process left (under the cap); a failed one to retry."""
+    return [{"rec_state": "queued"},
+            {"rec_state": "copying", "rec_at": {"$lt": now - STALE}, "rec_tries": {"$lt": MAX_TRIES}},
+            {"rec_state": "failed", "rec_tries": {"$lt": MAX_TRIES}, "rec_at": {"$lt": now - RETRY}}]
+
+
 async def _rec(db: AsyncIOMotorDatabase, key: str, state: str, **extra) -> None:
     from app.services import zoom
 
@@ -478,9 +502,7 @@ async def copy_recording(db: AsyncIOMotorDatabase, key: str) -> str:
 
     now = now_utc()
     row = await db[zoom.MEETINGS].find_one_and_update(
-        {"_id": key, "$or": [{"rec_state": "queued"},
-                             {"rec_state": "copying", "rec_at": {"$lt": now - STALE}},
-                             {"rec_state": "failed", "rec_tries": {"$lt": MAX_TRIES}, "rec_at": {"$lt": now - RETRY}}]},
+        {"_id": key, "$or": _copy_due(now)},
         {"$set": {"rec_state": "copying", "rec_at": now}, "$inc": {"rec_tries": 1}}, return_document=True)
     if row is None:
         return "busy"
@@ -516,7 +538,7 @@ async def copy_recording(db: AsyncIOMotorDatabase, key: str) -> str:
         return "too_big"
     bkey = blob_key(ws)
     try:
-        size = await _to_r2(db, conn, vf["download_url"], bkey, cap)
+        size = await _to_r2(db, conn, vf["download_url"], bkey, cap, row_key=key)
     except zoom_api.ZoomError as exc:
         state = "too_big" if exc.status == 413 else "failed"
         await _rec(db, key, state, rec_reason=str(exc)[:300])
@@ -869,7 +891,12 @@ async def tick(db: AsyncIOMotorDatabase) -> int:
     from app.services import zoom
 
     n = 0
+    # Work a stopped process (a deploy) left half done: imports back to waiting, copies past the cap failed.
+    await zoom.reclaim(db)
     now = now_utc()
+    await db[zoom.MEETINGS].update_many(
+        {"rec_state": "copying", "rec_at": {"$lt": now - STALE}, "rec_tries": {"$gte": MAX_TRIES}},
+        {"$set": {"rec_state": "failed", "rec_at": now, "rec_reason": INTERRUPTED_COPY}})
     row = await db[zoom.MEETINGS].find_one({"state": "waiting", "due_at": {"$lte": now}}, sort=[("due_at", 1)])
     if row is not None:
         try:
@@ -879,10 +906,7 @@ async def tick(db: AsyncIOMotorDatabase) -> int:
             await db[zoom.MEETINGS].update_one({"_id": row["_id"], "state": "waiting"},
                                                {"$set": {"due_at": now + RETRY}, "$inc": {"tries": 1}})
         n += 1
-    rec = await db[zoom.MEETINGS].find_one(
-        {"$or": [{"rec_state": "queued"}, {"rec_state": "copying", "rec_at": {"$lt": now - STALE}},
-                 {"rec_state": "failed", "rec_tries": {"$lt": MAX_TRIES}, "rec_at": {"$lt": now - RETRY}}]},
-        sort=[("rec_at", 1)])
+    rec = await db[zoom.MEETINGS].find_one({"$or": _copy_due(now)}, sort=[("rec_at", 1)])
     if rec is not None:
         try:
             await copy_recording(db, rec["_id"])

@@ -36,7 +36,8 @@ It is imported as its host (their Meetings AI limits, their page), never restric
 ``x-zm-signature`` v0 HMAC with that workspace's Secret Token) gets ``recording.transcript_completed``
 (the transcript is ready) and ``recording.completed`` (a fallback: the transcript is often not in it
 yet). The transcript (WebVTT) is downloaded, the participants (past meeting participants) become the
-attendees, and it goes through the Meetings pipeline (services/meetings.import_meetings: summary,
+attendees (with each one's address when Zoom gives it, 2026-11-17: kept on the attendee as a Google Meet
+import's are, so members match by it and HubSpot finds contacts by it; never shown), and it goes through the Meetings pipeline (services/meetings.import_meetings: summary,
 decisions, action items, Slack, briefs, memory, Jira drafts). **Import past meetings** lists the team
 members' cloud recordings for a range (Zoom allows a month per request: several windows) and imports
 the chosen ones as history (nobody is notified).
@@ -48,6 +49,7 @@ workspace's *Transcribe and keep recordings* switch the audio is transcribed and
 (processing → imported | duplicate | no_transcript | failed), and the meeting's source carries
 ``file_id = "zoom:<uuid>"`` (import_meetings(dedupe="file")). A meeting without a transcript is
 ``no_transcript`` (with how to turn on Zoom's Audio transcript) until a transcript arrives.
+An import a stopped process left ``processing`` goes back to ``waiting`` (:func:`reclaim`, the zoom loop).
 
 Collections
     zoom_connections  _id = workspace id: mode (oauth | s2s), account_id, client_id, client_secret_enc,
@@ -115,7 +117,9 @@ NO_TRANSCRIPT = ("Zoom made no transcript for this meeting. In the Zoom web port
                  "(and can lock it so every host has it). Meetings recorded after that come in on their own.")
 SIGNATURE_AGE = 5 * 60
 TOKEN_EARLY = timedelta(minutes=2)
-PROCESSING_STALE = timedelta(minutes=10)
+# A meeting being imported refreshes its ``at`` between steps (:func:`_touch`); one older than this was
+# left by a stopped process (a deploy): the zoom loop puts it back to waiting (:func:`reclaim`).
+PROCESSING_STALE = timedelta(minutes=20)
 MAX_RANGE_DAYS = 366
 WINDOW_DAYS = 30
 MAX_IMPORT = 50
@@ -166,6 +170,7 @@ def mode_of(conn: dict | None) -> str | None:
 async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[CONNS].create_index("account_id", unique=True, sparse=True)
     await db[MEETINGS].create_index([("workspace_id", 1), ("at", -1)])
+    await db[MEETINGS].create_index([("state", 1), ("at", 1)])     # reclaim: imports a restart left processing
     await db[SEEN].create_index("expires_at", expireAfterSeconds=0)
 
 
@@ -831,9 +836,22 @@ async def member_in_team(db: AsyncIOMotorDatabase, conn: dict, email: str | None
     return {"id": str(u["_id"]), "name": u.get("name"), "email": u.get("email")}
 
 
-async def participants(db: AsyncIOMotorDatabase, conn: dict, uuid: str) -> list[str]:
-    """Who joined (names, in order, once each); [] when Zoom won't say (no scope, an old meeting)."""
-    names: list[str] = []
+_EMAIL = re.compile(r"^[^@\s<>,;()\"]{1,64}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$")
+
+
+def _email_of(p: dict) -> str | None:
+    """A participant's address when Zoom gives one (``user_email``; ``email`` on some accounts), else None."""
+    for k in ("user_email", "email"):
+        v = str(p.get(k) or "").strip().lower()
+        if v and len(v) <= 254 and _EMAIL.match(v):
+            return v
+    return None
+
+
+async def participants(db: AsyncIOMotorDatabase, conn: dict, uuid: str) -> list[dict]:
+    """Who joined, in order, once each: ``{name, email}`` (email when Zoom gives one: Zoom leaves it
+    out for some people, e.g. guests outside the account); [] when Zoom won't say (no scope, an old meeting)."""
+    out: list[dict] = []
     token = ""
     try:
         for _ in range(10):
@@ -842,25 +860,49 @@ async def participants(db: AsyncIOMotorDatabase, conn: dict, uuid: str) -> list[
                 params["next_page_token"] = token
             body = await call(db, conn, "GET", f"past_meetings/{zoom_api.uuid_path(uuid)}/participants", params=params) or {}
             for p in body.get("participants") or []:
-                n = " ".join(str(p.get("name") or "").split())[:80]
-                if n and n.casefold() not in {x.casefold() for x in names}:
-                    names.append(n)
+                n = " ".join(str(p.get("name") or "").replace("<", " ").replace(">", " ").split())[:80]
+                email = _email_of(p)
+                if not n and not email:
+                    continue
+                # Rejoins come back as more rows: once each (by address, else by name).
+                hit = next((x for x in out if (email and x["email"] == email)
+                            or (n and x["name"] and x["name"].casefold() == n.casefold())), None)
+                if hit is None:
+                    out.append({"name": n, "email": email})
+                elif email and not hit["email"] and not any(x["email"] == email for x in out):
+                    hit["email"] = email
             token = body.get("next_page_token") or ""
             if not token:
                 break
     except zoom_api.ZoomError as exc:
         log.info("zoom: participants of a meeting: %s %s", exc.status, exc.reason)
-    return names[:100]
+    return out[:100]
 
 
-def transcript_text(vtt: str, attendees: list[str], host: dict | None) -> str:
-    """The VTT with a short header the meeting parser reads: "Organizer:" and "Attendees:"."""
+def names_of(people: list[dict]) -> list[str]:
+    """The participants' names (never their addresses: what speaker naming is given)."""
+    return [p["name"] for p in people if p.get("name")]
+
+
+def transcript_text(vtt: str, attendees: list[dict] | list[str], host: dict | None) -> str:
+    """The VTT with a short header the meeting parser reads: "Organizer:" and "Attendees:" (``Name <email>``
+    when Zoom gave the address: the meeting keeps it on the attendee, as a Google Meet import does; the
+    header itself is never shown, only the transcript's turns)."""
     head = []
     if host and host.get("name"):
         head.append(f"Organizer: {host['name']}")
-    if attendees:
-        head.append("Attendees: " + ", ".join(a.replace(",", " ") for a in attendees))
-    body = (vtt or "").lstrip("﻿")
+    people = []
+    for a in attendees or []:
+        p = {"name": a, "email": None} if isinstance(a, str) else a
+        name = " ".join((p.get("name") or "").replace(",", " ").replace(";", " ").split())
+        email = p.get("email")
+        if email:
+            people.append(f"{name} <{email}>" if name else email)
+        elif name:
+            people.append(name)
+    if people:
+        head.append("Attendees: " + ", ".join(people))
+    body = (vtt or "").lstrip("\ufeff")
     return ("\n".join(head) + "\n\n" + body) if head else body
 
 
@@ -875,6 +917,39 @@ async def _claim(db: AsyncIOMotorDatabase, key: str, base: dict) -> bool:
                                  {"state": "processing", "at": {"$lt": now - PROCESSING_STALE}}]},
             {"$set": {**base, "state": "processing", "at": now}})
         return res.modified_count > 0
+
+
+async def _touch(db: AsyncIOMotorDatabase, key: str) -> None:
+    """Still working on it (the lease :data:`PROCESSING_STALE` starts again)."""
+    await db[MEETINGS].update_one({"_id": key, "state": "processing"}, {"$set": {"at": now_utc()}})
+
+
+INTERRUPTED = "Markdrop was interrupted importing this meeting a few times. Import it again from Import past meetings."
+
+
+async def reclaim(db: AsyncIOMotorDatabase, *, limit: int = 50) -> int:
+    """Meetings left ``processing`` by a stopped process (a restart mid-import): back to ``waiting``, due
+    now, ``tries`` + 1 (the zoom loop imports them again: zoom_media.run_waiting); after
+    zoom_media.MAX_TRIES of those it is ``failed`` with a reason. How many were reclaimed."""
+    from app.services import zoom_media
+
+    now = now_utc()
+    n = 0
+    async for row in db[MEETINGS].find({"state": "processing", "at": {"$lt": now - PROCESSING_STALE}},
+                                       {"at": 1, "tries": 1, "workspace_id": 1}).limit(limit):
+        tries = int(row.get("tries") or 0) + 1
+        sets: dict[str, Any] = {"tries": tries, "at": now}
+        if tries >= zoom_media.MAX_TRIES:
+            sets.update(state="failed", reason=INTERRUPTED, due_at=None)
+        else:
+            sets.update(state="waiting", due_at=now, reason=None)
+        res = await db[MEETINGS].update_one({"_id": row["_id"], "state": "processing", "at": row.get("at")}, {"$set": sets})
+        if res.modified_count:
+            n += 1
+            log.info("zoom: reclaimed a meeting left processing (%s, try %d)", sets["state"], tries)
+            if sets["state"] == "failed" and row.get("workspace_id"):
+                await _count(db, row["workspace_id"], "failed", {"last_error": INTERRUPTED})
+    return n
 
 
 async def _finish(db: AsyncIOMotorDatabase, key: str, state: str, **extra) -> None:
@@ -959,13 +1034,15 @@ async def handle_recording(db: AsyncIOMotorDatabase, workspace_id: str, obj: dic
         if user is None:
             raise HTTPException(status_code=404, detail="The host's Markdrop account is gone.")
         host_named = {"name": member.get("name") or (host or {}).get("name"), "email": member.get("email")}
-        names = await participants(db, conn, uuid)
+        people = await participants(db, conn, uuid)
+        await _touch(db, key)
         if source == "transcribe":
             vtt = await zoom_media.transcribe(db, conn, obj, host_name=host_named.get("name"), user_id=member["id"],
-                                              participants=names)
+                                              participants=names_of(people))
         else:
             vtt = await download(db, conn, tf["download_url"], download_token)
-        inc = meetings.Incoming(name=f"{base['topic']}.vtt", text=transcript_text(vtt, names, host_named), origin="zoom",
+        await _touch(db, key)
+        inc = meetings.Incoming(name=f"{base['topic']}.vtt", text=transcript_text(vtt, people, host_named), origin="zoom",
                                 file_id=f"zoom:{uuid}", owner=host_named)
         tok = team_routing.chosen.set(([conn["team_id"]], []))
         try:
@@ -1014,6 +1091,71 @@ async def handle_recording(db: AsyncIOMotorDatabase, workspace_id: str, obj: dic
         await _count(db, workspace_id, source)
     return {"status": status_, "meeting_id": str(row["_id"]), "slug": row.get("slug"),
             "recording": await zoom_media.queue_copy(db, conn, key, obj, row["_id"])}
+
+
+# ── One-off: attendees' addresses for meetings imported before they were kept (2026-11-17) ──
+
+
+async def backfill_attendee_emails(db: AsyncIOMotorDatabase, workspace_id: str, *, apply: bool = False,
+                                   on_row=None) -> dict:
+    """scripts/zoom_backfill_attendee_emails.py: for the workspace's imported Zoom meetings, ask Zoom
+    who joined again and put each address Zoom gives on the attendee with that name who has none.
+    Nothing else changes (no attendee added or removed, no names, no members matched). Dry run unless
+    ``apply``. Counts."""
+    from app.services import meeting_parse as mp
+    from app.services import meetings
+
+    conn = await get(db, workspace_id)
+    if not is_connected(conn):
+        raise ValueError("Zoom isn't connected to this workspace.")
+    out = {"meetings": 0, "changed": 0, "emails": 0, "no_participants": 0, "gone": 0}
+    async for z in db[MEETINGS].find({"workspace_id": workspace_id, "state": {"$in": list(DONE)}},
+                                     {"uuid": 1}).sort("created_at", 1):
+        uuid = str(z.get("uuid") or "")
+        row = await db[meetings.COLL].find_one({"workspace_id": workspace_id, "sources.file_id": f"zoom:{uuid}"},
+                                               {"attendees": 1, "title": 1, "date": 1})
+        if not uuid or row is None:
+            out["gone"] += 1
+            continue
+        out["meetings"] += 1
+        try:
+            people = await participants(db, conn, uuid)
+        except ZoomUnavailable as exc:
+            log.info("zoom: backfill: participants unavailable: %s", exc)
+            people = []
+        by_name: dict[str, str] = {}
+        for p in people:
+            if not (p.get("email") and p.get("name")):
+                continue
+            for n in {p["name"], (mp.person_of(p["name"]) or {}).get("name") or ""}:
+                if n:
+                    by_name.setdefault(n.casefold(), p["email"])
+        if not people:
+            out["no_participants"] += 1
+        att = list(row.get("attendees") or [])
+        taken = {(a.get("email") or "").lower() for a in att if a.get("email")}
+        sets: dict[str, Any] = {}
+        match: dict[str, Any] = {}
+        for i, a in enumerate(att):
+            if a.get("email") or not a.get("name"):
+                continue
+            email = by_name.get(a["name"].casefold())
+            if email and email not in taken:
+                taken.add(email)
+                sets[f"attendees.{i}.email"] = email
+                match[f"attendees.{i}.name"] = a["name"]
+        if sets:
+            out["changed"] += 1
+            out["emails"] += len(sets)
+            if apply:
+                res = await db[meetings.COLL].update_one({"_id": row["_id"], **match}, {"$set": sets})
+                if res.modified_count == 0:     # its attendees changed meanwhile: left alone
+                    out["changed"] -= 1
+                    out["emails"] -= len(sets)
+                    sets = {}
+        if on_row is not None:
+            on_row(row, sets)
+    return out
 
 
 # ── Import past meetings ──────────────────────────────────────────────────────
