@@ -440,3 +440,41 @@ func TestWorkspaceTools(t *testing.T) {
 		t.Errorf("viewer upload: %q", resultText(res))
 	}
 }
+
+func TestUploadFolderTool(t *testing.T) {
+	e := newFilesEnv(t, fakeapi.Token)
+	e.fake.AddAcme()
+	cs, _ := connectWithProgress(t, e.mgr)
+	ctx := context.Background()
+	e.file(t, "Exports/q3.pdf", 3000)
+	e.file(t, "Exports/decks/kickoff.pdf", 2000)
+	res, out, err := callWithProgress(t, ctx, cs, "upload_folder", map[string]any{
+		"path": "~/Exports", "workspace": "Acme", "folder": "guides"}, nil)
+	if err != nil || res.IsError {
+		t.Fatalf("upload_folder: %v %s", err, resultText(res))
+	}
+	fl := out["files"].([]any)
+	if out["done"] != 2.0 || out["failed"] != 0.0 || len(fl) != 2 {
+		t.Fatalf("out %v", out)
+	}
+	deck := fl[0].(map[string]any)
+	if deck["path"] != "decks/kickoff.pdf" || deck["folder"] != "guides/decks" ||
+		!strings.HasPrefix(deck["url"].(string), "https://docs.acme.test/guides/decks/") {
+		t.Errorf("deck %v", deck)
+	}
+	if e.fake.BatchCreates != 1 || e.fake.BatchCompletes != 1 {
+		t.Errorf("batch calls %d/%d", e.fake.BatchCreates, e.fake.BatchCompletes)
+	}
+	if !strings.Contains(resultText(res), "Published 2 of 2 file(s)") {
+		t.Errorf("text %q", resultText(res))
+	}
+	// A folder holding secrets is refused; a file is not a folder.
+	res, _, _ = callWithProgress(t, ctx, cs, "upload_folder", map[string]any{"path": "~/work/app"}, nil)
+	if !res.IsError || !strings.Contains(resultText(res), "refused to upload") {
+		t.Errorf("secret folder: %q", resultText(res))
+	}
+	res, _, _ = callWithProgress(t, ctx, cs, "upload_folder", map[string]any{"path": "~/Exports/q3.pdf"}, nil)
+	if !res.IsError || !strings.Contains(resultText(res), "use upload_file") {
+		t.Errorf("file: %q", resultText(res))
+	}
+}

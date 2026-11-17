@@ -57,9 +57,18 @@ func newUploadCmd() *cobra.Command {
 	var ff fileFlags
 	var title, access, password, workspace, folder, slug string
 	c := &cobra.Command{
-		Use:   "upload <path>",
-		Short: "Publish a file (video, PDF, HTML, …) and print its link",
+		Use:   "upload <file|folder>",
+		Short: "Publish a file (video, PDF, HTML, …) or every file in a folder, and print the link(s)",
 		Long: `Upload a file from this computer and publish it on Markdrop. Prints the link.
+
+  Give a folder to publish every file in it (recursively, hidden files
+  skipped) in one go: one call opens all the uploads, the files are sent,
+  one call publishes them. With --workspace, its sub-folders become folders
+  of the workspace under --folder (created when missing), and each file gets
+  the folder's "new items start as" access unless --access says otherwise.
+  Prints one "<link>  <path>" line per file; one file failing doesn't stop
+  the others (the command then exits non-zero). --title and --slug are for
+  a single file.
 
   The file is hashed (sha256), sent in parts (4 at a time, retried on
   errors) and verified by the server before it goes live. If the upload is
@@ -80,10 +89,23 @@ Examples:
   markdrop upload deck.html --access password --password hunter2
   markdrop upload spec.pdf --workspace Acme --folder guides/setup
   url=$(markdrop upload clip.mp4)        # stdout is just the link
-  markdrop upload clip.mp4 --json        # {"url":…,"markdrop_url":…,"slug":…,…}`,
+  markdrop upload clip.mp4 --json        # {"url":…,"markdrop_url":…,"slug":…,…}
+  markdrop upload ./deck-exports --workspace Acme --folder sales/q3 --access private`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			access = strings.ToLower(strings.TrimSpace(access))
+			if fi, err := os.Stat(args[0]); err == nil && fi.IsDir() {
+				if title != "" || slug != "" {
+					return errors.New("--title and --slug are for a single file, not a folder")
+				}
+				if access == "" && password != "" {
+					access = "password"
+				}
+				return runUploadDir(cmd, ff, files.DirOptions{
+					Path: args[0], Access: access, Password: password, Workspace: workspace,
+					Folder: strings.Trim(strings.TrimSpace(folder), "/"),
+				})
+			}
 			switch {
 			case access == "" && password != "":
 				access = "password"
@@ -122,6 +144,82 @@ Examples:
 	c.Flags().StringVar(&folder, "folder", "", "an existing folder of --workspace: its path (guides/setup) or id")
 	c.Flags().StringVar(&slug, "slug", "", "custom address: markdrop.in/<slug> (3-50 letters, digits, - or _)")
 	return c
+}
+
+// runUploadDir publishes every file of a folder with the batch API.
+func runUploadDir(cmd *cobra.Command, ff fileFlags, opts files.DirOptions) error {
+	switch opts.Access {
+	case "", "link", "private", "password", "workspace":
+	default:
+		return fmt.Errorf("--access must be link, private, password or workspace (got %q)", opts.Access)
+	}
+	if opts.Access == "password" && opts.Password == "" {
+		return errors.New("--access password needs --password")
+	}
+	if opts.Access == "workspace" && opts.Workspace == "" {
+		return errors.New("--access workspace needs --workspace")
+	}
+	if opts.Folder != "" && opts.Workspace == "" {
+		return errors.New("--folder needs --workspace")
+	}
+	client, err := apiClient(ff.token)
+	if err != nil {
+		return err
+	}
+	out, errw := cmd.OutOrStdout(), cmd.ErrOrStderr()
+	ctx, cancel := signal.NotifyContext(cmdContext(cmd), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	if opts.Workspace != "" {
+		ws, err := client.ResolveWorkspace(ctx, opts.Workspace)
+		if err != nil {
+			return err
+		}
+		opts.Workspace = ws.ID
+	}
+	bar := &progressLine{w: errw, tty: stderrIsTTY(errw)}
+	opts.OnProgress = bar.update
+	opts.OnNotice = bar.notice
+	opts.OnFile = func(i, total int, rel string) {
+		if bar.tty {
+			bar.notice(fmt.Sprintf("[%d/%d] %s", i+1, total, rel))
+		}
+	}
+	res, err := newUploader(client).UploadDir(ctx, opts)
+	bar.clear()
+	if err != nil && res == nil {
+		return err
+	}
+	if ff.json {
+		raw, jerr := json.Marshal(res)
+		if jerr != nil {
+			return jerr
+		}
+		if perr := printJSON(out, raw); perr != nil {
+			return perr
+		}
+	} else {
+		for _, f := range res.Files {
+			if f.Error == "" && f.URL != "" {
+				fmt.Fprintf(out, "%s\t%s\n", f.URL, f.Path)
+			}
+		}
+		for _, f := range res.Files {
+			if f.Error != "" {
+				fmt.Fprintf(errw, "  ✗ %s: %s\n", f.Path, f.Error)
+			}
+		}
+		fmt.Fprintf(errw, "  ✓ Published %d of %d file(s)\n", res.Done, len(res.Files))
+	}
+	if err != nil {
+		if ctx.Err() != nil {
+			return errors.New("interrupted; run the same command again to resume")
+		}
+		return err
+	}
+	if res.Failed > 0 {
+		return fmt.Errorf("%d of %d file(s) were not published", res.Failed, len(res.Files))
+	}
+	return nil
 }
 
 var customSlugRE = regexp.MustCompile(`^[A-Za-z0-9_-]{3,50}$`)
