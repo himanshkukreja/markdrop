@@ -1,6 +1,6 @@
 ---
 title: Import from Notion
-description: Connect Notion and import the pages you choose, kept in sync one way, or bring in a Notion export file. Pages, sub-pages, databases, images and links come over into a team or My files.
+description: Connect Notion and import the pages you choose, kept in sync one way, or bring in a Notion export file, into a team or My files.
 updated: 2026-11-19
 prerequisites: [/pages/overview]
 keywords: [notion, import, import from notion, connect notion, keep in sync, sync from notion, sync now, edited in markdrop, disconnect notion, migrate, migration, move from notion, export, markdown & csv, zip, database, databases, csv, sub-pages, re-import, merge, import_notion, get_notion_import, notion_status, notion_sync]
