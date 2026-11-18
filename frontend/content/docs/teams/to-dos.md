@@ -6,7 +6,7 @@ nav: To-do pages
 keywords: [to-dos, todos, to do list, my to-dos, action items, personal to-do page, per person, per company, hubspot company, internal, tick, check off, sync, two-way, team leads, private, backfill, my_todos, team_todos, tick_todo]
 ---
 
-Every member of a team (not General) gets one page, **"<Name> — To-dos"**, with their action items from the team's calls. Markdrop keeps it up to date after every call in the team, including imported, Zoom and Google Meet calls, and whenever someone changes a call's action items.
+Every member of a team (not General) gets one page, **"Your Name — To-dos"**, with their action items from the team's calls. Markdrop keeps it up to date after every call in the team, including imported, Zoom and Google Meet calls, and whenever someone changes a call's action items.
 
 ## What's on the page
 
