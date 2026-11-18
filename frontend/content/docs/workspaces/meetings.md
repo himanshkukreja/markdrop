@@ -100,7 +100,7 @@ The **Ask anything about your meetings** box above the list opens [Ask](/workspa
 
 Workspace admins also see a card for each meeting restricted to attendees they weren't part of, without its title, so they can delete it.
 
-![The Meetings page on a phone: Import meeting and the ⋯ menu (Check for new meetings is in it), Google Meet connected with how the script's last run went, the Ask box, search, sort, series chips, and the newest meeting marked Auto.](/docs-assets/workspaces/meetings/hub-phone.webp)
+![Meetings on a phone: Import meeting and the ⋯ menu, Google Meet connected with its last import, the Ask box and suggested questions, the All, To review, With customers and Internal tabs, the Team filter, search, sort and series chips.](/docs-assets/workspaces/meetings/hub-phone.webp)
 
 ![The Meetings page: search, sort and the series to filter by above the meetings, listed by month with their cover and date, summary, people and counts.](/docs-assets/workspaces/meetings-import/organised.webp)
 

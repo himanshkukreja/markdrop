@@ -93,4 +93,14 @@ export default [
     crop: main(1040) },
   { id: "deal-calls", page: "/integrations/hubspot", name: "deal-calls", url: `/deals/${WS}/${D0.id}?tab=calls`, viewport: { width: 1440, height: 900 },
     storage: rail(["t_sales"]), prepare: text("Log to HubSpot"), crop: main(760) },
+
+  // ── Folders, Meetings on a phone ──
+  { id: "folders-overview", page: "/workspaces/folders", name: "folders-overview", url: `/w/${WS}/f/f_play`, viewport: { width: 1440, height: 760 },
+    storage: rail(["t_sales"]), prepare: text("Discovery questions"), crop: full(640) },
+  { id: "meetings-phone", page: "/workspaces/meetings", name: "hub-phone", url: `/meetings/${WS}?space=all`, viewport: { width: 390, height: 844 }, mobile: true,
+    prepare: text("Northwind — pricing and rollout plan") },
+  { id: "teams-project", page: "/teams/share-and-projects", name: "project", url: `/w/${WS}/projects/q4-launch`, viewport: { width: 1440, height: 760 },
+    storage: rail([], false), prepare: text("Release checklist 2.6"), crop: full(660) },
+  { id: "tour-my-files", page: "/get-started/tour", name: "my-files", url: "/dashboard/files", viewport: { width: 1440, height: 820 },
+    storage: rail([], false), prepare: text("Board deck Q4"), crop: main(700, 1428) },
 ];

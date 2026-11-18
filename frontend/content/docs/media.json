@@ -1176,15 +1176,15 @@
     "kind": "image"
   },
   "/docs-assets/get-started/tour/my-files.dark.webp": {
-    "w": 2760,
+    "w": 2360,
     "h": 1400,
-    "bytes": 106716,
+    "bytes": 97254,
     "kind": "image"
   },
   "/docs-assets/get-started/tour/my-files.webp": {
-    "w": 2760,
+    "w": 2360,
     "h": 1400,
-    "bytes": 108824,
+    "bytes": 100920,
     "kind": "image"
   },
   "/docs-assets/get-started/tour/sidebar.dark.webp": {
@@ -3597,14 +3597,14 @@
   },
   "/docs-assets/teams/share-and-projects/project.dark.webp": {
     "w": 2880,
-    "h": 1280,
-    "bytes": 67136,
+    "h": 1320,
+    "bytes": 99588,
     "kind": "image"
   },
   "/docs-assets/teams/share-and-projects/project.webp": {
     "w": 2880,
-    "h": 1280,
-    "bytes": 67602,
+    "h": 1320,
+    "bytes": 101212,
     "kind": "image"
   },
   "/docs-assets/teams/share-and-projects/share-flow.mp4": {
@@ -4397,15 +4397,15 @@
     "kind": "poster"
   },
   "/docs-assets/workspaces/folders/folders-overview.dark.webp": {
-    "w": 2720,
+    "w": 2880,
     "h": 1280,
-    "bytes": 87016,
+    "bytes": 96668,
     "kind": "image"
   },
   "/docs-assets/workspaces/folders/folders-overview.webp": {
-    "w": 2720,
+    "w": 2880,
     "h": 1280,
-    "bytes": 87580,
+    "bytes": 97080,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-ask/ask-across.dark.webp": {
@@ -4595,13 +4595,13 @@
   "/docs-assets/workspaces/meetings/hub-phone.dark.webp": {
     "w": 780,
     "h": 1688,
-    "bytes": 67758,
+    "bytes": 56688,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings/hub-phone.webp": {
     "w": 780,
     "h": 1688,
-    "bytes": 69256,
+    "bytes": 57014,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings/meeting-details.dark.webp": {

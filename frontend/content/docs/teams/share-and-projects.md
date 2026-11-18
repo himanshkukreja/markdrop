@@ -37,6 +37,6 @@ The Share dialog reminds you when an item is in a private team.
 
 A project is a space that several teams work on together, like "Q4 launch": its own pages and meetings, and the memory of every team in it. It appears on the home of each of its teams, and members of those teams can all contribute.
 
-![The Q4 launch project: its pages and meetings, and the memory of the Sales, Marketing and Engineering teams it belongs to.](/docs-assets/teams/share-and-projects/project.webp)
+![The Q4 launch project in Acme, a project of Sales, Marketing and Engineering: its pages and meetings, the memory lines from its teams, and its teams and people.](/docs-assets/teams/share-and-projects/project.webp)
 
 Admins and the leads of a team create a project from the team's home (**Projects › New project**). Choose its teams, and add people from outside them if you need to. Put pages in it from their **Share** dialog, like a team.

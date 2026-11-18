@@ -43,6 +43,7 @@ export const teamsSidebar = {
   teams: [teams.general, teams.sales, teams.marketing, teams.eng],
   projects: [], browse: { open: 0, private: 0 }, suggested: [], review: null,
 };
+let _projectsAdded = false;
 
 /* ── Meetings ── */
 const A = (...names) => names.map((n) => ({ name: n, user_id: Object.values(people).find((x) => x.name === n)?.id ?? null }));
@@ -334,6 +335,66 @@ export const generalHome = {
   ],
 };
 
+
+/* ── Folder contents and card previews ── */
+const inFolder = (fid, name) => ({ folder: { id: fid, name, path: name } });
+export const folderItems = {
+  f_play: [
+    item("q4-pricing-playbook", "Q4 pricing playbook", { icon: "📘", updated_at: iso(0, 2), ...inFolder("f_play", "Playbooks") }),
+    item("renewal-playbook", "Renewal playbook", { icon: "🔁", updated_at: iso(3), ...inFolder("f_play", "Playbooks") }),
+    item("discovery-questions", "Discovery questions", { icon: "❓", updated_at: iso(6), owner: { name: "Hana Kim", is_you: false }, ...inFolder("f_play", "Playbooks") }),
+  ],
+};
+const PREVIEW_TEXT = {
+  "q4-pricing-playbook": [{ t: "h1", x: "Q4 pricing playbook" }, { t: "p", x: "How we price renewals, expansions and multi-year deals this quarter." }, { t: "h2", x: "Discounts" }, { t: "li", x: "Two-year renewals: up to 15% off" }, { t: "li", x: "Three-year: up to 20%, with CFO sign-off" }],
+  "renewal-playbook": [{ t: "h1", x: "Renewal playbook" }, { t: "p", x: "Start every renewal 90 days out. The account owner runs it; CS joins the second call." }, { t: "h2", x: "90 days out" }, { t: "todo", x: "Usage review with the champion" }, { t: "todo", x: "Confirm the budget owner" }],
+  "discovery-questions": [{ t: "h1", x: "Discovery questions" }, { t: "p", x: "Ask these on every first call, in this order." }, { t: "li", x: "How do you hire today, and what breaks?", n: 1 }, { t: "li", x: "Who signs, and when does the budget reset?", n: 2 }],
+  "enterprise-demo-script": [{ t: "h1", x: "Enterprise demo script" }, { t: "p", x: "30 minutes: the story, the product, the proof." }, { t: "h2", x: "1. The story (5 min)" }, { t: "li", x: "Their hiring today, in their words" }],
+};
+export function previews(slugs) {
+  const out = {};
+  for (const sl of slugs || []) {
+    if (PREVIEW_TEXT[sl]) out[sl] = { state: "ok", type: "page", blocks: PREVIEW_TEXT[sl] };
+    else if (/proposal|battlecards/.test(sl)) out[sl] = { state: "ok", type: "pdf", pages: 12, blocks: [{ t: "h1", x: sl.includes("battle") ? "Competitive battlecards" : "Proposal 2027" }, { t: "p", x: "Prepared for the leadership team · November 2026" }] };
+    else out[sl] = { state: "ok", type: "none" };
+  }
+  return out;
+}
+
+
+export const project = { id: "p_q4", name: "Q4 launch", slug: "q4-launch", icon: "🚀", color: "amber", description: "Everything for the 1 December launch: pricing, campaign and the release.",
+  team_ids: ["t_sales", "t_mkt", "t_eng"], visibility: "open", status: "active", member_count: 6, my_role: "lead", can_read: true, can_manage: true };
+export const projectHome = {
+  project: { ...project, members: [P("riya"), P("maya"), P("sam"), P("alex"), P("diego"), P("hana")].map((x, i) => ({ ...x, role: i === 0 ? "lead" : "member" })),
+    teams: [teams.sales, teams.marketing, teams.eng] },
+  recent: [item("q4-launch-plan", "Q4 launch plan", { icon: "🚀", updated_at: iso(0, 3) }), item("launch-pricing-page", "Launch pricing page copy", { icon: "💬", updated_at: iso(1), owner: { name: "Maya Patel", is_you: false } }),
+    item("release-checklist", "Release checklist 2.6", { icon: "✅", updated_at: iso(2), owner: { name: "Sam Lee", is_you: false } })],
+  meetings: [meeting("Q4 launch sync", 1, { time: "11:00", series: "Q4 launch sync", attendees: A("Riya Sharma", "Maya Patel", "Sam Lee", "Diego Alvarez"), summary: "Pricing page copy is final; the release freezes on 26 November.", deal: null, team_ids: ["t_mkt"], teams: [{ id: "t_mkt", name: "Marketing", color: "pink", icon: "📣" }] })],
+  memory: { highlights: [
+    { text: "Pricing page copy is final; legal review on Monday.", kind: "update", person: P("maya"), source: { title: "Q4 launch sync", href: "/q4-launch-sync" } },
+    { text: "Release 2.6 freezes on 26 November.", kind: "decision", person: P("sam"), source: { title: "Q4 launch sync", href: "/q4-launch-sync" } },
+    { text: "Brief the top 20 customers before the 4 December webinar.", kind: "focus", person: P("riya"), source: { title: "Weekly pipeline review", href: "/weekly-pipeline-review-2" } },
+  ], people: [P("riya"), P("maya"), P("sam")].map((x) => ({ ...x, status: null })) },
+};
+
+
+/* ── My files ── */
+const mydoc = (slug, title, kind, extra = {}) => ({
+  id: `md_${slug}`, slug, url: `https://markdrop.in/${slug}`, title, content_preview: "", created_at: iso(30), updated_at: iso(2), expires_at: null,
+  views: 12, export_pdf_count: 0, copy_url_count: 3, is_password_protected: false, kind, editor: null, mime: null, renderer: null, type_label: null,
+  size_bytes: null, original_filename: null, workspace_id: WS, folder_id: null, folder_path: [], access_level: "workspace", shared_with_count: 0, is_mine: true, ...extra,
+});
+export const myDocs = [
+  mydoc("q4-pricing-playbook", "Q4 pricing playbook", "markdown", { editor: "blocks", updated_at: iso(0, 2), views: 48, folder_id: "f_play", folder_path: ["Playbooks"] }),
+  mydoc("northwind-proposal-2027", "Northwind proposal 2027", "artifact", { mime: "application/pdf", renderer: "pdf", type_label: "PDF", size_bytes: 2_400_000, original_filename: "northwind-proposal-2027.pdf", views: 23, folder_id: "f_prop", folder_path: ["Proposals"], access_level: "link" }),
+  mydoc("product-demo", "Product demo", "artifact", { mime: "video/mp4", renderer: "video", type_label: "Video", size_bytes: 48_000_000, original_filename: "product-demo.mp4", views: 131, updated_at: iso(3), access_level: "link" }),
+  mydoc("q4-forecast", "Q4 forecast", "artifact", { mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", renderer: "sheet", type_label: "Spreadsheet", size_bytes: 84_000, original_filename: "q4-forecast.xlsx", views: 17, updated_at: iso(4) }),
+  mydoc("board-deck-q4", "Board deck Q4", "artifact", { mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation", renderer: "pptx", type_label: "PowerPoint", size_bytes: 6_100_000, original_filename: "board-deck-q4.pptx", views: 9, updated_at: iso(5), access_level: "private" }),
+  mydoc("pricing-calculator", "Pricing calculator", "artifact", { mime: "text/html", renderer: "html", type_label: "HTML", size_bytes: 38_000, original_filename: "pricing.html", views: 64, folder_id: "f_enable", folder_path: ["Enablement"], updated_at: iso(6) }),
+  mydoc("offsite-agenda", "Offsite agenda", "markdown", { views: 7, updated_at: iso(8), workspace_id: null, access_level: "link" }),
+  mydoc("logo-refresh", "Logo refresh", "artifact", { mime: "image/png", renderer: "image", type_label: "Image", size_bytes: 420_000, original_filename: "logo-refresh.png", views: 5, updated_at: iso(9), workspace_id: null, access_level: "link" }),
+];
+
 const workspaces = [workspace];
 
 /** Extra handlers per shot (set by shoot.mjs): [regex or string, fn(url, method, req) → body]. */
@@ -349,12 +410,21 @@ export function answer(u, method = "GET", req) {
   if (p === "/api/v1/auth/me") return user;
   if (p === "/api/v1/workspaces") return { workspaces };
   if (p === `/api/v1/workspaces/${WS}`) return workspace;
-  if (p === `/api/v1/workspaces/${WS}/teams`) return teamsSidebar;
+  if (p === `/api/v1/workspaces/${WS}/teams`) return { ...teamsSidebar, projects: [project] };
   if (p === `/api/v1/workspaces/${WS}/tree`) return { workspace: { id: WS, name: "Acme", role: "owner", primary_host: null, default_access: "workspace" }, folders, unfiled_count: 0, root_exposure: null };
   if (p === `/api/v1/workspaces/${WS}/teams/t_sales` || p === `/api/v1/workspaces/${WS}/teams/sales`) return salesHome;
+  if (p === `/api/v1/workspaces/${WS}/projects/p_q4` || p === `/api/v1/workspaces/${WS}/projects/q4-launch`) return projectHome;
+  if (p === `/api/v1/workspaces/${WS}/projects`) return { projects: [project] };
   if (p === `/api/v1/workspaces/${WS}/teams/t_gen` || p === `/api/v1/workspaces/${WS}/teams/general`) return generalHome;
   if (p === `/api/v1/workspaces/${WS}/teams/t_sales/briefs`) return { briefs: [{ id: "b1", week: "2026-W47", label: "Week of Nov 16", published_at: iso(1), line_count: 5 }] };
-  if (p === `/api/v1/workspaces/${WS}/items`) return { items: salesItems, next_cursor: null };
+  if (p === `/api/v1/workspaces/${WS}/items`) {
+    const f = u.searchParams.get("folder") || u.searchParams.get("folder_id");
+    return { items: f ? (folderItems[f] || []) : salesItems, next_cursor: null };
+  }
+  if (method === "POST" && (p === `/api/v1/workspaces/${WS}/items/previews` || p === "/api/v1/me/previews")) {
+    let slugs = []; try { slugs = req.postDataJSON().slugs; } catch { /* none */ }
+    return { previews: previews(slugs) };
+  }
   if (p === "/api/v1/meetings/status") return meetStatus;
   if (p === "/api/v1/meetings/connection") return meetConnection;
   if (p === "/api/v1/meetings/backfill") return { jobs: [] };
@@ -372,6 +442,9 @@ export function answer(u, method = "GET", req) {
   if (p === "/api/v1/me/shared") return { items: [], next_cursor: null };
   if (p === "/api/v1/me/recent") return { items: recent };
   if (p === "/api/v1/home") return home;
+  if (p === "/api/v1/me/documents") return { documents: myDocs, total: myDocs.length, page: 1, pages: 1, count_all: myDocs.length, count_markdown: 2, count_artifact: 6,
+    count_by_type: { document: 2, pdf: 1, video: 1, image: 1, sheet: 1, slides: 1, html: 1 } };
+  if (p === "/api/v1/google/status") return { connected: false, configured: true };
   if (p === "/api/v1/ask/home") return { status: { enabled: true, reason: null, message: null }, suggestions: [], recent: [] };
   if (p === "/api/v1/notifications/unread-count") return { unread_count: 1 };
   if (p === `/api/v1/workspaces/${WS}/favorites`) return { favorites: [{ kind: "doc", ref: "d_playbook", title: "Q4 pricing playbook", href: "/q4-pricing-playbook", icon: "📘", doc_kind: "page", editor: "blocks" }, { kind: "team", ref: "t_sales", title: "Sales", href: `/w/${WS}/teams/sales`, icon: "💼", color: "green" }] };

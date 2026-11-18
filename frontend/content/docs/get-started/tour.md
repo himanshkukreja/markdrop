@@ -73,7 +73,7 @@ Your own documents and files are in **My files** in the sidebar.
 
 Each row in **My files** has a **Copy link** button and a menu with **Open**, **Edit** (documents only), **Analytics**, **Share…**, **Change URL** and **Delete**, plus **Move to folder…** or **Add to a workspace…** where they apply. On a phone, **Copy link** is in the menu instead.
 
-![My files with the type chips (All, Documents, PDFs, Videos, Images, Sheets, Slides, Word, HTML & sites and Other, each with its count), and rows showing each title, its folder, its link, views, who can open it and Copy link.](/docs-assets/get-started/tour/my-files.webp)
+![My files with the type chips (All, Documents, PDFs, Videos, Images, Sheets, Slides and HTML & sites, each with its count), and rows showing each title, its workspace and folder, its type, link, views and age, who can open it, Copy link and the row's menu.](/docs-assets/get-started/tour/my-files.webp)
 
 ### Filter by type
 
