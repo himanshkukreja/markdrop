@@ -13,6 +13,8 @@
     POST   /api/v1/workspaces/{ws}/teams/suggested/{group}/accept   DELETE …/suggested/{group}
     GET|PUT /api/v1/workspaces/{ws}/items/{doc_id}/teams        an item's teams / projects (move, share)
     PUT    /api/v1/workspaces/{ws}/folders/{folder_id}/teams    a folder's teams (+ its items)
+    GET|POST /api/v1/workspaces/{ws}/folders/{folder_id}/move-to-team   move a folder to another team (preview, move)
+    GET    /api/v1/workspaces/{ws}/folders/{folder_id}/move-to-team/job progress of a big move
     GET|POST /api/v1/workspaces/{ws}/projects                   GET|PATCH|DELETE …/projects/{project}
     GET    /api/v1/workspaces/{ws}/teams-review                 admins: the guided review; POST …/apply, POST …/done
     GET|PUT /api/v1/workspaces/{ws}/favorites                   your starred pages, files, projects and teams (sidebar)
@@ -149,6 +151,12 @@ class Favorite(BaseModel):
 
 class FolderTeams(ItemTeams):
     apply_to_items: bool = True
+
+
+class FolderMoveToTeam(BaseModel):
+    team: str = Field(..., min_length=1, max_length=80, description="The target team (id or slug).")
+    parent_id: Optional[str] = Field(None, max_length=40, description="Optional: a folder of the target team to "
+                                     "put it in. Default: where it is when its parent is in that team, else the top.")
 
 
 class ProjectCreate(BaseModel):
@@ -584,6 +592,52 @@ async def put_folder_teams(request: Request, workspace_id: str, folder_id: str, 
     try:
         return jsonable_encoder(await T.set_folder_teams(db, actor, ctx, workspace_id, folder_id, body.team_ids,
                                                          body.project_ids, body.apply_to_items))
+    except T.Refused as exc:
+        raise _err(exc)
+
+
+@router.get("/{workspace_id}/folders/{folder_id}/move-to-team", summary="Teams: preview moving a folder to a team")
+@limiter.limit("120/minute")
+async def preview_folder_move(request: Request, workspace_id: str, folder_id: str, team: str,
+                              parent_id: Optional[str] = None,
+                              db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """What moving the folder (with everything in it) to ``team`` would do: counts of pages, documents and
+    files, how many workspace-visible items become visible to that team only, private items (stay private),
+    items shared with people (keep it), public links (keep working, listed) and whether the caller may."""
+    from app.services import folder_move
+
+    actor, ctx, _view, _role = await _ctx(request, db, user, workspace_id)
+    try:
+        return jsonable_encoder(await folder_move.preview(db, actor, ctx, workspace_id, folder_id, team, parent_id))
+    except T.Refused as exc:
+        raise _err(exc)
+
+
+@router.post("/{workspace_id}/folders/{folder_id}/move-to-team", summary="Teams: move a folder to another team")
+@limiter.limit("20/minute")
+async def move_folder_to_team(request: Request, workspace_id: str, folder_id: str, body: FolderMoveToTeam,
+                              db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """Move the folder and everything below it into ``team``'s Files & pages. Workspace admins, or a lead of the
+    folder's team who is also in the target team. Large folders finish in the background: ``job`` has the
+    progress (poll ``…/move-to-team/job``)."""
+    from app.services import folder_move
+
+    actor, ctx, _view, _role = await _ctx(request, db, user, workspace_id)
+    try:
+        return jsonable_encoder(await folder_move.move(db, actor, ctx, workspace_id, folder_id, body.team, body.parent_id))
+    except T.Refused as exc:
+        raise _err(exc)
+
+
+@router.get("/{workspace_id}/folders/{folder_id}/move-to-team/job", summary="Teams: progress of a folder move")
+@limiter.limit("240/minute")
+async def folder_move_job(request: Request, workspace_id: str, folder_id: str,
+                          db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    from app.services import folder_move
+
+    actor, ctx, _view, _role = await _ctx(request, db, user, workspace_id)
+    try:
+        return jsonable_encoder(await folder_move.status(db, actor, ctx, workspace_id, folder_id))
     except T.Refused as exc:
         raise _err(exc)
 

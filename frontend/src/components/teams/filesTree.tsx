@@ -51,6 +51,8 @@ export interface FilesCtx {
   copy: (href: string, label: string) => void;
   /** "Add to / Remove from favorites" for a row's ⋯ menu. */
   fav: (kind: FavoriteKind, ref: string, label: string, draft?: Partial<Favorite>) => MenuEntry;
+  /** "Move to team…" on a folder (workspace admins and the team's leads; the server decides the rest). */
+  moveToTeam?: ((folder: { id: string; name: string }) => void) | null;
 }
 
 /** A node's `sig` (see shareNodes): the values its row shows and its handlers use. */
@@ -159,7 +161,7 @@ export const isArchived = (f: Pick<TreeFolder, "name">) => ARCHIVED.test(f.name)
  * default), then the items at its top level. `onFiles` uploads files dropped on a folder.
  */
 export function teamFilesNodes(
-  c: FilesCtx, t: Pick<TeamCard, "id" | "general" | "my_role" | "can_admin" | "name">, tree: WorkspaceTree, nav: WorkspaceNav | null,
+  c: FilesCtx, t: Pick<TeamCard, "id" | "general" | "my_role" | "can_admin" | "can_manage" | "name">, tree: WorkspaceTree, nav: WorkspaceNav | null,
   onFiles: ((wsId: string, folderId: string | null, label: string, files: File[]) => void) | null,
 ): TreeNode[] {
   const { ws } = c;
@@ -183,7 +185,7 @@ export function teamFilesNodes(
     const blocked = admin ? [...descendants(tree.folders, f.id)] : [];
     return {
       key: filesFolderKey(ws.id, f.id),
-      sig: sig("f", f.name, f.parent_id, f.share?.level ?? null, !all.length, c.member, admin, blocked),
+      sig: sig("f", f.name, f.parent_id, f.share?.level ?? null, !all.length, c.member, admin, blocked, !!c.moveToTeam && (admin || t.can_manage)),
       label: f.name,
       icon: <Icon name="folder" size={16} />,
       href: folderHref(f.id),
@@ -203,6 +205,7 @@ export function teamFilesNodes(
         menu: [
           ...(c.member && inTeam ? [{ label: "New page here", icon: "plus", href: newPage(f.id) }] : []),
           { label: "Copy link", icon: "link", onClick: () => c.copy(folderHref(f.id), f.name) },
+          ...(c.moveToTeam && (admin || t.can_manage) ? [{ label: "Move to team…", icon: "users", onClick: () => c.moveToTeam?.({ id: f.id, name: f.name }) }] : []),
         ],
       },
     };

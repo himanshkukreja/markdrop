@@ -20,6 +20,7 @@ import { browseHref, getTeamHome, teamHref, type TeamCard, type TeamItem } from 
 import { TeamTile } from "./parts";
 import { Crumbs, ItemRow } from "./TeamHome";
 import { teamFilesNodes, type FilesCtx } from "./filesTree";
+import { MoveFolderDialog, type MoveFolderTarget } from "./MoveFolderDialog";
 import "./teams.css";
 
 const EXPANDED_KEY = "md_files_tree";
@@ -59,6 +60,7 @@ export function TeamFiles({ ws: wsId, team: teamRef }: { ws: string; team: strin
   const [found, setFound] = useState<TeamItem[] | null>(null);
   const [expanded, onToggle] = useOpenRows();
   const [wantPages, setWantPages] = useState<string[]>([]);
+  const [moving, setMoving] = useState<MoveFolderTarget | null>(null);
   const toast = useToast();
   const uploads = useUploads();
   useAssistantHere({ workspace: wsId });
@@ -112,7 +114,7 @@ export function TeamFiles({ ws: wsId, team: teamRef }: { ws: string; team: strin
     const want: string[] = [];
     if (!team || !tree || nav === undefined || nav === null || nav === false) return { nodes: null as TreeNode[] | null, want };
     const ws: Workspace = { id: wsId, name: tree.workspace.name, role: tree.workspace.role } as Workspace;
-    const c: FilesCtx = { ws, member: can(tree.workspace.role, "member"), expanded, want, copy, fav };
+    const c: FilesCtx = { ws, member: can(tree.workspace.role, "member"), expanded, want, copy, fav, moveToTeam: setMoving };
     const fresh = teamFilesNodes(c, team, tree, nav, onFiles);
     const { nodes, byKey } = shareNodes(fresh, prev.current);
     prev.current = byKey;
@@ -180,6 +182,9 @@ export function TeamFiles({ ws: wsId, team: teamRef }: { ws: string; team: strin
             )}
           </section>
         </>
+      )}
+      {team && tree && (
+        <MoveFolderDialog ws={wsId} folder={moving} fromTeam={team} onClose={() => setMoving(null)} admin={can(tree.workspace.role, "admin")} />
       )}
     </div>
   );

@@ -24,6 +24,26 @@
   "next": [],
   "entries": [
     {
+      "id": "teams-move-folder-to-team",
+      "date": "2026-11-19",
+      "title": "Teams: move a folder, with everything in it, to another team",
+      "kind": "new",
+      "area": "Teams",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Move to team… on a folder in a team's Files & pages moves its subfolders, pages, documents and files into another team. Before you confirm, it shows what moves and what happens to who can open it. Public links keep working.",
+      "body": "- **Where.** Open the **⋯** menu on a folder in a team's **Files & pages** and choose **Move to team…**.\n- **Who can open what.** Items visible to the whole workspace become visible to the new team only. Private items stay private. People an item was shared with keep it. Public links keep working, and the dialog lists them. The folder's access settings move with it: access given to the old team now goes to the new one.\n- **Who can move.** Workspace admins, or a lead of the folder's team who is also in the new team.\n- **Big folders** finish in the background with progress, and the move is listed in the folder's **Recent changes**.\n- **AI apps and the API.** The new `move_folder_to_team` MCP tool (with `dry_run` to preview) and `GET`/`POST /api/v1/workspaces/{id}/folders/{folder_id}/move-to-team`.",
+      "links": [
+        {
+          "label": "Move a folder to another team",
+          "href": "/teams/share-and-projects#move-a-folder-to-another-team"
+        }
+      ]
+    },
+    {
       "id": "pages-live-append-doubled",
       "date": "2026-11-18",
       "title": "Pages: an AI app's quick follow-up edit no longer doubles lines in an open editor",

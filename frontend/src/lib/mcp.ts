@@ -167,6 +167,7 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "create_folder", scope: "write" },
       { name: "rename_folder", scope: "write" },
       { name: "move_folder", scope: "write" },
+      { name: "move_folder_to_team", scope: "write" },
       { name: "delete_folder", scope: "write" },
       { name: "move_to_folder", scope: "write" },
     ],

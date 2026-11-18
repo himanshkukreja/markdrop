@@ -1,9 +1,9 @@
 ---
 title: Share across teams and projects
 description: Put pages in a team, several teams or a cross-team project. Private teams stay out of others' browsing and search; shares and links still work.
-updated: 2026-11-10
+updated: 2026-11-19
 nav: Share and projects
-keywords: [team pages, move to team, share to team, several teams, company-wide, new page in team, team folder, cross-team project, project space, q4 launch, private team sharing, link sharing, share dialog teams]
+keywords: [team pages, move to team, move folder to team, move a folder to another team, move_folder_to_team, public links kept, share to team, several teams, company-wide, new page in team, team folder, cross-team project, project space, q4 launch, private team sharing, link sharing, share dialog teams]
 ---
 
 Every page, document and file in a workspace is either in **General** (the team everyone is in) or in one or more other teams. A team's pages and files are in its **Files & pages**, from the sidebar.
@@ -20,6 +20,20 @@ Sub-pages follow their page. To add something to a team you need to be able to e
 ## Folders
 
 A folder can belong to a team too: things filed into it join that team unless they're in one already. Admins and the folder's owner set this.
+
+### Move a folder to another team
+
+In a team's **Files & pages**, open the **⋯** menu on a folder and choose **Move to team…**, then pick the team. The folder moves with everything in it: its subfolders, pages and their sub-pages, documents and files. Before anything changes, the dialog shows what moves and what happens to who can open it:
+
+- **Visible to the whole workspace** becomes **visible to the new team only**. If the new team is open, everyone in the workspace can still view it, as with any open team's pages.
+- **Private** items stay private.
+- People an item was **shared with by name** keep it.
+- **Public links keep working**, because customers or prospects may have them. The dialog lists them, so you can change any you no longer want public.
+- The folder's [access settings](/workspaces/folder-access) move with it. Access given to the old team now goes to the new one. If the folder was restricted by a folder it sat in, it keeps that restriction.
+
+If the folder's parent stays in the old team, the folder moves to the top of the workspace. Its old addresses on your domain redirect. A big folder finishes in the background: the dialog shows the progress and you can close it. The move is listed, with who made it, in the folder's **Recent changes** (**⋯ › Who can access…**).
+
+Workspace admins can move any folder. A team lead can move a folder of their team to another team they're in. Meetings folders and deal folders stay where they are.
 
 ## Private teams and sharing
 

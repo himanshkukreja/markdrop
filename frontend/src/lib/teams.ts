@@ -12,6 +12,8 @@
  *   POST   /teams/suggested/{gid}/accept  DELETE /teams/suggested/{gid}
  *   GET|PUT /items/{doc}/teams            move / share an item to teams + projects
  *   PUT    /folders/{fid}/teams
+ *   GET|POST /folders/{fid}/move-to-team   move a folder (and everything in it) to another team: preview, move
+ *   GET    /folders/{fid}/move-to-team/job progress of a big move
  *   GET|POST /projects   GET|PATCH|DELETE /projects/{pid}
  *   GET    /teams/{tid}/briefs            GET /teams/{tid}/briefs/{bid|latest}   PATCH/POST lines   POST briefs/draft
  *   GET|PUT /api/v1/meetings/{mid}/teams  meeting routing
@@ -187,6 +189,40 @@ export const setItemTeams = (ws: string, docId: string, team_ids: string[], proj
   mutate(ws, request<ItemTeams>(`${base(ws)}/items/${enc(docId)}/teams`, json("PUT", { team_ids, project_ids })));
 export const setFolderTeams = (ws: string, fid: string, team_ids: string[], project_ids: string[], apply_to_items: boolean) =>
   mutate(ws, request<{ team_ids: string[]; project_ids: string[]; applied: number }>(`${base(ws)}/folders/${enc(fid)}/teams`, json("PUT", { team_ids, project_ids, apply_to_items })));
+
+export interface FolderMoveJob { state: "running" | "done"; done: number; total: number; to_team?: string | null }
+export interface FolderMovePreview {
+  folder: { id: string; name: string; path: string };
+  from_teams: TeamCard[];
+  to_team: TeamCard;
+  /** An open target team: the workspace can still view its items (as viewers). */
+  to_team_open: boolean;
+  parent_id: string | null; parent_path: string | null;
+  /** It leaves its parent folder for the top of the workspace (old addresses redirect). */
+  moves_to_top: boolean;
+  can_move: boolean;
+  same_team: boolean;
+  counts: {
+    folders: number; items: number; pages: number; documents: number; files: number;
+    workspace_to_team: number; private: number; public_links: number; shared_with_people: number;
+    team_grants_repointed: number; projects_dropped: number;
+  };
+  /** Public-link items you can open (up to 25); the rest are counted in public_links_more. */
+  public_links: { slug: string; title: string | null; kind: "page" | "document" | "file"; password: boolean }[];
+  public_links_more: number;
+  /** Folders in it shared by link (their links keep working too). */
+  folder_links: string[];
+  keeps_inherited_rule: boolean;
+  /** Big: the items move in the background (job). */
+  background: boolean;
+  job: FolderMoveJob | null;
+}
+export const previewFolderMove = (ws: string, fid: string, team: string) =>
+  request<FolderMovePreview>(`${base(ws)}/folders/${enc(fid)}/move-to-team?team=${enc(team)}`);
+export const moveFolderToTeam = (ws: string, fid: string, team: string, parent_id?: string | null) =>
+  mutate(ws, request<FolderMovePreview & { moved: true }>(`${base(ws)}/folders/${enc(fid)}/move-to-team`, json("POST", { team, parent_id: parent_id ?? null })));
+export const folderMoveJob = (ws: string, fid: string) =>
+  request<{ job: FolderMoveJob | null }>(`${base(ws)}/folders/${enc(fid)}/move-to-team/job`);
 
 /* ── Projects ── */
 export const listProjects = (ws: string, team?: string) => request<{ projects: ProjectCard[] }>(`${base(ws)}/projects${team ? `?team=${enc(team)}` : ""}`);

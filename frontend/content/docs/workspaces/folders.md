@@ -1,9 +1,9 @@
 ---
 title: Folders
 description: File a workspace's documents into folders. On your own domain, a folder becomes part of each link, like docs.acme.com/guides/setup.
-updated: 2026-11-17
+updated: 2026-11-19
 prerequisites: [/workspaces/create]
-keywords: [filter by type, type filter, videos, pdfs, folder, subfolder, move, rename, delete folder, organize, redirect, on_conflict, path, address, list view, grid view, cards, card view, previews, default view, owner, create_folder, rename_folder, move_folder, delete_folder, move_to_parent, idempotency_key]
+keywords: [filter by type, type filter, videos, pdfs, folder, subfolder, move, rename, delete folder, organize, redirect, on_conflict, path, address, list view, grid view, cards, card view, previews, default view, owner, create_folder, rename_folder, move_folder, move_folder_to_team, move to team, delete_folder, move_to_parent, idempotency_key]
 ---
 
 Folders keep a workspace tidy, and on your own domain they shape the address. A document filed under **Guides › Setup** is served at `docs.acme.com/guides/setup/<document>`.
@@ -86,6 +86,7 @@ Admins and the owner manage folders. Open the folder and choose **More folder ac
 
 - **Rename folder…** shows the new address as you type. The folder's old address, and links to everything inside it that use the old name, redirect to the new addresses. If the new address is already taken in that place, the rename is refused and says what holds it.
 - **Move folder to…** moves it with everything inside. Old addresses redirect here too. The move is refused if it would nest anything deeper than 8 levels, or if something at the destination already has the folder's address.
+- **Move to team…** (in a team's **Files & pages**) moves the folder with everything inside to another team. See [Move a folder to another team](/teams/share-and-projects#move-a-folder-to-another-team).
 - **New items start as…** sets who can open new items filed into the folder. See [Workspace privacy](/workspaces/privacy).
 - **Delete folder…** moves the folder, the folders inside it and everything filed in them to [Trash](/documents/trash) for 30 days. The dialog says how much goes with it. Restoring the folder from Trash brings it all back, in place.
 
@@ -97,7 +98,7 @@ markdrop.in links never change when you rename or move a folder. Only addresses 
 
 ### With an AI app
 
-An AI app connected over [MCP](/ai/overview) can do the same: `create_folder`, `rename_folder`, `move_folder` and `delete_folder`, with the same permissions. `move_folder` with `new_parent` `"/"` moves a folder to the top of the workspace.
+An AI app connected over [MCP](/ai/overview) can do the same: `create_folder`, `rename_folder`, `move_folder`, `move_folder_to_team` and `delete_folder`, with the same permissions. `move_folder` with `new_parent` `"/"` moves a folder to the top of the workspace. `move_folder_to_team` moves a folder to another team; with `dry_run: true` it only reports what would move, so the app can confirm with you first.
 
 `delete_folder` deletes an empty folder. For a folder with anything in it, the app has to choose what happens to what's inside with `contents`: `move_to_parent` moves everything up one level and then deletes the folder, and `trash` moves the folder with everything in it to Trash, like **Delete folder…**. Until it chooses, the folder stays, and the app is told what's inside (only items you can open are named). A trashed folder comes back with `restore_document`.
 

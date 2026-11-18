@@ -158,6 +158,10 @@ async def _reconcile(db: AsyncIOMotorDatabase) -> None:
     from app.services import folder_access
 
     await folder_access.run_pending(db)
+    # Folder moves to another team a stopped process left running (services/folder_move.py).
+    from app.services import folder_move
+
+    await folder_move.run_pending(db)
     if full:
         _last_full["t"] = _now()
 

@@ -1,5 +1,6 @@
-"""MCP tools that change a folder: ``rename_folder``, ``move_folder`` and
-``delete_folder`` (create_folder and list_folders live in tools.py).
+"""MCP tools that change a folder: ``rename_folder``, ``move_folder``,
+``move_folder_to_team`` and ``delete_folder`` (create_folder and list_folders
+live in tools.py).
 
 Each one is the app's own folder action (services/folder.update_folder, the
 REST ``DELETE …/folders/{id}`` modes, services/trash.move_folder) with the
@@ -153,6 +154,52 @@ async def move_folder(ctx: Context, args: dict) -> tuple[str, dict]:
                           before[-1] if on_conflict == "error" and before else None)
 
 
+async def move_folder_to_team(ctx: Context, args: dict) -> tuple[str, dict]:
+    """services/folder_move.py: the folder and everything below it into another team's Files & pages."""
+    from app.services import folder_move
+    from app.services import teams as T
+
+    try:
+        ws_id, _ws, _role = await resolve_workspace(ctx, args["workspace"])
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    fid = await _folder(ctx, ws_id, args["path"])
+    actx = access_service.Ctx(ctx.db, surface="mcp")
+    parent = (args.get("parent") or "").strip()
+    parent_id = await _folder(ctx, ws_id, parent, target=False) if parent and parent != "/" else None
+    team = (args.get("team") or "").strip()  # get_team: id, slug, name; "General" / "company" = the default team
+    try:
+        if args.get("dry_run"):
+            out = await folder_move.preview(ctx.db, actor_of(ctx), actx, ws_id, fid, team, parent_id)
+        else:
+            out = await folder_move.move(ctx.db, actor_of(ctx), actx, ws_id, fid, team, parent_id)
+    except T.Refused as exc:
+        raise ToolError(exc.detail)
+    c = out["counts"]
+    to = out["to_team"]["name"]
+    links = out["public_links"]
+    named = ", ".join(f"{x['title'] or x['slug']} ({x['slug']})" for x in links)
+    more = out["public_links_more"] + len(out["folder_links"])
+    parts = [f"{c['pages']} page(s), {c['documents']} document(s), {c['files']} file(s) in {c['folders']} folder(s)",
+             f"{c['workspace_to_team']} visible to the whole workspace become visible to {to} only"
+             + (" (an open team: the workspace can still view them)" if out["to_team_open"] else ""),
+             f"{c['private']} private stay private",
+             f"{c['shared_with_people']} shared with people keep those people",
+             f"{c['public_links']} public link(s) keep working" + (f": {named}" + (f" and {more} more" if more else "") if named else "")]
+    body = "; ".join(parts) + "."
+    if args.get("dry_run"):
+        if not out["can_move"]:
+            why = (f"it is already in {to}" if out["same_team"] else
+                   "only workspace admins, or a lead of the folder's team who is also in the target team, can move it")
+            return f"Moving {out['folder']['path']} to {to} isn't possible: {why}. {body}", out
+        return f"Dry run — moving {out['folder']['path']} to {to} would move {body} Nothing changed yet.", out
+    job = out["job"] or {}
+    tail = (f" The items are moving in the background ({job.get('done', 0)}/{job.get('total', 0)}); the folder is "
+            "already in the team." if job.get("state") == "running" else "")
+    where = " It is now at the top of the workspace." if out["moves_to_top"] else ""
+    return f"Moved {out['folder']['path']} to {to}: {body}{where}{tail} Logged in the folder's access log.", out
+
+
 async def _contents(ctx: Context, ws_id: str, fid: str) -> dict:
     """What a folder holds, at any depth: subfolders by path, items the user
     can open by title, the rest only counted."""
@@ -295,6 +342,46 @@ FOLDER_TOOLS: list[Tool] = [
         output_schema=_FOLDER_CHANGE_OUT,
         annotations=_ann(False, False, True),
         handler=move_folder,
+    ),
+    Tool(
+        name="move_folder_to_team",
+        title="Move a folder to another team",
+        description=("Move a workspace folder with everything in it (subfolders, pages, documents, files) into "
+                     "another team's Files & pages (team: id, slug or name; \"General\" for company-wide). Items "
+                     "visible to the whole workspace become visible to that team only; private items stay "
+                     "private; people an item was shared with keep it; public links keep working (listed in the "
+                     "result). The folder's access rules move with it (grants to the old team now name the new "
+                     "one). Workspace admins, or a lead of the folder's team who is also in the target team. Call "
+                     "with dry_run: true first to get the counts to confirm with the user. Big folders finish in "
+                     "the background (job)."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "workspace": _WORKSPACE_ARG,
+            "path": _FOLDER_REF,
+            "team": {"type": "string", "minLength": 1, "maxLength": 80,
+                     "description": "The target team: id, slug or name (list_teams), or \"General\"."},
+            "parent": {"type": "string", "maxLength": 400,
+                       "description": ("Optional: a folder of the target team to put it in. Default: it stays "
+                                       "where it is if its parent is in that team, else it goes to the top.")},
+            "dry_run": {"type": "boolean", "default": False,
+                        "description": "Only report what would move (and whether the user may); change nothing."},
+        }, "required": ["workspace", "path", "team"]},
+        output_schema=_out({
+            "folder": {"type": "object"}, "to_team": {"type": "object"},
+            "from_teams": {"type": "array", "items": {"type": "object"}},
+            "can_move": {"type": "boolean"}, "same_team": {"type": "boolean"},
+            "counts": {"type": "object", "description": ("folders, items, pages, documents, files, "
+                                                         "workspace_to_team, private, public_links, "
+                                                         "shared_with_people, team_grants_repointed, projects_dropped")},
+            "public_links": {"type": "array", "items": {"type": "object"}},
+            "public_links_more": {"type": "integer"},
+            "folder_links": {"type": "array", "items": {"type": "string"}},
+            "moves_to_top": {"type": "boolean"},
+            "job": {"type": ["object", "null"], "description": "state done | running, done, total."},
+        }),
+        annotations=_ann(False, False, True),
+        handler=move_folder_to_team,
     ),
     Tool(
         name="delete_folder",

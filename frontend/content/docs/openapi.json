@@ -22367,6 +22367,206 @@
         }
       }
     },
+    "/api/v1/workspaces/{workspace_id}/folders/{folder_id}/move-to-team": {
+      "get": {
+        "tags": [
+          "teams"
+        ],
+        "summary": "Teams: preview moving a folder to a team",
+        "description": "What moving the folder (with everything in it) to ``team`` would do: counts of pages, documents and\nfiles, how many workspace-visible items become visible to that team only, private items (stay private),\nitems shared with people (keep it), public links (keep working, listed) and whether the caller may.",
+        "operationId": "preview_folder_move_api_v1_workspaces__workspace_id__folders__folder_id__move_to_team_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          },
+          {
+            "name": "team",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team"
+            }
+          },
+          {
+            "name": "parent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Parent Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "post": {
+        "tags": [
+          "teams"
+        ],
+        "summary": "Teams: move a folder to another team",
+        "description": "Move the folder and everything below it into ``team``'s Files & pages. Workspace admins, or a lead of the\nfolder's team who is also in the target team. Large folders finish in the background: ``job`` has the\nprogress (poll ``…/move-to-team/job``).",
+        "operationId": "move_folder_to_team_api_v1_workspaces__workspace_id__folders__folder_id__move_to_team_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderMoveToTeam"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/folders/{folder_id}/move-to-team/job": {
+      "get": {
+        "tags": [
+          "teams"
+        ],
+        "summary": "Teams: progress of a folder move",
+        "operationId": "folder_move_job_api_v1_workspaces__workspace_id__folders__folder_id__move_to_team_job_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects": {
       "get": {
         "tags": [
@@ -33791,6 +33991,35 @@
           "folders"
         ],
         "title": "FolderListResponse"
+      },
+      "FolderMoveToTeam": {
+        "properties": {
+          "team": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Team",
+            "description": "The target team (id or slug)."
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id",
+            "description": "Optional: a folder of the target team to put it in. Default: where it is when its parent is in that team, else the top."
+          }
+        },
+        "type": "object",
+        "required": [
+          "team"
+        ],
+        "title": "FolderMoveToTeam"
       },
       "FolderOverrideUpdate": {
         "properties": {

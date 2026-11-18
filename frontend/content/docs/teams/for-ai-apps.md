@@ -1,10 +1,10 @@
 ---
 title: Teams for AI apps
 description: Let Claude, ChatGPT or Cursor list teams, read a team's home and brief, put pages and meetings into teams, and ask one team's space.
-updated: 2026-11-10
+updated: 2026-11-19
 nav: For AI apps
 prerequisites: [/ai/hosted-mcp]
-keywords: [mcp, teams mcp, list_teams, get_team, create_team, update_team, add_team_members, remove_team_members, move_to_team, share_to_team, get_team_brief, edit_team_brief, list_projects, create_project, route_meeting, list_favorites, set_favorite, general, space, team scope, ai apps]
+keywords: [mcp, teams mcp, list_teams, get_team, create_team, update_team, add_team_members, remove_team_members, move_to_team, move_folder_to_team, share_to_team, get_team_brief, edit_team_brief, list_projects, create_project, route_meeting, list_favorites, set_favorite, general, space, team scope, ai apps]
 ---
 
 Everything on these pages works from an AI app connected to Markdrop's [hosted MCP server](/ai/hosted-mcp). The app acts as you, with your access: it sees the teams and content you can see, and can only change what you could on the website.
@@ -40,6 +40,7 @@ Everything on these pages works from an AI app connected to Markdrop's [hosted M
 | `add_team_members` | write | Leads and admins add workspace members; anyone can add themselves to an open team. | `workspace`, `team`, `people` |
 | `remove_team_members` | write | Leads and admins remove people; anyone can remove themselves (`"me"`). | `workspace`, `team`, `people` |
 | `move_to_team` | write | Puts a document, page or file into one team, or back to General, the team everyone is in (`team: "General"` or `"company"`). | `document`, `team` |
+| `move_folder_to_team` | write | Moves a folder with everything in it to another team. Workspace-visible items become visible to that team only; private items stay private; people shares and public links keep working (listed). `dry_run: true` only reports the counts. Admins, or a lead of the folder's team who is in the target team. | `workspace`, `path`, `team`, `parent`, `dry_run` |
 | `share_to_team` | write | Adds a team to an item's teams, or takes one off (`remove: true`). | `document`, `team`, `remove` |
 | `edit_team_brief` | write | Leads and admins: change, hide or add a line of the brief. | `workspace`, `team`, `line_id`, `text`, `hidden`, `add` |
 | `create_project` | write | A project shared by several teams. | `workspace`, `name`, `teams` |

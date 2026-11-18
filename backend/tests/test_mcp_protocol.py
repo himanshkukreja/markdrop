@@ -124,7 +124,7 @@ class Transport(McpTestCase):
             "list_workspaces", "list_folders", "list_workspace_items", "add_to_workspace",
             "remove_from_workspace", "create_folder", "move_to_folder", "list_workspace_members",
             # Rename, move and delete folders (app/mcp/folder_tools.py).
-            "rename_folder", "move_folder", "delete_folder",
+            "rename_folder", "move_folder", "move_folder_to_team", "delete_folder",
             # Pages (block editor, sub-pages, embeds, page images).
             "create_page", "get_page", "update_page", "append_blocks", "replace_section", "insert_embed",
             # Small edits: one block, one table row (services/page_blocks.py).
@@ -239,7 +239,7 @@ class Transport(McpTestCase):
     async def test_modern_tools_list_and_call(self):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
-        self.assertEqual(len(r.json()["result"]["tools"]), 173)
+        self.assertEqual(len(r.json()["result"]["tools"]), 174)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")
