@@ -648,6 +648,24 @@ await step("lock-mcp", async () => {
   if (rs.isError) fail(`replace_section during the lock was refused: ${rs.text}`);
   await p.getByText("Merged while Ada edits").waitFor({ timeout: 15000 });
   await b.p.getByText("Merged while Ada edits").waitFor({ timeout: 15000 });
+  // Merged once, in both editors and on the server, before anyone types: the append still waiting
+  // in Ada's editor (its debounce) used to come back as typing when the replace landed — the
+  // section twice (fix/merge-duplicate-lines; core/liveSync.mjs). Settled, not raced: wait for it.
+  await waitSaved(p);
+  for (const [who, pg] of [["Ada's", p], ["Ben's", b.p]]) {
+    const lines = pg.locator(".pb-live .ProseMirror").getByText("Record the demo video");
+    const t0 = Date.now();
+    let n = await lines.count();
+    while (n !== 1 && Date.now() - t0 < 5000) {
+      await pg.waitForTimeout(250);
+      n = await lines.count();
+    }
+    if (n !== 1) fail(`${who} editor shows the replaced section's lines ${n} times after replace_section`);
+  }
+  {
+    const merged = await content(state.slug);
+    if ((merged.match(/Record the demo video/g) || []).length !== 1) fail("replace_section during the lock left the section's lines doubled on the server");
+  }
   await shot(p, "19-editor-live-appended", { wait: 3500 });
   // Keep typing after the append: no lost or doubled text.
   await p.locator(".pb-live .ProseMirror").getByText("Record the demo video").click();

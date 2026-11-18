@@ -18,7 +18,7 @@ import type { EditorView } from "@tiptap/pm/view";
 import { useToast } from "@/components/ui";
 import { parseMarkdown, serializeMarkdown, type DocState } from "./core/markdown.mjs";
 import { splitFrontmatter } from "./core/frontmatter.mjs";
-import { merge3 } from "@/lib/pageMerge.mjs";
+import { appendTr, incomingValue } from "./core/liveSync.mjs";
 import { buildExtensions } from "./extensions";
 import { EditorHostContext, uploadUrl, type EditorHost } from "./host";
 import { SlashMenu, SlashStore } from "./menus/slash";
@@ -135,6 +135,24 @@ export default function VisualEditor(props: VisualEditorProps) {
     }
   }, []);
 
+  /**
+   * A live append (an AI app's append_blocks): at the very end, as its own transaction (the caret
+   * stays where the author is typing), handed up at once. The host already counts it as part of the
+   * page; left waiting for the debounce, a newer version landing meanwhile would merge it back in as
+   * typing — twice on the page (core/liveSync.mjs).
+   */
+  const append = useCallback(
+    (markdown: string) => {
+      const ed = editorRef.current;
+      if (!ed || ed.isDestroyed) return;
+      const tr = appendTr(ed.state, markdown);
+      if (!tr) return;
+      ed.view.dispatch(tr);
+      emit();
+    },
+    [emit],
+  );
+
   /** Uploads image files and inserts them as figures at `pos` (drop, paste). */
   const insertImages = useCallback(
     async (files: File[], pos: number) => {
@@ -223,7 +241,7 @@ export default function VisualEditor(props: VisualEditorProps) {
     onCreate: ({ editor: e }) => {
       editorRef.current = e;
       onReady?.(e);
-      onHandleRef.current?.({ editor: e, source, assist: assistStore, flush: emit });
+      onHandleRef.current?.({ editor: e, source, assist: assistStore, flush: emit, append });
     },
     onUpdate: () => {
       if (timer.current) clearTimeout(timer.current);
@@ -274,16 +292,8 @@ export default function VisualEditor(props: VisualEditorProps) {
     // Typing from the last few hundred milliseconds not handed up yet (the emit is debounced): merge
     // it onto the new value instead of dropping it (a teammate's or an AI app's change landing
     // while someone types; fix/collab-audit). The result goes up as an ordinary change.
-    let incoming = value;
-    let typed: string | null = null;
-    if (timer.current && !editor.isDestroyed) {
-      const out = serializeMarkdown({ ...meta.current, doc: editor.getJSON() as never });
-      if (out !== lastEmitted.current) {
-        const m = merge3(lastEmitted.current, out, value);
-        incoming = m.clean ? m.content : m.bothContent;
-        if (incoming !== value) typed = incoming;
-      }
-    }
+    const pending = timer.current && !editor.isDestroyed ? serializeMarkdown({ ...meta.current, doc: editor.getJSON() as never }) : null;
+    const { incoming, typed } = incomingValue(lastEmitted.current, pending, value);
     const next = parseMarkdown(incoming);
     const bodyOf = (s: string) => splitFrontmatter(s).body.replace(/^\s*\n/, "");
     if (bodyOf(value) === bodyOf(lastEmitted.current)) {

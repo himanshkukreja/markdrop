@@ -264,14 +264,9 @@ export function DocsEditor({
       if (!add) return;
       const v = visualRef.current;
       if (modeRef.current === "visual" && v && !v.editor.isDestroyed) {
-        const ed = v.editor;
-        void import("./core/markdown.mjs").then(({ parseBlocks }) => {
-          if (ed.isDestroyed) return;
-          const blocks = parseBlocks(`${add}\n`);
-          if (!blocks.length) return;
-          // At the very end, as its own transaction: the caret stays where the author is typing.
-          ed.view.dispatch(ed.state.tr.insert(ed.state.doc.content.size, blocks.map((b) => ed.schema.nodeFromJSON(b))));
-        });
+        // Now, and handed up at once (VisualHandle.append): a newer version landing a moment later
+        // must find it already counted, never merge it back in as typing (core/liveSync.mjs).
+        v.append?.(add);
         return;
       }
       const md = valueRef.current;

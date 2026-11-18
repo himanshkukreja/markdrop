@@ -20,6 +20,8 @@ export interface VisualHandle {
   assist?: import("./menus/assist").AssistStore;
   /** Writes a change still waiting (typing is debounced) to onChange now. */
   flush?: () => void;
+  /** Adds Markdown's blocks at the very end and hands the result up at once (a live append). */
+  append?: (markdown: string) => void;
 }
 
 /** Scrolls the window so that viewport y `top` sits a third of the way down below the sticky bars. */

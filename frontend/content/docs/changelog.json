@@ -24,6 +24,19 @@
   "next": [],
   "entries": [
     {
+      "id": "pages-live-append-doubled",
+      "date": "2026-11-18",
+      "title": "Pages: an AI app's quick follow-up edit no longer doubles lines in an open editor",
+      "kind": "fixed",
+      "area": "Pages",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "When an AI app added blocks to a page someone had open in the editor and then changed that same section a moment later, the editor could show, and save, the section twice. It now shows the change once.",
+      "body": "- **What happened.** Blocks added with `append_blocks` appear in an open editor as they land. If `replace_section` (or another edit to part of the page) changed them within the next fraction of a second, the editor merged the new blocks back in as if the person had typed them, so the section appeared twice and was saved that way.\n- **Now** the added blocks count as part of the page as soon as they appear, and a change made right after them shows once. Anything the person was typing is still merged in as before."
+    },
+    {
       "id": "deals-board-redesign",
       "date": "2026-11-18",
       "title": "Deals: a tidier board, a sortable list and a clearer deal page",
