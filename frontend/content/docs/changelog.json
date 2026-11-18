@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "notion-import",
+      "date": "2026-11-19",
+      "title": "Import from Notion",
+      "kind": "new",
+      "area": "Pages",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Bring pages, sub-pages and databases from a Notion export into a team or My files, with their images, files and links. Import again later and Markdrop merges the changes instead of making copies.",
+      "body": "- **Where:** **Create** › **Import** › **From Notion**, a team's **Files & pages** › **Import**, or **My files** › **Import**. Drop the **Markdown & CSV** `.zip` from Notion (up to 2 GB; a full workspace export with zips inside works too).\n- **What comes over:** the page tree and sub-pages; databases as folders with typed properties (select, multi-select, status, date, person, checkbox, number, URL, email, relation), each row a page; images and attachments; callouts, toggles, to-dos, code, quotes, dividers, tables, equations, bookmarks and embeds. Links between pages point to the new Markdrop pages.\n- **Runs in the background** with progress page by page. Close the dialog and Markdrop tells you when it's done, with what was skipped and why.\n- **Import again** to bring over later changes: changed pages are updated, and pages someone edited in Markdrop are kept.\n- Imported pages get the access of where they go, and are never public.\n- AI apps import with the new `import_notion` and `get_notion_import` tools. See [Import from Notion](/pages/import-from-notion)."
+    },
+    {
       "id": "pages-live-append-doubled",
       "date": "2026-11-18",
       "title": "Pages: an AI app's quick follow-up edit no longer doubles lines in an open editor",

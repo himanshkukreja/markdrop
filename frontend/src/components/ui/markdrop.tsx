@@ -6,7 +6,7 @@
  */
 import React, { useEffect, useId, useRef, useState } from "react";
 import { Avatar, Badge, Button, Dropdown, Icon, IconButton, Input, Kbd, Skeleton, Tooltip, cx } from "./primitives";
-import type { ButtonSize, ButtonVariant, MenuItem } from "./primitives";
+import type { ButtonSize, ButtonVariant, MenuEntry, MenuItem } from "./primitives";
 import { useLinkComponent } from "./link";
 import { announce } from "./status";
 
@@ -109,15 +109,17 @@ export interface CreateMenuProps {
   align?: "left" | "right";
   /** Override a row's link (e.g. artifact → "/login?next=/upload" when signed out). */
   hrefs?: Partial<Record<CreateKey, string>>;
+  /** Rows after the six, e.g. an "Import" header and "From Notion" (the app's CreateMenu, signed in). */
+  extra?: MenuEntry[];
 }
-export function CreateMenu({ defaultOpen, signedIn = true, variant = "secondary", size, align = "right", hrefs }: CreateMenuProps) {
+export function CreateMenu({ defaultOpen, signedIn = true, variant = "secondary", size, align = "right", hrefs, extra }: CreateMenuProps) {
   const items: MenuItem[] = CREATE.map(({ key, tint, icon, href, ...it }) => ({
     ...it,
     href: hrefs?.[key] ?? href,
     caption: (key === "artifact" || key === "docs" || key === "page") && !signedIn ? "Needs an account" : undefined,
     tile: <span className="md-menu__tile" style={{ color: `var(--${tint})`, background: "color-mix(in srgb, currentColor 12%, transparent)" }}><Icon name={icon} /></span>,
   }));
-  return <Dropdown defaultOpen={defaultOpen} align={align} minWidth={304} trigger={<Button variant={variant} size={size} iconLeft="plus" iconRight="chevronDown" className="md-create"><span className="md-create__label">Create</span></Button>} items={items} />;
+  return <Dropdown defaultOpen={defaultOpen} align={align} minWidth={304} trigger={<Button variant={variant} size={size} iconLeft="plus" iconRight="chevronDown" className="md-create"><span className="md-create__label">Create</span></Button>} items={extra?.length ? [...items, ...extra] : items} />;
 }
 
 /* ── Row menu / document row ──────────────────────────────────────────── */
