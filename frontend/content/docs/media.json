@@ -2999,6 +2999,42 @@
     "bytes": 41232,
     "kind": "image"
   },
+  "/docs-assets/pages/import-from-notion/choose.dark.webp": {
+    "w": 1280,
+    "h": 1012,
+    "bytes": 40824,
+    "kind": "image"
+  },
+  "/docs-assets/pages/import-from-notion/choose.webp": {
+    "w": 1280,
+    "h": 1012,
+    "bytes": 44488,
+    "kind": "image"
+  },
+  "/docs-assets/pages/import-from-notion/progress.dark.webp": {
+    "w": 1280,
+    "h": 724,
+    "bytes": 35510,
+    "kind": "image"
+  },
+  "/docs-assets/pages/import-from-notion/progress.webp": {
+    "w": 1280,
+    "h": 724,
+    "bytes": 38188,
+    "kind": "image"
+  },
+  "/docs-assets/pages/import-from-notion/result.dark.webp": {
+    "w": 1280,
+    "h": 1288,
+    "bytes": 55510,
+    "kind": "image"
+  },
+  "/docs-assets/pages/import-from-notion/result.webp": {
+    "w": 1280,
+    "h": 1288,
+    "bytes": 58744,
+    "kind": "image"
+  },
   "/docs-assets/pages/meeting-memory/from-meetings.dark.webp": {
     "w": 1842,
     "h": 1800,

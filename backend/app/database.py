@@ -405,6 +405,14 @@ async def connect() -> None:
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] push indexes skipped: {exc}")
 
+    # Import from Notion (services/notion_import): jobs (30-day TTL) and the Notion id → Markdrop item links.
+    try:
+        from app.services.notion_import import jobs as _notion_jobs
+
+        await _notion_jobs.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] notion import indexes skipped: {exc}")
+
     # Comments (services/comments): threads and messages on pages and markdown documents.
     try:
         from app.services.comments import model as _comments_model

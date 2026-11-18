@@ -64,6 +64,17 @@ def presign_put(key: str, content_type: str) -> str:
     )
 
 
+def presign_put_for(key: str, content_type: str, expires_in: int) -> str:
+    """:func:`presign_put` with its own lifetime: a large file (a Notion export of hundreds of MB,
+    services/notion_import/jobs.py) needs longer than an artifact's few minutes to go up."""
+    return _client().generate_presigned_url(
+        "put_object",
+        Params={"Bucket": settings.r2_bucket, "Key": key, "ContentType": content_type},
+        ExpiresIn=int(expires_in),
+        HttpMethod="PUT",
+    )
+
+
 # ── Network calls — wrap these in run_in_threadpool ────────────────────────────
 
 
@@ -104,6 +115,17 @@ def get_bytes(key: str, max_bytes: int) -> bytes | None:
         return r["Body"].read()
     except Exception:
         return None
+
+
+def download_to(key: str, path: str, chunk_size: int = 8 * 1024 * 1024) -> int:
+    """Stream an object to a local file in constant memory; returns its size (raises when it's missing)."""
+    r = _client().get_object(Bucket=settings.r2_bucket, Key=key)
+    n = 0
+    with open(path, "wb") as out:
+        for chunk in r["Body"].iter_chunks(chunk_size):
+            out.write(chunk)
+            n += len(chunk)
+    return n
 
 
 def put_bytes(

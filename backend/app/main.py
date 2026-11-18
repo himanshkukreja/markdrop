@@ -106,6 +106,7 @@ from app.routers.page_export import router as page_export_router
 from app.routers.bookmarks import router as bookmarks_router
 from app.routers.bookmarks import web_router as web_embeds_router
 from app.routers.bookmarks import alias_router as link_preview_router
+from app.routers.notion_import import router as notion_import_router
 from app.services.pages import PageError
 
 settings = get_settings()
@@ -364,6 +365,8 @@ app.include_router(jira_pages_router)
 # Zoom (routers/zoom.py): a workspace's recorded Zoom meetings → Meetings, in one team.
 app.include_router(zoom_router)
 app.include_router(hubspot_router)
+# Import from Notion (routers/notion_import.py): an export zip → pages, databases (folders with properties), files.
+app.include_router(notion_import_router)
 # Ask Markdrop (routers/ask.py): the home's question box, threads, suggestions.
 app.include_router(ask_router)
 app.include_router(home_router)

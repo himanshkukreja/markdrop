@@ -17,6 +17,7 @@ import { refreshTree, useWorkspaceTree } from "@/lib/workspaceStore";
 import { navSlot, navTeamKey, useNavRetain } from "@/lib/navStore";
 import { isFavorite, toggleFavorite, useFavorites, type Favorite, type FavoriteKind } from "@/lib/favorites";
 import { browseHref, getTeamHome, teamHref, type TeamCard, type TeamItem } from "@/lib/teams";
+import { useNotionImport } from "@/components/import/useNotionImport";
 import { TeamTile } from "./parts";
 import { Crumbs, ItemRow } from "./TeamHome";
 import { teamFilesNodes, type FilesCtx } from "./filesTree";
@@ -63,6 +64,8 @@ export function TeamFiles({ ws: wsId, team: teamRef }: { ws: string; team: strin
   const [moving, setMoving] = useState<MoveFolderTarget | null>(null);
   const toast = useToast();
   const uploads = useUploads();
+  // Import from Notion into this team (General: the workspace's company-wide space). The dialog loads on first use.
+  const notion = useNotionImport(team ? { workspace: wsId, team: team.general ? null : team.id } : undefined);
   useAssistantHere({ workspace: wsId });
   useEffect(() => {
     getTeamHome(wsId, teamRef).then((h) => setTeam(h.team)).catch((e) => setError(e instanceof Error ? e.message : "Couldn't load this team."));
@@ -150,9 +153,11 @@ export function TeamFiles({ ws: wsId, team: teamRef }: { ws: string; team: strin
             {uploads && team.general && (
               <Button variant="secondary" iconLeft="upload" onClick={() => uploads.pick(uploads.resolve(wsId, null, team.name))} data-testid="files-upload">Upload</Button>
             )}
+            <Button variant="secondary" iconLeft="download" onClick={notion.open} title="Import from Notion" data-testid="files-import">Import</Button>
             <Button iconLeft="plus" href={newPage} data-testid="files-new-page">New page</Button>
           </div>
         )}
+        {notion.dialog}
       </header>
       {locked ? <Alert tone="neutral" icon="lock">This is a private team. Only its members see its pages.</Alert> : (
         <>

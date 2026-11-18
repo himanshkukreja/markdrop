@@ -27639,6 +27639,237 @@
         }
       }
     },
+    "/api/v1/imports/notion/destinations": {
+      "get": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Destinations",
+        "operationId": "destinations_api_v1_imports_notion_destinations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/imports/notion": {
+      "get": {
+        "tags": [
+          "import"
+        ],
+        "summary": "List Imports",
+        "operationId": "list_imports_api_v1_imports_notion_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "post": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Create Import",
+        "operationId": "create_import_api_v1_imports_notion_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/imports/notion/{import_id}/start": {
+      "post": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Start Import",
+        "operationId": "start_import_api_v1_imports_notion__import_id__start_post",
+        "parameters": [
+          {
+            "name": "import_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Import Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/imports/notion/{import_id}": {
+      "get": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Get Import",
+        "operationId": "get_import_api_v1_imports_notion__import_id__get",
+        "parameters": [
+          {
+            "name": "import_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Import Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/imports/notion/{import_id}/cancel": {
+      "post": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Cancel Import",
+        "operationId": "cancel_import_api_v1_imports_notion__import_id__cancel_post",
+        "parameters": [
+          {
+            "name": "import_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Import Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/ask/home": {
       "get": {
         "tags": [
@@ -30934,6 +31165,70 @@
           "approve"
         ],
         "title": "Decision"
+      },
+      "Destination": {
+        "properties": {
+          "workspace": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace",
+            "description": "Workspace id; empty: My files."
+          },
+          "team": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team",
+            "description": "A team's id, slug or name; empty: company-wide."
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder",
+            "description": "An existing folder (id or path) to import into."
+          },
+          "new_folder": {
+            "type": "boolean",
+            "title": "New Folder",
+            "description": "Put everything in a new folder (My files: a page) named folder_name.",
+            "default": true
+          },
+          "folder_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Name",
+            "description": "Default: the export's name."
+          }
+        },
+        "type": "object",
+        "title": "Destination"
       },
       "Digest": {
         "properties": {
@@ -34909,6 +35204,30 @@
           "sources"
         ],
         "title": "ImportBody"
+      },
+      "ImportCreate": {
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "File Name"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "title": "Size Bytes"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/Destination"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_name",
+          "size_bytes"
+        ],
+        "title": "ImportCreate"
       },
       "ImportIn": {
         "properties": {

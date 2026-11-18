@@ -7,6 +7,7 @@
     { "id": "page-history", "title": "Version history", "tags": ["page history"] },
     { "id": "page-ai", "title": "Page AI", "tags": ["page-ai"] },
     { "id": "properties", "title": "Properties and views", "tags": ["page properties"] },
+    { "id": "import", "title": "Import from Notion", "tags": ["import"] },
     { "id": "sign-off", "title": "Sign-off", "tags": [] },
     { "id": "comments", "title": "Comments", "tags": ["comments"] },
     { "id": "files", "title": "Files", "tags": ["files", "artifacts"] },
@@ -2318,6 +2319,36 @@
       "title": "A meeting's deal",
       "description": "The deal a meeting is filed in (`deal`: name, company, stage, closed label and the deal page's `href`), or `pick: true` when it has none yet. From Markdrop's own records, without asking HubSpot. Nothing for people outside the HubSpot team.",
       "guide": {"label": "HubSpot", "href": "/integrations/hubspot#calls-in-a-deal-folder"}
+    },
+    "GET /api/v1/imports/notion/destinations": {
+      "title": "Where you can import to",
+      "description": "My files (`personal: true`) and every team space you can add to (`places`: workspace, team, `general` for the company-wide space). Members of a team can import into it; workspace admins into any.",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion"}
+    },
+    "POST /api/v1/imports/notion": {
+      "title": "Start a Notion import",
+      "description": "Opens an import of a Notion export zip (Export › Markdown & CSV, Include subpages on), up to 2 GB, and returns it (`import`, state `uploading`) with `upload`: a URL to `PUT` the zip to, with its `Content-Type` header, valid 6 hours. `destination`: `workspace` (omit for My files), `team` (omit for company-wide), an existing `folder`, `new_folder` (default true: a new folder named `folder_name`, default the export's name; importing again with the same name merges into it). Imported items get the destination's default access, never public. 413 over 2 GB, 415 not a .zip, 429 with 3 imports going.",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion"}
+    },
+    "POST /api/v1/imports/notion/{import_id}/start": {
+      "title": "Run an uploaded import",
+      "description": "Once the zip is up (its size is checked: 409 when it hasn't arrived, 422 when it differs from `size_bytes`), queues the import; it runs in the background. Follow it with the import's status.",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion"}
+    },
+    "GET /api/v1/imports/notion/{import_id}": {
+      "title": "A Notion import's progress and report",
+      "description": "`state` (uploading, queued, running, done, failed, cancelled) and `progress` (`phase`: reading, pages, content; `done` of `total`; the `current` page). When done: `counts` (pages, databases, rows, images, files; on a re-import updated, unchanged and `kept_edited`: pages edited in Markdrop since, left as they are), `skipped` and `errors` per page with the reason, and `result` (`url` to open, `folder_url`, the top-level `pages`). An HTML export fails with how to export again.",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion"}
+    },
+    "GET /api/v1/imports/notion": {
+      "title": "Your recent Notion imports",
+      "description": "Your last 20 imports, newest first, each as the import's status returns it. Imports are kept 30 days.",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion"}
+    },
+    "POST /api/v1/imports/notion/{import_id}/cancel": {
+      "title": "Cancel a Notion import",
+      "description": "Stops an import that is uploading, queued or running. Pages already written stay; importing the same zip into the same place again picks up from there without duplicates.",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion"}
     },
     "GET /api/v1/zoom/status": {
       "title": "Zoom connection status",

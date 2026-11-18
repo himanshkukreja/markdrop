@@ -168,6 +168,7 @@
         "/pages/sign-off",
         "/pages/blocks-and-layout",
         "/pages/paste",
+        "/pages/import-from-notion",
         "/pages/ai",
         "/pages/meeting-memory",
         "/pages/export",

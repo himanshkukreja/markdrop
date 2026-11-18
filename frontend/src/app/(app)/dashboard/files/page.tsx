@@ -29,6 +29,7 @@ import { teamName } from "@/components/workspace/folder/items";
 import { docHref } from "@/components/analytics/format";
 import { BulkTrackPicker, ItemTrackDrawer } from "@/components/analytics/AnalyticsSettings";
 import NameCard from "@/components/dashboard/NameCard";
+import { useNotionImport } from "@/components/import/useNotionImport";
 import { DocRow, rowStatuses } from "@/components/dashboard/DocRow";
 import { ListFooter, ListSkeleton } from "@/components/dashboard/ListParts";
 import { ChangeUrlDialog, DeleteDocDialog } from "@/components/dashboard/DocDialogs";
@@ -58,11 +59,15 @@ function readScope(search: string) {
 
 const storage = () => { try { return window.localStorage; } catch { return null; } };
 
+const MY_FILES = { workspace: null, team: null };
+
 export default function MyFilesPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const toast = useToast();
   const phone = usePhone();
+  // Import from Notion into My files (the dialog loads on first use).
+  const notion = useNotionImport(MY_FILES);
   const mounted = useMounted();
   const search = useLocationSearch();
   // The URL is only trusted once it has been read on the client (the server snapshot is "").
@@ -424,7 +429,10 @@ export default function MyFilesPage() {
   const bulkTrack = docs.length > 0 && (
     <Button variant="secondary" size="sm" iconLeft="eye" onClick={() => setBulkTrack(true)}>Analytics settings…</Button>
   );
-  const headerActions = <>{!phone && bulkTrack}{!phone && searchBox}</>;
+  const importButton = (
+    <Button variant="secondary" size="sm" iconLeft="download" onClick={notion.open} title="Import from Notion" data-testid="files-import">Import</Button>
+  );
+  const headerActions = <>{importButton}{!phone && bulkTrack}{!phone && searchBox}</>;
 
   // An older backend sends no per-type counts: every type gets a chip, with no number on it.
   const chipCounts = counts ? { all: counts.all, artifact: counts.artifact, byType: counts.byType ?? ("unknown" as const) } : null;
@@ -455,6 +463,7 @@ export default function MyFilesPage() {
       {phone && bulkTrack && <div className="-mt-2">{bulkTrack}</div>}
 
       <NameCard />
+      {notion.dialog}
 
       {reconnect && (
         <Alert

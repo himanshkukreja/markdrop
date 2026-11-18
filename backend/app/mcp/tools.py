@@ -4070,6 +4070,11 @@ from app.mcp.hubspot_tools import HUBSPOT_TOOLS  # noqa: E402
 
 TOOLS += HUBSPOT_TOOLS
 
+# Import from Notion (import_notion, get_notion_import): app/mcp/notion_tools.py.
+from app.mcp.notion_tools import NOTION_TOOLS  # noqa: E402
+
+TOOLS += NOTION_TOOLS
+
 # Comments (Track A core; Track B review/AI; Track C insights): app/mcp/comment_tools.py and friends.
 from app.mcp.comment_tools import COMMENT_TOOLS  # noqa: E402
 from app.mcp.comment_review_tools import REVIEW_TOOLS  # noqa: E402
