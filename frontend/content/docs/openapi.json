@@ -14724,6 +14724,18 @@
               "title": "Space"
             },
             "description": "all | company | team:<id> | project:<id>"
+          },
+          {
+            "name": "meetings",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "false: leave meeting pages and transcripts out (a team's Files & pages)",
+              "default": true,
+              "title": "Meetings"
+            },
+            "description": "false: leave meeting pages and transcripts out (a team's Files & pages)"
           }
         ],
         "responses": {
@@ -18327,7 +18339,7 @@
           "meetings"
         ],
         "summary": "List Series",
-        "description": "{series: [{name, count, last}], total, one_offs}: the Meetings hub's chips, in one pass.",
+        "description": "{series: [{name, count, last}], total, one_offs}: the Meetings hub's chips, in one pass (a team's, with ``space``).",
         "operationId": "list_series_api_v1_meetings_series_get",
         "parameters": [
           {
@@ -18339,6 +18351,25 @@
               "maxLength": 40,
               "title": "Workspace"
             }
+          },
+          {
+            "name": "space",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "all | company | team:<id> | project:<id> (Teams)",
+              "title": "Space"
+            },
+            "description": "all | company | team:<id> | project:<id> (Teams)"
           }
         ],
         "responses": {
@@ -19377,6 +19408,28 @@
               "title": "Space"
             },
             "description": "all | company | team:<id> | project:<id> (Teams)"
+          },
+          {
+            "name": "audience",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "customers",
+                    "internal"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "With customers (outside attendees, a HubSpot deal or contacts, Customer type) or internal",
+              "title": "Audience"
+            },
+            "description": "With customers (outside attendees, a HubSpot deal or contacts, Customer type) or internal"
           }
         ],
         "responses": {
@@ -21031,7 +21084,7 @@
           "teams"
         ],
         "summary": "Teams: the sidebar",
-        "description": "``{my_role, can_create, teams (mine), projects (readable), browse {open, private}, suggested (admins), review}``.",
+        "description": "``{my_role, can_create, teams (mine), projects (readable), browse {open, private}, suggested (admins), review}``.\nThe Zoom team's card carries ``to_review`` (your held Zoom meetings) and the HubSpot team's ``deals`` (open deals).",
         "operationId": "sidebar_api_v1_workspaces__workspace_id__teams_get",
         "parameters": [
           {

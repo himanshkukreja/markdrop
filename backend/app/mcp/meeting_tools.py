@@ -73,6 +73,8 @@ def _meeting_out(m: dict) -> dict[str, Any]:
         "segments": m.get("segments"), "ai": m.get("ai"), "source": m.get("source"), "series": m.get("series"),
         # What it was about at a glance (the Meetings page's cards): a line of the summary and the counts.
         "summary": m.get("summary"), "decisions": m.get("decisions"), "open_questions": m.get("open_questions"),
+        # The HubSpot deal it's filed in (list_meetings, for the HubSpot team's members and admins).
+        **({"deal": m["deal"]} if m.get("deal") else {}),
     }
 
 
@@ -165,6 +167,7 @@ async def list_meetings(ctx: Context, args: dict) -> tuple[str, dict]:
         got = await meetings.list_meetings(ctx.db, ws_id, actor_of(ctx), _actx(ctx), limit=int(args.get("limit") or 50),
                                            q=args.get("query"), source=args.get("source"), since=args.get("since"),
                                            until=args.get("until"), series=args.get("series"),
+                                           audience=args.get("audience") or None,
                                            cursor=args.get("cursor") or None, overview=False, attendees_max=None)
     except HTTPException as exc:
         raise ToolError(http_message(exc))
@@ -421,6 +424,7 @@ _MEETING_OUT = {"type": "object", "properties": {
     "segments": {"type": "integer"},
     "ai": {"type": "object"}, "source": {"type": "string", "enum": list(meetings.SOURCES)},
     "series": _NULLABLE_STR,
+    "deal": {"type": "object", "description": "The HubSpot deal the call is filed in (id, name, company, href)."},
 }}
 _MEETING_REF = {"type": "string", "minLength": 1, "maxLength": 300,
                 "description": "A meeting's id (from list_meetings), or its page's slug or link."}
@@ -472,7 +476,8 @@ MEETING_TOOLS: list[Tool] = [
         name="list_meetings",
         title="List meetings",
         description=("The meetings of a workspace the user can open, newest first (title, date, series, type, attendees, "
-                     "action items, link, and source: manual, auto or mcp). Filter by series (a recurring meeting such as "
+                     "action items, link, source: manual, auto or mcp, and the HubSpot deal when it's filed in one). Filter by audience "
+                     "(customers or internal), series (a recurring meeting such as "
                      "'Daily Standup'; 'none' for one-offs), a date range (since / until) and source. A page at a time: "
                      "when next_cursor is set, pass it as cursor for the next page."),
         scope=READ,
@@ -484,6 +489,9 @@ MEETING_TOOLS: list[Tool] = [
             "since": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "description": "Optional: only meetings on or after this date (YYYY-MM-DD)."},
             "until": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "description": "Optional: only meetings on or before this date (YYYY-MM-DD)."},
             "series": {"type": "string", "maxLength": 60, "description": "Optional: only this series (any case), or 'none'."},
+            "audience": {"type": "string", "enum": ["customers", "internal"],
+                         "description": ("Optional: customers = calls with someone from outside the company (an outside "
+                                         "attendee, a HubSpot deal or contacts, or the Customer type); internal = the rest.")},
             "limit": {"type": "integer", "minimum": 1, "maximum": 300, "default": 50},
             "cursor": {"type": "string", "maxLength": 600,
                        "description": "Optional: the next_cursor of the previous call, for the next page (same filters)."},

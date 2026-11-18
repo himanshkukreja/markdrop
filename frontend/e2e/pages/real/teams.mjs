@@ -67,8 +67,9 @@ const noHScroll = async (p, what) => {
 };
 
 await step("sidebar", async () => {
-  // Option A "One tree": switcher, Search/Home/Inbox/Ask, Teams (General first, EVERYONE), each team opens inline to
-  // Meetings, People & memory, its projects and its pages; Browse teams; You. No Company section.
+  // Nav redesign 2026-11-18 ("sections"): switcher, Search/Home/Inbox/Ask/Meetings, Teams (General first), each team opens
+  // to the same sections — Overview, Meetings, Deals (the CRM team), Files & pages, People & memory — never its pages,
+  // files or folders (those are on Files & pages); Browse teams; Favorites; You. No Company section.
   const { p } = await ctx(browser, { token: T.member });
   await p.goto(`${APP}/w/${W}/teams/${sales.slug}`);
   await p.getByTestId("team-home").waitFor({ timeout: 20000 });
@@ -82,34 +83,35 @@ await step("sidebar", async () => {
   if (!gen?.general) fail("General isn't first in the sidebar payload");
   G.id = gen.id;
   await row(p, tk(gen.id)).waitFor();
-  if (!(await row(p, tk(gen.id)).innerText()).toUpperCase().includes("EVERYONE")) fail("General has no Everyone tag");
+  await r.getByTestId("rail-meetings").waitFor();
   const order = await r.locator('[data-rail-key^="ws:"][data-rail-key*=":team:"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-rail-key")));
   if (order[0] !== tk(gen.id)) fail(`General isn't the first team row: ${order[0]}`);
-  for (const k of [tk(sales.id), tk(sales.id, "meetings"), tk(sales.id, "memory"), tk(gen.id, "meetings"), tk(gen.id, "memory")]) {
+  for (const k of [tk(sales.id), ...["overview", "meetings", "files", "memory"].flatMap((x) => [tk(sales.id, x), tk(gen.id, x)])]) {
     if (!(await row(p, k).count())) fail(`no rail row ${k}`);
   }
+  const sections = await r.locator(`[data-rail-key^="${tk(sales.id)}:"]`).evaluateAll((els) => els.map((e) => e.getAttribute("data-rail-key").split(":").pop()));
+  if (sections.join(",") !== "overview,meetings,files,memory") fail(`Sales's sections: ${sections.join(",")}`);
   for (const gone of [tk(sales.id, "home"), tk(sales.id, "pages"), tk(sales.id, "ask"), `ws:${WS}:home`, `ws:${WS}:pages`]) {
     if (await row(p, gone).count()) fail(`old rail row ${gone}`);
   }
   if (await row(p, tk(eng.id)).count()) fail("Eng (not his team) is under Teams");
   await r.getByTestId("rail-browse-teams").waitFor();
-  if ((await row(p, tk(sales.id)).getAttribute("aria-current")) !== "page") fail("team row not current on its home");
-  // The team's pages are inside it; General's tree doesn't hold them.
-  await row(p, `ws:${WS}:item:quokka-plan`).waitFor({ timeout: 15000 });
-  const keys = await rail(p).locator("[data-rail-key]").evaluateAll((els) => els.map((e) => e.getAttribute("data-rail-key")));
-  const at = (k) => keys.indexOf(k);
-  const nextTeam = keys.findIndex((k, i) => i > at(tk(sales.id)) && /:team:[^:]+$/.test(k));
-  const inSales = at(`ws:${WS}:item:quokka-plan`) > at(tk(sales.id)) && (nextTeam < 0 || at(`ws:${WS}:item:quokka-plan`) < nextTeam);
-  if (!inSales) fail("Sales's page isn't under Sales");
+  if ((await row(p, tk(sales.id, "overview")).getAttribute("aria-current")) !== "page") fail("Overview not current on the team's home");
+  // The sidebar never lists items: the team's page is on its Files & pages.
+  if (await rail(p).locator(`[data-rail-key="ws:${WS}:item:quokka-plan"]`).count()) fail("an item in the sidebar");
+  await row(p, tk(sales.id, "files")).click();
+  await p.getByTestId("team-files").waitFor({ timeout: 20000 });
+  await p.getByTestId("team-files").locator(`[data-rail-key="ws:${WS}:item:quokka-plan"]`).waitFor({ timeout: 15000 });
+  await p.waitForFunction((k) => document.querySelector(`aside [data-rail-key="${k}"]`)?.getAttribute("aria-current") === "page", tk(sales.id, "files"));
   // Navigate by the rail: Meetings → the team's meetings; the active row follows.
   await row(p, tk(sales.id, "meetings")).click();
   await p.getByRole("heading", { name: "Sales meetings" }).waitFor({ timeout: 20000 });
   await p.waitForFunction((k) => document.querySelector(`[data-rail-key="${k}"]`)?.getAttribute("aria-current") === "page", tk(sales.id, "meetings"));
-  // Keyboard: focus the team row, ArrowDown moves to Meetings, Enter opens it.
+  // Keyboard: focus the team row, ArrowDown moves to Overview, Enter opens the team's home.
   await row(p, tk(sales.id)).focus();
   await p.keyboard.press("ArrowDown");
   const focused = await p.evaluate(() => document.activeElement?.getAttribute("data-rail-key"));
-  if (focused !== tk(sales.id, "meetings")) fail(`ArrowDown landed on ${focused}`);
+  if (focused !== tk(sales.id, "overview")) fail(`ArrowDown landed on ${focused}`);
   await row(p, tk(sales.id)).focus();
   await p.keyboard.press("Enter");
   await p.getByTestId("team-home").waitFor();
@@ -144,16 +146,18 @@ await step("nav", async () => {
   }
   const across = await p.getByTestId("general-across").innerText();
   if (!across.includes("Eng") || !across.includes("Sales")) fail(`Across teams: ${across.slice(0, 200)}`);
-  if ((await row(p, tk(G.id)).getAttribute("aria-current")) !== "page") fail("General row not current on its home");
+  if ((await row(p, tk(G.id, "overview")).getAttribute("aria-current")) !== "page") fail("General's Overview not current on its home");
   // Switcher: lists the workspace, New workspace and its settings.
   await rail(p).getByTestId("ws-switcher").click();
   await p.getByRole("menuitem", { name: "New workspace" }).waitFor();
   await p.keyboard.press("Escape");
-  // Favorites: star Company holidays from its row menu; it appears under Favorites; unstar.
-  const hrow = row(p, `ws:${WS}:page:${holidays}`);
+  // Favorites: star Company holidays from its row menu on General's Files & pages; it appears under Favorites; unstar.
+  await p.goto(`${APP}/w/${W}/teams/general/pages`);
+  const files = p.getByTestId("team-files");
+  const hrow = files.locator(`[data-rail-key="ws:${WS}:page:${holidays}"]`);
   await hrow.waitFor({ timeout: 15000 });
   await hrow.hover();
-  await rail(p).getByRole("button", { name: "Actions for Company holidays" }).first().click();
+  await files.getByRole("button", { name: "Actions for Company holidays" }).first().click();
   await p.getByRole("menuitem", { name: "Add to favorites" }).click({ timeout: 10000 });
   const fav = rail(p).getByRole("tree", { name: "Favorites" });
   await fav.getByText("Company holidays").waitFor({ timeout: 10000 });

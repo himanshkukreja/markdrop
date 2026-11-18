@@ -498,6 +498,7 @@ async def list_meetings(request: Request, workspace: str = Query(..., max_length
                         until: str | None = Query(None, max_length=10),
                         series: str | None = Query(None, max_length=60),
                         space: str | None = Query(None, max_length=40, description="all | company | team:<id> | project:<id> (Teams)"),
+                        audience: Literal["customers", "internal"] | None = Query(None, description="With customers (outside attendees, a HubSpot deal or contacts, Customer type) or internal"),
                         db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
     """A page of the meetings the caller can open (cards: no transcript, notes or AI sections). Pass the
     answer's ``next_cursor`` back as ``cursor`` (same filters and sort) for the next page; ``total`` and
@@ -505,7 +506,7 @@ async def list_meetings(request: Request, workspace: str = Query(..., max_length
     actor, ctx = _ac(request, db, user)
     got = await meetings.list_meetings(db, _ws(workspace), actor, ctx, limit=limit, cursor=cursor, sort=sort,
                                        q=q, source=source, since=since, until=until, series=series,
-                                       space=space)
+                                       space=space, audience=audience)
     return _etagged(request, jsonable_encoder(got))
 
 

@@ -103,6 +103,7 @@ async def workspace_tree(request: Request, workspace_id: str,
 @limiter.limit("120/minute")
 async def workspace_nav(request: Request, workspace_id: str,
                         space: Optional[str] = Query(None, max_length=40, description="all | company | team:<id> | project:<id>"),
+                        meetings: bool = Query(True, description="false: leave meeting pages and transcripts out (a team's Files & pages)"),
                         db: AsyncIOMotorDatabase = Depends(get_db),
                         user: User = Depends(require_user)):
     """The app rail's outline: every readable top-level item, compact, grouped by folder
@@ -110,7 +111,7 @@ async def workspace_nav(request: Request, workspace_id: str,
     icon_url, renderer, mime, filename}], more: {<folder id>|root: n}}``). Viewer+."""
     await ws_service.require_role(db, workspace_id, user.id, "viewer")
     actor, ctx = _ac(request, db, user)
-    return jsonable_encoder(await items_service.nav(db, actor, ctx, workspace_id, space=space))
+    return jsonable_encoder(await items_service.nav(db, actor, ctx, workspace_id, space=space, meetings=meetings))
 
 
 @router.get("/{workspace_id}/items")

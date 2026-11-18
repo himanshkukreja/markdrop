@@ -6,11 +6,11 @@ nav: Share and projects
 keywords: [team pages, move to team, share to team, several teams, company-wide, new page in team, team folder, cross-team project, project space, q4 launch, private team sharing, link sharing, share dialog teams]
 ---
 
-Every page, document and file in a workspace is either in **General** (the team everyone is in) or in one or more other teams. A team's pages and files are under it in the sidebar.
+Every page, document and file in a workspace is either in **General** (the team everyone is in) or in one or more other teams. A team's pages and files are in its **Files & pages**, from the sidebar.
 
 ## Put something in a team
 
-- **New page in a team**: choose **+** next to the team in the sidebar, or **New page** on its home.
+- **New page in a team**: choose **+** next to the team in the sidebar, or **New page** on its home or its **Files & pages**.
 - **Move or share an existing item**: open it, choose **Share**, and under **Teams** choose **Add to a team**. An item can be in several teams: each sees it in its own space. Choose **×** on a team to take it out; with no teams left, it's back in General.
 
 ::clip{src="/docs-assets/teams/share-and-projects/share-flow" alt="Alex opens Company holidays 2026, chooses Share, then Add to a team under Teams, and picks Engineering. Engineering appears as a chip under Teams."}
@@ -33,7 +33,7 @@ The Share dialog reminds you when an item is in a private team.
 
 ## Projects
 
-A project is a space that several teams work on together, like "Q4 launch": its own pages and meetings, and the memory of every team in it. It appears under each of its teams in the sidebar, and members of those teams can all contribute.
+A project is a space that several teams work on together, like "Q4 launch": its own pages and meetings, and the memory of every team in it. It appears on the home of each of its teams, and members of those teams can all contribute.
 
 ![The Q4 launch project: its pages and meetings, and the memory of the Sales, Marketing and Engineering teams it belongs to.](/docs-assets/teams/share-and-projects/project.webp)
 

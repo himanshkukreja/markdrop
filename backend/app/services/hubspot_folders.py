@@ -1231,6 +1231,43 @@ async def chip(db: AsyncIOMotorDatabase, user, actor, ctx, meeting_id: str) -> d
     return {**none, "pick": not (m and m.get("how") == "user" and not m.get("deal_id")), "workspace_id": conn["_id"]}
 
 
+async def card_deals(db: AsyncIOMotorDatabase, user_id: str | None, workspace_id: str, rows: list[dict]) -> dict[str, dict]:
+    """The Meetings list's deal chips: {meeting id: {deal: {id, name, company, href} | None, pick}} for the rows
+    in the HubSpot team (what :func:`chip` says, for a page of cards: one connection read, one deals query).
+    Empty for anyone who can't use HubSpot here."""
+    conn = await H.get(db, workspace_id) if rows else None
+    if not usable(conn):
+        return {}
+    mine = [r for r in rows if H.in_scope(r, conn)]
+    if not mine or not await H.can_use(db, user_id, conn):
+        return {}
+    want: dict[str, str] = {}
+    picks: dict[str, bool] = {}
+    for r in mine:
+        hs = r.get("hubspot") or {}
+        m = hs.get("match") if (hs.get("match") or {}).get("portal_id") == conn["portal_id"] else None
+        did = ((hs.get("filed") or {}).get("deal_id")) or (m.get("deal_id") if fileable(m) else None)
+        if did:
+            want[str(r["_id"])] = str(did)
+        elif m:
+            # Matched to contacts or several deals, nobody picked yet: "Pick the deal".
+            picks[str(r["_id"])] = not (m.get("how") == "user" and not m.get("deal_id")) and bool(
+                m.get("deal_id") or m.get("candidates") or m.get("contact_ids"))
+    found = {d["deal_id"]: d async for d in db[DEALS].find(
+        {"_id": {"$in": [key_of(conn, d) for d in set(want.values())]}, "folder_id": {"$nin": [None, ""]}},
+        {"deal_id": 1, "name": 1, "company": 1})} if want else {}
+    out: dict[str, dict] = {}
+    for mid, did in want.items():
+        d = found.get(did)
+        if d is not None:
+            out[mid] = {"deal": {"id": did, "name": d.get("name"), "company": (d.get("company") or {}).get("name"),
+                                 "href": deal_href(conn["_id"], did)}, "pick": False}
+    for mid, pick in picks.items():
+        if pick and mid not in out:
+            out[mid] = {"deal": None, "pick": True}
+    return out
+
+
 async def request_sync(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
     """POST /deals/sync ("Sync now", workspace admins): a pass in the background; the board's sync state."""
     await H.require_admin(db, user, workspace_id)

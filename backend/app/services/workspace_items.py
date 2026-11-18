@@ -434,11 +434,11 @@ async def _team_folders(actor: access.Actor, ctx: access.Ctx, workspace_id: str,
 
 
 _NAV_FIELDS = {"slug": 1, "title": 1, "kind": 1, "editor": 1, "original_filename": 1, "encrypted": 1,
-               "folder_id": 1, "parent_id": 1, "created_at": 1}
+               "folder_id": 1, "parent_id": 1, "created_at": 1, "meeting_id": 1}
 
 
 async def nav(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace_id: str,
-              *, space: str | None = None) -> dict:
+              *, space: str | None = None, meetings: bool = True) -> dict:
     """The app rail's outline of a workspace, in one request: every readable top-level item
     (pages, documents and files; sub-pages come from ``GET /documents/{slug}/children`` when a
     page is opened), compact, grouped by folder. Per folder (``""`` = the top level): pages first
@@ -446,11 +446,14 @@ async def nav(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, wo
     ``NAV_PER_PLACE`` of them, the rest counted in ``more``. ``has_children`` counts only
     sub-pages this caller can read. Two queries (the tree's projected scan of readable rows, then
     the rows shown, without their content), a ``can(read)`` per row shown, and a link for each
-    image icon."""
+    image icon. ``meetings=False``: without meeting pages and their transcripts (a team's Files & pages:
+    the Meetings section lists those)."""
     from app.services import pages as pages_service
 
     sx = await space_extra(actor, ctx, workspace_id, space)
     rows = await readable_rows(db, actor, ctx, workspace_id, *([sx] if sx else []), projection=_NAV_FIELDS)
+    if not meetings:
+        rows = [r for r in rows if not r.get("meeting_id")]
     hide = await _hidden_ids(db, workspace_id)
     if hide:
         rows = [r for r in rows if (r.get("folder_id") or "") not in hide]

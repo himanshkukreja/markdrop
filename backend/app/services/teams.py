@@ -323,6 +323,26 @@ async def linked(db: AsyncIOMotorDatabase, workspace_id: str) -> dict[str, list[
     return out
 
 
+async def section_counts(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str | None, cards: list[dict]) -> list[dict]:
+    """The sidebar's badges (nav redesign 2026-11-18): on the Zoom team, ``to_review`` (the caller's own recorded
+    Zoom meetings held for their decision, services/zoom_review.py); on the HubSpot team, ``deals`` (its open
+    deal folders, services/hubspot_folders.py: Markdrop's records, no HubSpot call). Two counts at most."""
+    by_id = {c["id"]: c for c in cards}
+    zc = await db["zoom_connections"].find_one({"_id": str(workspace_id)}, {"team_id": 1})
+    zt = str((zc or {}).get("team_id") or "")
+    if user_id and zt in by_id:
+        n = await db["zoom_meetings"].count_documents({"workspace_id": str(workspace_id), "state": "held", "host.id": user_id})
+        if n:
+            by_id[zt] = {**by_id[zt], "to_review": n}
+    hc = await db["hubspot_connections"].find_one({"_id": str(workspace_id)}, {"team_id": 1, "portal_id": 1})
+    ht = str((hc or {}).get("team_id") or "")
+    if ht in by_id and by_id[ht].get("hubspot") and hc.get("portal_id"):
+        by_id[ht] = {**by_id[ht], "deals": await db["hubspot_deal_folders"].count_documents(
+            {"workspace_id": str(workspace_id), "portal_id": hc["portal_id"], "closed": {"$ne": True},
+             "folder_id": {"$nin": [None, ""]}})}
+    return [by_id[c["id"]] for c in cards]
+
+
 def with_links(card: dict, links: dict[str, list[str]]) -> dict:
     got = links.get(card.get("id") or "") or []
     return {**card, "linked": list(got), "hubspot": "HubSpot" in got and bool(card.get("can_read"))}

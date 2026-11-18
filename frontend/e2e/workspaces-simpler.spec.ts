@@ -51,7 +51,10 @@ test("a drop on a folder card or a rail folder files it there and clears the pag
   await expect(page.getByText(/file added to Specs/)).toBeVisible();
   await expect(overlay).toBeHidden();
 
-  const railFolder = page.getByRole("treeitem", { name: /Specs/ }).first();
+  // The folder tree is on General's Files & pages since the nav redesign (2026-11-18).
+  await visit(page, `/w/${ws.id}/teams/general/pages`);
+  await settle(page);
+  const railFolder = page.getByTestId("team-files").getByRole("treeitem", { name: /Specs/ }).first();
   await expect(railFolder).toBeVisible();
   await dropMarkdownOn(page, railFolder, "rail-drop");
   await expect(overlay).toBeHidden();
@@ -71,8 +74,8 @@ test("a new workspace shows in the rail at once and its checklist ticks the invi
   await page.getByRole("dialog").getByRole("textbox").first().fill(name);
   await page.getByRole("dialog").getByRole("button", { name: /Create/ }).click();
   await expect(page).toHaveURL(/\/w\/[0-9a-f]{24}/);
-  // The rail lists it without a reload.
-  await expect(page.getByRole("treeitem", { name: new RegExp(name) }).first()).toBeVisible();
+  // The rail shows it without a reload (the workspace switcher names it).
+  await expect(page.getByTestId("ws-switcher").filter({ hasText: name }).first()).toBeVisible();
   await expect(page.getByText("1 of 4 done")).toBeVisible();
 
   // Invite someone from the checklist: "Invite your team" is done straight away.

@@ -77,6 +77,20 @@
       "body": "- **The rules.** A Zoom topic with \"personal\" or \"private\" never comes in; a call with someone from outside the company comes in; an internal-only call waits for its host; otherwise the host's choice decides. See [Choose which meetings come in](/integrations/zoom#choose-which-meetings-come-in).\n- **Your choice.** *When my Zoom meetings are recorded* in Settings › Account › Zoom: Share automatically (the default), Ask me first, or Never bring them in. Workspace admins can set it per member on the Zoom card.\n- **Nothing downloaded while it waits.** A waiting meeting keeps only its topic, time, duration and who joined, seen only by its host, for 30 days.\n- **Keep it just for me** brings the meeting in private to the host alone.\n- **Import past meetings** follows the same rules.\n- **MCP and API.** `zoom_review` lists, decides and changes the setting; `GET`/`POST /api/v1/zoom/review`, `GET`/`PUT /api/v1/zoom/me`."
     },
     {
+      "id": "nav-sections-sidebar",
+      "date": "2026-11-18",
+      "title": "A shorter sidebar: every team has the same sections",
+      "kind": "improved",
+      "area": "Teams",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "The sidebar no longer lists every meeting, page and folder under a team. Each team shows the same sections, Overview, Meetings, Deals (the team linked to HubSpot), Files & pages and People & memory, and Meetings and Deals across all your teams sit at the top.",
+      "body": "- **Meetings and Deals at the top.** Every team's meetings you can open, with a Team filter, and every deal of your teams linked to HubSpot. Meetings shows how many recorded Zoom meetings wait for you to review.\n- **Meetings tabs.** All, To review (your held Zoom meetings), With customers and Internal, plus series and search. Each meeting shows its deal when it's matched in HubSpot, its length, and whether a recording and transcript are kept.\n- **Files & pages.** A team's folders, pages and files as a tree, with archived folders grouped under Archive. Meeting pages and deal folders stay in their own sections; search still finds everything.\n- **Old links still work**, and land on the right section. See [The sidebar](/teams/overview#the-sidebar).\n- **API and MCP.** `GET /api/v1/meetings` and `list_meetings` take `audience` (customers or internal) and return the deal a call is filed in; `GET /api/v1/workspaces/{id}/nav` takes `meetings=false`."
+    },
+    {
       "id": "hubspot-write-guard",
       "date": "2026-11-17",
       "title": "HubSpot: Markdrop never deletes or overwrites",

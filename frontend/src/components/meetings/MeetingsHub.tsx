@@ -16,10 +16,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
-import { teamHref } from "@/lib/teams";
+import { teamHref, teamsChanged, type TeamCard } from "@/lib/teams";
 import { TeamChip } from "@/components/teams/parts";
 import {
-  Alert, Avatar, AvatarGroup, Badge, Button, ConfirmDialog, Dropdown, Icon, IconButton, Input, Progress, Select, Skeleton, Spinner, Switch,
+  Alert, Badge, Button, ConfirmDialog, Dropdown, Icon, IconButton, Input, Progress, Select, Skeleton, Spinner, Switch, Tabs,
   copyText, useToast, type MenuEntry,
 } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,8 +27,9 @@ import { getWorkspace, type Workspace } from "@/lib/workspaces";
 import {
   deleteMeeting, fmtDuration, getMeetConnection, getMeetingsStatus, getOrganize, getOrganizeRun, listBackfills, listSeries,
   monthLabel, meetingsHref, MEETING_SORTS,
-  type BackfillJob, type OrganizeJob, type MeetConnection, type MeetingCard, type MeetingSeries, type MeetingSort, type MeetingsStatus,
+  type BackfillJob, type MeetingAudience, type MeetingsTab, type OrganizeJob, type MeetConnection, type MeetingCard, type MeetingSeries, type MeetingSort, type MeetingsStatus,
 } from "@/lib/meetings";
+import { ZoomReviewList } from "@/components/zoom/ZoomReviewList";
 import { lastQuery, useMeetingsList } from "./useMeetingsList";
 import { ImportMeeting } from "./ImportMeeting";
 import { BulkImport } from "./BulkImport";
@@ -43,10 +44,27 @@ import { useAssistantHere } from "@/components/assistant/store";
 import "./meetings.css";
 import "./backfill.css";
 
-export default function MeetingsHub({ workspaceId, space: spaceParam }: { workspaceId: string; /** Teams: "team:<id>" | "project:<id>" — that space's meetings; "company": company-wide only; "all": everything you can open. */ space?: string }) {
+export default function MeetingsHub({ workspaceId, space: spaceParam, team: teamFilter = null, tab: tabParam = "all" }: {
+  workspaceId: string;
+  /** Teams: "team:<id>" | "project:<id>" — that space's meetings (a team's Meetings section); "company": company-wide only;
+   *  "all" or none: every team's you can open (the sidebar's top-level Meetings), with a Team filter (`team`). */
+  space?: string; team?: string | null; tab?: MeetingsTab;
+}) {
   const router = useRouter();
-  const space = spaceParam === "all" ? undefined : spaceParam;
-  const companyView = spaceParam === "company" || spaceParam === "all";
+  const allView = !spaceParam || spaceParam === "all";
+  const space = allView ? (teamFilter ? `team:${teamFilter}` : undefined) : spaceParam;
+  const companyView = spaceParam === "company";
+  const [tab, setTabState] = useState<MeetingsTab>(tabParam);
+  const audience: MeetingAudience | null = tab === "customers" || tab === "internal" ? tab : null;
+  // The tab and the Team filter live in the URL (a link to "To review", back navigation).
+  const setUrl = (next: { tab?: MeetingsTab; team?: string | null }) => {
+    const q = new URLSearchParams(window.location.search);
+    const t = next.tab ?? tab;
+    if (t === "all") q.delete("tab"); else q.set("tab", t);
+    if (next.team !== undefined) { if (next.team) q.set("team", next.team); else q.delete("team"); }
+    router.replace(`/meetings/${encodeURIComponent(workspaceId)}?${q.toString()}`, { scroll: false });
+  };
+  const setTab = (t: MeetingsTab) => { setTabState(t); setUrl({ tab: t }); };
   const { user, loading: authLoading } = useAuth();
   const toast = useToast();
   const [ws, setWs] = useState<Workspace | null>(null);
@@ -83,11 +101,18 @@ export default function MeetingsHub({ workspaceId, space: spaceParam }: { worksp
     const t = window.setTimeout(() => setQ(filter.trim()), filter.trim() ? 250 : 0);
     return () => window.clearTimeout(t);
   }, [filter]);
-  const query = useMemo(() => ({ q, series: seriesFilter, sort, ...(space ? { space } : {}) }), [q, seriesFilter, sort, space]);
+  const query = useMemo(() => ({ q, series: seriesFilter, sort, audience, ...(space ? { space } : {}) }), [q, seriesFilter, sort, space, audience]);
   // Teams: a team's meetings (?space=team:<id>) — its name in the title, and the importer starts on it.
   useTeamsSidebar([workspaceId]);
   const teamsData = teamsSlot(workspaceId);
-  const spaceTeam = space?.startsWith("team:") && teamsData ? teamsData.teams.find((t) => t.id === space.slice(5)) ?? null : null;
+  const spaceTeam = !allView && space?.startsWith("team:") && teamsData ? teamsData.teams.find((t) => t.id === space.slice(5)) ?? null : null;
+  // All teams: the Team filter's choices (General first), and your Zoom meetings waiting across them.
+  const myTeams: TeamCard[] = teamsData ? teamsData.teams.filter((t) => t.general || t.my_role || t.can_admin) : [];
+  const filterTeam = allView && teamFilter ? myTeams.find((t) => t.id === teamFilter) ?? null : null;
+  const reviewTeams = spaceTeam ? [spaceTeam] : filterTeam ? [filterTeam] : myTeams;
+  const reviewCount = reviewTeams.reduce((n, t) => n + (t.to_review ?? 0), 0);
+  const zoomHere = reviewTeams.some((t) => (t.linked ?? []).includes("Zoom"));
+  const showReview = reviewCount > 0 || zoomHere || tab === "review";
   const signedIn = !!user;
   const list = useMeetingsList(workspaceId, signedIn, query);
   const { items, hidden, refreshHead, reload: reloadFirst, drop } = list;
@@ -217,7 +242,7 @@ export default function MeetingsHub({ workspaceId, space: spaceParam }: { worksp
     }
     return out;
   }, [shown, sort]);
-  const filtered = !!filter || seriesFilter !== null;
+  const filtered = !!filter || seriesFilter !== null || !!audience;
   // Every meeting the caller can open (the chips' answer), and how many match now.
   const allCount = facets?.total ?? (filtered ? null : list.total);
   const matchCount = list.total ?? shown.length;
@@ -266,15 +291,18 @@ export default function MeetingsHub({ workspaceId, space: spaceParam }: { worksp
         <Link href={`/w/${encodeURIComponent(workspaceId)}`}>{ws?.name ?? "Workspace"}</Link>
         <Icon name="chevronRight" />
         {spaceTeam && <><Link href={teamHref(workspaceId, spaceTeam)}>{spaceTeam.name}</Link><Icon name="chevronRight" /></>}
+        {allView && <><span>All teams</span><Icon name="chevronRight" /></>}
         <span aria-current="page">Meetings</span>
       </nav>
       <header className="mt-hub__head">
         <div className="mt-hub__titles">
-          <h1 className="mt-hub__title">{spaceTeam ? `${spaceTeam.name} meetings` : spaceParam === "company" ? "General meetings" : "Meetings"}</h1>
-          <p className="mt-hub__sub">{spaceTeam?.general || spaceParam === "company" ? "Calls for everyone in the workspace. A team's meetings live in that team." : "Every call as a page — summary, decisions, action items and the transcript."}</p>
+          <h1 className="mt-hub__title">{spaceTeam ? `${spaceTeam.name} meetings` : companyView ? "General meetings" : "Meetings"}</h1>
+          <p className="mt-hub__sub">{allView ? "Every team's meetings you can open. Each call is a page: summary, decisions, action items and the transcript."
+            : spaceTeam?.general || companyView ? "Calls for everyone in the workspace. A team's meetings live in that team."
+              : "Every call as a page — summary, decisions, action items and the transcript."}</p>
           {companyView && (
-            <Switch label="Show all I can open" checked={spaceParam === "all"} data-testid="meetings-show-all"
-              onChange={(e) => router.replace(`/meetings/${encodeURIComponent(workspaceId)}?space=${e.currentTarget.checked ? "all" : "company"}`)} />
+            <Switch label="Show all I can open" checked={false} data-testid="meetings-show-all"
+              onChange={(e) => { if (e.currentTarget.checked) router.replace(`/meetings/${encodeURIComponent(workspaceId)}?space=all`); }} />
           )}
         </div>
         <div className="mt-hub__actions">
@@ -308,7 +336,7 @@ export default function MeetingsHub({ workspaceId, space: spaceParam }: { worksp
         <div className="mt-list" aria-busy>
           {[0, 1, 2, 3].map((i) => <Skeleton key={i} variant="rect" height={104} />)}
         </div>
-      ) : !any && hidden.length === 0 ? (
+      ) : !any && hidden.length === 0 && !showReview ? (
         <div className="mt-empty-hub">
           <span className="mt-empty-hub__glyph" aria-hidden><Icon name="mic" /></span>
           <h3>Turn your calls into team memory</h3>
@@ -329,6 +357,28 @@ export default function MeetingsHub({ workspaceId, space: spaceParam }: { worksp
       ) : (
         <section aria-labelledby="mt-list-title" className="mt-listsec">
           <h2 id="mt-list-title" className="mt-sr">Meetings</h2>
+          <div className="mt-tabsrow">
+            <Tabs aria-label="Which meetings" size="sm" value={tab} onChange={(v) => setTab(v as MeetingsTab)} idPrefix="mt" data-testid="meetings-tabs"
+              items={[
+                { value: "all", label: "All", count: allCount ?? undefined },
+                ...(showReview ? [{ value: "review", label: "To review", count: reviewCount || undefined }] : []),
+                { value: "customers", label: "With customers" },
+                { value: "internal", label: "Internal" },
+              ]} />
+            {allView && myTeams.length > 1 && (
+              <Select aria-label="Team" value={teamFilter ?? ""} className="mt-teamfilter" data-testid="meetings-team-filter"
+                onChange={(e) => setUrl({ team: e.target.value || null })}
+                options={[{ value: "", label: "All teams" }, ...myTeams.map((t) => ({ value: t.id, label: t.name }))]} />
+            )}
+          </div>
+          {tab === "review" ? (
+            <div role="tabpanel" id="mt-panel-review" aria-labelledby="mt-tab-review" className="mt-review">
+              <p className="mt-review__intro">Your recorded Zoom meetings wait for you: everyone on them was from the company, or you asked to decide first. Only you see them until you share one.</p>
+              <ZoomReviewList workspace={workspaceId} teamId={spaceTeam?.id ?? filterTeam?.id ?? null}
+                emptyText="No Zoom meetings wait for your decision." onDecided={() => { void refreshHead(); teamsChanged(workspaceId); }} />
+            </div>
+          ) : (
+          <div role="tabpanel" id={`mt-panel-${tab}`} aria-labelledby={`mt-tab-${tab}`}>
           <div className="mt-tools">
             <div className="mt-search">
               <Icon name="search" className="mt-search__icon" />
@@ -343,7 +393,7 @@ export default function MeetingsHub({ workspaceId, space: spaceParam }: { worksp
           </div>
           {series.length > 0 && (
             <ul className="mt-series" aria-label="Series" data-testid="series-chips">
-              <li><button type="button" className="mt-series__chip" aria-pressed={seriesFilter === null} onClick={() => setSeriesFilter(null)}>All <span className="mt-series__n">{allCount ?? "…"}</span></button></li>
+              <li><button type="button" className="mt-series__chip" aria-pressed={seriesFilter === null} onClick={() => setSeriesFilter(null)}>All series</button></li>
               {series.map((x) => (
                 <li key={x.name}>
                   <button type="button" className="mt-series__chip" aria-pressed={seriesFilter === x.name} onClick={() => setSeriesFilter(seriesFilter === x.name ? null : x.name)}>
@@ -359,14 +409,20 @@ export default function MeetingsHub({ workspaceId, space: spaceParam }: { worksp
               <div className="mt-nomatch">
                 <Icon name="search" />
                 <p>No meetings match{filter ? <> “{filter}”</> : null}.</p>
-                <Button size="sm" variant="secondary" onClick={() => { setFilter(""); setSeriesFilter(null); }}>Clear the filters</Button>
+                <Button size="sm" variant="secondary" onClick={() => { setFilter(""); setSeriesFilter(null); if (audience) setTab("all"); }}>Clear the filters</Button>
+              </div>
+            )}
+            {shown.length === 0 && !filtered && !list.stale && (
+              <div className="mt-nomatch">
+                <Icon name="mic" />
+                <p>No meetings here yet.</p>
               </div>
             )}
             {months.map((g, gi) => (
               <section key={g.key} className="mt-monthgroup" aria-label={g.key === "all" ? undefined : g.key === "none" ? "No date" : monthLabel(g.key)}>
                 {g.key !== "all" && <h3 className="mt-month" data-testid="month-header">{g.key === "none" ? "No date" : monthLabel(g.key)}{/* the last month may go on in the next page */}{(gi < months.length - 1 || !list.next) && <small> {g.items.length}</small>}</h3>}
-                <ul className="mt-list">
-                  {g.items.map((m) => <MeetingCardItem key={m.id} m={m} onDelete={m.can_delete ? () => setDeleting(m.id) : undefined} />)}
+                <ul className="mt-rows">
+                  {g.items.map((m) => <MeetingRow key={m.id} m={m} showTeams={allView && !filterTeam} onDelete={m.can_delete ? () => setDeleting(m.id) : undefined} />)}
                 </ul>
               </section>
             ))}
@@ -402,6 +458,8 @@ export default function MeetingsHub({ workspaceId, space: spaceParam }: { worksp
               </ul>
             )}
           </div>
+          </div>
+          )}
         </section>
       )}
 
@@ -460,89 +518,68 @@ function hue(name: string): number {
 /** A series' colour (its chip's dot, the thumbnail when there's no cover). */
 const seriesTint = (name: string) => `hsl(${hue(name.toLowerCase())} 62% 52%)`;
 
-function Faces({ people, count }: { people: MeetingCard["attendees"]; count: number }) {
-  const shown = people.slice(0, 4);
-  const more = Math.max(count, people.length) - shown.length;
-  const others = Math.max(count, people.length) - people.length;
-  const names = people.map((a) => a.name).join(", ") + (others > 0 ? ` and ${others} more` : "");
-  return (
-    <span className="mt-faces" title={names} aria-label={`${Math.max(count, people.length)} ${Math.max(count, people.length) === 1 ? "person" : "people"}: ${names}`} role="img">
-      {shown.map((a) => (
-        <span key={a.name} className="mt-face" style={{ background: `hsl(${hue(a.name)} 45% 46%)` }} aria-hidden>
-          {a.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("")}
-        </span>
-      ))}
-      {more > 0 && <span className="mt-face mt-face--more" aria-hidden>+{more}</span>}
-    </span>
-  );
-}
-
-function MeetingCardItem({ m, onDelete }: { m: MeetingCard; onDelete?: () => void }) {
+/**
+ * One meeting in the list (nav redesign 2026-11-18, "combined"): the date, the title with its series, teams and a line
+ * of the summary, the HubSpot deal it's filed in (or "Pick the deal"), the time and length, and marks for a kept
+ * recording and the transcript. The whole row opens the meeting; Transcript, Ask and ⋯ sit on the right.
+ */
+function MeetingRow({ m, onDelete, showTeams }: { m: MeetingCard; onDelete?: () => void; showTeams?: boolean }) {
   const toast = useToast();
   const [y, mo, d] = (m.date || "").split("-").map(Number);
   const dt = y ? new Date(y, (mo || 1) - 1, d || 1) : null;
   const title = m.title || "Meeting";
-  const thumb = m.cover ? `/page-covers/thumbs/${m.cover}.webp` : null;
-  const when = [fmtDay(m.date), m.time, m.duration_s ? fmtDuration(m.duration_s) : null].filter(Boolean).join(" · ");
-  const counts = [
-    { n: m.decisions ?? 0, icon: "checkCircle", one: "decision", many: "decisions" },
-    { n: m.action_items, icon: "checkSquare", one: "action item", many: "action items" },
-    { n: m.open_questions ?? 0, icon: "flag", one: "open question", many: "open questions" },
-  ].filter((c) => c.n > 0);
+  const when = [m.time, m.duration_s ? fmtDuration(m.duration_s) : null].filter(Boolean).join(" · ");
   const menu: MenuEntry[] = [
     { label: "Open", icon: "arrowRight", href: `/${m.slug}` },
     ...(m.transcript_slug ? [{ label: "Transcript", icon: "lines", href: `/${m.transcript_slug}` }] : []),
     { label: "Ask this meeting", icon: "sparkle", href: `/${m.slug}?ask=1` },
+    ...(m.deal ? [{ label: `Open ${m.deal.company || m.deal.name || "the deal"}`, icon: "briefcase", href: m.deal.href }] : []),
     { label: "Copy link", icon: "link", onClick: () => void copyText(new URL(`/${m.slug}`, window.location.origin).toString()).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy"))) },
     ...(onDelete ? [{ label: "Delete meeting", icon: "trash", danger: true, separated: true, onClick: onDelete }] : []),
   ];
+  const dealLabel = m.deal ? [m.deal.company, m.deal.name].filter(Boolean).join(" — ") || "Deal" : null;
   return (
-    <li className="mt-card" data-testid="meeting-card" data-id={m.id} data-series={m.series ? "" : undefined}>
-      <Link className="mt-card__link" href={`/${m.slug}`} aria-label={`${title}${m.date ? `, ${fmtDay(m.date)}` : ""}`} />
-      <span className="mt-card__thumb" aria-hidden
-        style={{ backgroundColor: m.series ? seriesTint(m.series) : "var(--surface-inset)" }}>
-        {/* Lazy: only the covers near the screen load (a long list asks for a few, not all). */}
-        {thumb && <img className="mt-card__img" src={thumb} alt="" loading="lazy" decoding="async" width={76} height={76} />}
-        <span className="mt-card__day">
-          <small>{dt ? dt.toLocaleDateString(undefined, { month: "short" }) : "—"}</small>
-          {dt ? dt.getDate() : ""}
-        </span>
+    <li className="mt-row" data-testid="meeting-card" data-id={m.id} data-series={m.series ? "" : undefined}>
+      <Link className="mt-row__link" href={`/${m.slug}`} aria-label={`${title}${m.date ? `, ${fmtDay(m.date)}` : ""}`} />
+      <span className="mt-row__date" aria-hidden>
+        <small>{dt ? dt.toLocaleDateString(undefined, { month: "short" }) : "—"}</small>
+        {dt ? dt.getDate() : ""}
       </span>
-      <div className="mt-card__main">
-        <div className="mt-card__top">
-          <p className="mt-card__title">{title}</p>
-          <span className="mt-card__badges">
-            {m.ai.state === "pending" && <span className="mt-state"><Spinner size={12} /> Summarizing</span>}
-            {m.restricted && <Badge size="sm" tone="neutral" icon="lock">Attendees only</Badge>}
-            {m.source === "auto" && <Badge size="sm" tone="info" icon="refresh">Auto</Badge>}
-            {m.source === "zoom" && <Badge size="sm" tone="info" icon="film">Zoom</Badge>}
-            {/* Teams: where it was routed (a guess until someone confirms it, "Suggested"). */}
-            {(m.teams ?? []).slice(0, 2).map((t) => <span key={t.id} data-testid="card-team"><TeamChip team={t as { name: string; icon: string | null; color: string }} /></span>)}
-            {m.routing_state === "auto" && (m.teams ?? []).length > 0 && <span className="text-micro text-text-muted" title="Routed from who attended. Change it from the meeting's Share menu.">Suggested</span>}
-          </span>
-        </div>
-        <p className="mt-card__when" data-testid="card-when">
-          {when}
+      <div className="mt-row__main">
+        <p className="mt-card__title">{title}</p>
+        <p className="mt-row__sub">
+          {m.ai.state === "pending" && <span className="mt-state"><Spinner size={12} /> Summarizing</span>}
           {m.series && m.series !== m.title && (
             <span className="mt-card__series" data-testid="card-series"><span style={{ background: seriesTint(m.series) }} aria-hidden />{m.series}</span>
           )}
+          {showTeams && (m.teams ?? []).slice(0, 2).map((t) => <span key={t.id} data-testid="card-team"><TeamChip team={t as { name: string; icon: string | null; color: string }} /></span>)}
+          {m.restricted && <Badge size="sm" tone="neutral" icon="lock">Attendees only</Badge>}
+          {m.summary
+            ? <span className="mt-row__summary" data-testid="card-summary">{m.summary}</span>
+            : m.ai.state !== "pending" && m.ai.state !== "done" && m.has_notes
+              ? <span className="mt-row__summary mt-row__summary--muted" data-testid="card-summary">Google&apos;s notes are on the page.</span>
+              : null}
         </p>
-        {m.summary
-          ? <p className="mt-card__summary" data-testid="card-summary">{m.summary}</p>
-          : m.ai.state !== "pending" && m.ai.state !== "done" && m.has_notes
-            ? <p className="mt-card__summary mt-card__summary--muted" data-testid="card-summary">Google's notes are on the page.</p>
-            : null}
-        <div className="mt-card__foot">
-          {m.attendees.length > 0 && <Faces people={m.attendees} count={m.attendee_count ?? m.attendees.length} />}
-          {counts.map((c) => (
-            <span key={c.icon} className="mt-card__count"><Icon name={c.icon} />{c.n} {c.n === 1 ? c.one : c.many}</span>
-          ))}
-        </div>
       </div>
+      <span className="mt-row__deal">
+        {m.deal ? (
+          <Link className="mt-row__chip" href={m.deal.href} title={dealLabel ?? undefined} data-testid="card-deal">
+            <Icon name="briefcase" /><span>{dealLabel}</span>
+          </Link>
+        ) : m.deal_pick ? (
+          <Link className="mt-row__chip mt-row__chip--pick" href={`/${m.slug}`} data-testid="card-deal-pick">
+            <Icon name="briefcase" /><span>Pick the deal</span>
+          </Link>
+        ) : null}
+      </span>
+      <span className="mt-row__meta">
+        <span className="mt-row__when" data-testid="card-when">{when || (m.date ? fmtDay(m.date) : "")}</span>
+        <span className="mt-row__marks">
+          {m.has_recording && <span title="Recording kept in Markdrop"><Icon name="film" /><span className="mt-sr">Recording</span></span>}
+          {m.has_transcript && <span title="Transcript"><Icon name="lines" /><span className="mt-sr">Transcript</span></span>}
+        </span>
+      </span>
       <div className="mt-card__actions">
-        {m.transcript_slug && (
-          <Link className="mt-card__act" href={`/${m.transcript_slug}`} title="Transcript" aria-label={`Transcript of ${title}`}><Icon name="lines" /></Link>
-        )}
         <Link className="mt-card__act" href={`/${m.slug}?ask=1`} title="Ask this meeting" aria-label={`Ask ${title}`}><Icon name="sparkle" /></Link>
         <Dropdown align="right" portal aria-label={`More for ${title}`} items={menu}
           trigger={<button type="button" className="mt-card__act" aria-label={`More for ${title}`}><Icon name="more" /></button>} />

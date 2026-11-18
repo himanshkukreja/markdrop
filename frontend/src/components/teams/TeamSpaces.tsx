@@ -2,72 +2,23 @@
 
 /**
  * The other Teams screens:
- * - TeamPages   /w/<ws>/teams/<team>/pages — the team's pages, documents and files (items?space=team:<id>), searchable.
  * - ProjectHome /w/<ws>/projects/<project> — a cross-team project space: its pages, meetings, combined memory, linked teams.
  * - CreateProjectDialog (leads of a linked team, admins).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Alert, Avatar, AvatarGroup, Button, Dialog, EmptyState, Field, Input, Skeleton, Textarea, useToast } from "@/components/ui";
+import { Avatar, AvatarGroup, Button, Dialog, EmptyState, Field, Input, Skeleton, Textarea, useToast } from "@/components/ui";
 import { useAssistantHere } from "@/components/assistant/store";
-import { getWorkspace, listWorkspaceItems, type Workspace } from "@/lib/workspaces";
+import { getWorkspace, type Workspace } from "@/lib/workspaces";
 import { listMeetings } from "@/lib/meetings";
 import {
-  browseHref, createProject, getBrief, getProjectHome, getTeamHome, getTeams, projectHref, reviewHref, teamHref, teamPagesHref,
-  type Brief, type ProjectHome as PHome, type TeamCard, type TeamColor, type TeamHome as THome, type TeamHomeLocked, type TeamItem, type TeamMeetingCard, type TeamsSidebar,
+  browseHref, createProject, getBrief, getProjectHome, getTeams, projectHref, reviewHref, teamHref,
+  type Brief, type ProjectHome as PHome, type TeamCard, type TeamColor, type TeamHome as THome, type TeamHomeLocked, type TeamMeetingCard, type TeamsSidebar,
 } from "@/lib/teams";
 import { ColorSwatches, PeoplePicker, TeamChecklist, TeamTile, VisibilityBadge, useWorkspaceMembers } from "./parts";
 import { Crumbs, ItemRow, MeetingRow, MemoryCard } from "./TeamHome";
 import "./teams.css";
-
-/* ── a team's pages ── */
-
-export function TeamPages({ ws, team: teamRef }: { ws: string; team: string }) {
-  const [team, setTeam] = useState<TeamCard | null>(null);
-  const [items, setItems] = useState<TeamItem[] | null>(null);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [q, setQ] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  useAssistantHere({ workspace: ws });
-  useEffect(() => {
-    getTeamHome(ws, teamRef).then((h) => setTeam(h.team)).catch((e) => setError(e instanceof Error ? e.message : "Couldn't load this team."));
-  }, [ws, teamRef]);
-  const load = useCallback(async (more?: string | null) => {
-    if (!team) return;
-    try {
-      const r = await listWorkspaceItems(ws, { folder: "all", space: `team:${team.id}`, q: q.trim() || undefined, cursor: more ?? null, limit: 50 });
-      setItems((prev) => (more && prev ? [...prev, ...r.items] : r.items)); setCursor(r.next_cursor);
-    } catch (e) { setError(e instanceof Error ? e.message : "Couldn't load pages."); }
-  }, [ws, team, q]);
-  useEffect(() => { const t = window.setTimeout(() => void load(), q ? 250 : 0); return () => window.clearTimeout(t); }, [load, q]);
-  if (error && !team) return <div className="tz-page"><Alert tone="danger">{error}</Alert></div>;
-  const member = !!(team && (team.my_role || team.can_admin));
-  return (
-    <div className="tz-page" data-testid="team-pages">
-      <Crumbs ws={ws} trail={[{ label: "Teams", href: browseHref(ws) }, ...(team ? [{ label: team.name, href: teamHref(ws, team) }] : []), { label: "Pages" }]} />
-      <header className="tz-head">
-        <div className="tz-head__main">
-          {team && <TeamTile team={team} size={40} />}
-          <div className="tz-head__titles"><h1 className="tz-title">{team ? `${team.name} pages` : " "}</h1>
-            <p className="tz-sub">Pages, documents and files in this team. Share one to another team from its Share menu.</p></div>
-        </div>
-        {team && member && <div className="tz-actions"><Button iconLeft="plus" href={`/pages/new?workspace=${encodeURIComponent(ws)}&team=${encodeURIComponent(team.id)}`}>New page</Button></div>}
-      </header>
-      {team?.can_read === false ? <Alert tone="neutral" icon="lock">This is a private team. Only its members see its pages.</Alert> : (
-        <>
-          <div className="mb-3 max-w-md"><Input iconPrefix="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search this team's pages" aria-label="Search this team's pages" /></div>
-          <section className="tz-card tz-card--flush">
-            {items === null ? <div className="p-3"><Skeleton variant="rect" height={160} /></div> : items.length === 0 ? (
-              <EmptyState icon="doc" title={q ? "Nothing matches" : "No pages yet"} description={q ? undefined : member ? "Create one, or move a page here from its Share menu." : undefined} />
-            ) : <ul className="tz-rows">{items.map((it) => <ItemRow key={it.slug} it={it} />)}</ul>}
-          </section>
-          {cursor && <div className="mt-3"><Button variant="secondary" onClick={() => void load(cursor)}>Load more</Button></div>}
-        </>
-      )}
-    </div>
-  );
-}
 
 /* ── a project space ── */
 

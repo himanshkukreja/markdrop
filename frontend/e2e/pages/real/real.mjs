@@ -1222,39 +1222,37 @@ await step("create-menu", async () => {
 
 await step("rail", async () => {
   const { c, p } = await ctx(browser, { token: T.owner });
-  await c.addInitScript(([ws, f]) => localStorage.setItem("md_rail_tree", JSON.stringify([`ws:${ws}:root`, `ws:${ws}:folder:${f}`])), [WS, FOLDER]);
-  await p.goto(`${APP}/w/${WS}/f/${FOLDER}`, { waitUntil: "networkidle" });
+  await c.addInitScript(([ws, f]) => localStorage.setItem("md_files_tree", JSON.stringify([`ws:${ws}:folder:${f}`])), [WS, FOLDER]);
+  // The page tree is on General's Files & pages since the nav redesign (2026-11-18).
+  await p.goto(`${APP}/w/${WS}/teams/general/pages`, { waitUntil: "networkidle" });
   await p.waitForTimeout(2500);
-  const rail = await p.locator("nav").first().innerText().catch(() => "");
-  if (!rail.includes("Page builder launch")) log("rail text lacks the page:", rail.slice(0, 300));
+  const rail = await p.getByTestId("team-files").innerText().catch(() => "");
+  if (!rail.includes("Page builder launch")) log("Files & pages lacks the page:", rail.slice(0, 300));
   await shot(p, "24-rail-pages", { wait: 1500 });
   await c.close();
 });
 
-// The rail's tree: one outline request per workspace, the current folder highlighted, hover
-// actions, and a rename in another tab showing up in place (no reload, no new request).
+// Files & pages' tree (the rail's until the nav redesign): one outline request, hover actions, and a rename in
+// another tab showing up in place (no reload, no new request).
 await step("rail-live", async () => {
   const made = await api("POST", "/api/v1/pages", T.owner, { title: "Rail rename probe", workspace: WS, folder: FOLDER });
   if (made.status !== 200 && made.status !== 201) fail(`create → ${made.status}`);
   const slug = made.body.document.slug;
   const { c, p } = await ctx(browser, { token: T.owner });
-  await c.addInitScript(([ws, f]) => localStorage.setItem("md_rail_tree", JSON.stringify([`ws:${ws}:root`, `ws:${ws}:folder:${f}`])), [WS, FOLDER]);
+  await c.addInitScript(([ws, f]) => localStorage.setItem("md_files_tree", JSON.stringify([`ws:${ws}:folder:${f}`])), [WS, FOLDER]);
   const calls = [];
   p.on("request", (r) => { if (r.url().startsWith(API) && r.method() === "GET") calls.push(new URL(r.url()).pathname); });
-  await p.goto(`${APP}/w/${WS}/f/${FOLDER}`, { waitUntil: "networkidle" });
-  const tree = p.locator('aside nav[aria-label="Your drive"]');
+  await p.goto(`${APP}/w/${WS}/teams/general/pages`, { waitUntil: "networkidle" });
+  const tree = p.getByTestId("team-files");
   const row = tree.locator(`[data-rail-key="ws:${WS}:page:${slug}"]`);
   await row.waitFor({ timeout: 10000 });
   const navCalls = calls.filter((u) => u.endsWith("/nav")).length;
   if (navCalls !== 1) fail(`expected one /nav request for the open workspace, saw ${navCalls}: ${calls.join(", ")}`);
-  // The current folder: aria-current and inside the rail's visible area.
-  const cur = tree.locator(`[data-rail-key="ws:${WS}:folder:${FOLDER}"]`);
-  if ((await cur.getAttribute("aria-current")) !== "page") fail("the current folder isn't marked aria-current");
-  const seen = await cur.evaluate((el) => { const r = el.getBoundingClientRect(), a = el.closest("aside").getBoundingClientRect(); return r.top >= a.top && r.bottom <= a.bottom; });
-  if (!seen) fail("the current folder isn't scrolled into view");
+  // The sidebar lists no pages.
+  if (await p.locator(`aside nav[aria-label="Your drive"] [data-rail-key="ws:${WS}:page:${slug}"]`).count()) fail("a page in the sidebar");
   // Row height and hover actions (+ and ⋯ only while hovered).
   const h = await row.evaluate((el) => Math.round(el.getBoundingClientRect().height));
-  if (h < 28 || h > 30) fail(`rail rows are ${h} px`);
+  if (h < 34 || h > 38) fail(`Files & pages rows are ${h} px`);
   const add = tree.getByRole("link", { name: "Add a page inside Rail rename probe" });
   if (await add.count()) fail("the + shows without hover");
   await row.hover();

@@ -272,7 +272,22 @@ export type MeetingCard = Pick<Meeting, "id" | "workspace_id" | "title" | "page_
   team_ids?: string[];
   teams?: { id: string; name: string; color: string; icon: string | null }[];
   routing_state?: "auto" | "confirmed" | null;
+  /** The HubSpot deal it's filed in (the HubSpot team's members and admins), or "Pick the deal". */
+  deal?: { id: string; name: string | null; company: string | null; href: string } | null;
+  deal_pick?: boolean;
+  /** Markdrop kept its Zoom recording. */
+  has_recording?: boolean;
 };
+
+/** The Meetings section's tabs: calls with someone from outside the company, or the rest. */
+export type MeetingAudience = "customers" | "internal";
+
+/** The Meetings section's tabs (nav redesign 2026-11-18): every meeting, your Zoom meetings waiting for a decision,
+ *  calls with someone from outside the company, and the rest (?tab=). */
+export type MeetingsTab = "all" | "review" | "customers" | "internal";
+const MEETINGS_TABS: MeetingsTab[] = ["all", "review", "customers", "internal"];
+export const parseMeetingsTab = (v: string | null | undefined): MeetingsTab =>
+  (MEETINGS_TABS.includes(v as MeetingsTab) ? v as MeetingsTab : "all");
 
 export interface MeetingsPage {
   meetings: MeetingCard[];
@@ -285,12 +300,13 @@ export interface MeetingsPage {
   folder_id?: string | null;
 }
 
-export interface MeetingsQuery { /** lib/teams Space. */ space?: string; q?: string; series?: string | null; since?: string; until?: string; sort?: MeetingSort; limit?: number; cursor?: string | null }
+export interface MeetingsQuery { /** lib/teams Space. */ space?: string; audience?: MeetingAudience | null; q?: string; series?: string | null; since?: string; until?: string; sort?: MeetingSort; limit?: number; cursor?: string | null }
 
 /** ``series``: a name, "" for meetings in no series, null/undefined for all. */
 export function listMeetings(workspace: string, opts?: MeetingsQuery, init?: { signal?: AbortSignal }) {
   const qs = new URLSearchParams({ workspace });
   if (opts?.space) qs.set("space", opts.space);
+  if (opts?.audience) qs.set("audience", opts.audience);
   if (opts?.q?.trim()) qs.set("q", opts.q.trim());
   if (opts?.series != null) qs.set("series", opts.series === "" ? "none" : opts.series);
   if (opts?.since) qs.set("since", opts.since);

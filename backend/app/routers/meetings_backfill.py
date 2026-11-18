@@ -21,7 +21,7 @@ Signed-in workspace members (importing: member+). An import is its owner's alone
 
 # No `from __future__ import annotations`: slowapi wraps these routes (see routers/docs_ai.py).
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Optional, Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -246,14 +246,16 @@ async def discard_job(request: Request, job_id: str, db: AsyncIOMotorDatabase = 
 @router.get("/series")
 @limiter.limit("120/minute")
 async def list_series(request: Request, workspace: str = Query(..., max_length=40),
+                      space: Optional[str] = Query(None, max_length=40, description="all | company | team:<id> | project:<id> (Teams)"),
                       db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
-    """{series: [{name, count, last}], total, one_offs}: the Meetings hub's chips, in one pass."""
-    from app.services import meetings_list
+    """{series: [{name, count, last}], total, one_offs}: the Meetings hub's chips, in one pass (a team's, with ``space``)."""
+    from app.services import meetings_list, workspace_items
 
     ws = _ws(workspace)
     await meetings.require_member(db, ws, user.id, write=False)
     actor, ctx = _ac(request, db, user)
-    return await meetings_list.facets(db, ws, actor, ctx)
+    sx = await workspace_items.space_extra(actor, ctx, ws, space) if (space or ctx.space) else None
+    return await meetings_list.facets(db, ws, actor, ctx, extra=sx)
 
 
 class OrganizeBody(BaseModel):

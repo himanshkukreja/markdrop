@@ -209,6 +209,66 @@
   .mt-empty-hub__actions > * { flex: 1 1 100%; }
 }
 
+/* ── the Meetings section's tabs and rows (nav redesign 2026-11-18: dense rows, one bordered list per month) ── */
+.mt-tabsrow { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; margin: 0 0 16px; }
+.mt-tabsrow .md-tabs { flex: 1 1 auto; min-width: 0; }
+.mt-teamfilter { width: auto; min-width: 160px; max-width: 240px; }
+.mt-review { display: flex; flex-direction: column; gap: 12px; }
+.mt-review__intro { margin: 0; max-width: 72ch; font-size: 13px; line-height: 20px; color: var(--text-muted); }
+.mt-rows { margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); overflow: hidden; }
+[data-theme="light"] .mt-rows { background: #FFFFFF; }
+.mt-row {
+  position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr) minmax(0, 220px) 96px 72px; align-items: center; gap: 4px 16px;
+  min-height: 64px; padding: 8px 8px 8px 16px; color: var(--text); transition: background-color 120ms var(--ease-out);
+}
+.mt-row + .mt-row { border-top: 1px solid var(--border); }
+.mt-months .mt-row { content-visibility: auto; contain-intrinsic-size: auto 64px; }
+.mt-row:hover { background: var(--surface-hover); }
+.mt-row:has(.mt-row__link:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.mt-row__link { position: absolute; inset: 0; z-index: 1; }
+.mt-row__link:focus-visible { outline: none; }
+.mt-row__date { display: flex; flex-direction: column; align-items: center; font-size: 18px; line-height: 20px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+.mt-row__date small { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.mt-row__main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mt-row .mt-card__title { font-size: 15px; line-height: 20px; }
+.mt-row__sub { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0; font-size: 12.5px; line-height: 20px; color: var(--text-muted); white-space: nowrap; overflow: hidden; }
+.mt-row__sub:empty { display: none; }
+.mt-row__sub > * { flex: none; }
+.mt-row__summary { flex: 1 1 auto !important; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary); }
+.mt-row__summary--muted { color: var(--text-muted); font-style: italic; }
+.mt-row__deal { min-width: 0; display: flex; }
+.mt-row__chip {
+  position: relative; z-index: 2; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 28px; padding: 4px 8px;
+  border: 1px solid var(--border); border-radius: var(--radius-full); background: var(--surface); color: var(--text-secondary);
+  font-size: 12.5px; line-height: 18px; font-weight: 500; text-decoration: none;
+}
+.mt-row__chip svg { flex: none; width: 14px; height: 14px; color: var(--text-muted); }
+.mt-row__chip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-row__chip:hover { border-color: var(--border-strong); color: var(--text); }
+.mt-row__chip:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.mt-row__chip--pick { border-style: dashed; color: var(--warning); border-color: var(--warning); }
+.mt-row__meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0; font-size: 12.5px; line-height: 16px; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mt-row__marks { display: inline-flex; gap: 8px; color: var(--text-muted); }
+.mt-row__marks svg { width: 14px; height: 14px; }
+.mt-row .mt-card__actions { justify-content: flex-end; }
+@media (pointer: coarse) { .mt-row .mt-card__actions { opacity: 1; } }
+@media (max-width: 899px) {
+  .mt-row { grid-template-columns: 44px minmax(0, 1fr) 88px 44px; }
+  .mt-row__deal { grid-column: 2; grid-row: 2; }
+  .mt-row__deal:empty { display: none; }
+  .mt-row .mt-card__actions > a { display: none; }
+}
+@media (max-width: 639px) {
+  .mt-tabsrow { flex-direction: column; align-items: stretch; }
+  .mt-teamfilter { max-width: none; width: 100%; }
+  .mt-row { grid-template-columns: 40px minmax(0, 1fr) 44px; gap: 4px 12px; padding: 8px 4px 8px 12px; }
+  .mt-row__meta { grid-column: 2; grid-row: 3; flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px; }
+  .mt-row__deal { grid-column: 2; grid-row: 2; }
+  .mt-row .mt-card__actions { grid-column: 3; grid-row: 1 / span 3; align-self: center; }
+  .mt-row .mt-card__title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .mt-row__summary { display: none; }
+}
+
 /* ── the meeting bar on a meeting page ─────────────────────────────────── */
 /* The HubSpot team's calls: their deal, a small chip above the bar (components/hubspot/parts DealChip). */
 .mt-dealchip { margin: 12px 0 0; min-width: 0; }

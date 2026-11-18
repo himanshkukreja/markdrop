@@ -633,8 +633,14 @@ export interface WorkspaceNav {
   more: Record<string, number>;
 }
 
-export const getWorkspaceNav = (id: string, space?: string) =>
-  request<WorkspaceNav>(`/api/v1/workspaces/${encodeURIComponent(id)}/nav${space ? `?space=${encodeURIComponent(space)}` : ""}`);
+/** `meetings: false`: without meeting pages and transcripts (a team's Files & pages; Meetings lists those). */
+export const getWorkspaceNav = (id: string, space?: string, opts?: { meetings?: boolean }) => {
+  const qs = new URLSearchParams();
+  if (space) qs.set("space", space);
+  if (opts?.meetings === false) qs.set("meetings", "false");
+  const s = qs.toString();
+  return request<WorkspaceNav>(`/api/v1/workspaces/${encodeURIComponent(id)}/nav${s ? `?${s}` : ""}`);
+};
 
 export type ItemAccess = "private" | "link" | "workspace";
 
