@@ -51,3 +51,22 @@ export function fmtSize(n: number | null | undefined): string {
   if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
+
+/** "$1.1M" / "$107K" / "$950" for headers and column totals. */
+export function compactAmount(amount: number | null | undefined, currency: string | null | undefined): string | null {
+  if (amount == null) return null;
+  try {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: currency || "USD", notation: "compact", maximumFractionDigits: amount >= 1e6 ? 1 : 0 }).format(amount);
+  } catch {
+    return fmtAmount(amount, currency ?? null);
+  }
+}
+
+/** A column's total, compact, when its deals share one currency (else null). */
+export function compactTotal(deals: DealCard[]): string | null {
+  const priced = deals.filter((d) => d.amount != null);
+  if (!priced.length) return null;
+  const cur = new Set(priced.map((d) => d.currency || "USD"));
+  if (cur.size !== 1) return null;
+  return compactAmount(priced.reduce((a, d) => a + (d.amount ?? 0), 0), [...cur][0]!);
+}

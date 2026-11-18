@@ -2663,6 +2663,30 @@
     "bytes": 146306,
     "kind": "image"
   },
+  "/docs-assets/integrations/hubspot/deal-page.dark.webp": {
+    "w": 1728,
+    "h": 1792,
+    "bytes": 142432,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/hubspot/deal-page.webp": {
+    "w": 1728,
+    "h": 1792,
+    "bytes": 142182,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/hubspot/deals-board.dark.webp": {
+    "w": 1728,
+    "h": 1240,
+    "bytes": 73606,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/hubspot/deals-board.webp": {
+    "w": 1728,
+    "h": 1240,
+    "bytes": 72654,
+    "kind": "image"
+  },
   "/docs-assets/integrations/jira/account.dark.webp": {
     "w": 1628,
     "h": 192,

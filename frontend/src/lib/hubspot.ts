@@ -126,7 +126,11 @@ export const hubspotDismiss = (id: string, sid: string) => request<HubSpotPanel>
 export const hubspotAccount = (id: string) =>
   request<{ name: string | null; slug: string; href: string; updated_at: string | null }>(`${m(id)}/account`, { method: "POST" });
 
-export interface HubSpotMe { teams: Array<{ workspace_id: string; workspace: string | null; team: string | null }>; precall: boolean; approve: boolean }
+export interface HubSpotMe {
+  /** The HubSpot teams you're in (one per workspace): Deals (all teams) reads each one's board. */
+  teams: Array<{ workspace_id: string; workspace: string | null; team: string | null; team_id?: string | null }>;
+  precall: boolean; approve: boolean;
+}
 export const hubspotMe = () => request<HubSpotMe>("/api/v1/hubspot/me");
 export const hubspotSetMe = (body: { precall?: boolean; approve?: boolean }) => request<HubSpotMe>("/api/v1/hubspot/me", json("PUT", body));
 
@@ -185,6 +189,8 @@ export interface DealBoard {
   pipelines: Array<{ id: string; label: string }>;
   deals: DealCard[];
   missing_scopes: DealMissingScope[];
+  /** The portal's deals in HubSpot ("Open HubSpot"). */
+  portal_url?: string | null;
 }
 
 export interface DealLine { text: string; date: string | null; slug: string }
@@ -193,6 +199,8 @@ export interface DealCallRow {
   how: string | null; confidence: string | null; logged: { at: string | null } | null;
   /** Action items in the call. */
   actions: number; tasks_created: number; suggestions_open: number;
+  /** How long the call was, a line of its summary, a kept recording, a transcript page. */
+  duration_s?: number | null; summary?: string | null; recording?: boolean; transcript?: boolean;
 }
 export interface DealActivity {
   kind: "note" | "email" | "meeting" | "task" | "call"; id: string; at: string | null; title: string | null; preview: string | null;

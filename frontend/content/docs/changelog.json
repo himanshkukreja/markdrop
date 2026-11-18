@@ -24,6 +24,18 @@
   "next": [],
   "entries": [
     {
+      "id": "deals-board-redesign",
+      "date": "2026-11-18",
+      "title": "Deals: a tidier board, a sortable list and a clearer deal page",
+      "kind": "improved",
+      "area": "Integrations",
+      "products": [
+        "web"
+      ],
+      "summary": "The HubSpot team's Deals section is easier to scan: columns that fit their deals, one status line per card, a sortable list, and a deal page with the calls' roll-up and recent calls side by side.",
+      "body": "- **Board.** One row of controls; columns show their count and total and fit their deals; a long stage shows five deals, then **Show N more**; an empty stage folds into a thin strip. A card says **No calls yet** once, or **Quiet N days** when its calls have gone quiet.\n- **List.** A dense table you sort by any column.\n- **Deal page.** The stage, amount, owner, close date and calls in the header with **Open in HubSpot** and **Upload asset**; tab counts; **Across all calls** and the recent calls (with their length and a play button) beside the deal's facts and contacts.\n- **All your teams.** With HubSpot teams in more than one workspace, **Deals** shows them together with a **Team** filter.\n- See [Deal folders](/integrations/hubspot#deal-folders)."
+    },
+    {
       "id": "hubspot-closed-deal-folders",
       "date": "2026-11-18",
       "title": "HubSpot: closed deals with calls get a deal folder",

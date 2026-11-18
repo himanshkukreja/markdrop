@@ -114,20 +114,26 @@ Apply needs the `crm.objects.deals.write` scope on the key. Without it, Apply sa
 
 Every **open** deal in the connected HubSpot account, in every pipeline, gets a folder for the HubSpot team: its calls, what HubSpot knows about it and the team's sales assets, in one place. Only the HubSpot team's members (and workspace admins) see deals; no other team does.
 
-Open the team in the sidebar and choose **Deals**:
+Open the team in the sidebar and choose **Deals**. The header shows how many deals are open, what the pipeline is worth, when the deals were last synced, and **Open HubSpot**. Under it, one row of controls:
 
-- **Board** (the default): a column per pipeline stage, a card per deal with its company, amount, owner, last call and how many calls it has. **List** shows the same as a table.
+- **Board** (the default): a column per pipeline stage with its deal count and total amount. A card shows the deal, its company, the owner, the amount, the close date and how many calls it has. A deal without calls says **No calls yet**; a deal whose last call was more than 14 days ago says **Quiet N days**. A long stage shows its five biggest deals first, then **Show N more**; an empty stage folds into a thin strip. The board scrolls sideways on its own; the page doesn't.
+- **List**: the same deals as a table. Choose a column heading to sort by it (again to reverse).
 - **Filters**: owner, company, and **No call in 14 days**. **Group by company** puts a company's deals together.
-- **Closed deals.** A deal that closes keeps its folder, marked **Closed won** or **Closed lost**. A deal that was already closed gets a folder as soon as one of the team's calls is matched to it (closed deals without calls get none). Calls keep arriving in a closed deal's folder, for example support and training calls after signing. Its name and stage are read again a few times a day; a deal that reopens updates like an open one. Turn on **Show closed** to see them.
+- **Closed deals.** A deal that closes keeps its folder, marked **Closed won** or **Closed lost**. A deal that was already closed gets a folder as soon as one of the team's calls is matched to it (closed deals without calls get none). Calls keep arriving in a closed deal's folder, for example support and training calls after signing. Its name and stage are read again a few times a day; a deal that reopens updates like an open one. Turn on **Show closed** to add Closed won and Closed lost columns.
+- **All your teams.** If you're in HubSpot teams in more than one workspace, **Deals** at the top of the sidebar shows them together, with a **Team** filter.
 
-Choose a deal to open its page:
+![The Deals board: a column per stage with its count and total, deal cards with owner, amount, close date and calls, No calls yet and Quiet 18 days badges, Show 2 more under a long stage, and an empty stage folded into a thin strip.](/docs-assets/integrations/hubspot/deals-board.webp)
 
-- **Overview**: stage, amount, owner, close date, pipeline, company and contacts (name, title, email), the team's calls rolled up (decisions, objections and risks, open questions, next steps, last call) and the [suggested deal updates](#suggested-deal-updates) waiting for someone.
+Choose a deal to open its page. The header has the company and deal, its stage (or **Closed won** / **Closed lost**), amount, owner, close date and calls, **Open in HubSpot** and **Upload asset**. The tabs:
+
+- **Overview**: the deal's facts and contacts (name, title, email) on the left. On the right, the [suggested deal updates](#suggested-deal-updates) waiting for someone, **Across all calls** (decisions, objections and risks, open questions and next steps, each linking to its call) and the three most recent calls with their length and a play button when the recording was kept. A deal without calls shows one short note instead.
 - **Calls**: the deal's calls, newest first, each with **Log to HubSpot** and **Create tasks**. Calls waiting for someone to [pick the deal](#calls-in-a-deal-folder) are listed here too.
-- **Assets**: files the team uploads there (ordinary Markdrop files, with their [view analytics](/analytics/overview)), and the files attached to the deal in HubSpot, which open in HubSpot.
+- **Assets**: files the team uploads there (ordinary Markdrop files, with their views and [view analytics](/analytics/overview)), and the files attached to the deal in HubSpot, which open in HubSpot. Drop files on the box, or choose **Upload asset**.
 - **HubSpot activity**: the deal's notes, emails (subject, a short preview and whether it was sent or received), meetings and tasks, newest first.
 
-Each deal folder also has a **Deal overview** page: an ordinary page with the same facts and history in a section Markdrop keeps up to date. Write the team's own notes above or below the section; they stay.
+![A deal page: the company and deal name with its stage, amount, owner, close date and calls, Open in HubSpot and Upload asset; tabs Overview, Calls, Assets and HubSpot activity; the deal's facts, Team notes and contacts on the left, suggested deal updates and Across all calls on the right.](/docs-assets/integrations/hubspot/deal-page.webp)
+
+Each deal folder also has a **Deal overview** page (**Team notes** on the deal page): an ordinary page with the same facts and history in a section Markdrop keeps up to date. Write the team's own notes above or below the section; they stay.
 
 ### Calls in a deal folder
 
