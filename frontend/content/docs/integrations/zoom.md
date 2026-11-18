@@ -119,6 +119,8 @@ Meetings waiting for their host, and meetings that weren't brought in, aren't li
 
 Admins can change the team or **Disconnect Zoom**. With your own Server-to-Server app, they can also **Change credentials** (for example after rotating the Client Secret in Zoom).
 
+![The connected Zoom card: Meetings go to Sales (private), 67 meetings imported with 2 waiting for their hosts and 5 not brought in, the Markdrop app for Zoom approved by Sam Lee, a note that 2 of your Zoom meetings wait for you with Review, When each host's meetings are recorded with a choice per member, Transcribe and keep recordings on, the latest meetings from Zoom with their state, Import past meetings and Disconnect Zoom.](/docs-assets/integrations/zoom/card.webp)
+
 ## Choose which meetings come in
 
 Each host decides what happens to their recorded meetings, and a few rules apply to everyone. For each recorded meeting, Markdrop checks, in this order:
@@ -139,6 +141,8 @@ The choice is **When my Zoom meetings are recorded**, in **Settings › Account 
 
 Workspace admins can set it for each member of the Zoom team in the Zoom card (**When each host's meetings are recorded**).
 
+![Settings › Account › Zoom: your recorded Zoom meetings go to Sales (Acme), When my Zoom meetings are recorded set to Ask me first, and 2 meetings wait for you to decide.](/docs-assets/integrations/zoom/my-setting.webp)
+
 ### Meetings waiting for you
 
 While a meeting waits, Markdrop keeps only its topic, time, duration and the names of the people who joined. It doesn't download the transcript, captions, audio or video, and nobody else sees it, not even workspace admins. You get one notification in your Markdrop inbox and, if your Slack account is linked to Markdrop, a Slack message with three buttons:
@@ -147,7 +151,9 @@ While a meeting waits, Markdrop keeps only its topic, time, duration and the nam
 - **Keep it just for me**: the meeting comes in, but private to you. Nobody else can open it, not even its other attendees. You can share it later from the meeting.
 - **Skip**: the meeting doesn't come in, and Markdrop keeps only Zoom's ID for it.
 
-The same choices are on **Zoom meetings to review** (from the notification, the Zoom card's **Review**, or **Settings › Account › Zoom**). Only the meeting's host can decide; the Slack buttons only work for the person they were sent to. A meeting nobody decides about within **30 days** is forgotten: Markdrop deletes what it kept. The recording stays in Zoom.
+The same choices are on the **To review** tab of [Meetings](/workspaces/meetings#find-your-meetings) (the sidebar's **Meetings** shows how many wait for you) and on **Zoom meetings to review** (from the notification, the Zoom card's **Review**, or **Settings › Account › Zoom**). Only the meeting's host can decide; the Slack buttons only work for the person they were sent to. A meeting nobody decides about within **30 days** is forgotten: Markdrop deletes what it kept. The recording stays in Zoom.
+
+![The To review tab of Meetings: two recorded Zoom meetings waiting for you, Pricing page review (everyone on the call is from Acme) and Q1 territory planning (you asked to review first), each with its date, length and people, and Share with Sales, Keep it just for me and Skip.](/docs-assets/integrations/zoom/review.webp)
 
 Meetings that came in before these rules stay as they are.
 

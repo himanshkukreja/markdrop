@@ -41,6 +41,14 @@ The workspace's owners and admins see these searches only as totals, in [What pe
 
 [Ask](/workspaces/ask-markdrop) keeps your conversations so you can return to them and ask follow-ups: each question, its answer and the sources it cited. Only you can see them. When you reopen one, every source is checked against your access again, and an answer whose sources you can no longer open is hidden. A conversation is deleted 90 days after its last question, or when you remove it or select **Clear** under **Recent questions**.
 
+## Meetings, Zoom and HubSpot
+
+- **Meetings** you import or that arrive from Google Meet or Zoom become pages in your workspace, readable only by the people who can open them (a private team's meetings stay with its members). See [Meetings and privacy](/workspaces/meetings-privacy).
+- **Zoom.** Markdrop reads the connected team's recorded meetings with read-only access. A meeting whose topic says "personal" or "private" never comes in, and an internal-only call waits for its host; while it waits, only its topic, time, length and who joined are kept, for 30 days. Recordings are kept only when a workspace admin turns on **Transcribe and keep recordings**; deleting a meeting deletes its video. See [Zoom › Privacy](/integrations/zoom#privacy).
+- **HubSpot.** Markdrop writes to your HubSpot only when someone in the team chooses to (Log to HubSpot, Create tasks, Apply), never deletes or overwrites anything there, and never sends the transcript or recording. Deal folders only read. See [HubSpot › Privacy](/integrations/hubspot#privacy).
+
+The [privacy policy](https://markdrop.in/privacy#zoom) has the details, including which providers process meeting audio.
+
 ## How Markdrop measures its own site
 
 Markdrop uses three kinds of analytics to understand how the product is used and what to fix:

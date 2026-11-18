@@ -14,8 +14,9 @@ Only what a request needs, and only when someone uses an AI feature (or, for mee
 
 - **AI in pages**: the text you selected, or the page's text (for a long page, only the sections nearest what you're doing), and your prompt or question; the text of Markdrop items the page embeds that you can open; for alt text, the image; for a cover, the page's title and first lines.
 - **Ask and AI search**: your question, earlier questions in the same conversation, the heading of the section you're in and any text you selected, your name, email, workspaces and the names you appear under in meetings, and short excerpts of the matching items you can open. A workspace's suggestions use the meeting topics, decisions and action items and the page titles and headings that every member can open.
-- **Meetings**: the transcript and Google's notes, only to write the meeting's sections or to answer your questions.
-- **Team**: the meetings and pages the Team board reads, to keep each person's lines up to date.
+- **Meetings**: the transcript and Google's notes, only to write the meeting's sections or to answer your questions. A Zoom call with no transcript from Zoom is first transcribed from its audio by a speech-to-text provider (named in the [privacy policy](https://markdrop.in/privacy#zoom)), only when a workspace admin turned on Transcribe and keep recordings.
+- **Team**: the meetings and pages the Team board reads, to keep each person's lines up to date and to draft each team's weekly brief.
+- **Meeting details and speaker names**: for a meeting without Google's notes (a Zoom call, a pasted transcript), the transcript, to write its **Details**; for a transcribed Zoom call, the meeting's topic, its host, the names of the people who joined and the transcript, to put names on the speakers.
 - **Analytics**: totals and changes for your own links, their titles, and your own content where it helps. Never who visited: no IP address, visitor or session id, or email.
 - **Jira drafts**: the item you're turning into an issue.
 - **HubSpot deal suggestions**: after a HubSpot team's call matched to a deal, the call's notes, the transcript lines about money, dates, competitors and decisions, and the deal's current fields, to suggest updates someone can apply. See [HubSpot](/integrations/hubspot#suggested-deal-updates).

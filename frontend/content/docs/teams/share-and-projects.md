@@ -8,6 +8,8 @@ keywords: [team pages, move to team, move folder to team, move a folder to anoth
 
 Every page, document and file in a workspace is either in **General** (the team everyone is in) or in one or more other teams. A team's pages and files are in its **Files & pages**, from the sidebar.
 
+![The Sales team's Files & pages: a search box, then the Enablement, Playbooks and Proposals folders (two of them open to their pages and PDFs), the team's own pages and a spreadsheet, and Archive at the end with one archived folder.](/docs-assets/teams/share-and-projects/files-and-pages.webp)
+
 ## Put something in a team
 
 - **New page in a team**: choose **+** next to the team in the sidebar, or **New page** on its home or its **Files & pages**.
@@ -49,6 +51,6 @@ The Share dialog reminds you when an item is in a private team.
 
 A project is a space that several teams work on together, like "Q4 launch": its own pages and meetings, and the memory of every team in it. It appears on the home of each of its teams, and members of those teams can all contribute.
 
-![The Q4 launch project: its pages and meetings, and the memory of the Sales, Marketing and Engineering teams it belongs to.](/docs-assets/teams/share-and-projects/project.webp)
+![The Q4 launch project in Acme, a project of Sales, Marketing and Engineering: its pages and meetings, the memory lines from its teams, and its teams and people.](/docs-assets/teams/share-and-projects/project.webp)
 
 Admins and the leads of a team create a project from the team's home (**Projects › New project**). Choose its teams, and add people from outside them if you need to. Put pages in it from their **Share** dialog, like a team.

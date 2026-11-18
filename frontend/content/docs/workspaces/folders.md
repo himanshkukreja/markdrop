@@ -64,7 +64,7 @@ The type is part of the address (`?type=pdf`), so **Back** works and you can sha
 
 Open the workspace (or the folder you want it inside), choose **New**, then **New folder**. Members with **Can edit**, admins and the owner can make folders.
 
-![The Guides folder of the Acme workspace: the sidebar tree shows Guides open with Setup inside, then Releases and Sales; the page shows the folder's address docs.acme.com/guides, the Setup folder and three items.](/docs-assets/workspaces/folders/folders-overview.webp)
+![The Playbooks folder of the Sales team in Acme: the sidebar with Sales open on Files & pages; the page with Ask this folder, Preview as, Share, New page and New, the List, Table and Board views, and three pages as cards with a preview of each.](/docs-assets/workspaces/folders/folders-overview.webp)
 
 | Limit | Value |
 | --- | --- |

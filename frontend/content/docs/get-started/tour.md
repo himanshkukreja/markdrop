@@ -14,7 +14,7 @@ Once you sign in, Markdrop opens on your **home**: what needs you today, what yo
 
 **Home**, at the top of the sidebar (and the screen the [installed app](/get-started/install-app) opens on), is in this order:
 
-![The home: a greeting with the date and what's waiting, the Ask bar with Catch me up, My action items and Ask my meetings, Continue where you left off as preview cards, Today with a meeting and an access request, two action items, and the latest meeting.](/docs-assets/get-started/tour/home.webp)
+![The home: a greeting with the date and what's waiting, the Ask bar with Catch me up, My action items and Ask my meetings, Continue where you left off as preview cards, Today with a meeting, an access request and a mention, two action items, and the latest meetings.](/docs-assets/get-started/tour/home.webp)
 
 | Section | What's there |
 | --- | --- |
@@ -69,11 +69,11 @@ Your own documents and files are in **My files** in the sidebar.
 
 **Collapse**, at the bottom, shrinks the sidebar to a rail of icons (point at one for its name); **Expand** at the top of the rail brings it back. Your browser remembers which you chose.
 
-![The app sidebar: Home, Search, Ask and Inbox; My files, Shared with me (2 new), Recent, Analytics and Trash; the Workspaces section with Acme open on Meetings, Guides, Releases and Sales, then Northwind and New workspace; Settings, Help & docs, Send feedback and Collapse at the bottom.](/docs-assets/get-started/tour/sidebar.webp), Recent, Analytics, the Workspaces section showing Acme with its Guides, Releases and Sales folders, then VS Code (3 tokens), Connected apps and Settings.](/docs-assets/get-started/tour/sidebar.webp)
+![The app sidebar: the Acme switcher, Search, Home, Inbox, Ask Acme, Meetings (2 to review) and Deals (12); Teams with General open to Overview, Meetings, Files & pages and People & memory, then Sales, Marketing, Engineering and Browse teams; Favorites; You with My files, Shared with me and Recent; Analytics, Trash, Workspace settings, Settings, Help & docs, Send feedback and Collapse at the bottom.](/docs-assets/get-started/tour/sidebar.webp)
 
 Each row in **My files** has a **Copy link** button and a menu with **Open**, **Edit** (documents only), **Analytics**, **Share…**, **Change URL** and **Delete**, plus **Move to folder…** or **Add to a workspace…** where they apply. On a phone, **Copy link** is in the menu instead.
 
-![My files with the type chips (All, Documents, PDFs, Videos, Images, Sheets, Slides, Word, HTML & sites and Other, each with its count), and rows showing each title, its folder, its link, views, who can open it and Copy link.](/docs-assets/get-started/tour/my-files.webp)
+![My files with the type chips (All, Documents, PDFs, Videos, Images, Sheets, Slides and HTML & sites, each with its count), and rows showing each title, its workspace and folder, its type, link, views and age, who can open it, Copy link and the row's menu.](/docs-assets/get-started/tour/my-files.webp)
 
 ### Filter by type
 
