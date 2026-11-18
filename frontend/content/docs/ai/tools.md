@@ -8,7 +8,7 @@ updated: 2026-11-17
 keywords: [mcp tools, zoom_review, import_notion, get_notion_import, notion, import from notion, get_workspace, update_workspace, workspace settings, integrations, invite_to_workspace, invitations, update_workspace_member, member role, remove member, leave workspace, get_document_access, who has access, access audit, unshare, remove access, shared with me, bulk move, update_meeting, regenerate, delete_meeting, update_project, archive project, delete_team, team leads]
 ---
 
-Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 182 tools; the local server, `markdrop mcp` in the CLI, has 13. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
+Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 185 tools; the local server, `markdrop mcp` in the CLI, has 13. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
 
 In the tables, **Permission** is the one the app must have been given when you approved it: `read` is `documents:read` and `write` is `documents:write`. See [Connect an AI app](/ai/hosted-mcp#the-two-permissions).
 
