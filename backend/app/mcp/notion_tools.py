@@ -8,6 +8,14 @@
   databases, rows, images, files, updated / unchanged / kept because edited in Markdrop, what was skipped
   and why, errors per page) and where it went; without ``import_id``, the user's recent imports.
 
+Connect Notion (services/notion_import/connect.py, sync.py):
+
+* ``import_notion`` with ``source: "api"`` imports pages the user shared with Markdrop in Notion (Settings ›
+  Integrations › Notion connects it), optionally kept in sync (one way, Notion → Markdrop).
+* ``notion_status``: whether Notion is connected, the synced roots (last sync, Edited in Markdrop pages), and
+  with ``list_pages`` the pages and databases shared with Markdrop (their ids, for import_notion).
+* ``notion_sync``: Sync now, turn Keep in sync on or off, or stop following a root.
+
 Same rules as the website (routers/notion_import.py): members import into their workspace's team spaces
 (their own teams; admins any); imported items get the destination's default access, never public.
 """
@@ -60,7 +68,40 @@ def _summary(j: dict) -> str:
     return line
 
 
+def _dest_args(args: dict) -> dict:
+    dest: dict = {"new_folder": args.get("new_folder", True), "folder_name": args.get("folder_name")}
+    if args.get("workspace"):
+        dest.update(team=args.get("team"), folder=args.get("folder"))
+    elif args.get("team") or args.get("folder"):
+        raise ToolError("team and folder need workspace.")
+    return dest
+
+
+async def _import_api(ctx: Context, args: dict) -> tuple[str, dict]:
+    pages = args.get("pages") or []
+    if not pages:
+        raise ToolError("Pass pages: the Notion page or database ids to import (notion_status with list_pages "
+                        "lists the ones shared with Markdrop).")
+    dest = _dest_args(args)
+    if args.get("workspace"):
+        ws_id, _ws, _role = await resolve_workspace(ctx, args["workspace"])
+        dest["workspace"] = ws_id
+    try:
+        job = await jobs.create_api(ctx.db, ctx.user, connection_id=args.get("connection"),
+                                    roots=[{"id": p} if isinstance(p, str) else p for p in pages], destination=dest,
+                                    keep_in_sync=bool(args.get("keep_in_sync")))
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    out = jobs.out(job)
+    text = (f"Import {out['id']} of {out['file_name']} from Notion has started"
+            + (" and will be kept in sync (about every 15 minutes, Notion → Markdrop)" if args.get("keep_in_sync") else "")
+            + ". Follow it with get_notion_import.")
+    return text, {"import_id": out["id"], "state": out["state"], "import": out}
+
+
 async def import_notion(ctx: Context, args: dict) -> tuple[str, dict]:
+    if (args.get("source") or "zip") == "api":
+        return await _import_api(ctx, args)
     jid = (args.get("import_id") or "").strip()
     if jid:
         try:
@@ -106,6 +147,65 @@ async def get_notion_import(ctx: Context, args: dict) -> tuple[str, dict]:
     return _summary(out), {"import": out}
 
 
+async def notion_status(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services.notion_import import connect
+    from app.services.notion_import import sync as S
+
+    if not connect.configured():
+        return ("Connect Notion isn't available on this Markdrop; import a Notion export zip instead "
+                "(import_notion)."), {"configured": False, "connections": [], "syncs": []}
+    conns = [connect.out(r) for r in await connect.list_for(ctx.db, ctx.user)]
+    syncs = await S.list_for(ctx.db, ctx.user)
+    data: dict = {"configured": True, "connections": conns, "syncs": syncs}
+    if not conns:
+        return ("Notion isn't connected. The user connects it at https://markdrop.in/settings/integrations/notion "
+                "(choosing which Notion pages Markdrop may read)."), data
+    lines = ["Connected Notion workspaces: " + ", ".join(
+        f"{c['workspace_name']} ({c['id']}{', needs reconnecting' if c['broken'] else ''})" for c in conns)]
+    for s_ in syncs:
+        bits = [s_["state"], "kept in sync" if s_["keep_in_sync"] else "not kept in sync"]
+        if s_.get("paused"):
+            bits.append(f"paused ({s_['paused']})")
+        if s_.get("last_synced_at"):
+            bits.append(f"last synced {s_['last_synced_at']}")
+        if s_["edited_in_markdrop"]:
+            bits.append(f"{len(s_['edited_in_markdrop'])} edited in Markdrop (no longer synced)")
+        lines.append(f"- {s_['title']} [{s_['id']}]: " + ", ".join(bits))
+    if args.get("list_pages"):
+        try:
+            conn = await connect.get_own(ctx.db, ctx.user, args.get("connection"))
+            listing = await jobs.shared_listing(ctx.db, conn)
+        except HTTPException as exc:
+            raise ToolError(http_message(exc))
+        data["pages"] = listing["items"]
+        lines.append(f"Shared with Markdrop ({len(listing['items'])}):")
+        for it in listing["items"][:200]:
+            lines.append(f"- {it['kind']} {it['id']}: {it['title']}" + (f" (in {it['parent_id']})" if it["parent_id"] else ""))
+    return "\n".join(lines), data
+
+
+async def notion_sync(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services.notion_import import sync as S
+
+    sid = (args.get("sync_id") or "").strip()
+    action = args.get("action") or "run"
+    try:
+        if action == "run":
+            job = await S.run_now(ctx.db, ctx.user, sid)
+            out = jobs.out(job)
+            return (f"Syncing from Notion now (import {out['id']}); follow it with get_notion_import.",
+                    {"sync": await S.list_one(ctx.db, ctx.user, sid), "import": out})
+        if action in ("keep", "stop_keeping"):
+            row = await S.set_keep(ctx.db, ctx.user, sid, action == "keep")
+            return ("Kept in sync with Notion." if action == "keep" else "No longer kept in sync."), {"sync": row}
+        if action == "remove":
+            await S.remove(ctx.db, ctx.user, sid)
+            return "Stopped following it; the imported pages stay.", {}
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    raise ToolError("action is run, keep, stop_keeping or remove.")
+
+
 NOTION_TOOLS: list[Tool] = [
     Tool(
         name="import_notion",
@@ -115,7 +215,8 @@ NOTION_TOOLS: list[Tool] = [
             "to-dos, code, equations, tables, bookmarks; links between pages rewritten), and its databases as "
             "folders with typed properties (each row a page). The export is Notion's ••• › Export (or Settings › "
             "Export all workspace content) with Format \"Markdown & CSV\" and Include subpages on: a .zip, up to "
-            "2 GB. Two calls: first with file_name and size_bytes (and where it goes: My files when workspace is "
+            "2 GB, or (source \"api\") straight from Notion for pages the user shared with Markdrop through "
+            "Connect Notion, optionally kept in sync. For a zip, two calls: first with file_name and size_bytes (and where it goes: My files when workspace is "
             "left out, else a team's space — team omitted: company-wide) → an upload URL and a curl command to "
             "PUT the zip; run it, then call again with import_id to start. It runs in the background: follow "
             "it with get_notion_import. Importing the same export into the same place again updates what "
@@ -140,6 +241,16 @@ NOTION_TOOLS: list[Tool] = [
             "folder_name": {"type": "string", "maxLength": 100,
                             "description": "Optional: the new folder's name (default: the export's name)."},
             "import_id": _ID,
+            "source": {"type": "string", "enum": ["zip", "api"], "default": "zip", "description": (
+                "zip (default): a Notion export file. api: pages the user shared with Markdrop through Connect "
+                "Notion (see notion_status); pass pages.")},
+            "pages": {"type": "array", "maxItems": 50, "items": {"type": "string", "minLength": 32, "maxLength": 36},
+                      "description": "source api: Notion page or database ids (sub-pages come with them)."},
+            "connection": {"type": "string", "maxLength": 64,
+                           "description": "source api: the Notion connection id (default: the only one)."},
+            "keep_in_sync": {"type": "boolean", "default": False, "description": (
+                "source api: import again about every 15 minutes (one way, Notion → Markdrop, only what changed; "
+                "pages edited in Markdrop are kept and stop syncing).")},
         }},
         output_schema=_out({"import_id": {"type": "string"}, "state": {"type": "string"},
                             "upload": {"type": "object"}, "curl": {"type": "string"}, "import": _JOB},
@@ -161,5 +272,41 @@ NOTION_TOOLS: list[Tool] = [
         output_schema=_out({"import": _JOB, "imports": {"type": "array", "items": _JOB}}, []),
         annotations=_ann(True, False, True),
         handler=get_notion_import,
+    ),
+    Tool(
+        name="notion_status",
+        title="Notion connection status",
+        description=(
+            "Whether the user connected Notion (Connect Notion: read-only, the pages they chose to share with "
+            "Markdrop), their imports kept in sync with Notion (each root's last sync, whether it's kept in sync, "
+            "paused, and the pages edited in Markdrop that no longer sync), and with list_pages the Notion pages and "
+            "databases shared with Markdrop with their ids (to import with import_notion source \"api\")."),
+        scope=READ,
+        input_schema={"type": "object", "properties": {
+            "list_pages": {"type": "boolean", "default": False,
+                           "description": "Also list the pages and databases shared with Markdrop."},
+            "connection": {"type": "string", "maxLength": 64,
+                           "description": "With list_pages: which Notion connection (default: the only one)."}}},
+        output_schema=_out({"configured": {"type": "boolean"}, "connections": {"type": "array"},
+                            "syncs": {"type": "array"}, "pages": {"type": "array"}}, ["configured"]),
+        annotations=_ann(True, False, True),
+        handler=notion_status,
+    ),
+    Tool(
+        name="notion_sync",
+        title="Sync from Notion",
+        description=(
+            "For an import kept in sync with Notion (sync_id from notion_status): run (default) syncs it now "
+            "(one way, Notion → Markdrop; only what changed; pages edited in Markdrop are never overwritten), "
+            "keep / stop_keeping turns the 15-minute Keep in sync on or off, remove stops following it (the "
+            "imported pages stay)."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "required": ["sync_id"], "properties": {
+            "sync_id": {"type": "string", "pattern": "^ns_[a-f0-9]+$", "maxLength": 40},
+            "action": {"type": "string", "enum": ["run", "keep", "stop_keeping", "remove"], "default": "run"}}},
+        output_schema=_out({"sync": {"type": "object"}, "import": _JOB}, []),
+        annotations=_ann(False, False, True),
+        handler=notion_sync,
     ),
 ]

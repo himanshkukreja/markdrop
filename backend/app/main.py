@@ -107,6 +107,7 @@ from app.routers.bookmarks import router as bookmarks_router
 from app.routers.bookmarks import web_router as web_embeds_router
 from app.routers.bookmarks import alias_router as link_preview_router
 from app.routers.notion_import import router as notion_import_router
+from app.routers.notion_connect import router as notion_connect_router
 from app.services.pages import PageError
 
 settings = get_settings()
@@ -367,6 +368,8 @@ app.include_router(zoom_router)
 app.include_router(hubspot_router)
 # Import from Notion (routers/notion_import.py): an export zip → pages, databases (folders with properties), files.
 app.include_router(notion_import_router)
+# Connect Notion (routers/notion_connect.py): OAuth, the shared-pages picker, imports from the API, Keep in sync.
+app.include_router(notion_connect_router)
 # Ask Markdrop (routers/ask.py): the home's question box, threads, suggestions.
 app.include_router(ask_router)
 app.include_router(home_router)

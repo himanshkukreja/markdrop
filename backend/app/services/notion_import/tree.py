@@ -45,6 +45,11 @@ class SourceNode:
     path: str = ""                              # where it came from (for the report)
     order: int = 0
     raw: bytes = b""                            # the source's own bytes for it (the change hash)
+    # The Notion API source (Phase B): the node wasn't edited in Notion since it was last written, so its
+    # blocks weren't fetched (the writer leaves its page alone); and its sub-pages / databases in order,
+    # [[kind, id]…], kept on its link so an unchanged page's children are found again without asking Notion.
+    unchanged: bool = False
+    child_ids: list | None = None
 
     def source_hash(self) -> str:
         h = hashlib.sha256()

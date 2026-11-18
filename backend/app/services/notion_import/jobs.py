@@ -11,6 +11,11 @@
                page, where it went) stays on the job row (``notion_imports``, kept 30 days)
 
 A job is the caller's own: anyone else's is "not found".
+
+Connect Notion (Phase B) runs the same jobs with ``source: "api"``: no zip; the job names the person's
+Notion connection and the roots (pages / databases) to read, and the API adapter (api_source.py) builds
+the tree instead of export_zip.py. A "Keep in sync" run (sync.py) is such a job with ``sync_ids`` and,
+when only changes are wanted, ``since``.
 """
 
 from __future__ import annotations
@@ -68,6 +73,10 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[COLL].create_index([("state", 1), ("heartbeat_at", 1)])
     await db[COLL].create_index("purge_at", expireAfterSeconds=0)
     await W.ensure_indexes(db)
+    from app.services.notion_import import connect, sync
+
+    await connect.ensure_indexes(db)
+    await sync.ensure_indexes(db)
 
 
 # ── Where an import can go ────────────────────────────────────────────────────
@@ -157,6 +166,7 @@ def out(job: dict) -> dict:
     res = job.get("result")
     return {
         "id": job["_id"], "state": job["state"], "file_name": job.get("file_name"),
+        "source": job.get("source") or "zip", "sync": bool(job.get("sync_ids")) and not job.get("manual"),
         "size_bytes": int(job.get("size_bytes") or 0),
         "destination": {"kind": d.get("kind", "personal"), "workspace_id": d.get("workspace_id"),
                         "workspace_name": d.get("workspace_name"), "team_id": d.get("team_id"),
@@ -194,7 +204,7 @@ async def create(db: AsyncIOMotorDatabase, user, *, file_name: str, size_bytes: 
     if not r2.is_configured():
         raise HTTPException(status_code=503, detail="File storage isn't available right now. Try again later.")
     dest = await check_destination(db, user, destination)
-    if await db[COLL].count_documents({"user_id": user.id, "state": {"$in": list(ACTIVE)}}) >= MAX_ACTIVE:
+    if await _active_count(db, user) >= MAX_ACTIVE:
         raise HTTPException(status_code=429, detail=f"You have {MAX_ACTIVE} imports going already. Wait for one "
                                                     "to finish, or cancel one.")
     now = now_utc()
@@ -213,6 +223,110 @@ async def create(db: AsyncIOMotorDatabase, user, *, file_name: str, size_bytes: 
     upload = {"url": url, "method": "PUT", "headers": {"Content-Type": CONTENT_TYPE},
               "expires_at": _iso(job["expires_at"])}
     return job, upload
+
+
+async def _active_count(db: AsyncIOMotorDatabase, user) -> int:
+    """Imports the person started that are still going (scheduled syncs don't count)."""
+    return await db[COLL].count_documents({"user_id": user.id, "state": {"$in": list(ACTIVE)},
+                                           "$or": [{"sync_ids": None}, {"manual": True}]})
+
+
+def _root_list(roots: list) -> list[dict]:
+    from app.services.notion_import.api_source import hexid
+
+    out: list[dict] = []
+    for r in roots or []:
+        if isinstance(r, str):
+            r = {"id": r}
+        rid = hexid(str(r.get("id") or ""))
+        if not re.fullmatch(r"[0-9a-f]{32}", rid) or rid in {x["id"] for x in out}:
+            continue
+        kind = r.get("kind") if r.get("kind") in ("page", "database") else "page"
+        out.append({"id": rid, "kind": kind, "title": str(r.get("title") or "")[:200] or None})
+    return out
+
+
+async def create_api(db: AsyncIOMotorDatabase, user, *, connection_id: str | None, roots: list,
+                     destination: dict | None, keep_in_sync: bool = False) -> dict:
+    """An import of pages / databases the person shared with Markdrop in Notion (Connect Notion)."""
+    from app.services.notion_import import api_source, connect
+    from app.services.notion_import import sync as S
+
+    connect.need_configured()
+    conn = await connect.get_own(db, user, connection_id)
+    if conn.get("broken"):
+        raise HTTPException(status_code=409, detail="Your Notion connection stopped working. Reconnect Notion.")
+    picked = _root_list(roots)
+    if not picked:
+        raise HTTPException(status_code=422, detail="Pick at least one Notion page or database to import.")
+    if len(picked) > 50:
+        raise HTTPException(status_code=422, detail="Pick at most 50 pages at a time (sub-pages come with them).")
+    # Titles (and kinds) from Notion itself, not from the caller.
+    try:
+        listing = await shared_listing(db, conn)
+    except HTTPException:
+        raise
+    by_id = {it["id"]: it for it in listing["items"]}
+    for r in picked:
+        it = by_id.get(r["id"])
+        if it is not None:
+            r.update(kind=it["kind"], title=it["title"])
+        r["title"] = r.get("title") or "Untitled"
+    dest = await check_destination(db, user, destination)
+    if await _active_count(db, user) >= MAX_ACTIVE:
+        raise HTTPException(status_code=429, detail=f"You have {MAX_ACTIVE} imports going already. Wait for one "
+                                                    "to finish, or cancel one.")
+    if dest.get("new_folder") and not dest.get("folder_name"):
+        dest["folder_name"] = (picked[0]["title"] if len(picked) == 1 else conn.get("workspace_name") or "Notion")[:100]
+    now = now_utc()
+    jid = "ni_" + secrets.token_urlsafe(12)
+    name = ", ".join(r["title"] for r in picked)
+    job = {"_id": jid, "user_id": user.id, "state": "queued", "source": "api", "connection_id": conn["_id"],
+           "roots": picked, "file_name": (name[:197] + "…") if len(name) > 200 else name, "size_bytes": 0,
+           "key": None, "dest": dest, "progress": {"phase": "reading", "done": 0, "total": 0, "current": None},
+           "created_at": now, "queued_at": now, "purge_at": now + timedelta(days=KEEP_DAYS), "attempts": 0,
+           "manual": True, "since": None}
+    job["sync_ids"] = await S.record(db, user, connection_id=conn["_id"], roots=picked, dest=dest,
+                                     keep=keep_in_sync, job_id=jid)
+    await db[COLL].insert_one(job)
+    kick(db)
+    _ = api_source
+    return job
+
+
+async def shared_listing(db: AsyncIOMotorDatabase, conn: dict) -> dict:
+    from app.services.notion_import import api, api_source, connect
+
+    c = await connect.client(db, conn)
+    try:
+        return await api_source.shared(c)
+    except api.NotionError as exc:
+        raise _notion_http(exc)
+    finally:
+        await c.close()
+
+
+def _notion_http(exc) -> HTTPException:
+    if exc.auth:
+        return HTTPException(status_code=409, detail="Notion stopped accepting Markdrop's connection. Reconnect Notion.")
+    if exc.status == 429:
+        return HTTPException(status_code=503, detail="Notion asked Markdrop to slow down. Try again in a minute.")
+    return HTTPException(status_code=502, detail="Notion didn't answer. Try again in a minute.")
+
+
+async def queue_sync(db: AsyncIOMotorDatabase, row: dict, *, since: datetime | None) -> dict:
+    """A Keep in sync run of one root (sync.py), queued for the import loop."""
+    now = now_utc()
+    jid = "ni_" + secrets.token_urlsafe(12)
+    job = {"_id": jid, "user_id": row["user_id"], "state": "queued", "source": "api",
+           "connection_id": row["connection_id"],
+           "roots": [{"id": row["root_id"], "kind": row.get("root_kind") or "page", "title": row.get("root_title")}],
+           "file_name": row.get("root_title") or "Notion", "size_bytes": 0, "key": None, "dest": row.get("dest") or {},
+           "progress": {"phase": "reading", "done": 0, "total": 0, "current": None}, "created_at": now,
+           "queued_at": now, "purge_at": now + timedelta(days=2), "attempts": 0, "sync_ids": [row["_id"]],
+           "since": since}
+    await db[COLL].insert_one(job)
+    return job
 
 
 async def start(db: AsyncIOMotorDatabase, user, job_id: str) -> dict:
@@ -242,7 +356,8 @@ async def get(db: AsyncIOMotorDatabase, user, job_id: str) -> dict:
 
 
 async def recent(db: AsyncIOMotorDatabase, user, limit: int = 20) -> list[dict]:
-    return await db[COLL].find({"user_id": user.id}).sort("created_at", -1).to_list(length=limit)
+    return await db[COLL].find({"user_id": user.id, "$or": [{"sync_ids": None}, {"manual": True}]}).sort(
+        "created_at", -1).to_list(length=limit)
 
 
 async def cancel(db: AsyncIOMotorDatabase, user, job_id: str) -> dict:
@@ -250,7 +365,7 @@ async def cancel(db: AsyncIOMotorDatabase, user, job_id: str) -> dict:
     if job["state"] in ACTIVE:
         await db[COLL].update_one({"_id": job_id, "state": {"$in": list(ACTIVE)}}, {"$set": {
             "state": "cancelled", "finished_at": now_utc(), "error": None}})
-        if job["state"] != "running":
+        if job["state"] != "running" and job.get("key"):
             await run_in_threadpool(r2.delete, job["key"])
     return await db[COLL].find_one({"_id": job_id})
 
@@ -366,7 +481,7 @@ async def run(db: AsyncIOMotorDatabase, job: dict) -> None:
 
     async def progress(phase: str, done: int, total: int, current: str | None) -> bool:
         t = time.monotonic()
-        if t - last["t"] >= 1.0 or done >= total:
+        if t - last["t"] >= 1.0 or (total and done >= total):
             last["t"] = t
             await beat(progress={"phase": phase, "done": done, "total": total, "current": (current or "")[:200] or None},
                        counts=report.counts)
@@ -377,31 +492,42 @@ async def run(db: AsyncIOMotorDatabase, job: dict) -> None:
                 return False
         return True
 
+    api_job = job.get("source") == "api"
+    sync_kw: dict[str, Any] = {}
     try:
         user = await get_user_by_id(db, job["user_id"])
         if user is None:
             raise export_zip.ExportError("The account that started this import is gone.")
-        await beat(started_at=job.get("started_at") or now_utc(),
-                   progress={"phase": "reading", "done": 0, "total": 0, "current": None})
-        path = os.path.join(tmp, "export.zip")
-        try:
-            await run_in_threadpool(r2.download_to, job["key"], path)
-        except Exception:
-            raise export_zip.ExportError("The uploaded zip couldn't be read from storage. Import it again.")
-        await beat()
+        started = job.get("started_at") or now_utc()
+        job["started_at"] = started
+        await beat(started_at=started, progress={"phase": "reading", "done": 0, "total": 0, "current": None})
+        if api_job:
+            got = await _read_api(db, user, job, tmp, progress)
+            if got is None:
+                return  # cancelled while reading
+            tree, dest, info = got
+        else:
+            path = os.path.join(tmp, "export.zip")
+            try:
+                await run_in_threadpool(r2.download_to, job["key"], path)
+            except Exception:
+                raise export_zip.ExportError("The uploaded zip couldn't be read from storage. Import it again.")
+            await beat()
 
-        def read():
-            z = export_zip.ExportZip(path, tmp)
-            return z, export_zip.build_tree(z, job.get("file_name"))
+            def read():
+                z = export_zip.ExportZip(path, tmp)
+                return z, export_zip.build_tree(z, job.get("file_name"))
 
-        ez, tree = await run_in_threadpool(read)
-        dest, info = await _dest(db, user, job, tree.name)
+            ez, tree = await run_in_threadpool(read)
+            dest, info = await _dest(db, user, job, tree.name)
         await beat(folder_id=info["folder_id"], folder_name=info["folder_name"])
         w = W.Writer(db, tree, dest, report, progress)
         await w.run()
         cur = await db[COLL].find_one({"_id": jid}, {"state": 1})
         if cur is None or cur.get("state") != "running":
             return  # cancelled meanwhile: what was written stays (a new import of it picks up from there)
+        if job.get("sync_ids"):
+            sync_kw = {"info": info, "roots": _root_summaries(w, tree), "full": job.get("since") is None}
         ws = dest.workspace_id
         items = []
         for r in report.roots[:20]:
@@ -420,25 +546,108 @@ async def run(db: AsyncIOMotorDatabase, job: dict) -> None:
             "state": "done", "finished_at": now_utc(), "result": result, "counts": report.counts,
             "skipped": report.skipped, "errors": report.errors,
             "progress": {"phase": "done", "done": 1, "total": 1, "current": None}}})
+        if job.get("sync_ids"):
+            await _after_sync(db, job, state="done", counts=report.counts, **sync_kw)
     except export_zip.ExportError as exc:
         await db[COLL].update_one({"_id": jid}, {"$set": {"state": "failed", "error": str(exc), "finished_at": now_utc(),
                                                          "counts": report.counts, "skipped": report.skipped,
                                                          "errors": report.errors}})
+        if job.get("sync_ids"):
+            await _after_sync(db, job, state="failed", error=str(exc), counts=report.counts)
     except HTTPException as exc:
         msg = exc.detail if isinstance(exc.detail, str) else "The import was refused."
         await db[COLL].update_one({"_id": jid}, {"$set": {"state": "failed", "error": msg, "finished_at": now_utc(),
                                                          "counts": report.counts}})
+        if job.get("sync_ids"):
+            await _after_sync(db, job, state="failed", error=msg, status=exc.status_code, counts=report.counts)
     except Exception:
         log.exception("notion import %s failed", jid)
         await db[COLL].update_one({"_id": jid}, {"$set": {
             "state": "failed", "finished_at": now_utc(), "counts": report.counts, "skipped": report.skipped,
             "errors": report.errors,
             "error": "Something went wrong on Markdrop's side. What was imported so far stays; import the same "
-                     "zip again to finish (pages already imported aren't duplicated)."}})
+                     + ("pages" if api_job else "zip") + " again to finish (pages already imported aren't duplicated)."}})
+        if job.get("sync_ids"):
+            await _after_sync(db, job, state="failed", error="Something went wrong on Markdrop's side.",
+                              counts=report.counts)
     finally:
         if ez is not None:
             ez.close()
         shutil.rmtree(tmp, ignore_errors=True)
         final = await db[COLL].find_one({"_id": jid}, {"state": 1, "key": 1})
-        if final is not None and final.get("state") in ("done", "failed", "cancelled"):
+        if final is not None and final.get("state") in ("done", "failed", "cancelled") and final.get("key"):
             await run_in_threadpool(r2.delete, final["key"])
+
+
+# ── Connect Notion (the API source) ───────────────────────────────────────────
+
+
+async def _read_api(db: AsyncIOMotorDatabase, user, job: dict, tmp: str, progress):
+    """(tree, destination, info) read from Notion with the person's own connection; None: cancelled."""
+    from app.services.notion_import import api, api_source, connect
+
+    conn = await db[connect.CONNS].find_one({"_id": job.get("connection_id"), "user_id": user.id})
+    if conn is None:
+        raise export_zip.ExportError("The Notion connection was removed. Connect Notion again to import.")
+    if conn.get("broken"):
+        raise export_zip.ExportError("Your Notion connection stopped working. Reconnect Notion, then sync again.")
+    roots = job.get("roots") or []
+    d = job.get("dest") or {}
+    name = d.get("folder_name") or (roots[0].get("title") if len(roots) == 1 else conn.get("workspace_name")) or "Notion"
+    # Where it goes is checked again now (the person may have left the team since), before reading anything.
+    dest, info = await _dest(db, user, job, name)
+    known = {r["notion_id"]: r async for r in db[W.LINKS].find({"dest": dest.key})}
+    since = _aware(job.get("since"))
+    client = await connect.client(db, conn)
+    try:
+        changed = await api_source.edited_since(client, since) if since is not None else None
+        b = api_source.Builder(client, tmp, known=known, changed=changed, progress=progress)
+        tree = await b.build(roots, name)
+    except api_source.Stop:
+        return None
+    except api.NotionError as exc:
+        if exc.auth:
+            await connect._mark_broken(db, conn["_id"])
+            raise export_zip.ExportError("Notion stopped accepting Markdrop's connection. Reconnect Notion, then sync again.")
+        log.info("notion api import %s: %s", job["_id"], exc)
+        raise export_zip.ExportError("Notion didn't answer while reading the pages. Try again in a few minutes.")
+    finally:
+        await client.close()
+    if not tree.nodes:
+        raise export_zip.ExportError("Notion didn't return any of the chosen pages. Check that they're still "
+                                     "shared with Markdrop (in Notion: ••• › Connections).")
+    return tree, dest, info
+
+
+def _root_summaries(w: "W.Writer", tree) -> dict:
+    """Per root: its title, its link in Markdrop and the pages under it edited in Markdrop (detached)."""
+    from app.services import urls
+
+    out: dict[str, dict] = {}
+    for root in tree.roots():
+        ids = [root.notion_id]
+        stack = [root.notion_id]
+        while stack:
+            for ch in tree.children(stack.pop()):
+                ids.append(ch.notion_id)
+                stack.append(ch.notion_id)
+        detached = []
+        for nid in ids:
+            link = w.links.get(nid) or {}
+            if link.get("detached") and link.get("slug"):
+                detached.append({"title": (tree.nodes[nid].title or "Untitled")[:200], "slug": link["slug"],
+                                 "url": urls.markdrop_url(link["slug"])})
+        link = w.links.get(root.notion_id) or {}
+        url = urls.markdrop_url(link["slug"]) if link.get("slug") else (
+            f"/w/{w.dest.workspace_id}/f/{link['folder_id']}" if link.get("folder_id") and w.dest.workspace_id else None)
+        out[root.notion_id] = {"title": root.title, "url": url, "detached": detached[:50]}
+    return out
+
+
+async def _after_sync(db: AsyncIOMotorDatabase, job: dict, **kw) -> None:
+    from app.services.notion_import import sync as S
+
+    try:
+        await S.after_run(db, job, **kw)
+    except Exception:
+        log.warning("notion sync bookkeeping for %s failed", job.get("_id"), exc_info=True)

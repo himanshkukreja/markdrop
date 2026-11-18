@@ -364,10 +364,12 @@ class Writer:
                 if not link.get("detached"):
                     await self._save_link(node.notion_id, detached=True, detached_at=now_utc())
                 return
-            if link["source_hash"] == h:
+            if node.unchanged or link["source_hash"] == h:
                 self.report.counts["unchanged"] += 1
                 return
             self.report.counts["updated"] += 1
+        elif node.unchanged:
+            return      # (never happens: the API source only skips pages it wrote before)
         assets = dict(link.get("assets") or {})
         for path in asset_refs(node):
             if path not in assets:
@@ -397,8 +399,12 @@ class Writer:
             else:
                 raise
         after = await self.db["documents"].find_one({"_id": raw["_id"]}, {"rev": 1})
+        extra: dict[str, Any] = {"title": node.title}
+        if node.child_ids is not None:
+            extra["child_ids"] = node.child_ids
         await self._save_link(node.notion_id, source_hash=h, last_edited=node.last_edited, assets=assets,
-                              synced_rev=int((after or {}).get("rev", rev + 1)), synced_at=now_utc(), detached=False)
+                              synced_rev=int((after or {}).get("rev", rev + 1)), synced_at=now_utc(), detached=False,
+                              **extra)
 
     def _resolver(self, assets: dict[str, dict]) -> R.Resolver:
         writer = self
@@ -530,7 +536,7 @@ class Writer:
             return {"skipped": "not in the export"}
         head = await run_in_threadpool(self.tree.read_asset, path, 16)
         if head is None:
-            self.report.skip(path, node.title, f"{name} couldn't be read from the zip.")
+            self.report.skip(path, node.title, f"{name} couldn't be read.")
             return {"skipped": "couldn't be read"}
         if page_assets.sniff(head) is not None:
             if size > IMAGE_MAX:
