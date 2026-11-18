@@ -61,8 +61,8 @@ export interface PageJira {
 }
 
 
-const PB_ATTRS = ["dataPb", "dataKind", "dataLabel", "dataSrc", "dataMode", "dataAsset", "dataIcon", "dataColor", "dataHeading", "dataUrl", "dataTitle", "dataDesc", "dataImage", "dataSite", "dataPerson", "dataOptions", "dataLock", "dataRef", "dataQuery"];
-const PB_PROPS = ["data-pb", "data-kind", "data-label", "data-src", "data-mode", "data-asset", "data-icon", "data-color", "data-heading", "data-url", "data-title", "data-desc", "data-image", "data-site", "data-person", "data-options", "data-lock", "data-ref", "data-query"];
+const PB_ATTRS = ["dataPb", "dataOpen", "dataKind", "dataLabel", "dataSrc", "dataMode", "dataAsset", "dataIcon", "dataColor", "dataHeading", "dataUrl", "dataTitle", "dataDesc", "dataImage", "dataSite", "dataPerson", "dataOptions", "dataLock", "dataRef", "dataQuery"];
+const PB_PROPS = ["data-pb", "data-open", "data-kind", "data-label", "data-src", "data-mode", "data-asset", "data-icon", "data-color", "data-heading", "data-url", "data-title", "data-desc", "data-image", "data-site", "data-person", "data-options", "data-lock", "data-ref", "data-query"];
 
 /** Block attributes (attrs.mjs) any element may carry: anchor, colours, image and table layout. */
 const BLOCK_ATTRS = ["dataBid", "dataColor", "dataBg", "dataWidth", "dataAlign", "dataWidths", "dataHcol", "dataHrow", "dataCaption", "dataBlock"];
@@ -324,7 +324,7 @@ function Details({ node: _n, children, ...rest }: P<"details">) {
   const heading = /^[123]$/.test(String(rest["data-heading"] ?? "")) ? Number(rest["data-heading"]) : null;
   const H = heading ? (`h${heading}` as "h1" | "h2" | "h3") : "span";
   return (
-    <details className={`dx-details pb-details${heading ? ` pb-details--h pb-details--h${heading}` : ""}`} data-bid={str(rest["data-bid"])} data-color={str(rest["data-color"])} data-bg={str(rest["data-bg"])}>
+    <details open={rest["data-open"] != null || undefined} className={`dx-details pb-details${heading ? ` pb-details--h pb-details--h${heading}` : ""}`} data-bid={str(rest["data-bid"])} data-color={str(rest["data-color"])} data-bg={str(rest["data-bg"])}>
       <summary>
         <Icon name="chevronRight" className="dx-details__chev" />
         <H className={heading ? "pb-details__h" : undefined}>{label}</H>

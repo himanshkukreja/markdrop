@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "personal-to-do-pages",
+      "date": "2026-11-19",
+      "title": "Teams: a personal to-do page for everyone, from the team's calls",
+      "kind": "new",
+      "area": "Teams",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Each team member gets a private to-do page with their action items from the team's calls, in a section per company. Tick an item there or on the call, and the other follows. Team leads can read every member's page.",
+      "body": "- **One page per person per team.** \"<Name> — To-dos\" has a collapsible section for each company (the call's HubSpot company, otherwise the outside attendees' company) and one for **Internal** calls. Each section shows the open count and the date of the last call. Each item has its due date, a link to the call and the transcript moment.\n- **Always up to date.** Pages update after every call in the team and whenever a call's action items change. What you write outside Markdrop's section stays.\n- **Tick anywhere.** Ticking an item on your to-do page ticks it on the call. Ticking it on the call, from Home, from Slack or in Jira updates your page. This works even while someone has either page open.\n- **Private.** Only you and the team's leads (read only) can open it. Share it like any page.\n- **Find it** under **You › My to-dos**, or in the team's **People & memory**, where leads see everyone's.\n- **AI apps** get `my_todos`, `team_todos` (leads) and `tick_todo`. See [Personal to-do pages](/teams/to-dos)."
+    },
+    {
       "id": "pages-live-append-doubled",
       "date": "2026-11-18",
       "title": "Pages: an AI app's quick follow-up edit no longer doubles lines in an open editor",

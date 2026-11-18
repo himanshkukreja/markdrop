@@ -397,7 +397,7 @@ async def collect(db: AsyncIOMotorDatabase, team: dict, user) -> Collected:
             continue
         out.meetings += 1
         key, name = await companies.of(mrow)
-        title = md_outline.display_title(raw) or mrow.get("title") or "Meeting"
+        title = mrow.get("title") or md_outline.display_title(raw) or "Meeting"
         for ln in mine:
             text, due, moment = _clean_text(ln.rest, uid)
             if not text:
@@ -413,9 +413,14 @@ async def collect(db: AsyncIOMotorDatabase, team: dict, user) -> Collected:
 
 
 def _fmt_day(d: str | None) -> str:
-    from app.services import meetings
+    """"Nov 17" (this year) or "Nov 17, 2025"."""
+    from datetime import date
 
-    return meetings.fmt_date(d) if d else ""
+    try:
+        x = date.fromisoformat((d or "")[:10])
+    except ValueError:
+        return ""
+    return f"{x:%b} {x.day}" + ("" if x.year == now_utc().year else f", {x.year}")
 
 
 def _attr(v: str) -> str:
@@ -482,8 +487,10 @@ def merge(content: str, section: str) -> str:
 
 
 def intro(team_name: str) -> str:
-    return (f"Your action items from {team_name}'s calls, by company. Tick one here or on its call: both follow. "
-            f"Only you and {team_name}'s leads can see this page; share it like any page.")
+    from app.services import meetings
+
+    return (f"Your action items from the calls in **{meetings.md_inline(team_name)}**, by company. Tick one here or on its call: both follow. "
+            f"Only you and the team's leads can see this page; share it like any page.")
 
 
 # ── The page ──────────────────────────────────────────────────────────────────

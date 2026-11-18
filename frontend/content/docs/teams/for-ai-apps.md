@@ -1,10 +1,10 @@
 ---
 title: Teams for AI apps
 description: Let Claude, ChatGPT or Cursor list teams, read a team's home and brief, put pages and meetings into teams, and ask one team's space.
-updated: 2026-11-10
+updated: 2026-11-19
 nav: For AI apps
 prerequisites: [/ai/hosted-mcp]
-keywords: [mcp, teams mcp, list_teams, get_team, create_team, update_team, add_team_members, remove_team_members, move_to_team, share_to_team, get_team_brief, edit_team_brief, list_projects, create_project, route_meeting, list_favorites, set_favorite, general, space, team scope, ai apps]
+keywords: [mcp, teams mcp, list_teams, get_team, create_team, update_team, add_team_members, remove_team_members, move_to_team, share_to_team, get_team_brief, edit_team_brief, list_projects, create_project, route_meeting, my_todos, team_todos, tick_todo, to-dos, list_favorites, set_favorite, general, space, team scope, ai apps]
 ---
 
 Everything on these pages works from an AI app connected to Markdrop's [hosted MCP server](/ai/hosted-mcp). The app acts as you, with your access: it sees the teams and content you can see, and can only change what you could on the website.
@@ -44,6 +44,9 @@ Everything on these pages works from an AI app connected to Markdrop's [hosted M
 | `edit_team_brief` | write | Leads and admins: change, hide or add a line of the brief. | `workspace`, `team`, `line_id`, `text`, `hidden`, `add` |
 | `create_project` | write | A project shared by several teams. | `workspace`, `name`, `teams` |
 | `route_meeting` | write | Says which teams a meeting belongs to (its page and transcript follow). | `meeting`, `teams` |
+| `my_todos` | read | Your [to-do pages](/teams/to-dos), one per team: your open action items from the team's calls, by company. | `workspace`, `team`, `include_done` |
+| `team_todos` | read | Team leads: every member's open to-dos in the team. | `workspace`, `team`, `person` |
+| `tick_todo` | write | Ticks one of your to-dos, or opens it again with `done: false`. The call's action item follows. | `item`, `done` |
 | `list_favorites` | read | The pages, files, teams and projects you starred in a workspace (the sidebar's Favorites). | `workspace` |
 | `set_favorite` | write | Stars or unstars a page or file (`kind: "doc"`), a team or a project. | `workspace`, `kind`, `item`, `on` |
 

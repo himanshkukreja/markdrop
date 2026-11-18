@@ -63,6 +63,7 @@ test("the rest of the rail and the Ask link", () => {
   assert.equal(railKeyFor("/dashboard", ""), "home");
   assert.equal(railKeyFor("/dashboard", "q=x"), "files");
   assert.equal(railKeyFor("/shared", ""), "shared");
+  assert.equal(railKeyFor("/todos", ""), "todos");
   assert.equal(railKeyFor("/settings/workspaces/ws1/x", ""), "ws:ws1:settings");
   assert.equal(workspaceOfKey("ws:new"), null);
   assert.equal(workspaceOfKey(wsTeamRowKey(W, "s", "meetings")), W);

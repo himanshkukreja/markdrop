@@ -22,6 +22,7 @@ import {
 import { useAssistantHere } from "@/components/assistant/store";
 import { ActivityStrip, FocusDialog, HeatLegend, StatusChip, StatusDialog, TargetChip } from "./parts";
 import { GroupsDialog, ThisWeekCard } from "./extras";
+import { TeamTodos } from "@/components/todos/TodoCards";
 import { JiraCardLine, JiraGlance, JiraTeamContext, useJiraTeam } from "@/components/jira/JiraTeam";
 import type { JiraTeam } from "@/lib/jira";
 import "./team.css";
@@ -29,14 +30,14 @@ import "./team.css";
 type Range = "7" | "14";
 
 /** Teams: the space this board shows (a team's Memory) and its name for the title. */
-const SpaceCtx = createContext<{ name: string; href: string } | null>(null);
+const SpaceCtx = createContext<{ name: string; href: string; teamId?: string } | null>(null);
 
 export default function TeamBoard({ workspaceId, space }: { workspaceId: string; space?: string }) {
   useTeamsSidebar([workspaceId]);
   const td = teamsSlot(workspaceId);
   const st = space?.startsWith("team:") && td ? td.teams.find((t) => t.id === space.slice(5)) : null;
   const sp = space?.startsWith("project:") && td ? td.projects.find((x) => x.id === space.slice(8)) : null;
-  const spaceInfo = st ? { name: st.name, href: teamPageHref(workspaceId, st) } : sp ? { name: sp.name, href: teamProjectHref(workspaceId, sp) } : null;
+  const spaceInfo = st ? { name: st.name, href: teamPageHref(workspaceId, st), teamId: st.general ? undefined : st.id } : sp ? { name: sp.name, href: teamProjectHref(workspaceId, sp) } : null;
   return <SpaceCtx.Provider value={spaceInfo}><Board_ workspaceId={workspaceId} space={space} /></SpaceCtx.Provider>;
 }
 
@@ -107,6 +108,12 @@ function Head({ name, wsId, children }: { name: string; wsId: string; children?:
   );
 }
 
+/** A team's People & memory: its members' to-do pages (components/todos) — every member's for a lead, else yours. */
+function SpaceTodos({ ws }: { ws: string }) {
+  const sp = useContext(SpaceCtx);
+  return sp?.teamId ? <TeamTodos ws={ws} team={sp.teamId} /> : null;
+}
+
 function TeamOff({ board, onOn }: { board: BoardOff; onOn: () => void }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -127,6 +134,7 @@ function TeamOff({ board, onOn }: { board: BoardOff; onOn: () => void }) {
   return (
     <div className="tm-page">
       <Head name={board.workspace.name} wsId={board.workspace.id} />
+      <SpaceTodos ws={board.workspace.id} />
       <section className="tm-off" data-testid="team-off">
         <span className="tm-off__glyph" aria-hidden><Icon name="users" /></span>
         <h2>See where everyone is, without asking</h2>
@@ -217,6 +225,7 @@ function TeamOn(p: {
         <Tile n={totals.open_items} label="Open items" icon="checkSquare" />
       </section>
       <ThisWeekCard week={board.this_week} ws={workspaceId} canSend={board.can_manage} onSent={p.reload} />
+      <SpaceTodos ws={workspaceId} />
 
       <div className="tm-filters" role="search">
         <div className="tm-search">
