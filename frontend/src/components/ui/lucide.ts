@@ -18,7 +18,7 @@ import {
   Table, Tablet, Trash2, Terminal, TextAlignStart, TriangleAlert, Type, Undo2, Upload, User, UserPlus, UserX, Users,
   Activity, WifiOff, WrapText, X, Zap, ZoomIn, ZoomOut, ArrowUpDown, Star, Target,
   ChartLine, PenTool,
-  Database,
+  Database, Briefcase,
   type LucideIcon,
 } from "lucide-react";
 
@@ -44,5 +44,7 @@ export const LUCIDE: Record<string, LucideIcon> = {
   square: Square, pipette: Pipette, smile: Smile, at: AtSign, messagePlus: MessageSquarePlus,
   // New in the nav redesign (2026-11-10).
   star: Star, compass: Compass, building: Building2, help: CircleHelp, grid2: Grid2x2, chartLine: ChartLine,
+  // HubSpot deal folders (the team's Deals row and section).
+  briefcase: Briefcase,
 };
 

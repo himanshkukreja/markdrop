@@ -3,7 +3,8 @@
 /**
  * /w/<ws>/teams/<team>/settings: name, icon, colour, description; Open / Private (admins; private says plainly that
  * workspace admins can see it); leads (admins); members (leads and admins; anyone can leave); the team's Slack
- * channel, Jira projects and weekly digest; delete (admins).
+ * channel, Jira projects and weekly digest; delete (admins). The header says which integrations are linked to it
+ * ("Linked to: Zoom, HubSpot"); they are set up in Workspace settings › Integrations.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -38,7 +39,12 @@ export default function TeamSettings({ ws, team: teamRef }: { ws: string; team: 
       <header className="tz-head">
         <div className="tz-head__main">
           <TeamTile team={team} size={40} />
-          <div className="tz-head__titles"><h1 className="tz-title">Team settings</h1><p className="tz-sub">{team.name}</p></div>
+          <div className="tz-head__titles">
+            <h1 className="tz-title">Team settings</h1>
+            <p className="tz-sub">{team.name}</p>
+            {/* Set up in Workspace settings › Integrations (Zoom, HubSpot); here it only says so. */}
+            {!!team.linked?.length && <p className="tz-muted m-0 mt-1" data-testid="team-linked">Linked to: {team.linked.join(", ")}</p>}
+          </div>
         </div>
       </header>
       <div className="tz-settings">

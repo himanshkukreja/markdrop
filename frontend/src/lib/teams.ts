@@ -36,6 +36,10 @@ export interface TeamCard {
   /** The workspace's default team (General): everyone is in it, always open, renameable, not deletable. Its
    *  content is the company-wide content. */
   general?: boolean;
+  /** Integrations linked to this team ("Zoom", "HubSpot"): team settings say "Linked to: …". */
+  linked?: string[];
+  /** The HubSpot-linked team: its sidebar shows Deals. */
+  hubspot?: boolean;
 }
 export interface TeamFull extends TeamCard {
   members: (Person & { role: "lead" | "member" })[];
@@ -214,6 +218,8 @@ export const teamPagesHref = (ws: string, t: Pick<TeamCard, "slug">) => `${teamH
 export const teamSettingsHref = (ws: string, t: Pick<TeamCard, "slug">) => `${teamHref(ws, t)}/settings`;
 export const teamMeetingsHref = (ws: string, t: Pick<TeamCard, "id">) => `/meetings/${enc(ws)}?space=${enc(`team:${t.id}`)}`;
 export const teamMemoryHref = (ws: string, t: Pick<TeamCard, "id">) => `/team/${enc(ws)}?space=${enc(`team:${t.id}`)}`;
+export const teamDealsHref = (ws: string, t: Pick<TeamCard, "id">) => `/deals/${enc(ws)}?space=${enc(`team:${t.id}`)}`;
+export const dealHref = (ws: string, dealId: string) => `/deals/${enc(ws)}/${enc(dealId)}`;
 export const teamAskHref = (ws: string, t: Pick<TeamCard, "id">) => `/ask?workspace=${enc(ws)}&team=${enc(t.id)}`;
 export const projectHref = (ws: string, p: Pick<ProjectCard, "slug">) => `/w/${enc(ws)}/projects/${enc(p.slug)}`;
 export const browseHref = (ws: string) => `/w/${enc(ws)}/teams`;

@@ -4,7 +4,7 @@
  * The meeting panel on a meeting page (and its transcript): the "Meeting" pill opens a side panel on
  * desktop and a bottom sheet on phones with the meeting's details: date, type, who was there, where it
  * came from (links back to Google's Docs), the AI summary's state (Regenerate), Restrict to attendees
- * (the page's owner), HubSpot (the HubSpot team's meetings: HubSpotSection, loaded when the panel first opens),
+ * (the page's owner),
  * Delete (the importer or a workspace admin), and All meetings.
  *
  * Asking is Ask Markdrop's (components/assistant): the meeting bar's "Ask this meeting", ✦ Ask in the
@@ -26,7 +26,7 @@ import {
 } from "@/lib/meetings";
 import { openAssistant } from "@/components/assistant/store";
 import { MeetingRecording, type RecordingSeek } from "./MeetingRecording";
-import { HubSpotSection } from "./HubSpotSection";
+import { DealChip } from "@/components/hubspot/parts";
 import { NameSpeakersHost, SpeakersBanner, isGenericSpeaker, openNameSpeakers } from "./NameSpeakers";
 import { useRecordingSeek } from "./useRecordingSeek";
 import "@/components/pages/ai/ask-pill.css";
@@ -65,6 +65,7 @@ function useMeeting(id: string): [Meeting | null, (m: Meeting) => void, () => Pr
 /**
  * The meeting bar under a meeting page's properties: who was there, who can open it, and the two things
  * people do next — read the transcript, ask the meeting. On the transcript: back to the meeting, ask.
+ * The HubSpot team's calls show their deal chip above it ("💼 <Company> — <Deal> · <Stage>").
  */
 export function MeetingHeader({ meetingId, role, extra }: { meetingId: string; role?: string; extra?: React.ReactNode }) {
   const [m, setM, reload] = useMeeting(meetingId);
@@ -111,6 +112,8 @@ export function MeetingHeader({ meetingId, role, extra }: { meetingId: string; r
   const ask = () => openAssistant({ scope: "meetings" });
   return (
     <>
+    {/* The HubSpot team's calls: the deal it is filed in (its Log / tasks / suggestions are on the deal page). */}
+    <DealChip meetingId={m.id} workspaceId={m.workspace_id} />
     <div className="mt-pagebar no-print" data-testid="meeting-header">
       <div className="mt-pagebar__facts">
         {people.length > 0 && (
@@ -162,9 +165,6 @@ export function MeetingLauncher({ meetingId }: { meetingId: string; role?: strin
   const toast = useToast();
   const [m, setM, load] = useMeeting(meetingId);
   const [open, setOpen] = useState(false);
-  // HubSpot asks the server (and HubSpot) only once someone opens the panel.
-  const [opened, setOpened] = useState(false);
-  useEffect(() => { if (open) setOpened(true); }, [open]);
   const pill = useRef<HTMLButtonElement>(null);
 
   // A card's "Ask this meeting" (?ask=1): Ask Markdrop on this meeting.
@@ -228,7 +228,6 @@ export function MeetingLauncher({ meetingId }: { meetingId: string; role?: strin
             </header>
             <Details m={m} onChange={setM} onDeleted={() => { close(); router.push(meetingsHref(m.workspace_id)); }}
               onNameSpeakers={() => { close(); openNameSpeakers(); }}
-              hubspot={opened ? <HubSpotSection meetingId={m.id} workspaceId={m.workspace_id} /> : null}
               top={(
                 <>
                   <SummaryBanner m={m} />
@@ -270,8 +269,8 @@ function SeriesField({ value, disabled, onCommit }: { value: string; disabled: b
   );
 }
 
-function Details({ m, onChange, onDeleted, top, hubspot, onNameSpeakers }: {
-  m: Meeting; onChange: (m: Meeting) => void; onDeleted: () => void; top?: React.ReactNode; hubspot?: React.ReactNode;
+function Details({ m, onChange, onDeleted, top, onNameSpeakers }: {
+  m: Meeting; onChange: (m: Meeting) => void; onDeleted: () => void; top?: React.ReactNode;
   onNameSpeakers?: () => void;
 }) {
   const toast = useToast();
@@ -383,8 +382,6 @@ function Details({ m, onChange, onDeleted, top, hubspot, onNameSpeakers }: {
         <Switch checked={m.restricted} disabled={!m.can_manage || !!busy} aria-label="Restrict to attendees" data-testid="meeting-restrict"
           onChange={(e) => void run("restrict", () => patchMeeting(m.id, { restricted: e.target.checked }), e.target.checked ? "Only attendees can open it now." : "The team can open it again.")} />
       </div>
-
-      {hubspot}
 
       <div>
         <p className="pa-sources__label" style={{ margin: "0 0 6px" }}>AI summary</p>

@@ -172,22 +172,28 @@ export default function PrivacyPage() {
           meeting of that team, the HubSpot meeting booked for it (title and time), the contacts that match its attendees&rsquo; emails or
           names, their companies and deals (name, stage, amount, owner, close date). What a meeting matched (record IDs, not their
           content) is stored with the meeting; deal details are fetched again when someone opens it.</Li>
+        <Li><strong className="text-text">Deal folders.</strong> For the team&rsquo;s Deals section, Markdrop reads the account&rsquo;s open deals
+          (name, stage, amount, owner, close date, pipeline), their primary company and contacts (name, job title, email), and the deal&rsquo;s
+          activity: notes, emails (subject and a short preview, when the key allows it), meetings, tasks and the names of attached files. It
+          keeps these with the deal folder, shown only to the team&rsquo;s members and workspace admins, and refreshes them as deals change.
+          Attached files are never copied: they open in HubSpot. Deal folders never write to HubSpot.</Li>
         <Li><strong className="text-text">What Markdrop sends to HubSpot.</strong> Only when someone in the team chooses Log to HubSpot, or
           the workspace turned on Log calls automatically: the meeting&rsquo;s summary, next steps and decisions and a link to the meeting
           page, written into the HubSpot meeting&rsquo;s internal notes (or a new meeting on the deal, with its title, time and owner). Action
           items go to HubSpot as tasks only when someone approves them. The transcript and recording are never sent.</Li>
         <Li><strong className="text-text">Who.</strong> Only that team&rsquo;s meetings, and only by people who can open the meeting and are in
           the team (or are workspace admins). A private team&rsquo;s meetings never reach HubSpot through anyone else.</Li>
-        <Li><strong className="text-text">Suggested deal updates, account pages, briefs and Ask.</strong> After a team call matched to a deal,
+        <Li><strong className="text-text">Suggested deal updates, briefs and Ask.</strong> After a team call matched to a deal,
           the call&rsquo;s notes, some of its transcript lines and the deal&rsquo;s current fields are sent to Markdrop&rsquo;s AI provider
-          (see Anthropic below) to suggest changes to the deal; a change reaches HubSpot only when someone in the team applies it. Account
-          pages, pre-call briefs (in Slack and the Markdrop inbox) and the Pipeline lines of the team&rsquo;s weekly brief show deal details
+          (see Anthropic below) to suggest changes to the deal; a change reaches HubSpot only when someone in the team applies it. Deal
+          folders, pre-call briefs (in Slack and the Markdrop inbox) and the Pipeline lines of the team&rsquo;s weekly brief show deal details
           and the team&rsquo;s calls only to the team&rsquo;s members and workspace admins; Ask reads the deal list only for them. Each person
           can turn their pre-call briefs and Slack messages off in Settings &rsaquo; Account.</Li>
       </ul>
       <P>
         <strong className="text-text">Kept and deleted.</strong> Disconnecting HubSpot deletes the key, the cached users and stages, and every
-        meeting&rsquo;s match right away. Markdrop keeps only the IDs of the HubSpot meetings and tasks it wrote, so connecting the same account
+        meeting&rsquo;s match right away, and the HubSpot activity kept with the deal folders (the folders, their pages and the calls
+        in them stay: they&rsquo;re the team&rsquo;s). Markdrop keeps only the IDs of the HubSpot meetings and tasks it wrote, so connecting the same account
         again updates them instead of making duplicates. Notes and tasks already in HubSpot are the company&rsquo;s records and stay there
         under HubSpot&rsquo;s own terms. HubSpot data isn&rsquo;t sold, used for advertising or used to train AI models.
       </P>

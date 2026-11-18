@@ -2296,6 +2296,26 @@
       "description": "Sets `precall` and/or `approve` for you (never anyone else). Returns the same as GET.",
       "guide": {"label": "HubSpot", "href": "/integrations/hubspot#pre-call-briefs"}
     },
+    "GET /api/v1/hubspot/deals/board": {
+      "title": "The HubSpot team's deals",
+      "description": "Every deal folder of the HubSpot team: open deals, and closed ones marked `closed_label` (Closed won / Closed lost), each with stage, pipeline, amount, owner, close date, company, how many calls are filed in it (`calls`), the last call, `quiet` (no call in 14 days) and calls waiting for someone to pick the deal (`pick`). Also the pipeline stages, the sync state (`sync`), whether you can Sync now (`can_sync`: workspace admins) and, for admins, the optional read scopes the key is missing. The HubSpot team's members and workspace admins.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#deal-folders"}
+    },
+    "GET /api/v1/hubspot/deals/{deal_id}": {
+      "title": "A HubSpot deal's folder",
+      "description": "A deal's page: its facts and contacts, the Deal overview page and folder, the team's calls rolled up (`rollup`: decisions, risks, questions, next steps, last call), the calls filed in it (`calls`), calls waiting for someone to pick the deal (`pick`), open suggested deal updates, HubSpot's activity (`activity`: notes, emails, meetings, tasks, newest first; `missing` names a read scope the key lacks) and attachments (listed by name, opening in HubSpot). `fresh=true` reads HubSpot's activity now instead of the copy kept for 15 minutes.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#deal-folders"}
+    },
+    "POST /api/v1/hubspot/deals/sync": {
+      "title": "Sync HubSpot deals now",
+      "description": "Workspace admins: starts a sync now instead of waiting for the next check (every 20 minutes). Reads HubSpot only. Returns the sync state; poll `GET /api/v1/hubspot/deals/board` for the result.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#updates-and-sync-now"}
+    },
+    "GET /api/v1/hubspot/meetings/{meeting_id}/chip": {
+      "title": "A meeting's deal",
+      "description": "The deal a meeting is filed in (`deal`: name, company, stage, closed label and the deal page's `href`), or `pick: true` when it has none yet. From Markdrop's own records, without asking HubSpot. Nothing for people outside the HubSpot team.",
+      "guide": {"label": "HubSpot", "href": "/integrations/hubspot#calls-in-a-deal-folder"}
+    },
     "GET /api/v1/zoom/status": {
       "title": "Zoom connection status",
       "description": "What Workspace settings › Integrations › Zoom shows: whether Zoom works on this server (`configured`), whether the workspace is connected (`connected`), the team Zoom meetings go to (`team`, with its `visibility`), whether you can change it (`can_manage`: admins and owners) and import past meetings (`can_import`: admins, owners and the team's leads), counts and the latest imports (`connection`, `recent`). `app_available`: one-click connect (the Markdrop app for Zoom) is offered; `mode`: how the workspace is connected (`oauth`, the Markdrop app, or `s2s`, its own Server-to-Server app). Admins also get the endpoint URL for Zoom's event subscription (`webhook_url`), the scopes the Zoom app needs (`scopes_needed`) and the ones it's missing (`connection.missing_scopes`). Never returns a secret. Members of the workspace only.",

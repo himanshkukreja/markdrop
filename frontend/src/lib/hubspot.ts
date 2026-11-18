@@ -17,6 +17,10 @@
  *   POST   /api/v1/hubspot/meetings/{id}/account         make or update the account page
  *   GET    /api/v1/hubspot/pipeline?workspace_id=        deals, last call, at risk
  *   GET    /api/v1/hubspot/me, PUT {precall?, approve?}  your own HubSpot messages
+ *   GET    /api/v1/hubspot/deals/board?workspace_id=     the Deals section (board / list; filters are client-side)
+ *   GET    /api/v1/hubspot/deals/{id}?workspace_id=&fresh=  a deal page (overview, calls, assets, activity)
+ *   POST   /api/v1/hubspot/deals/sync                    {workspace_id} Sync now (workspace admins) → the board's sync
+ *   GET    /api/v1/hubspot/meetings/{id}/chip            the meeting page's deal chip (cheap; no HubSpot call)
  *
  * Kept out of lib/api.ts (that one loads on public pages).
  */
@@ -138,3 +142,92 @@ export function fmtAmount(amount: number | null, currency: string | null): strin
     return `${amount}${currency ? ` ${currency}` : ""}`;
   }
 }
+
+/* ── Deal folders: the Deals section, a deal page, the meeting chip ─────────────────────────────── */
+
+/** An optional read scope the HubSpot key lacks (emails, attachments). */
+export interface DealMissingScope { scope: string; why?: string; what?: string }
+
+export interface DealCard {
+  id: string;
+  name: string;
+  company: { id: string; name: string } | null;
+  /** "<Company> — <Deal>" (the folder's name). */
+  title: string;
+  stage_id: string | null; stage: string | null; pipeline: string | null; pipeline_id: string | null;
+  closed: boolean; closed_label: "Closed won" | "Closed lost" | null;
+  amount: number | null; currency: string | null; owner: string | null; owner_id: string | null;
+  close_date: string | null;
+  /** The deal in HubSpot. */
+  url: string;
+  /** The Markdrop folder its calls and assets are in. */
+  folder_id: string | null;
+  calls: number;
+  last_call: { date: string | null; title: string; slug: string } | null;
+  days_quiet: number | null;
+  /** No call in 14+ days (or never). */
+  quiet: boolean;
+  /** Calls waiting for "Pick the deal" that could be this deal. */
+  pick: number;
+  updated_at: string | null;
+}
+
+export interface DealSync { at: string | null; state: "idle" | "running" | "error"; last_error: string | null; deals: number; next_at: string | null }
+export interface DealStage { id: string; label: string; pipeline: string | null; pipeline_id: string | null; closed: boolean }
+
+export interface DealBoard {
+  team: { id: string; name: string; slug: string } | null;
+  /** Workspace admins: Sync now. */
+  can_sync: boolean;
+  sync: DealSync;
+  /** Board columns in pipeline order (open stages, and the closed ones). */
+  stages: DealStage[];
+  pipelines: Array<{ id: string; label: string }>;
+  deals: DealCard[];
+  missing_scopes: DealMissingScope[];
+}
+
+export interface DealLine { text: string; date: string | null; slug: string }
+export interface DealCallRow {
+  meeting_id: string; title: string; date: string | null; slug: string; href: string;
+  how: string | null; confidence: string | null; logged: { at: string | null } | null;
+  /** Action items in the call. */
+  actions: number; tasks_created: number; suggestions_open: number;
+}
+export interface DealActivity {
+  kind: "note" | "email" | "meeting" | "task" | "call"; id: string; at: string | null; title: string | null; preview: string | null;
+  direction?: "in" | "out" | null; status?: string | null; owner?: string | null; url: string | null;
+}
+export interface DealDetail {
+  deal: DealCard & { contacts: Array<{ id: string; name: string | null; title: string | null; email: string | null; url: string | null }> };
+  /** The "Deal overview" page in the folder (people's own notes live outside its kept section). */
+  overview: { slug: string; href: string; updated_at: string | null } | null;
+  folder: { id: string; name: string; href: string } | null;
+  rollup: {
+    decisions: DealLine[]; risks: DealLine[]; questions: DealLine[]; next_steps: DealLine[];
+    last_call: { date: string | null; title: string; slug: string } | null;
+  };
+  /** Filed in this deal, newest first. */
+  calls: DealCallRow[];
+  /** Matched only to the company / contacts with several open deals (this one among them): "File here". */
+  pick: DealCallRow[];
+  suggestions: Array<{ meeting_id: string; title: string; date: string | null; slug: string; items: HubSpotSuggestion[] }>;
+  activity: { items: DealActivity[]; missing: DealMissingScope[]; at: string | null };
+  attachments: { items: Array<{ id: string; name: string; ext: string | null; size: number | null; at: string | null; url: string }>; missing: DealMissingScope[] };
+  can_sync: boolean;
+  /** Optional: whether the key may change deals (Apply on a suggested update), as on the meeting panel. */
+  deals_write?: "granted" | "missing" | "unchecked" | null;
+}
+
+export interface MeetingDealChip {
+  deal: { id: string; name: string; company: string | null; stage: string | null; closed_label: string | null; href: string } | null;
+  /** The call isn't filed in a deal (no match, or a low one): "Pick the deal". False once a person chose none. */
+  pick: boolean;
+  workspace_id?: string;
+}
+
+export const dealsBoard = (ws: string) => request<DealBoard>(`/api/v1/hubspot/deals/board?${q(ws)}`);
+export const dealDetail = (ws: string, dealId: string, fresh = false) =>
+  request<DealDetail>(`/api/v1/hubspot/deals/${encodeURIComponent(dealId)}?${q(ws)}${fresh ? "&fresh=1" : ""}`);
+export const dealsSync = (ws: string) => request<DealSync>("/api/v1/hubspot/deals/sync", json("POST", { workspace_id: ws }));
+export const meetingDealChip = (id: string) => request<MeetingDealChip>(`${m(id)}/chip`);

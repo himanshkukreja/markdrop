@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "hubspot-deal-folders",
+      "date": "2026-11-18",
+      "title": "HubSpot: a folder for every open deal",
+      "kind": "new",
+      "area": "Integrations",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "The HubSpot team gets a Deals section: a board of every open deal by stage, and a page per deal with its calls, the roll-up of what was said, HubSpot's notes, emails, meetings and tasks, and the team's sales assets. Calls move into their deal's folder on their own when the match is sure.",
+      "body": "- **Deals board.** By stage or as a list, with owner, company and \"no call in 14 days\" filters and Group by company. See [Deal folders](/integrations/hubspot#deal-folders).\n- **A page per deal.** Overview (facts, contacts, decisions, risks, open questions, next steps, suggested deal updates), Calls (Log to HubSpot and Create tasks per call), Assets and HubSpot activity.\n- **Calls filed for you.** A sure match moves the call into its deal's folder; when a company has several open deals, you pick.\n- **Read only.** Deal folders never write to HubSpot. Add `sales-email-read` and `files.ui_hidden.read` to the key to show emails and attachment names.\n- **Account pages retired.** Existing ones moved to an Accounts (archived) folder.\n- **From an AI app.** `hubspot_list_deals`, `hubspot_deal_folder` and `hubspot_sync_deals`."
+    },
+    {
       "id": "hubspot-write-guard",
       "date": "2026-11-17",
       "title": "HubSpot: Markdrop never deletes or overwrites",

@@ -16,7 +16,7 @@ import {
  * Workspace settings › Integrations › HubSpot. A HubSpot super admin creates a service key (Development › Keys ›
  * Service keys) with the scopes listed here; a workspace admin pastes it and picks the team (Sales). Markdrop
  * checks it with HubSpot (the account, missing scopes) and stores it encrypted. The team's calls are then
- * matched to HubSpot and logged from each meeting's panel (components/meetings/HubSpotSection); Log calls
+ * matched to HubSpot and logged from each deal page (components/hubspot/deals); Log calls
  * automatically (off by default) logs confident matches after their summary is written. Backend: routers/hubspot.py.
  */
 export function HubSpotWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolean }) {

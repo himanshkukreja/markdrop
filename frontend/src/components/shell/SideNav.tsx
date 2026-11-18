@@ -19,7 +19,7 @@ import dynamic from "next/dynamic";
 import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
 import { favoritesSlot, isFavorite, toggleFavorite, useFavorites, type Favorite, type FavoriteKind } from "@/lib/favorites";
 import {
-  browseHref, projectHref as teamProjectHref, reviewHref, teamHref as teamHomeHref, teamMeetingsHref, teamMemoryHref,
+  browseHref, projectHref as teamProjectHref, reviewHref, teamHref as teamHomeHref, teamDealsHref, teamMeetingsHref, teamMemoryHref,
   teamSettingsHref, type TeamCard, type TeamsSidebar,
 } from "@/lib/teams";
 import type { FileRenderer } from "@/components/ui/markdrop";
@@ -48,7 +48,9 @@ export const wsMeetingsKey = (id: string) => `ws:${id}:meetings`;
 export const wsTeamKey = (id: string) => `ws:${id}:team`;
 export const wsBrowseKey = (id: string) => `ws:${id}:browse`;
 export const wsReviewKey = (id: string) => `ws:${id}:review`;
-/** A team's row (its expand key, and its home), or one of its rows: meetings | memory | project:<id>. */
+/** The workspace's Deals section (/deals/<id>, a deal page) before its team is known: the HubSpot team's Deals row. */
+export const wsDealsKey = (id: string) => `ws:${id}:deals`;
+/** A team's row (its expand key, and its home), or one of its rows: meetings | deals | memory | project:<id>. */
 export const wsTeamRowKey = (id: string, teamId: string, sub?: string) => `ws:${id}:team:${teamId}${sub ? `:${sub}` : ""}`;
 /** General (the default team) starts open: it is open unless "<key>!closed" is in the saved set. */
 const closedKey = (k: string) => `${k}!closed`;
@@ -91,6 +93,9 @@ export function railKeyFor(pathname: string, search: string): string | null {
   }
   const mt = pathname.match(/^\/meetings\/(?!start\/?$)([^/]+)\/?$/);
   if (mt) return spaceTeam ? wsTeamRowKey(decodeURIComponent(mt[1]!), spaceTeam, "meetings") : wsMeetingsKey(decodeURIComponent(mt[1]!));
+  // Deals (the HubSpot team's): the section (?space=team:<id>) and a deal page (/deals/<ws>/<deal id>).
+  const dl = pathname.match(/^\/deals\/([^/]+)(?:\/[^/]+)?\/?$/);
+  if (dl) return spaceTeam ? wsTeamRowKey(decodeURIComponent(dl[1]!), spaceTeam, "deals") : wsDealsKey(decodeURIComponent(dl[1]!));
   const tm = pathname.match(/^\/team\/([^/]+)(?:\/.*)?$/);
   if (tm) return spaceTeam ? wsTeamRowKey(decodeURIComponent(tm[1]!), spaceTeam, "memory") : wsTeamKey(decodeURIComponent(tm[1]!));
   if (pathname === "/search") return "search";
@@ -147,6 +152,10 @@ export function resolveRailKey(active: string | null, teams: TeamsSidebar | null
   const tr = active.match(/^ws:[^:]+:team:([^:]+)(?::|$)/);
   if (tr) return teams.teams.some((x) => x.id === tr[1]) ? { key: active, open: [wsTeamRowKey(ws, tr[1]!)] } : { key: null, open: [] };
   if (g && active === wsRootKey(ws)) return row(g);
+  if (active === wsDealsKey(ws)) {
+    const h = teams.teams.find((x) => x.hubspot);
+    return h ? row(h, "deals") : { key: null, open: [] };
+  }
   if (g && active === wsMeetingsKey(ws)) return row(g, "meetings");
   if (g && active === wsTeamKey(ws)) return row(g, "memory");
   return { key: active, open: [] };
@@ -394,7 +403,7 @@ function placeNodes(c: Ctx, nav: WorkspaceNav, folderId: string | null, href: st
 
 type TeamFolder = TreeFolder & { team_ids?: string[]; meetings?: boolean };
 
-/** One team: the row opens its home; open, it shows Meetings, People & memory, its projects, then its pages and
+/** One team: the row opens its home; open, it shows Meetings, Deals (the HubSpot team), People & memory, its projects, then its pages and
  *  files (folders, pages with sub-pages, documents, files). General's tree is the company-wide content. */
 function teamNode(
   c: Ctx, t: TeamCard, teams: TeamsSidebar, tree: WorkspaceTree | null, nav: NavSlot<WorkspaceNav> | undefined,
@@ -413,6 +422,7 @@ function teamNode(
   const projects = teams.projects.filter((pr) => pr.team_ids.includes(t.id) && pr.status !== "archived");
   const system: TreeNode[] = [
     { key: k("meetings"), sig: sig("tm", t.id, t.general), label: "Meetings", icon: <Icon name="mic" size={16} />, href: teamMeetingsHref(ws.id, t), leaf: true },
+    ...(t.hubspot ? [{ key: k("deals"), sig: sig("tdeals", t.id), label: "Deals", icon: <Icon name="briefcase" size={16} />, href: teamDealsHref(ws.id, t), leaf: true } satisfies TreeNode] : []),
     { key: k("memory"), sig: sig("tmem", t.id, t.general), label: "People & memory", icon: <Icon name="users" size={16} />,
       href: t.general ? `/team/${encodeURIComponent(ws.id)}` : teamMemoryHref(ws.id, t), leaf: true },
     ...projects.map((pr): TreeNode => ({

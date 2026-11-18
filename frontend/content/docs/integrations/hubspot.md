@@ -1,8 +1,8 @@
 ---
 title: HubSpot
-description: Your team's calls written up in HubSpot on the right deal, suggested deal updates you approve, account pages, pre-call briefs and your pipeline in Ask.
-updated: 2026-11-17
-keywords: [hubspot, crm, deal, deals, contact, contacts, company, pipeline, stage, deal stage, amount, close date, deal owner, sales, sales team, log to hubspot, log calls, log calls automatically, internal notes, hs_internal_meeting_notes, meeting notes, call notes, booked meeting, scheduling link, hubspot zoom, duplicate, no duplicates, tasks, hubspot tasks, action items, approve, service key, service keys, private app, legacy private app, access token, pat-, scopes, crm.objects.contacts.read, crm.objects.contacts.write, crm.objects.companies.read, crm.objects.deals.read, crm.objects.owners.read, crm.objects.deals.write, pick the deal, change match, match again, disconnect, hubspot_status, hubspot_match, log_to_hubspot, hubspot_tasks, suggested updates, suggest deal updates, apply, dismiss, evidence, next step, competitor, budget, decision maker, account page, account pages, accounts folder, pre-call brief, pre-call briefs, before the call, slack, log from slack, create tasks from slack, stop these, pipeline, deals at risk, at risk, no call in 14 days, close date passed, weekly brief, ask, hubspot_suggestions, hubspot_account, hubspot_pipeline, hubspot_notifications]
+description: Your team's calls written up in HubSpot on the right deal, a folder per open deal, suggested deal updates, pre-call briefs and your pipeline in Ask.
+updated: 2026-11-18
+keywords: [hubspot, crm, deal, deals, contact, contacts, company, pipeline, stage, deal stage, amount, close date, deal owner, sales, sales team, log to hubspot, log calls, log calls automatically, internal notes, hs_internal_meeting_notes, meeting notes, call notes, booked meeting, scheduling link, hubspot zoom, duplicate, no duplicates, tasks, hubspot tasks, action items, approve, service key, service keys, private app, legacy private app, access token, pat-, scopes, crm.objects.contacts.read, crm.objects.contacts.write, crm.objects.companies.read, crm.objects.deals.read, crm.objects.owners.read, crm.objects.deals.write, pick the deal, change match, match again, disconnect, hubspot_status, hubspot_match, log_to_hubspot, hubspot_tasks, suggested updates, suggest deal updates, apply, dismiss, evidence, next step, competitor, budget, decision maker, account page, account pages, accounts folder, pre-call brief, pre-call briefs, before the call, slack, log from slack, create tasks from slack, stop these, pipeline, deals at risk, at risk, no call in 14 days, close date passed, weekly brief, ask, hubspot_suggestions, hubspot_account, hubspot_pipeline, hubspot_notifications, deal folders, deal folder, deals section, deals board, deal page, deal overview, sync now, closed won, closed lost, sales assets, attachments, emails, sales-email-read, files.ui_hidden.read, hubspot_list_deals, hubspot_deal_folder, hubspot_sync_deals]
 ---
 
 Connect your company's HubSpot account and one team's calls, for example **Sales**, get written up in HubSpot without anyone typing notes: each meeting is matched to its HubSpot meeting, contacts, company and deal, and **Log to HubSpot** puts the summary, next steps and decisions in that meeting's **internal notes**, with a link back to the Markdrop page. Action items become HubSpot tasks once someone approves them.
@@ -11,7 +11,8 @@ Connect your company's HubSpot account and one team's calls, for example **Sales
 - **One team.** Only the chosen team's meetings, such as calls that come in from [Zoom](/integrations/zoom), and only for people who can open the meeting and are in that team (or are workspace admins).
 - **Nothing automatic unless you say so.** Logging is one click. **Log calls automatically** is off until a workspace admin turns it on, and tasks always wait for someone to approve them.
 - **The deal kept up to date, by you.** After a call, Markdrop [suggests changes to the deal](#suggested-deal-updates) with the lines of the call that support them; nothing changes in HubSpot until someone applies one.
-- **Ready before the next call.** Each company gets an [account page](#account-pages), and team members get a [pre-call brief](#pre-call-briefs) before their HubSpot meetings. [Ask](#your-pipeline-in-ask-and-the-weekly-brief) knows your pipeline.
+- **Everything about a deal in one place.** Each open deal gets a [deal folder](#deal-folders) in the team's **Deals** section: its calls, HubSpot's history of it, and the team's sales assets.
+- **Ready before the next call.** Team members get a [pre-call brief](#pre-call-briefs) before their HubSpot meetings. [Ask](#your-pipeline-in-ask-and-the-weekly-brief) knows your pipeline.
 
 ## Set up HubSpot
 
@@ -31,6 +32,13 @@ A HubSpot super admin (or someone with HubSpot's *Developer tools access* permis
    HubSpot has no separate scopes for meetings and tasks: its activities are covered by the contacts scopes.
 
    To let people **apply** [suggested deal updates](#suggested-deal-updates), also tick `crm.objects.deals.write` (it lets Markdrop change a deal, only when someone chooses Apply). Everything else works without it.
+
+   Two more read scopes fill in the [deal folders](#deal-folders); without them the folders work and say what's missing:
+
+   | Scope | Why |
+   | --- | --- |
+   | `sales-email-read` | Show what the deal's emails say (subject and a short preview). Without it HubSpot leaves their content out. |
+   | `files.ui_hidden.read` | Show the names of files attached to the deal's notes, emails and meetings (HubSpot keeps those as hidden files). |
 3. Choose **Create**, then **Show** and **Copy** under the key.
 4. In Markdrop, open **Workspace settings › Integrations › HubSpot**, paste the key, pick the team and choose **Connect and check**.
 
@@ -55,17 +63,17 @@ Changing a deal field (from **Apply** on a suggested update) is off unless a wor
 
 ## How a call is matched
 
-Open a meeting of the team and its **Meeting** panel shows a **HubSpot** section. Markdrop looks for the call in this order:
+A team meeting shows its deal under its title (**💼 Company — Deal · Stage**, linking to the [deal's page](#deal-folders)), where the call's HubSpot actions are. Markdrop looks for the call in this order:
 
 1. **The meeting HubSpot booked.** A HubSpot meeting owned by the call's host (their HubSpot user has the same email as their Markdrop account) that starts within 15 minutes of the call. Its contacts, company and deal come with it. This is the surest match, and the meeting Log fills.
 2. **The attendees.** Attendees' emails (or, without emails, their full names) are looked up as HubSpot contacts, then their companies, then their **open** deals; the most recently active deal is picked and any others are offered.
-3. **Nothing found.** The section says **Pick the deal**: search HubSpot's deals by name and choose one.
+3. **Nothing found.** The meeting shows **Pick the deal** under its title: search HubSpot's deals by name and choose one.
 
-The section shows the deal's name, stage, amount, owner and close date, the contacts and company, each linking to HubSpot, and how sure the match is. **Change match** picks another deal (or none), and **Match again** looks again, for example after the deal was created in HubSpot. A deal someone picked is never replaced by an automatic match.
+The deal's page shows its name, stage, amount, owner and close date, the contacts and company, each linking to HubSpot. The deal under the meeting's title also offers **Change deal**, to pick another deal (or none), and **Match again**, to look again, for example after the deal was created in HubSpot. A deal someone picked is never replaced by an automatic match.
 
 ## Log to HubSpot
 
-Choose **Log to HubSpot** on the meeting. Markdrop writes into the HubSpot meeting's **internal notes**:
+Choose **Log to HubSpot** on the call in its deal's **Calls** tab (or from the deal under the meeting's title). Markdrop writes into the HubSpot meeting's **internal notes**:
 
 - a link to the meeting in Markdrop (only people who can open it there can read it),
 - the summary,
@@ -74,7 +82,7 @@ Choose **Log to HubSpot** on the meeting. Markdrop writes into the HubSpot meeti
 
 The meeting's description, the part HubSpot shares with attendees, is never changed, and notes your reps typed into the internal notes stay: Markdrop replaces only its own block, between **Call notes from Markdrop** and **End of Markdrop notes**.
 
-If HubSpot didn't book a meeting for the call, Markdrop creates one, as a completed meeting owned by the host, on the matched deal, contacts and company. Either way Markdrop remembers it: logging again (say after the summary was rewritten) updates the same HubSpot meeting, never a new one. The section shows when it was logged and by whom.
+If HubSpot didn't book a meeting for the call, Markdrop creates one, as a completed meeting owned by the host, on the matched deal, contacts and company. Either way Markdrop remembers it: logging again (say after the summary was rewritten) updates the same HubSpot meeting, never a new one. The deal's **Calls** tab shows when each call was logged.
 
 ### Log calls automatically
 
@@ -82,7 +90,7 @@ Off by default. A workspace admin turns it on in the HubSpot card. Then, when a 
 
 ## Tasks
 
-The section lists the meeting's action items as HubSpot tasks, each with:
+On the deal's **Calls** tab, **Create tasks** lists a call's action items as HubSpot tasks, each with:
 
 - **a due date**: the one said in the call (for example "by Friday", counted from the call's date), else three days after the call;
 - **an owner**: the person named, when they're a HubSpot user with the same email, else the deal's owner, else the call's host.
@@ -91,7 +99,7 @@ Tick the ones you want and choose **Create tasks in HubSpot**. Each task is crea
 
 ## Suggested deal updates
 
-When a team call matched to a deal has its summary, Markdrop reads the call's notes and the parts of the transcript about money, dates, competitors and decisions, and suggests changes to the deal. They're listed under **Suggested updates** in the meeting's HubSpot section:
+When a team call matched to a deal has its summary, Markdrop reads the call's notes and the parts of the transcript about money, dates, competitors and decisions, and suggests changes to the deal. They're listed under **Suggested updates** on the deal's page ([Overview](#deal-folders)):
 
 - **Stage**: only a stage of the deal's own pipeline, and only a move the call shows (for example, they asked for a proposal).
 - **Close date** and **Amount**: only when a date or a figure was said in the call.
@@ -102,15 +110,42 @@ Each suggestion shows the current value, the new one and the lines that support 
 
 Apply needs the `crm.objects.deals.write` scope on the key. Without it, Apply says so and the HubSpot card lists the scope as missing: add it to the key in HubSpot, then apply again.
 
-## Account pages
+## Deal folders
 
-The first time a team call is matched to a HubSpot company, Markdrop makes a page for that company in the workspace's **Accounts** folder, in the HubSpot team (a private team's account pages are its members' only). The page has a section Markdrop keeps up to date after each new call with that company:
+Every **open** deal in the connected HubSpot account, in every pipeline, gets a folder for the HubSpot team: its calls, what HubSpot knows about it and the team's sales assets, in one place. Only the HubSpot team's members (and workspace admins) see deals; no other team does.
 
-- the company's **deals**, with stage, amount, close date and owner;
-- the **calls**, newest first, each with a link and one line;
-- **decisions**, **objections and risks**, **open questions** and **open tasks** from those calls.
+Open the team in the sidebar and choose **Deals**:
 
-It's an ordinary page: write your own notes above or below the section and they stay. Only the section between **From HubSpot and the team's calls** and the closing line is rewritten. Meetings restricted to their attendees are never included. The meeting's HubSpot section links to the account page; **Update** brings it up to date now.
+- **Board** (the default): a column per pipeline stage, a card per deal with its company, amount, owner, last call and how many calls it has. **List** shows the same as a table.
+- **Filters**: owner, company, and **No call in 14 days**. **Group by company** puts a company's deals together.
+- A closed deal keeps its folder, marked **Closed won** or **Closed lost**, and stops updating. A deal that reopens updates again.
+
+Choose a deal to open its page:
+
+- **Overview**: stage, amount, owner, close date, pipeline, company and contacts (name, title, email), the team's calls rolled up (decisions, objections and risks, open questions, next steps, last call) and the [suggested deal updates](#suggested-deal-updates) waiting for someone.
+- **Calls**: the deal's calls, newest first, each with **Log to HubSpot** and **Create tasks**. Calls waiting for someone to [pick the deal](#calls-in-a-deal-folder) are listed here too.
+- **Assets**: files the team uploads there (ordinary Markdrop files, with their [view analytics](/analytics/overview)), and the files attached to the deal in HubSpot, which open in HubSpot.
+- **HubSpot activity**: the deal's notes, emails (subject, a short preview and whether it was sent or received), meetings and tasks, newest first.
+
+Each deal folder also has a **Deal overview** page: an ordinary page with the same facts and history in a section Markdrop keeps up to date. Write the team's own notes above or below the section; they stay.
+
+### Calls in a deal folder
+
+A call matched to a deal moves into its folder: the meeting page with its transcript. Who can open it doesn't change, and it stays in the team's **Meetings** and in search. A call moves on its own when the match is sure: the meeting HubSpot booked on the deal, a deal someone picked, or attendees whose company has exactly one open deal.
+
+When the attendees' company has **several open deals**, Markdrop doesn't guess: the meeting shows **Pick the deal**, and each of those deals lists the call under **Calls**. Choose **File here** on the right deal (or pick it from the meeting). Picking another deal later moves the call there.
+
+If someone moves a call out of its deal folder, it stays where they put it.
+
+### Updates and Sync now
+
+HubSpot doesn't tell Markdrop when a deal changes, so Markdrop checks every 20 minutes: new open deals get their folder, and renamed deals, stages, amounts and owners follow. With many deals it reads the ones that changed first and catches up over a few rounds. Workspace admins can choose **Sync now** in the Deals section.
+
+Deal folders only **read** HubSpot: nothing here writes to it. The folders live in a **Deals** folder of the team that's kept out of the file tree (search still finds what's in it).
+
+### Account pages
+
+Deals replaced the company **account pages**. No new ones are made, and existing ones were moved to an **Accounts (archived)** folder of the team, where they can still be read.
 
 ## Pre-call briefs
 
@@ -118,7 +153,7 @@ About an hour before a team member's HubSpot meeting with a contact or deal (mee
 
 - the deal's stage, amount, close date and owner;
 - the last call with that deal or company: its summary, follow-ups and open questions (only a call they can open);
-- a link to the account page.
+- a link to the deal.
 
 Each brief is sent once. Turn yours off in **Settings › Account › HubSpot**, or with **Stop these** on the message. A workspace admin can turn them off for everyone in the HubSpot card.
 
@@ -133,7 +168,7 @@ With [Markdrop for Slack](/integrations/slack) connected, when a team call's sum
 
 ## The HubSpot card
 
-**Workspace settings › Integrations › HubSpot** shows the connected HubSpot account, the team, how many calls and tasks were logged, **Log calls automatically**, and switches for **Suggest deal updates**, **Account pages**, **Pre-call briefs** and **Slack buttons after calls** (all on until an admin turns them off). Workspace admins can change the team, paste a new key (**Change key**) and disconnect. If the team is **open**, everyone in the workspace can read its meetings: the card suggests making it **private**.
+**Workspace settings › Integrations › HubSpot** shows the connected HubSpot account, the team, how many calls and tasks were logged, **Log calls automatically**, and switches for **Suggest deal updates**, **Pre-call briefs** and **Slack buttons after calls** (all on until an admin turns them off). Workspace admins can change the team, paste a new key (**Change key**) and disconnect. If the team is **open**, everyone in the workspace can read its meetings: the card suggests making it **private**.
 
 ### If something doesn't work
 
@@ -144,16 +179,17 @@ With [Markdrop for Slack](/integrations/slack) connected, when a team call's sum
 
 ## Disconnect
 
-Choose **Disconnect HubSpot…** in the card. Markdrop deletes the key, the HubSpot users and stages it kept for a few hours, and every meeting's match, right away. Notes and tasks already in HubSpot are your company's records and stay there. Markdrop keeps only the IDs of the HubSpot meetings and tasks it wrote, so connecting the same account again updates them instead of duplicating them. You can also delete the key in HubSpot.
+Choose **Disconnect HubSpot…** in the card. Markdrop deletes the key, the HubSpot users and stages it kept for a few hours, and every meeting's match, right away. Deal folders stay with their pages, calls and assets (they're the team's), without HubSpot's activity, and show in the team's file tree. Notes and tasks already in HubSpot are your company's records and stay there. Markdrop keeps only the IDs of the HubSpot meetings and tasks it wrote, so connecting the same account again updates them instead of duplicating them. You can also delete the key in HubSpot.
 
 ## Privacy
 
 - The key is stored **encrypted**. Only workspace admins see the card's setup details, never the key.
 - Only the chosen team's meetings are matched or sent, only by people who can open them and are in the team, and only to the HubSpot account connected to that workspace.
 - Markdrop sends the summary, next steps, decisions and a link. The transcript and the recording never go to HubSpot. A suggested deal update reaches HubSpot only when someone applies it.
-- Account pages, pre-call briefs, Pipeline lines and Ask's deal list are shown only to the HubSpot team's members and workspace admins.
+- Deal folders, pre-call briefs, Pipeline lines and Ask's deal list are shown only to the HubSpot team's members and workspace admins. A call restricted to its attendees stays restricted in its deal folder and is left out of the deal's roll-up.
+- Files attached in HubSpot are never copied into Markdrop: they're listed by name and open in HubSpot.
 - See the [privacy policy](https://markdrop.in/privacy#hubspot) for the whole picture. Questions? See [Get help](/help/support).
 
 ## From an AI app
 
-With the [MCP server](/ai/tools#hubspot), an assistant can check the connection (`hubspot_status`), see a meeting's deal and how it matched, search deals and pick one (`hubspot_match`), log the call (`log_to_hubspot`), list or create its tasks (`hubspot_tasks`), list, apply or dismiss suggested deal updates (`hubspot_suggestions`), read or update the account page (`hubspot_account`), see the pipeline and the deals at risk (`hubspot_pipeline`) and turn your own pre-call briefs and Slack messages on or off (`hubspot_notifications`), with the same rules as the meeting panel. Connecting is done in the HubSpot card.
+With the [MCP server](/ai/tools#hubspot), an assistant can check the connection (`hubspot_status`), see a meeting's deal and how it matched, search deals and pick one (`hubspot_match`), log the call (`log_to_hubspot`), list or create its tasks (`hubspot_tasks`), list, apply or dismiss suggested deal updates (`hubspot_suggestions`), read or update an existing account page (`hubspot_account`), see the pipeline and the deals at risk (`hubspot_pipeline`), list the team's deal folders (`hubspot_list_deals`), read one deal's folder with its calls, roll-up and HubSpot activity (`hubspot_deal_folder`), sync the deals now (`hubspot_sync_deals`, workspace admins) and turn your own pre-call briefs and Slack messages on or off (`hubspot_notifications`), with the same rules as the meeting panel. Connecting is done in the HubSpot card.

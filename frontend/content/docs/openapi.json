@@ -3,7 +3,7 @@
   "info": {
     "title": "Markdrop",
     "version": "0.1.0",
-    "x-markdrop-exported": "2026-11-17"
+    "x-markdrop-exported": "2026-11-18"
   },
   "paths": {
     "/api/v1/trash": {
@@ -26968,6 +26968,214 @@
         }
       }
     },
+    "/api/v1/hubspot/deals/board": {
+      "get": {
+        "tags": [
+          "hubspot"
+        ],
+        "summary": "The HubSpot team's deals",
+        "description": "Every deal folder of the HubSpot team (open deals, and closed ones marked Closed won / Closed lost), with\nstage, amount, owner, the team's calls and the sync state.",
+        "operationId": "deals_board_api_v1_hubspot_deals_board_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/hubspot/deals/sync": {
+      "post": {
+        "tags": [
+          "hubspot"
+        ],
+        "summary": "Sync HubSpot deals now",
+        "description": "Workspace admins: start a sync pass now (it runs every 20 minutes on its own). Reads HubSpot only.",
+        "operationId": "deals_sync_api_v1_hubspot_deals_sync_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HubSpotSyncIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "6/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/hubspot/deals/{deal_id}": {
+      "get": {
+        "tags": [
+          "hubspot"
+        ],
+        "summary": "A HubSpot deal's folder",
+        "description": "The Deal page: the deal's facts and contacts, the roll-up of its calls, the calls filed in it, the calls\nwaiting for someone to pick the deal, open suggested updates, and HubSpot's activity and attachments.",
+        "operationId": "deal_folder_api_v1_hubspot_deals__deal_id__get",
+        "parameters": [
+          {
+            "name": "deal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deal Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Fresh"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/hubspot/meetings/{meeting_id}/chip": {
+      "get": {
+        "tags": [
+          "hubspot"
+        ],
+        "summary": "A meeting's deal",
+        "description": "The meeting page's one-line link to its HubSpot deal (nothing for people outside the HubSpot team).",
+        "operationId": "meeting_chip_api_v1_hubspot_meetings__meeting_id__chip_get",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/ask/home": {
       "get": {
         "tags": [
@@ -34022,6 +34230,20 @@
           "workspace_id"
         ],
         "title": "HubSpotSettingsIn"
+      },
+      "HubSpotSyncIn": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{24}$",
+            "title": "Workspace Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id"
+        ],
+        "title": "HubSpotSyncIn"
       },
       "HubSpotTasksIn": {
         "properties": {

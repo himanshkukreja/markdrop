@@ -263,6 +263,11 @@ export function TeamDialog({ ws, wsName, open, team, onClose, onSaved }: {
           </div>
         </div>
 
+        {/* Zoom and HubSpot are set up in Workspace settings › Integrations; here it only says so. */}
+        {edit && !!team!.linked?.length && (
+          <p className="tz-muted m-0" data-testid="team-linked">Linked to: {team!.linked.join(", ")}</p>
+        )}
+
         <details className="tz-later">
           <summary><Icon name="chevronRight" size={13} /> Connect Slack and Jira <span className="tz-muted">· optional, you can do this later</span></summary>
           {edit && team!.can_manage ? (
