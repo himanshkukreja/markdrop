@@ -1097,6 +1097,8 @@ async def board(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
     admin = role_allows(await ws_service.role_for(db, workspace_id, user.id), "admin")
     return {"team": {"id": str(team["_id"]), "name": team.get("name"), "slug": team.get("slug")} if team else None,
             "can_sync": admin, "sync": _sync_view(conn), "stages": stages, "pipelines": pipelines, "deals": deals,
+            # "Open HubSpot" in the section's header: the portal's deals.
+            "portal_url": f"https://{conn.get('ui_domain') or 'app.hubspot.com'}/contacts/{conn['portal_id']}/objects/0-3/views/all/list",
             "missing_scopes": _missing_optional(conn) if admin else []}
 
 
@@ -1116,6 +1118,8 @@ async def _readable_calls(db, user, conn: dict, rows: list[dict]) -> list[dict]:
 
 
 def _call_row(conn: dict, r: dict) -> dict:
+    from app.services import meetings
+
     hs = r.get("hubspot") or {}
     m = hs.get("match") or {}
     lg = hs.get("logged") if (hs.get("logged") or {}).get("portal_id") == conn["portal_id"] else None
@@ -1125,7 +1129,11 @@ def _call_row(conn: dict, r: dict) -> dict:
             "href": f"/{r['slug']}" if r.get("slug") else None, "how": m.get("how"), "confidence": m.get("confidence"),
             "logged": {"at": H.iso(lg.get("at"))} if lg else None, "actions": len(H.items_of(r)),
             "tasks_created": sum(1 for t in tasks.values() if isinstance(t, dict) and t.get("state") == "created"),
-            "suggestions_open": sum(1 for s in sug if s.get("state") in ("open", "failed"))}
+            "suggestions_open": sum(1 for s in sug if s.get("state") in ("open", "failed")),
+            # For the deal page's call rows: how long, a line of the summary, a kept recording, a transcript.
+            "duration_s": r.get("duration_s"),
+            "summary": meetings.snippet((r.get("generated") or {}).get("summary") or (r.get("notes") or {}).get("summary"), 160),
+            "recording": bool((r.get("recording") or {}).get("key")), "transcript": bool(r.get("transcript_slug"))}
 
 
 async def detail(db: AsyncIOMotorDatabase, user, workspace_id: str, deal_id: str, *, fresh: bool = False) -> dict:

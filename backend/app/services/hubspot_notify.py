@@ -85,7 +85,7 @@ async def teams_of(db: AsyncIOMotorDatabase, user_id: str) -> list[dict]:
     async for c in db[H.CONNS].find({"team_id": {"$in": list(by)}, "token_enc": {"$exists": True}}, {"team_id": 1}):
         t = by[c["team_id"]]
         ws = await db["workspaces"].find_one({"_id": T.oid(c["_id"])}, {"name": 1}) or {}
-        out.append({"workspace_id": c["_id"], "workspace": ws.get("name"), "team": t.get("name")})
+        out.append({"workspace_id": c["_id"], "workspace": ws.get("name"), "team": t.get("name"), "team_id": c["team_id"]})
     return out
 
 

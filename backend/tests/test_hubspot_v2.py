@@ -258,7 +258,7 @@ class PreCall(SlackV2):
         self.assertIn("won't get", json.dumps(self.sk.responds[-1]))
         r = await self.http.get("/api/v1/hubspot/me", headers=self.session("owner"))
         self.assertFalse(r.json()["precall"])
-        self.assertEqual(r.json()["teams"][0]["team"], "Sales")
+        self.assertEqual((r.json()["teams"][0]["team"], r.json()["teams"][0]["team_id"]), ("Sales", self.sales))   # Deals (all teams)
         r = await self.http.put("/api/v1/hubspot/me", headers=self.session("wm"), json={"precall": False})
         self.assertFalse(r.json()["precall"])
         self.upcoming(self.ada, 45, now, d, c, title="Second call")
