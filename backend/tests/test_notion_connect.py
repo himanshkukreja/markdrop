@@ -354,6 +354,16 @@ class Sync(NotionWorld):
         await self.db[S.COLL].update_many({}, {"$set": {"next_at": S.now_utc() - timedelta(seconds=1)}})
         self.assertEqual(await S.tick(self.db), 0)
 
+    async def test_deleted_in_markdrop_stays_deleted(self):
+        await self.connect()
+        await self.import_("owner", [{"id": self.root}], {"workspace": self.ws["W1"]})
+        child = await self.page("Onboarding")
+        r = await self.http.delete(f"/api/v1/documents/{child['slug']}", headers=self.session("owner"))
+        self.assertIn(r.status_code, (200, 204), r.text)
+        await self.due()
+        self.assertIsNone(await self.db["documents"].find_one({"title": "Onboarding", "deleted_at": None}))
+        self.assertEqual((await self.sync_row())["state"], "done")
+
     async def test_personal_destination_and_mcp(self):
         await self.connect()
         tok = await self.mcp_token("owner", write=True)

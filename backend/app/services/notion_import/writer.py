@@ -200,6 +200,12 @@ class Writer:
         if raw is not None:
             self.depth[raw["slug"]] = len(raw.get("page_path") or [])
             return
+        if node.unchanged and link is not None:
+            # Deleted in Markdrop and not edited in Notion since (the API source didn't read it again): left
+            # deleted rather than made again empty.
+            self.links.pop(node.notion_id, None)
+            self.report.skip(node.path, node.title, "Deleted in Markdrop, so it wasn't brought back.")
+            return
         raw = await self._create(node)
         self.depth[raw["slug"]] = len(raw.get("page_path") or [])
         await self._save_link(node.notion_id, kind=node.kind, doc_id=raw["_id"], slug=raw["slug"],
