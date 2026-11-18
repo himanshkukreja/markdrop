@@ -8,6 +8,8 @@ keywords: [team pages, move to team, share to team, several teams, company-wide,
 
 Every page, document and file in a workspace is either in **General** (the team everyone is in) or in one or more other teams. A team's pages and files are in its **Files & pages**, from the sidebar.
 
+![The Sales team's Files & pages: a search box, then the Enablement, Playbooks and Proposals folders (two of them open to their pages and PDFs), the team's own pages and a spreadsheet, and Archive at the end with one archived folder.](/docs-assets/teams/share-and-projects/files-and-pages.webp)
+
 ## Put something in a team
 
 - **New page in a team**: choose **+** next to the team in the sidebar, or **New page** on its home or its **Files & pages**.

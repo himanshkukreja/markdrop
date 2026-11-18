@@ -179,6 +179,14 @@ Markdrop can send you a direct message in Slack, from the Markdrop app, when:
 - someone **mentions you in a comment** (**Mentions in comments**) or **assigns you a comment thread** (**Comments assigned to you**). Select **Reply** to answer in a box right in Slack (posted as you), or **Resolve** to resolve the thread if you started it, it's assigned to you, or you can edit the page. See [Comments](/collaboration/notifications#slack);
 - someone asks to **open or edit** something you own (**Access requests**). Select **Approve** or **Decline**, or **Review in Markdrop**. When the item's owner can't approve it, the workspace's admins get the message, marked "You're getting this as a workspace admin";
 - a Zoom meeting you hosted came in with speakers Markdrop couldn't name (**Meeting speakers to name**), with **Name them**. See [Name the speakers](/workspaces/meetings#name-the-speakers).
+- a recorded Zoom meeting you hosted is waiting for you, with **Share with** your team, **Keep it just for me** and **Skip**. See [Choose which meetings come in](/integrations/zoom#meetings-waiting-for-you).
+
+With [HubSpot](/integrations/hubspot) connected, the HubSpot team's members also get, in Slack:
+
+- a **pre-call brief** about an hour before their HubSpot meeting: the deal, the last call and what was promised. See [Pre-call briefs](/integrations/hubspot#pre-call-briefs);
+- after a call they hosted, one message with the deal, the suggested updates, and **Log to HubSpot** and **Create tasks**. Nothing goes to HubSpot until they click. See [In Slack: Log and Create tasks](/integrations/hubspot#in-slack-log-and-create-tasks).
+
+Turn the HubSpot ones off in **Settings › Account › HubSpot**, or with **Stop these** on the message.
 
 After you choose, the message changes to say what you did, like "Approved by you: they can edit it now." If someone else answered first, Slack tells you.
 

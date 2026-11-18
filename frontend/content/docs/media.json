@@ -1166,13 +1166,13 @@
   "/docs-assets/get-started/tour/home.dark.webp": {
     "w": 2880,
     "h": 2080,
-    "bytes": 142504,
+    "bytes": 173382,
     "kind": "image"
   },
   "/docs-assets/get-started/tour/home.webp": {
     "w": 2880,
     "h": 2080,
-    "bytes": 145622,
+    "bytes": 176612,
     "kind": "image"
   },
   "/docs-assets/get-started/tour/my-files.dark.webp": {
@@ -1189,14 +1189,14 @@
   },
   "/docs-assets/get-started/tour/sidebar.dark.webp": {
     "w": 496,
-    "h": 1488,
-    "bytes": 25998,
+    "h": 2008,
+    "bytes": 37348,
     "kind": "image"
   },
   "/docs-assets/get-started/tour/sidebar.webp": {
     "w": 496,
-    "h": 1488,
-    "bytes": 25496,
+    "h": 2008,
+    "bytes": 36874,
     "kind": "image"
   },
   "/docs-assets/get-started/what-is-markdrop/what-is-rendered-document.dark.webp": {
@@ -2663,28 +2663,64 @@
     "bytes": 146306,
     "kind": "image"
   },
+  "/docs-assets/integrations/hubspot/card.dark.webp": {
+    "w": 1672,
+    "h": 1386,
+    "bytes": 120780,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/hubspot/card.webp": {
+    "w": 1672,
+    "h": 1386,
+    "bytes": 119754,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/hubspot/deal-calls.dark.webp": {
+    "w": 2384,
+    "h": 1520,
+    "bytes": 95930,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/hubspot/deal-calls.webp": {
+    "w": 2384,
+    "h": 1520,
+    "bytes": 98604,
+    "kind": "image"
+  },
   "/docs-assets/integrations/hubspot/deal-page.dark.webp": {
-    "w": 1728,
-    "h": 1792,
-    "bytes": 142432,
+    "w": 2384,
+    "h": 2080,
+    "bytes": 176558,
     "kind": "image"
   },
   "/docs-assets/integrations/hubspot/deal-page.webp": {
-    "w": 1728,
-    "h": 1792,
-    "bytes": 142182,
+    "w": 2384,
+    "h": 2080,
+    "bytes": 179234,
     "kind": "image"
   },
   "/docs-assets/integrations/hubspot/deals-board.dark.webp": {
-    "w": 1728,
-    "h": 1240,
-    "bytes": 73606,
+    "w": 2384,
+    "h": 1720,
+    "bytes": 112470,
     "kind": "image"
   },
   "/docs-assets/integrations/hubspot/deals-board.webp": {
-    "w": 1728,
-    "h": 1240,
-    "bytes": 72654,
+    "w": 2384,
+    "h": 1720,
+    "bytes": 111504,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/hubspot/deals-list.dark.webp": {
+    "w": 2384,
+    "h": 1800,
+    "bytes": 139910,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/hubspot/deals-list.webp": {
+    "w": 2384,
+    "h": 1800,
+    "bytes": 146840,
     "kind": "image"
   },
   "/docs-assets/integrations/jira/account.dark.webp": {
@@ -2973,6 +3009,42 @@
     "w": 832,
     "h": 552,
     "bytes": 26000,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/zoom/card.dark.webp": {
+    "w": 1672,
+    "h": 1870,
+    "bytes": 147574,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/zoom/card.webp": {
+    "w": 1672,
+    "h": 1870,
+    "bytes": 149090,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/zoom/my-setting.dark.webp": {
+    "w": 1696,
+    "h": 506,
+    "bytes": 31570,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/zoom/my-setting.webp": {
+    "w": 1696,
+    "h": 506,
+    "bytes": 32940,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/zoom/review.dark.webp": {
+    "w": 1984,
+    "h": 896,
+    "bytes": 47526,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/zoom/review.webp": {
+    "w": 1984,
+    "h": 896,
+    "bytes": 48516,
     "kind": "image"
   },
   "/docs-assets/pages/ai/ai-menu.dark.webp": {
@@ -3454,49 +3526,49 @@
   "/docs-assets/teams/overview/general.dark.webp": {
     "w": 3200,
     "h": 1800,
-    "bytes": 161108,
+    "bytes": 145906,
     "kind": "image"
   },
   "/docs-assets/teams/overview/general.webp": {
     "w": 3200,
     "h": 1800,
-    "bytes": 164208,
+    "bytes": 149422,
     "kind": "image"
   },
   "/docs-assets/teams/overview/hero.dark.webp": {
     "w": 2880,
     "h": 1560,
-    "bytes": 121074,
+    "bytes": 136550,
     "kind": "image"
   },
   "/docs-assets/teams/overview/hero.webp": {
     "w": 2880,
     "h": 1560,
-    "bytes": 122110,
+    "bytes": 138444,
     "kind": "image"
   },
   "/docs-assets/teams/overview/phone.dark.webp": {
     "w": 780,
     "h": 1688,
-    "bytes": 24630,
+    "bytes": 25458,
     "kind": "image"
   },
   "/docs-assets/teams/overview/phone.webp": {
     "w": 780,
     "h": 1688,
-    "bytes": 25676,
+    "bytes": 26616,
     "kind": "image"
   },
   "/docs-assets/teams/overview/sidebar.dark.webp": {
     "w": 496,
-    "h": 1788,
-    "bytes": 40074,
+    "h": 1256,
+    "bytes": 26362,
     "kind": "image"
   },
   "/docs-assets/teams/overview/sidebar.webp": {
     "w": 496,
-    "h": 1788,
-    "bytes": 39602,
+    "h": 1256,
+    "bytes": 26028,
     "kind": "image"
   },
   "/docs-assets/teams/set-up/review.dark.webp": {
@@ -3509,6 +3581,18 @@
     "w": 2000,
     "h": 1280,
     "bytes": 59802,
+    "kind": "image"
+  },
+  "/docs-assets/teams/share-and-projects/files-and-pages.dark.webp": {
+    "w": 2880,
+    "h": 1400,
+    "bytes": 76106,
+    "kind": "image"
+  },
+  "/docs-assets/teams/share-and-projects/files-and-pages.webp": {
+    "w": 2880,
+    "h": 1400,
+    "bytes": 77350,
     "kind": "image"
   },
   "/docs-assets/teams/share-and-projects/project.dark.webp": {
@@ -4530,6 +4614,18 @@
     "w": 840,
     "h": 1520,
     "bytes": 61858,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings/meetings-section.dark.webp": {
+    "w": 2384,
+    "h": 1760,
+    "bytes": 128052,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings/meetings-section.webp": {
+    "w": 2384,
+    "h": 1760,
+    "bytes": 134946,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings/organize.dark.webp": {

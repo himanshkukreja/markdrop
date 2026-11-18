@@ -122,7 +122,9 @@ Open the team in the sidebar and choose **Deals**. The header shows how many dea
 - **Closed deals.** A deal that closes keeps its folder, marked **Closed won** or **Closed lost**. A deal that was already closed gets a folder as soon as one of the team's calls is matched to it (closed deals without calls get none). Calls keep arriving in a closed deal's folder, for example support and training calls after signing. Its name and stage are read again a few times a day; a deal that reopens updates like an open one. Turn on **Show closed** to add Closed won and Closed lost columns.
 - **All your teams.** If you're in HubSpot teams in more than one workspace, **Deals** at the top of the sidebar shows them together, with a **Team** filter.
 
-![The Deals board: a column per stage with its count and total, deal cards with owner, amount, close date and calls, No calls yet and Quiet 18 days badges, Show 2 more under a long stage, and an empty stage folded into a thin strip.](/docs-assets/integrations/hubspot/deals-board.webp)
+![The Sales team's Deals board in Acme: 17 open deals worth $1.2M, synced 12 minutes ago, Board and List, owner and company filters, No call in 14 days, Group by company and Show closed; a column per stage with its count and total, and deal cards with company, owner, amount, close date and calls, No calls yet and Quiet 18 days badges.](/docs-assets/integrations/hubspot/deals-board.webp)
+
+![The same deals as a list: deal and company, stage, amount (sorted, largest first), owner, close date, and calls with the last one and Quiet badges.](/docs-assets/integrations/hubspot/deals-list.webp)
 
 Choose a deal to open its page. The header has the company and deal, its stage (or **Closed won** / **Closed lost**), amount, owner, close date and calls, **Open in HubSpot** and **Upload asset**. The tabs:
 
@@ -131,7 +133,9 @@ Choose a deal to open its page. The header has the company and deal, its stage (
 - **Assets**: files the team uploads there (ordinary Markdrop files, with their views and [view analytics](/analytics/overview)), and the files attached to the deal in HubSpot, which open in HubSpot. Drop files on the box, or choose **Upload asset**.
 - **HubSpot activity**: the deal's notes, emails (subject, a short preview and whether it was sent or received), meetings and tasks, newest first.
 
-![A deal page: the company and deal name with its stage, amount, owner, close date and calls, Open in HubSpot and Upload asset; tabs Overview, Calls, Assets and HubSpot activity; the deal's facts, Team notes and contacts on the left, suggested deal updates and Across all calls on the right.](/docs-assets/integrations/hubspot/deal-page.webp)
+![A deal page: the company and deal name with its stage, amount, owner, close date and calls, Open in HubSpot and Upload asset; tabs Overview, Calls, Assets and HubSpot activity; the deal's facts, Team notes and contacts on the left, suggested deal updates (a stage and a close date, each with the line that supports it, Apply and Dismiss), Across all calls and Recent calls on the right.](/docs-assets/integrations/hubspot/deal-page.webp)
+
+![A deal's Calls tab: a call waiting for someone to pick the deal with File here, then five calls, newest first, each with its action items and when it was logged, Log to HubSpot or Update in HubSpot, and Create tasks.](/docs-assets/integrations/hubspot/deal-calls.webp)
 
 Each deal folder also has a **Deal overview** page (**Team notes** on the deal page): an ordinary page with the same facts and history in a section Markdrop keeps up to date. Write the team's own notes above or below the section; they stay.
 
@@ -174,7 +178,9 @@ With [Markdrop for Slack](/integrations/slack) connected, when a team call's sum
 
 ## The HubSpot card
 
-**Workspace settings › Integrations › HubSpot** shows the connected HubSpot account, the team, how many calls and tasks were logged, **Log calls automatically**, and switches for **Suggest deal updates**, **Pre-call briefs** and **Slack buttons after calls** (all on until an admin turns them off). Workspace admins can change the team, paste a new key (**Change key**) and disconnect. If the team is **open**, everyone in the workspace can read its meetings: the card suggests making it **private**.
+**Workspace settings › Integrations › HubSpot** shows the connected HubSpot account, the team, how many calls and tasks were logged, **Log calls automatically**, and switches for **Suggest deal updates**, **Pre-call briefs** and **Slack buttons after calls** (all on until an admin turns them off). Workspace admins can change the team, paste a new key (**Change key**) and disconnect. If the team is **open**, everyone in the workspace can read its meetings: the card suggests making it **private**. The card's **Account pages** switch is left from before deal folders; no new account pages are made either way (see [Account pages](#account-pages)).
+
+![The connected HubSpot card: calls from Sales (private), the HubSpot account and who connected it, 41 calls and 58 tasks logged, Log calls automatically off, Suggest deal updates, Pre-call briefs and Slack buttons after calls on, Change key and Disconnect HubSpot.](/docs-assets/integrations/hubspot/card.webp)
 
 ### If something doesn't work
 

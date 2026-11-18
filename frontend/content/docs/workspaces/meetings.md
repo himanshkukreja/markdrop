@@ -28,6 +28,8 @@ A two-and-a-half-minute video of one team's day: the call's notes arrive by them
 - **Your [home](/get-started/tour#your-home)** shows the latest meetings across your workspaces, and today's in **Today**. Your action items from them are in **Your action items**.
 - **In the sidebar**, choose **Meetings** at the top for every team's meetings (with a **Team** filter), or **Meetings** under a team for that team's. Each lists the meetings by month with their date, title, deal (when one is matched in [HubSpot](/integrations/hubspot)), length and whether a recording and transcript are kept, with tabs for **All**, **To review** (your recorded Zoom meetings waiting for a decision), **With customers** (someone from outside the company was on the call) and **Internal**, plus series, search and **Ask**.
 
+![Meetings at the top of the sidebar: Import meeting and Import past meetings, Google Meet connected, the Ask box, the All, To review, With customers and Internal tabs with a Team filter, series chips, and November's meetings with their team, summary, deal, time, length and whether a recording and transcript are kept.](/docs-assets/workspaces/meetings/meetings-section.webp)
+
 ## Two ways to bring meetings in
 
 Use either, or both side by side. Markdrop recognizes a call it already has, so a meeting never shows up twice. To bring in weeks of earlier calls at once, use [Import past meetings](/workspaces/meetings-import#import-past-meetings).

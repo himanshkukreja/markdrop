@@ -45,6 +45,7 @@ Installing doesn't sign you in again in Chrome, Edge or on Android. On an iPhone
 - **It opens on your dashboard.** Signed out, it shows the sign-in page and then your dashboard. The marketing pages never appear inside the app.
 - **Shortcuts.** Press and hold (or right-click) the app's icon for **New page**, **Search**, **Markdrop Guides** and **Analytics**.
 - **Its own window.** Links to other sites open in your browser. Documents and files you open stay in the app.
+- **A Back button.** The app has no browser toolbar, so a document or file you opened shows a small **Back** chip in the corner opposite **Show details**. It returns to where you came from, or to your home if you opened the link directly. Over a playing video it hides with the player's controls.
 - **Updates itself.** When a new version of Markdrop is out, the app shows **A new version of Markdrop is ready** with a **Reload** button. Reload when it suits you; until then you keep working in the version you have.
 
 ## Notifications

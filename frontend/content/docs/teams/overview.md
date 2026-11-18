@@ -10,7 +10,7 @@ A workspace is your company: one sign-in, one member list, one set of AI limits.
 
 Every workspace starts with one team, **General**: everyone is in it, and it holds what's for the whole company (the handbook, all-hands, policies). New people join it on their own.
 
-![The Sales team's home in Acme: the sidebar with the workspace switcher, Favorites and Teams (General first, then Sales open to Meetings, People & memory, the Q4 launch project and its pages), and the page with Sales's weekly brief, Needs you, recently updated pages and files, meetings and what's happening.](/docs-assets/teams/overview/hero.webp)
+![The Sales team's home in Acme: the sidebar with Meetings and Deals at the top and Sales open to Overview, Meetings, Deals, Files & pages and People & memory; the page with the Ask Sales bar, This week in Sales, Needs you, recently updated pages and files, and meetings.](/docs-assets/teams/overview/hero.webp)
 
 ## What you can do
 
@@ -56,17 +56,17 @@ The sidebar shows one workspace at a time. From the top:
 
 The sidebar never lists a team's individual meetings, pages or files, so it stays short however much a team makes. They live in the team's sections, and [search](/workspaces/search) still finds all of them.
 
-![The sidebar of the Acme workspace: the Acme switcher, Search, Home, Inbox and Ask Acme, then Teams with General (Everyone) and Sales open to Meetings, People & memory, Q4 launch and its pages, then Browse teams.](/docs-assets/teams/overview/sidebar.webp)
+![The sidebar of the Acme workspace: the Acme switcher, Search, Home, Inbox, Ask Acme, Meetings with 2 to review and Deals with 12 open, then Teams: General closed, Sales open to Overview, Meetings, Deals, Files & pages and People & memory, Marketing, Engineering and Browse teams.](/docs-assets/teams/overview/sidebar.webp)
 
 The sidebar remembers which teams you left open, and follows the page you're on: a folder you open highlights its team's **Files & pages**. Arrow keys move through it and Enter opens a row. On a phone the same sidebar is in the menu, in the same order.
 
-![Acme on a phone with the menu open: the same switcher, Teams tree and You section.](/docs-assets/teams/overview/phone.webp)
+![Acme on a phone with the menu open: the same switcher, Meetings and Deals, and the Teams list with Sales open to its sections.](/docs-assets/teams/overview/phone.webp)
 
 ## General, the team everyone is in
 
 General's home is the company's front door: its weekly brief, **Needs you**, **Across teams** (one line from each team's latest brief; a private team you're not in shows only its name), meetings, recently updated pages and files, **What's happening** across every team you can see, projects and who's new this month.
 
-![General's home in Acme: the brief, Needs you, Across teams with a line from Sales, Marketing and Engineering, meetings, recently updated pages and files with thumbnails, and What's happening.](/docs-assets/teams/overview/general.webp)
+![General's home in Acme: the brief, Needs you, Across teams with a line from Marketing and Engineering (Sales is private, so only its name shows), meetings, recently updated pages and files, and Projects.](/docs-assets/teams/overview/general.webp)
 
 - Everything that isn't in a team is in General, so everyone in the workspace can find it.
 - Admins can rename it and change its icon, colour and description. It's always open, and it can't be deleted.

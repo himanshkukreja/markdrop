@@ -229,6 +229,10 @@ On a phone, the panel opens as a sheet that stays above the keyboard. The chips 
 | **↑** in an empty box | Bring back your last question to edit |
 | **Esc** | Stop an answer that is still being written, close the sources, or close the panel |
 
+## Ask about your deals
+
+If your team is connected to [HubSpot](/integrations/hubspot), Ask also reads the team's deals when a question is about them: stage, amount, close date, owner, last contact and the team's last call. Try "Which proposal-stage deals had no call in two weeks?" or "What did Northwind ask for on the last call?". Only the HubSpot team's members and workspace admins get these answers; for everyone else Ask answers from pages, files and meetings only. See [Your pipeline in Ask](/integrations/hubspot#your-pipeline-in-ask-and-the-weekly-brief).
+
 ## From Slack, an AI app or the API
 
 - **Slack.** `/markdrop ask` asks the workspace Slack is connected to, the way **Ask Acme** does (or **Everything**, when you aren't a member of it), and `/markdrop meetings` the way **Meetings** does. Only you see the answer. See [Slack](/integrations/slack#search-and-ask-from-slack).
