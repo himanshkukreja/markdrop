@@ -159,8 +159,15 @@ async def update_team(ctx: Context, args: dict) -> tuple[str, dict]:
                                  if args.get("slack_channel_id") else None)
     if args.get("digest") is not None:
         body["digest"] = {"enabled": bool(args["digest"]), "email": bool(args["digest"]), "slack": bool(args["digest"])}
+    leads = args.get("leads")
+    if not body and not leads:
+        raise ToolError("Nothing to change.")
     try:
-        row = await T.update_team(ctx.db, view, row, body)
+        if body:
+            row = await T.update_team(ctx.db, view, row, body)
+        if leads:
+            # PUT /teams/{team}/leads: workspace admins pick a team's leads (they join it if they weren't in it).
+            row = await T.set_leads(ctx.db, view, row, await _people(ctx, view, leads))
     except T.Refused as exc:
         raise _refused(exc)
     view = await T.load_view(ctx.db, view.workspace_id, ctx.user.id, role)
@@ -286,6 +293,59 @@ async def create_project(ctx: Context, args: dict) -> tuple[str, dict]:
     return f"Created the project {p['name']}.", {"project": {k: c[k] for k in ("id", "name", "slug", "team_ids", "visibility")}}
 
 
+async def _project_ref(ctx: Context, view: T.TeamView, ref: str) -> dict:
+    p = await T.get_project(ctx.db, view.workspace_id, (ref or "").strip())
+    if p is None or str(p["_id"]) not in view.readable_projects:
+        raise ToolError(f"No project “{ref}” you can open. list_projects shows them.")
+    return p
+
+
+async def update_project(ctx: Context, args: dict) -> tuple[str, dict]:
+    """PATCH /projects/{project}: admins, the project's leads and the leads of a linked team."""
+    view, _actx, role = await _view(ctx, args["workspace"])
+    p = await _project_ref(ctx, view, args["project"])
+    body: dict[str, Any] = {k: args[k] for k in ("name", "description", "visibility", "status") if args.get(k) is not None}
+    if args.get("teams") is not None:
+        body["team_ids"] = [str((await _team(ctx, view, t))["_id"]) for t in args["teams"]]
+    if args.get("members") is not None:
+        body["member_ids"] = await _people(ctx, view, args["members"])
+    if not body:
+        raise ToolError("Nothing to change.")
+    try:
+        p = await T.update_project(ctx.db, view, p, body)
+    except T.Refused as exc:
+        raise _refused(exc)
+    view = await T.load_view(ctx.db, view.workspace_id, ctx.user.id, role)
+    c = T.project_card(view, p)
+    out = {"project": {k: c[k] for k in ("id", "name", "slug", "team_ids", "visibility", "status", "member_count")}}
+    return f"Updated the project {p['name']}" + (" (archived)" if p.get("status") == "archived" else "") + ".", out
+
+
+async def delete_team(ctx: Context, args: dict) -> tuple[str, dict]:
+    """DELETE /teams/{team} or /projects/{project}: workspace admins only. Its items stay (back in General)."""
+    view, _actx, _role = await _view(ctx, args["workspace"])
+    if bool(args.get("team")) == bool(args.get("project")):
+        raise ToolError("Give team or project (one of them).")
+    if not view.admin:
+        raise ToolError("Only workspace admins can delete a team or a project.")
+    try:
+        if args.get("team"):
+            row = await T.get_team(ctx.db, view.workspace_id, args["team"].strip())
+            if row is None:
+                raise ToolError(f"No team “{args['team']}”. list_teams shows them.")
+            await T.delete_team(ctx.db, view, row)
+            return (f"Deleted the team {row.get('name')}. Its pages, files and meetings stay in the workspace.",
+                    {"deleted": True, "kind": "team", "id": str(row["_id"]), "name": row.get("name")})
+        p = await T.get_project(ctx.db, view.workspace_id, args["project"].strip())
+        if p is None:
+            raise ToolError(f"No project “{args['project']}”. list_projects shows them.")
+        await T.delete_project(ctx.db, view, p)
+        return (f"Deleted the project {p.get('name')}. Its pages, files and meetings stay in the workspace.",
+                {"deleted": True, "kind": "project", "id": str(p["_id"]), "name": p.get("name")})
+    except T.Refused as exc:
+        raise _refused(exc)
+
+
 async def route_meeting(ctx: Context, args: dict) -> tuple[str, dict]:
     row = await ctx.db["meetings"].find_one({"_id": T.oid(args["meeting"])}, {"segments": 0}) if T.oid(args["meeting"]) else None
     if row is None:
@@ -396,13 +456,15 @@ TEAMS_TOOLS = [
          description=("Change a team's name, description, Slack channel (slack_channel_id; \"\" clears), whether new and "
                       "resolved comments on the team's pages post there (slack_comments), whether new meetings join it by who "
                       "attended (meetings_by_attendees; off: only meetings imported or moved into it, e.g. from Zoom), "
-                      "Jira projects (keys), weekly digest on/off (leads and admins), or visibility (admins only)."),
+                      "Jira projects (keys), weekly digest on/off (leads and admins), visibility (admins only), or its leads "
+                      "(admins only: names, emails or ids; the full list, at least one)."),
          input_schema={"type": "object", "properties": {
              "workspace": _WS, "team": _TEAM, "name": {"type": "string", "maxLength": 60},
              "description": {"type": "string", "maxLength": 280}, "visibility": {"type": "string", "enum": ["open", "private"]},
              "slack_channel_id": {"type": "string", "maxLength": 40}, "slack_channel_name": {"type": "string", "maxLength": 80},
              "slack_comments": {"type": "boolean"}, "meetings_by_attendees": {"type": "boolean"},
-             "jira_projects": {"type": "array", "items": _STR, "maxItems": 10}, "digest": {"type": "boolean"}},
+             "jira_projects": {"type": "array", "items": _STR, "maxItems": 10}, "digest": {"type": "boolean"},
+             "leads": {**_LIST, "minItems": 1, "maxItems": 50}},
              "required": ["workspace", "team"]},
          output_schema=_out({"team": _O}), annotations=_ann(False, False, True), handler=update_team),
     Tool(name="add_team_members", title="Add people to a team", writes=True, scope=WRITE,
@@ -447,6 +509,27 @@ TEAMS_TOOLS = [
                                                         "description": {"type": "string", "maxLength": 280}},
                        "required": ["workspace", "name", "teams"]},
          output_schema=_out({"project": _O}), annotations=_ann(False, False, False), handler=create_project),
+    Tool(name="update_project", title="Change a cross-team project", writes=True, scope=WRITE,
+         description=("Change a project's name, description, linked teams (the full list), members (the full list), "
+                      "visibility, or archive it (status: archived; active brings it back). Workspace admins, the "
+                      "project's leads and the leads of a linked team."),
+         input_schema={"type": "object", "properties": {
+             "workspace": _WS, "project": {"type": "string", "maxLength": 80, "description": "Project id or slug (list_projects)."},
+             "name": {"type": "string", "maxLength": 80}, "description": {"type": "string", "maxLength": 400},
+             "teams": {"type": "array", "items": _STR, "minItems": 1, "maxItems": 20}, "members": _LIST,
+             "visibility": {"type": "string", "enum": ["open", "private"]},
+             "status": {"type": "string", "enum": ["active", "archived"]}}, "required": ["workspace", "project"]},
+         output_schema=_out({"project": _O}), annotations=_ann(False, False, True), handler=update_project),
+    Tool(name="delete_team", title="Delete a team or a project", writes=True, scope=WRITE,
+         description=("Delete a team (team) or a cross-team project (project). Workspace admins only; General, the "
+                      "default team, can't be deleted. Its pages, files and meetings are not deleted: they stay in "
+                      "the workspace (company-wide, or their other teams). Confirm with the user first; archiving a "
+                      "project (update_project status archived) is the gentler choice."),
+         input_schema={"type": "object", "properties": {"workspace": _WS, "team": _TEAM,
+                                                        "project": {"type": "string", "maxLength": 80}},
+                       "required": ["workspace"]},
+         output_schema=_out({"deleted": {"type": "boolean"}, "kind": _STR, "id": _STR, "name": {"type": ["string", "null"]}}),
+         annotations=_ann(False, True, True), handler=delete_team),
     Tool(name="route_meeting", title="Put a meeting into teams", writes=True, scope=WRITE,
          description=("Say which team(s) a meeting belongs to (it was suggested from its attendees on import); "
                       "[\"General\"] (or [\"company\"]) puts it in General, the default team. meeting: its id (list_meetings)."),

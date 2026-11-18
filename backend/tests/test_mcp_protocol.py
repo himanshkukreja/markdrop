@@ -188,6 +188,9 @@ class Transport(McpTestCase):
             "hubspot_list_deals", "hubspot_deal_folder", "hubspot_sync_deals",
             # Folder access (mcp/folder_access_tools.py).
             "get_folder_access", "set_folder_access", "share_folder",
+            # Running a workspace and auditing access (mcp/workspace_admin_tools.py); meetings and teams admin.
+            "get_workspace", "update_workspace", "invite_to_workspace", "update_workspace_member", "get_document_access",
+            "update_meeting", "delete_meeting", "update_project", "delete_team",
         # A video's captions (search and Ask read it by minute).
         "set_captions"})
         for t in tools.values():

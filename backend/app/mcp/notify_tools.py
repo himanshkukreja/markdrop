@@ -181,12 +181,50 @@ async def _share_many(ctx: Context, refs: list[str], emails: list[str], role: st
                   "documents": doc_out, "errors": errors}
 
 
+async def _unshare(ctx: Context, refs: list[str], emails: list[str]) -> tuple[str, dict]:
+    """share_with_people with ``remove``: DELETE /documents/{slug}/access/people/{email} per (document, person)
+    (access.remove_grant: the owner removes anybody, anyone else only themselves)."""
+    from app.services.access import normalize_email
+
+    actor = actor_of(ctx)
+    docs, people = [], []
+    for ref in dict.fromkeys(refs):
+        raw = await load_for(ctx, ref, "read", "open")
+        rows = []
+        for email in dict.fromkeys(normalize_email(e) for e in emails):
+            had = await ctx.db["document_grants"].find_one({"document_id": str(raw["_id"]), "email": email}, {"_id": 1})
+            try:
+                await access_service.remove_grant(ctx.db, raw, email, actor, access_service.Ctx(ctx.db, surface="mcp"))
+            except HTTPException as exc:
+                rows.append({"email": email, "role": None, "added": False, "notified": False, "removed": False,
+                             "error": http_message(exc)})
+                continue
+            rows.append({"email": email, "role": None, "added": False, "notified": False, "removed": had is not None,
+                         "error": None if had is not None else "had no access of their own on it (nothing to remove)"})
+        docs.append({"slug": raw["slug"], "people": rows})
+        people = rows if len(refs) == 1 else people
+    out = {"slug": docs[0]["slug"] if len(docs) == 1 else None, "people": people if len(docs) == 1 else [],
+           "documents": docs, "removed": True}
+    lines = [f"{d['slug']}: " + "; ".join(f"{p['email']} " + ("removed" if p["removed"] else f"not removed ({p['error']})")
+                                          for p in d["people"]) for d in docs]
+    return "Removed access:\n" + "\n".join(f"- {x}" for x in lines), out
+
+
 async def share_with_people(ctx: Context, args: dict) -> tuple[str, dict]:
     emails = [e.strip() for e in args.get("emails") or [] if isinstance(e, str) and e.strip()]
     if not emails:
         raise ToolError("Give at least one email address.")
     if len(emails) > MAX_PEOPLE:
         raise ToolError(f"Share with at most {MAX_PEOPLE} people at a time.")
+    if args.get("remove") is True:
+        if args.get("folder"):
+            raise ToolError("To take people off a folder, use set_folder_access with remove_people.")
+        refs = [args["document"]] if args.get("document") else [d for d in args.get("documents") or [] if isinstance(d, str) and d.strip()]
+        if not refs or (args.get("document") and args.get("documents")):
+            raise ToolError("Give exactly one of: document or documents (a list).")
+        if len(refs) > MAX_DOCUMENTS:
+            raise ToolError(f"At most {MAX_DOCUMENTS} documents at a time.")
+        return await _unshare(ctx, refs, emails)
     role = args.get("role") or "viewer"
     notify_them = args.get("notify", True) is not False
     message = (args.get("message") or "").strip() or None
@@ -283,7 +321,10 @@ NOTIFY_TOOLS: list[Tool] = [
                      "the bell; nobody is told twice, and someone who already had that access gets nothing. The "
                      "rules are the website's: the user must be allowed to share it, can't give more access than "
                      "they have, and only the owner changes someone's existing role. At most 20 addresses per "
-                     "call. Each person's result is listed (added, notified, or why not)."),
+                     "call. Each person's result is listed (added, notified, or why not). remove: true takes "
+                     "those people's own access off the document(s) instead, like the Share dialog's Remove: the "
+                     "owner removes anyone, anyone else only themselves; nobody is told (get_document_access "
+                     "lists who has access)."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
@@ -299,6 +340,7 @@ NOTIFY_TOOLS: list[Tool] = [
             "notify": {"type": "boolean", "description": "Email them (and notify them in Markdrop). Default true."},
             "message": {"type": "string", "maxLength": 500,
                         "description": "Optional note included in the email and the notification."},
+            "remove": {"type": "boolean", "description": "Take these people's access off instead (document or documents)."},
         }, "required": ["emails"]},
         output_schema=_out({
             "url": {"type": "string"}, "markdrop_url": {"type": ["string", "null"]},
@@ -307,8 +349,9 @@ NOTIFY_TOOLS: list[Tool] = [
             "folder": {"type": ["object", "null"], "description": "With folder: {id, path}."},
             "people": {"type": "array", "items": {"type": "object", "properties": {
                 "email": {"type": "string"}, "role": _NULLABLE_STR, "added": {"type": "boolean"},
-                "notified": {"type": "boolean"}, "error": _NULLABLE_STR,
+                "notified": {"type": "boolean"}, "error": _NULLABLE_STR, "removed": {"type": "boolean"},
             }, "required": ["email", "role", "added", "notified", "error"]}},
+            "removed": {"type": "boolean", "description": "True when remove was asked."},
         }, ["people"]),
         annotations=_ann(False, False, True),
         handler=share_with_people,

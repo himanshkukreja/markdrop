@@ -110,7 +110,14 @@ INSTRUCTIONS = (
     "Access requests: request_edit_access asks a page's owner to let the user edit a page they can only "
     "read; list_access_requests shows requests to decide on (incoming) or the user's own (outgoing); "
     "decide_access_request approves or declines one, and approving gives that person access, so confirm "
-    "with the user first."
+    "with the user first. "
+    "Running a workspace: get_workspace gives its settings, domains and every integration's state (Slack, Jira, "
+    "Zoom, HubSpot, Google Meet) in one call; admins change settings with update_workspace, invite people with "
+    "invite_to_workspace and change roles or remove people with update_workspace_member (confirm removals and "
+    "sign-in or team-memory changes with the user first). get_document_access says who can open an item and "
+    "why; share_with_people with remove: true takes people's access off. move_to_folder moves many items at "
+    "once (documents). Meetings: update_meeting (type, series, restricted, regenerate, remove_recording) and "
+    "delete_meeting; teams: update_team (leads), update_project, delete_team."
 )
 # How long a client may reuse discovery and list results (envelope era).
 LIST_TTL_MS = 5 * 60 * 1000
