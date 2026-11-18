@@ -56,7 +56,7 @@ class McpPages(AccessWorld):
 
     def test_catalogue(self):
         names = {t.name for t in mcp_tools.TOOLS}
-        self.assertEqual(len(mcp_tools.TOOLS), 185)  # + move_folder_to_team, zoom_review, hubspot deal folders (3), folder access (3), batch uploads (4), page edits (4), rename_meeting_speaker, hubspot phase 2 (4), hubspot (4), zoom (2), favorites (2), teams (13), more comment tools (8), comments core (9), comments review (3), comment_insights (1), jira in pages (3), + viewers (2), analytics settings (2), jira (5), access requests (3), ask_documents (1), ask_suggestions (1), analytics AI (3), analyze_document_engagement (1), meetings (8), folders (3), meeting_context (1), slack (2), team (12)
+        self.assertEqual(len(mcp_tools.TOOLS), 190)  # + move_folder_to_team, zoom_review, hubspot deal folders (3), folder access (3), batch uploads (4), page edits (4), rename_meeting_speaker, hubspot phase 2 (4), hubspot (4), zoom (2), favorites (2), teams (13), more comment tools (8), comments core (9), comments review (3), comment_insights (1), jira in pages (3), + viewers (2), analytics settings (2), jira (5), access requests (3), ask_documents (1), ask_suggestions (1), analytics AI (3), analyze_document_engagement (1), meetings (8), folders (3), meeting_context (1), slack (2), team (12)
         self.assertTrue(PAGE_TOOLS <= names)
         for t in mcp_tools.TOOLS:
             if t.name in PAGE_TOOLS:

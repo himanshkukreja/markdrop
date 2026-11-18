@@ -42155,13 +42155,6 @@
               {
                 "type": "string",
                 "maxLength": 200
-      "app__routers__zoom__FinishIn": {
-          "code": {
-            "maxLength": 2000,
-            "minLength": 1,
-            "title": "Code"
-          "state": {
-                "maxLength": 1000
               },
               {
                 "type": "null"
@@ -42169,6 +42162,32 @@
             ],
             "title": "Slug",
             "description": "The to-do page (default: whichever of yours has it)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "block"
+        ],
+        "title": "TickBody"
+      },
+      "app__routers__zoom__FinishIn": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Code"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "State",
             "description": "From Markdrop's Connect Zoom; absent for installs started in the Zoom App Marketplace."
           },
@@ -42178,22 +42197,30 @@
                 "type": "string",
                 "pattern": "^[0-9a-f]{24}$"
               },
+              {
                 "type": "null"
               }
             ],
             "title": "Workspace Id",
             "description": "Without a state: the workspace to connect (admins)."
+          },
           "team_id": {
+            "anyOf": [
+              {
+                "type": "string",
                 "pattern": "^([0-9a-f]{24})?$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Team Id"
           }
         },
         "type": "object",
         "required": [
-          "block"
-        ],
-        "title": "TickBody"
           "code"
+        ],
         "title": "FinishIn"
       },
       "app__routers__zoom__ImportIn": {
@@ -42217,6 +42244,7 @@
         "required": [
           "workspace_id",
           "uuids"
+        ],
         "title": "ImportIn"
       },
       "app__routers__zoom__StartIn": {
