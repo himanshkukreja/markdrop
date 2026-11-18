@@ -11,6 +11,7 @@ import { findIntegration, gridHref } from "@/lib/integrations";
 import { SettingsLoader, useRequireUser } from "../../settings-shared";
 import { SlackCard } from "../../account/SlackCard";
 import { JiraCard } from "../../account/JiraCard";
+import { NotionSettings } from "@/components/import/NotionSettings";
 import { accountConnect } from "../AccountIntegrationsClient";
 
 /**
@@ -34,6 +35,7 @@ export default function AccountIntegrationClient({ integration }: { integration:
     switch (info.id) {
       case "slack": return status && status.kind !== "unavailable" && status.label !== "Not connected" ? <SlackCard /> : null;
       case "jira": return status && status.kind !== "unavailable" ? <JiraCard /> : null;
+      case "notion": return <NotionSettings />;
       case "claude": case "chatgpt": case "cursor": case "ai-apps":
         return <AiAppSettings app={info.id} apps={apps} onChanged={() => void reload()} />;
       case "vscode": return <VsCodeSettings />;

@@ -1,8 +1,8 @@
 ---
 title: Integrations
 description: Every app Markdrop connects to, as a grid of cards. Open one to see what it does, set it up step by step, and change its settings.
-updated: 2026-11-17
-keywords: [integrations, integrations page, connect, connected, not connected, needs attention, admin only, details, settings integrations, workspace integrations, zoom, google meet, slack, jira, hubspot, crm, claude, chatgpt, cursor, mcp, google docs, github, vs code, cli, disconnect]
+updated: 2026-11-19
+keywords: [integrations, integrations page, connect, connected, not connected, needs attention, admin only, details, settings integrations, workspace integrations, zoom, google meet, slack, jira, hubspot, crm, claude, chatgpt, cursor, mcp, google docs, notion, keep in sync, github, vs code, cli, disconnect]
 ---
 
 Markdrop has two Integrations pages. Each shows its integrations as cards, and each card opens that integration's own page.
@@ -56,6 +56,10 @@ Connect Google Docs once, then publish any of your documents to Google Docs and 
 3. When the document changes, choose **Sync to Google Docs**.
 
 Markdrop only sees the Google Docs it created. To stop, choose **Disconnect** on the Google Docs page: Markdrop's access is revoked at Google, and Docs it made stay in your Drive.
+
+## Notion
+
+Connect Notion in **Settings › Integrations › Notion** and choose, in Notion, the pages Markdrop may read. Then tick the pages to import, pick a team or My files, and leave **Keep in sync** on to bring Notion's changes over about every 15 minutes, one way. Markdrop never writes to Notion, and a page you edit in Markdrop stops syncing instead of being overwritten. **Disconnect** revokes Markdrop's access; the imported pages stay. See [Import from Notion](/pages/import-from-notion#connect-notion).
 
 ## Related
 

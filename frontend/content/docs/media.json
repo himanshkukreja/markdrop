@@ -3011,6 +3011,18 @@
     "bytes": 44488,
     "kind": "image"
   },
+  "/docs-assets/pages/import-from-notion/connect-picker.dark.webp": {
+    "w": 1280,
+    "h": 1548,
+    "bytes": 62986,
+    "kind": "image"
+  },
+  "/docs-assets/pages/import-from-notion/connect-picker.webp": {
+    "w": 1280,
+    "h": 1548,
+    "bytes": 67990,
+    "kind": "image"
+  },
   "/docs-assets/pages/import-from-notion/progress.dark.webp": {
     "w": 1280,
     "h": 724,
@@ -3033,6 +3045,18 @@
     "w": 1280,
     "h": 1288,
     "bytes": 58744,
+    "kind": "image"
+  },
+  "/docs-assets/pages/import-from-notion/sync-status.dark.webp": {
+    "w": 1280,
+    "h": 791,
+    "bytes": 48670,
+    "kind": "image"
+  },
+  "/docs-assets/pages/import-from-notion/sync-status.webp": {
+    "w": 1280,
+    "h": 791,
+    "bytes": 49378,
     "kind": "image"
   },
   "/docs-assets/pages/meeting-memory/from-meetings.dark.webp": {

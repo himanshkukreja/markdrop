@@ -2347,6 +2347,51 @@
       "description": "Stops an import that is uploading, queued or running. Pages already written stay; importing the same zip into the same place again picks up from there without duplicates.",
       "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion"}
     },
+    "GET /api/v1/notion/status": {
+      "title": "Your Notion connection",
+      "description": "Whether Connect Notion is set up on this server (`configured`), the Notion workspaces you connected (`connections`: name, who connected it, `broken` when Notion stopped accepting the token: reconnect) and your imports from Notion (`syncs`: the page or database, where it went, `keep_in_sync`, `state`, `last_synced_at`, `paused` (`connection` or `access`), last run's `counts`, and `edited_in_markdrop`: pages changed in Markdrop that no longer sync). Never returns a token.",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion#connect-notion"}
+    },
+    "POST /api/v1/notion/connect/start": {
+      "title": "Start connecting Notion",
+      "description": "Returns `url`, Notion's consent screen, where you choose the pages Markdrop may read (read-only). `back`: a path on Markdrop to return to afterwards. 503 when Connect Notion isn't set up.",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion#connect-notion"}
+    },
+    "POST /api/v1/notion/connect/finish": {
+      "title": "Finish connecting Notion",
+      "description": "Called by the callback page with Notion's `code` and the `state` (signed, yours, 15 minutes, used once). Stores the token encrypted, one connection per Notion workspace, and resumes syncs that paused on a broken connection.",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion#connect-notion"}
+    },
+    "DELETE /api/v1/notion/connections/{connection_id}": {
+      "title": "Disconnect Notion",
+      "description": "Asks Notion to revoke the token, forgets the connection and stops its syncs (`syncs_stopped`). Imported pages stay. Your own connections only.",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion#connect-notion"}
+    },
+    "GET /api/v1/notion/connections/{connection_id}/pages": {
+      "title": "Pages shared with Markdrop",
+      "description": "The pages and databases you shared with Markdrop in Notion (`items`: `id`, `kind` page or database, `title`, emoji `icon`, `parent_id` when its parent is shared too, `last_edited`). Database rows aren't listed: they come with their database. Up to 2,000 (`truncated`).",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion#connect-notion"}
+    },
+    "POST /api/v1/notion/import": {
+      "title": "Import from Notion (connected)",
+      "description": "Imports `pages` (up to 50 Notion page or database ids; everything under them comes too) into `destination` (as for an export: `workspace`, `team`, `folder`, `new_folder`, `folder_name`; omit `workspace` for My files) and returns the import (`source: api`), followed like any Notion import. `keep_in_sync`: bring Notion's changes over about every 15 minutes, one way. Imported items get the destination's default access, never public; you must be able to add pages there.",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion#connect-notion"}
+    },
+    "PATCH /api/v1/notion/syncs/{sync_id}": {
+      "title": "Keep in sync on or off",
+      "description": "Turns Keep in sync on or off for one import from Notion. Off: no more scheduled checks; the pages stay.",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion#connect-notion"}
+    },
+    "POST /api/v1/notion/syncs/{sync_id}/run": {
+      "title": "Sync now",
+      "description": "Checks Notion for changes now (every page's last edit) and brings them over: returns the run (`import`) and the sync. Pages edited in Markdrop since the last sync are kept and stop syncing. 409 when the Notion connection needs reconnecting.",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion#connect-notion"}
+    },
+    "DELETE /api/v1/notion/syncs/{sync_id}": {
+      "title": "Stop following an import",
+      "description": "Forgets one import from Notion: no more syncing. Its pages stay in Markdrop.",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion#connect-notion"}
+    },
     "GET /api/v1/zoom/status": {
       "title": "Zoom connection status",
       "description": "What Workspace settings › Integrations › Zoom shows: whether Zoom works on this server (`configured`), whether the workspace is connected (`connected`), the team Zoom meetings go to (`team`, with its `visibility`), whether you can change it (`can_manage`: admins and owners) and import past meetings (`can_import`: admins, owners and the team's leads), counts and the latest imports (`connection`, `recent`). `app_available`: one-click connect (the Markdrop app for Zoom) is offered; `mode`: how the workspace is connected (`oauth`, the Markdrop app, or `s2s`, its own Server-to-Server app). Admins also get the endpoint URL for Zoom's event subscription (`webhook_url`), the scopes the Zoom app needs (`scopes_needed`) and the ones it's missing (`connection.missing_scopes`). Never returns a secret. Members of the workspace only.",

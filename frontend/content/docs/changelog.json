@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "notion-connect",
+      "date": "2026-11-19",
+      "title": "Connect Notion, and keep imports in sync",
+      "kind": "new",
+      "area": "Pages",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Connect your Notion and import the pages you choose straight from it, no export file needed. Keep in sync brings Notion's changes over about every 15 minutes, one way.",
+      "body": "- **Connect:** **Settings** › **Integrations** › **Notion** › **Connect Notion**, or **From Notion** in **Import from Notion**. Notion asks which pages Markdrop may read; Markdrop never writes to Notion.\n- **Choose what to import:** tick pages and databases in a tree (sub-pages come with them), pick a team or My files, and **Import now**. Page icons, covers and columns come over too.\n- **Keep in sync:** about every 15 minutes Markdrop brings over what changed in Notion, reading only the pages edited since the last sync; **Sync now** checks straight away. A page you edit in Markdrop stops syncing and is never overwritten (listed as **Edited in Markdrop**).\n- **Disconnect** any time: Notion revokes Markdrop's access and the imported pages stay.\n- AI apps: `import_notion` takes `source: \"api\"`; new `notion_status` and `notion_sync` tools. See [Import from Notion](/pages/import-from-notion#connect-notion)."
+    },
+    {
       "id": "notion-import",
       "date": "2026-11-19",
       "title": "Import from Notion",

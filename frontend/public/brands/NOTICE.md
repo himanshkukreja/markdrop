@@ -18,6 +18,7 @@ owner's single-colour mark in white, shown in the dark theme where the colour ma
 | claude.svg | Claude | Anthropic, PBC | claude.ai, via Simple Icons 16.37 |
 | chatgpt.svg, chatgpt-white.svg | OpenAI symbol (ChatGPT) | OpenAI | OpenAI 2025 symbol, Wikimedia Commons |
 | cursor.svg, cursor-white.svg | Cursor | Anysphere, Inc. | cursor.com/brand, via Simple Icons 16.37 |
+| notion.svg, notion-white.svg | Notion | Notion Labs, Inc. | notion.com, via Simple Icons 16.3 |
 | vscode.svg | Visual Studio Code | Microsoft Corporation | code.visualstudio.com/brand (icon kit 2021-06-21) |
 
 Visual Studio Code, VS Code, and the Visual Studio Code icon are trademarks of Microsoft Corporation.

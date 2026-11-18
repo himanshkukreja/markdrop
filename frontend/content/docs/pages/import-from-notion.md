@@ -1,12 +1,59 @@
 ---
 title: Import from Notion
-description: Bring pages, sub-pages and databases from a Notion export into a team or My files, with images and links. Import again later to merge changes.
+description: Connect Notion and import the pages you choose, kept in sync one way, or bring in a Notion export file. Pages, sub-pages, databases, images and links come over into a team or My files.
 updated: 2026-11-19
 prerequisites: [/pages/overview]
-keywords: [notion, import, import from notion, migrate, migration, move from notion, export, markdown & csv, zip, database, databases, csv, sub-pages, re-import, merge, import_notion, get_notion_import]
+keywords: [notion, import, import from notion, connect notion, keep in sync, sync from notion, sync now, edited in markdrop, disconnect notion, migrate, migration, move from notion, export, markdown & csv, zip, database, databases, csv, sub-pages, re-import, merge, import_notion, get_notion_import, notion_status, notion_sync]
 ---
 
-You can move your Notion pages into Markdrop in a few minutes. Export them from Notion as a `.zip`, drop it into **Import from Notion**, and Markdrop rebuilds them as [pages](/pages/overview): the page tree with its sub-pages, databases with their properties, images, attachments and the links between pages.
+You can move your Notion pages into Markdrop in a few minutes, two ways:
+
+- **Connect Notion** and tick the pages to bring over. Markdrop reads them straight from Notion and can **keep them in sync**: changes you make in Notion come over about every 15 minutes.
+- **Import an export file**: export pages from Notion as a `.zip` and drop it into **Import from Notion**. Nothing to connect.
+
+Either way, Markdrop rebuilds them as [pages](/pages/overview): the page tree with its sub-pages, databases with their properties, images, attachments and the links between pages.
+
+## Connect Notion
+
+Connecting lets Markdrop **read** the Notion pages you choose. It never changes anything in Notion.
+
+1. Go to **Settings** › **Integrations** › **Notion** and select **Connect Notion**. You can also open **Import from Notion** (below) and choose **From Notion**.
+2. Notion asks which pages Markdrop may read. Pick them and allow access. Sub-pages and databases inside a page come with it.
+3. You're back in Markdrop with **Import from Notion** open.
+
+To share more pages later, select **Add pages or workspace** on the same settings page, or in Notion open the page and choose **•••** › **Connections** and add Markdrop. To connect another Notion workspace, select **Add pages or workspace** and pick that workspace in Notion.
+
+### Choose what to import
+
+In **Import from Notion**, with **From Notion** selected:
+
+1. Tick the pages and databases to bring over. Ticking a page takes everything under it; its sub-pages show ticked.
+2. Under **Import to**, pick **My files** or a team, and the folder name, as for an export file (see [Import the zip](#import-the-zip)).
+3. Leave **Keep in sync with Notion** on to bring Notion's later changes over, or turn it off for a one-time copy.
+4. Select **Import now**.
+
+The dialog shows **Read from Notion**, **Create pages** and **Fill in content** with how many pages are done. You can close it: the import keeps running.
+
+![Import from Notion with From Notion selected: the pages shared with Markdrop as a tree with checkboxes, Engineering handbook ticked (its three sub-pages and databases come with it), Import to set to the Engineering team, a new folder named Engineering handbook, and Keep in sync with Notion on.](/docs-assets/pages/import-from-notion/connect-picker.webp)
+
+### Keep in sync
+
+Each page or database you import with **Keep in sync** on is listed under **Imported from Notion** in **Settings** › **Integrations** › **Notion**, with where it went and when it last synced.
+
+- About every 15 minutes Markdrop checks Notion and brings over what changed since the last time: edited pages are updated, new sub-pages and database rows are added. Pages that didn't change aren't read again.
+- **Sync now** checks straight away.
+- It's **one way**. Nothing you do in Markdrop is sent to Notion.
+- A page you **edit in Markdrop** stops syncing, so your changes are never overwritten. It's listed under **Edited in Markdrop** on its import.
+- A page deleted in Notion, or no longer shared with Markdrop, stays in Markdrop as it was.
+- Turn **Keep in sync** off to stop the checks; **Stop** forgets the import. Either way, the pages stay in Markdrop.
+
+![Settings › Integrations › Notion: one connected Notion workspace, and three imports from Notion: Engineering handbook in sync and synced 4 min ago, Product roadmap listing a page edited in Markdrop, and Meeting notes not kept in sync.](/docs-assets/pages/import-from-notion/sync-status.webp)
+
+A sync shows **Paused** when it can't run: **reconnect Notion** if Notion stopped accepting Markdrop's access (connect again and it carries on), or **no access** if you can no longer add pages where it goes (you left the team, for example). After you get access back, select **Sync now**.
+
+### Disconnect
+
+In **Settings** › **Integrations** › **Notion**, select **Disconnect** next to the workspace. Markdrop asks Notion to revoke its access, forgets it, and stops syncing from it. The pages you imported stay. You can also remove Markdrop in Notion under **Settings** › **Connections**.
 
 ## Export from Notion
 
@@ -67,15 +114,17 @@ Anything Markdrop has no block for comes over as plain text with a short note sa
 
 ## What doesn't come over
 
-- **Page icons and covers.** Notion's Markdown export leaves them out. Add them in Markdrop from the page's title.
+- **Page icons and covers** from an export file: Notion's Markdown export leaves them out. With **Connect Notion** they come over.
 - **Comments.** They aren't in the export.
 - **Synced blocks** arrive as plain copies on each page; they no longer stay in sync.
-- **Columns.** Notion's export puts column contents one after another, so they arrive that way. Drag blocks side by side to rebuild a layout.
+- **Columns** from an export file: Notion's export puts column contents one after another, so they arrive that way. With **Connect Notion** they come over as columns.
 - **HTML exports.** Export again as **Markdown & CSV**.
 
 ## Import again
 
-To bring over later changes, export the same pages from Notion and import the new `.zip` into the same place. Markdrop recognises the pages it imported before and merges instead of making copies:
+With **Connect Notion**, use **Keep in sync** or **Sync now** (see [Keep in sync](#keep-in-sync)).
+
+For an export file, to bring over later changes, export the same pages from Notion and import the new `.zip` into the same place. Markdrop recognises the pages it imported before and merges instead of making copies:
 
 - A page that changed in Notion is **updated**; one that didn't is left **unchanged**.
 - A page someone **edited in Markdrop** since the last import is **kept** as it is in Markdrop, so nobody's work is overwritten.
@@ -87,13 +136,14 @@ The summary counts each kind.
 
 Imported pages get the usual access of where they go: in a team, the team's members (in **General**, everyone in the workspace), following any [folder access](/workspaces/folder-access) rules; in **My files**, only you until you share them. An import never makes anything public. To share pages after the import, see [Who can open what](/sharing/who-can-open).
 
-You can import into a team only if you can add pages to it.
+You can import into a team only if you can add pages to it. A sync checks that again every time it runs, and pauses if you no longer can. Your Notion connection is yours alone: nobody else can import with it or see what you shared.
 
 ## Limits
 
 | What | Limit |
 | --- | --- |
 | Export `.zip` | 2 GB |
+| Pages ticked in one Connect Notion import | 50 (with everything under them) |
 | Pages in one import | 5,000 |
 | One image | 20 MB |
 | One attachment | 50 MB |
@@ -103,7 +153,11 @@ Images and attachments count toward your [storage](/account/limits). A file over
 
 ## From an AI app
 
-AI apps connected to Markdrop import with the `import_notion` tool. Call it with the `.zip`'s name and size and where it should go (a workspace and team, or My files, and the folder name): it returns an import id and a `curl` command that uploads the zip. Run that, then call `import_notion` again with the import id to start it. `get_notion_import` reports progress and, when it's done, the same counts, skipped items and errors as the dialog, with a link to the result. See [MCP tools](/ai/tools).
+AI apps connected to Markdrop import with the `import_notion` tool.
+
+With Notion connected, `notion_status` with `list_pages` lists the pages and databases shared with Markdrop, with their ids; `import_notion` with `source: "api"`, the `pages` and `keep_in_sync` imports them. `notion_status` also shows each synced import (last sync, paused, pages edited in Markdrop), and `notion_sync` runs one now or turns Keep in sync on or off.
+
+For an export file: Call it with the `.zip`'s name and size and where it should go (a workspace and team, or My files, and the folder name): it returns an import id and a `curl` command that uploads the zip. Run that, then call `import_notion` again with the import id to start it. `get_notion_import` reports progress and, when it's done, the same counts, skipped items and errors as the dialog, with a link to the result. See [MCP tools](/ai/tools).
 
 ## Related
 
