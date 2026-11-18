@@ -2,7 +2,7 @@
  * The sidebar's keys (components/shell/SideNav; nav redesign 2026-11-18): which rail row a URL points at, and which
  * team row opens so it shows. Plain JS so `node --test` covers it (railKeys.test.mjs).
  *
- * Keys: "home" | "search" | "ask" | "files" | "shared" | "recent" | "analytics" | "trash" | "settings" | "ws:new" |
+ * Keys: "home" | "search" | "ask" | "files" | "shared" | "recent" | "todos" | "analytics" | "trash" | "settings" | "ws:new" |
  * "deals" (Deals across teams) | "ws:<id>:root" | "ws:<id>:folder:<fid>" | "ws:<id>:meetings" (Meetings across teams) |
  * "ws:<id>:meetings-company" | "ws:<id>:deals" | "ws:<id>:team" | "ws:<id>:settings" | "ws:<id>:browse" | "ws:<id>:review" |
  * "ws:<id>:ask", team rows ("ws:<id>:team:<tid>" and its sections "ws:<id>:team:<tid>:<section>"), and raw team keys
@@ -77,6 +77,7 @@ export function railKeyFor(pathname, search) {
   }
   if (pathname === "/shared" || pathname.startsWith("/requests")) return "shared";
   if (pathname === "/recent") return "recent";
+  if (pathname === "/todos") return "todos";
   if (pathname === "/trash") return "trash";
   if (pathname === "/dashboard/analytics" || pathname.startsWith("/dashboard/analytics/") || pathname === "/dashboard/live") return "analytics";
   const m = pathname.match(/^\/settings\/workspaces\/([^/]+)/);

@@ -1,9 +1,9 @@
 ---
 title: Team meetings and memory
 description: Imported meetings go to the teams of the people in them. Each team's memory knows who's doing what, and profiles show each line's team.
-updated: 2026-11-16
+updated: 2026-11-19
 nav: Meetings and memory
-keywords: [team meetings, meeting routing, suggested team, attendees, meeting series, import meeting team, change team, team memory, who is doing what, people profile, source team, mixed meeting, add meetings by who attended, only zoom meetings, keep meetings out of a team]
+keywords: [to-do pages, my to-dos, team meetings, meeting routing, suggested team, attendees, meeting series, import meeting team, change team, team memory, who is doing what, people profile, source team, mixed meeting, add meetings by who attended, only zoom meetings, keep meetings out of a team]
 ---
 
 ## Meetings find their team
@@ -23,6 +23,10 @@ Meetings that arrive on their own (from Google Meet) use the suggestion. Each ca
 **General › Meetings** lists only the meetings that are in no other team, because a team's meetings live in that team. Turn on **Show all I can open** to see every meeting you can open in one list, including meetings from your teams and from open teams.
 
 ![The Meetings list: Sales pipeline review with the Sales chip, and Q4 launch sync with the Marketing and Engineering chips.](/docs-assets/teams/meetings-and-memory/team-meetings.webp)
+
+## Personal to-do pages
+
+Every member of the team gets a private to-do page with their action items from the team's calls, grouped by company. Tick an item there or on the call, and the other follows. Leads can read every member's page. See [Personal to-do pages](/teams/to-dos).
 
 ## Team memory
 

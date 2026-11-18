@@ -196,6 +196,9 @@ body.dxe-sidedrop .prosemirror-dropcursor-block { display: none; }
 .pb-page .dx-details__body { padding: 0 16px 12px 40px; font-size: 15px; line-height: 24px; }
 .pb-page .dx-details__body > :first-child { margin-top: 0; }
 .pb-page .dx-details__body > :last-child { margin-bottom: 0; }
+/* A long to-do inside a toggle (a to-do page's company sections) wraps under its text, not under the box. */
+.pb-page .dx-details__body li.task-list-item { padding-left: 28px; text-indent: -28px; }
+.pb-page .dx-details__body li.task-list-item :is(ul, ol, div, pre, table, blockquote) { text-indent: 0; }
 .pb-page .dx-details[data-color] > summary { color: var(--pb-fg); }
 
 /* ── Code caption (editor) ───────────────────────────────────────────────────────────────── */

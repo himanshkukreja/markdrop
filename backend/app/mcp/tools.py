@@ -4177,6 +4177,10 @@ IDEMPOTENCY_KEY = {
 from app.mcp.teams_tools import TEAMS_TOOLS, add_space  # noqa: E402
 
 TOOLS += TEAMS_TOOLS
+# Personal to-do pages (my_todos, team_todos, tick_todo): app/mcp/todo_tools.py.
+from app.mcp.todo_tools import TODO_TOOLS  # noqa: E402
+
+TOOLS += TODO_TOOLS
 add_space(TOOLS)
 
 for _t in TOOLS:

@@ -523,7 +523,17 @@ async def facts(actor: Actor, doc: dict, ctx: Ctx) -> Facts:
                 grant_role = _max_role(grant_role, below.get(str(p["_id"])))
                 if p.get("owner_id") and p.get("owner_id") == uid:
                     grant_role = _max_role(grant_role, "editor")
-    role = "owner" if is_owner else _max_role(_max_role(grant_role, member_doc_role), folder_role)
+    # A personal to-do page (services/todo_pages.py): the team's leads read every member's, decided now (the
+    # team's lead_ids and member_ids as they are), never a grant that goes stale.
+    lead_role = None
+    todo_team = src.get("todo_team_id") or doc.get("todo_team_id")
+    if todo_team and uid and ws_role is not None and not is_owner and ws_id:
+        tv = await ctx.team_view(ws_id, uid)
+        t = tv.teams.get(str(todo_team))
+        if t is not None and tv.lead_of(str(todo_team)) \
+                and (src.get("todo_user_id") or doc.get("todo_user_id")) in (t.get("member_ids") or []):
+            lead_role = "viewer"
+    role = "owner" if is_owner else _max_role(_max_role(_max_role(grant_role, member_doc_role), folder_role), lead_role)
     f = Facts(
         level=level, has_password=bool(src.get("read_password_hash")), ws_id=ws_id, ws=ws,
         require_auth=bool(ws is not None and ws.settings.require_auth_to_view),

@@ -448,7 +448,8 @@ TAKE_OVER: ContextVar[bool] = ContextVar("page_take_over", default=False)
 # it goes ahead while someone holds the page, like append_blocks. Their open editor follows it live
 # (the socket's ``changed``): it shows the new version, or merges it under what they're typing
 # line by line (frontend lib/pageMerge.mjs), asking only when both changed the same lines; their
-# saves carry base_rev, so nothing they have overwrites it.
+# saves carry base_rev, so nothing they have overwrites it. Markdrop's own writes (``cred="system"``: a
+# to-do ticked on its call, services/todo_pages.py) merge the same way.
 MERGE_EDIT: ContextVar[bool] = ContextVar("page_merge_edit", default=False)
 
 
@@ -509,7 +510,7 @@ async def check_write_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Ac
     mcp = actor.cred == "mcp"
     if not mcp and actor.user_id and lock["user_id"] == actor.user_id:
         return
-    if mcp and MERGE_EDIT.get():
+    if MERGE_EDIT.get() and (mcp or actor.cred == "system"):
         return
     allowed = await may_take_over(actor, raw, ctx) if ctx is not None else None
     if mcp and TAKE_OVER.get() and allowed:
@@ -529,7 +530,7 @@ async def check_write_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Ac
 async def touch_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor) -> None:
     """A save by the lock's holder: that's an edit (the idle clock restarts) and nothing is
     unsaved any more."""
-    if actor.cred == "mcp" or not actor.user_id:
+    if actor.cred in ("mcp", "system") or not actor.user_id:
         return
     lock = lock_view(raw.get("edit_lock"))
     if lock is None or lock["user_id"] != actor.user_id:
@@ -892,6 +893,11 @@ async def content_for(actor: access.Actor, raw: dict, ctx: access.Ctx) -> str | 
         content = redact_people(content)
     if "markdrop" in content:
         content = await redact_refs(actor, ctx, content)
+    if raw.get("todo_team_id"):
+        # A personal to-do page (services/todo_pages.py): items from calls this reader can't read stay hidden.
+        from app.services import todo_pages
+
+        content = await todo_pages.for_reader(actor, raw, ctx, content)
     return content
 
 

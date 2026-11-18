@@ -35,6 +35,7 @@ export const DOCS_PAGES = {
   autoCovers: "/pages/overview#automatic-covers",
   teamMemory: "/workspaces/team",
   meetingsAndTeam: "/workspaces/meetings-and-team",
+  todos: "/teams/to-dos",
   // Files
   supportedTypes: "/files/supported-types",
   fileLimits: "/files/limits",

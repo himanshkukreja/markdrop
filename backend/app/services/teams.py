@@ -462,6 +462,7 @@ async def create_team(db: AsyncIOMotorDatabase, view: TeamView, body: dict, *, f
     _check_style(body, row)
     row["_id"] = (await db[TEAMS].insert_one(row)).inserted_id
     _changed(mem)
+    _todos(db, row)
     return row
 
 
@@ -555,6 +556,14 @@ def _changed(user_ids) -> None:
             live.user_access_changed(u)
 
 
+def _todos(db: AsyncIOMotorDatabase, row: dict | None) -> None:
+    """Personal to-do pages (services/todo_pages.py): new members of a team that uses them get theirs."""
+    if row is not None and not is_general(row):
+        from app.services import todo_pages
+
+        todo_pages.team_changed(db, str(row["_id"]))
+
+
 async def update_team(db: AsyncIOMotorDatabase, view: TeamView, team: dict, body: dict) -> dict:
     tid = str(team["_id"])
     if not view.can_manage(tid):
@@ -644,6 +653,7 @@ async def add_members(db: AsyncIOMotorDatabase, view: TeamView, team: dict, user
     row = await db[TEAMS].find_one_and_update({"_id": team["_id"]}, {"$addToSet": {"member_ids": {"$each": add}},
                                                                    "$set": {"updated_at": now_utc()}}, return_document=True)
     _changed(add)
+    _todos(db, row)
     return row
 
 
@@ -676,6 +686,7 @@ async def set_leads(db: AsyncIOMotorDatabase, view: TeamView, team: dict, lead_i
         {"_id": team["_id"]}, {"$set": {"lead_ids": leads, "updated_at": now_utc()},
                                "$addToSet": {"member_ids": {"$each": leads}}}, return_document=True)
     _changed(leads)
+    _todos(db, row)
     return row
 
 
@@ -860,7 +871,7 @@ async def apply_to_doc(db: AsyncIOMotorDatabase, raw: dict, tids: list[str], pid
 
     ids = [raw["_id"], *await _descendants(db, raw["_id"])]
     m = await db[meetings.COLL].find_one({"$or": [{"doc_id": raw["_id"]}, {"transcript_doc_id": raw["_id"]}]},
-                                         {"doc_id": 1, "transcript_doc_id": 1})
+                                         {"doc_id": 1, "transcript_doc_id": 1, "team_ids": 1})
     if m is not None:
         for k in ("doc_id", "transcript_doc_id"):
             if m.get(k) is not None and m[k] not in ids:
@@ -868,6 +879,11 @@ async def apply_to_doc(db: AsyncIOMotorDatabase, raw: dict, tids: list[str], pid
         await db[meetings.COLL].update_one({"_id": m["_id"]}, team_update(tids, pids))
     upd = team_update(tids, pids)
     await db["documents"].update_many({"_id": {"$in": ids}}, upd)
+    if m is not None and m.get("doc_id") is not None and sorted(ids_of(m, "team_ids")) != sorted(tids):
+        # Personal to-do pages (services/todo_pages.py): the call's action items follow it into (and out of) teams.
+        from app.services import todo_pages
+
+        await todo_pages.meeting_people_changed(db, m["doc_id"], None, extra_teams=ids_of(m, "team_ids"))
     return [d["slug"] for d in await db["documents"].find({"_id": {"$in": ids}}, {"slug": 1}).to_list(length=len(ids)) if d.get("slug")]
 
 

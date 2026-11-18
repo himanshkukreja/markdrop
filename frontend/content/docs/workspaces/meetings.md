@@ -1,7 +1,7 @@
 ---
 title: Meetings
 description: Turn every team call into a page with an AI summary, decisions and action items, keep the transcript, and ask questions across all your meetings.
-updated: 2026-11-17
+updated: 2026-11-19
 keywords: [meetings, name the speakers, name speakers, speaker 1, speaker 2, unnamed speakers, rename speaker, wrong speaker name, who is speaking, rename_meeting_speaker, meeting details, detailed notes, zoom notes, write it again, mentions in meetings, meeting notifications, no notifications, meetings page, all meetings, meeting cards, search meetings, sort meetings, meeting date, one-offs, meeting folders, subfolders, other meetings, organize meetings, organize into folders, organize progress, organise meetings, meeting notes, transcript, google meet, gemini, gemini notes, take notes for me, notes by gemini, meeting page, meeting cover, series cover, summary, decisions, action items, open questions, topics, team memory, meetings folder, auto import, import meetings automatically, series, recurring meetings, daily standup, by month, by series, delete meeting, organize_meetings, meeting memory, /meetings]
 ---
 
@@ -145,6 +145,10 @@ You need to be able to edit the meeting. Markdrop keeps a record of who renamed 
 Who was there doesn't list **Speaker 2** and the like, since they aren't anyone's name. A first name that matches exactly one other person on the call ("Mayuri" from Zoom and "Mayuri Pillay") counts as that person. Two people who share a first name stay apart.
 
 ![The Meeting details panel: Ask this meeting, the date, type, series, transcript, action items, organizer, who imported it, Invited (7, on the calendar invite, joined or not), who was there (4), the sources, the Only the people who were there switch and the AI summary.](/docs-assets/workspaces/meetings/meeting-details.webp)
+
+## Action items on your to-do page
+
+In a team (not General), each person's action items from the team's calls also go on their own private to-do page, grouped by company. Ticking an item there ticks it here, and the other way round. The team's leads can read every member's page. See [Personal to-do pages](/teams/to-dos).
 
 ## Action items in Slack
 

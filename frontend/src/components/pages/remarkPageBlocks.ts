@@ -4,7 +4,7 @@
  * sanitizer, which keeps exactly these markers and nothing an author could add (no raw HTML).
  *
  *   :::note|tip|warning|danger[Title]   → <div data-pb="callout" data-kind data-label>
- *   :::details{summary="…"} / [label]   → <details data-pb="details" data-label>
+ *   :::details{summary="…"} / [label]   → <details data-pb="details" data-label> (open="1": starts expanded)
  *   ::markdrop{src mode title}          → <div data-pb="embed" data-src data-mode data-label>
  *   :markdrop[Title]{src}               → <span data-pb="mention" data-src data-label>
  *   :jira[KEY]{site} / ::jira{key site} → <span data-pb="jira"> / <div data-pb="jira-card"> data-label data-site
@@ -158,7 +158,9 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
             const label = takeLabel(node) || attr(node, "summary") || attr(node, "title") || "Details";
             const heading = /^[123]$/.test(attr(node, "heading") ?? "") ? attr(node, "heading") : undefined;
             const color = attr(node, "color"), bg = attr(node, "bg");
-            set(node, "details", { dataPb: "details", dataLabel: label, dataHeading: heading, dataBid: anchorOf(node), dataColor: color && COLORS.includes(color) ? color : undefined, dataBg: bg && COLORS.includes(bg) ? bg : undefined });
+            // `open`: starts expanded in the reader (a to-do page's company sections, services/todo_pages.py).
+            const open = attr(node, "open") != null && attr(node, "open") !== "0" && attr(node, "open") !== "false" ? "1" : undefined;
+            set(node, "details", { dataPb: "details", dataLabel: label, dataHeading: heading, dataOpen: open, dataBid: anchorOf(node), dataColor: color && COLORS.includes(color) ? color : undefined, dataBg: bg && COLORS.includes(bg) ? bg : undefined });
           } else if (name === "columns") {
             takeLabel(node);
             set(node, "div", { dataPb: "columns", dataBid: anchorOf(node) });

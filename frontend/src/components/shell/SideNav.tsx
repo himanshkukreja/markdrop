@@ -284,7 +284,7 @@ function Heading({ id, children, action }: { id: string; children: React.ReactNo
  * Search ⌘K, Home, Inbox, Ask <workspace>, Meetings (every team's) and Deals (every team's; only when one of your
  * teams is linked to a CRM); Teams — General first, each team collapsible (remembered on this device) with the same
  * fixed sections: Overview, Meetings ("N to review"), Deals (the CRM-linked team, its open deals), Files & pages,
- * People & memory — then Browse teams; Favorites; You (My files, Shared with me, Recent); then Analytics, Trash,
+ * People & memory — then Browse teams; Favorites; You (My files, Shared with me, Recent, My to-dos); then Analytics, Trash,
  * settings and help. The sidebar never lists a team's meetings, pages, files or folders: they live in its sections,
  * so it stays short however much a team makes. `nav aria-label="Your drive"`.
  *
@@ -527,6 +527,9 @@ export function SideNav({ data, active, expanded: expandedRaw, onToggle: onToggl
         <RailLink k="recent" href="/recent" active={active} onNavigate={onNavigate}>
           <Icon name="clock" size={16} /> <span className="truncate">Recent</span>
         </RailLink>
+        <RailLink k="todos" href="/todos" active={active} onNavigate={onNavigate}>
+          <Icon name="checkSquare" size={16} /> <span className="truncate">My to-dos</span>
+        </RailLink>
         {!ws && !loadingWs && (
           <RailLink k="ws:new" href="/settings/workspaces" active={active} onNavigate={onNavigate} className="text-text-muted">
             <Icon name="plus" size={16} /> <span className="truncate">New workspace</span>
@@ -637,6 +640,7 @@ function CollapsedRail({ container, pill, data, ws, general, active, unread, fre
         <RailIcon k="files" href="/dashboard/files" label="My files" icon={<Icon name="folder" size={18} />} active={active} />
         <RailIcon k="shared" href="/shared" label={fresh ? `Shared with me, ${fresh} new` : "Shared with me"} icon={<Icon name="inbox" size={18} />} active={active} badge={fresh || undefined} />
         <RailIcon k="recent" href="/recent" label="Recent" icon={<Icon name="clock" size={18} />} active={active} />
+        <RailIcon k="todos" href="/todos" label="My to-dos" icon={<Icon name="checkSquare" size={18} />} active={active} />
       </div>
       {wss.length > 0 && <span className="h-px w-8 bg-border" aria-hidden />}
       <div className="flex flex-col items-center gap-1">

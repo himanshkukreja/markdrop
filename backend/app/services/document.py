@@ -513,6 +513,12 @@ async def update_document(
         # Person names and item labels a reader couldn't see come back from the stored page.
         sets["content"] = data.content if raw.get("encrypted") else await pages.restore_refs(
             actor, ctx, pages.restore_people(data.content, raw.get("content")), raw.get("content"))
+        if raw.get("todo_team_id") and raw.get("owner_id") != actor.user_id:
+            # A personal to-do page saved by someone it's shared with: Markdrop's section stays as stored
+            # (they may have been shown less of it: services/todo_pages.for_reader).
+            from app.services import todo_pages
+
+            sets["content"] = todo_pages.restore_region(sets["content"], raw.get("content"))
         if not raw.get("encrypted"):
             # ``:person[Name]`` without an id: a member of the page's workspace named uniquely
             # gets their id (services/page_people.py).
@@ -577,6 +583,10 @@ async def update_document(
     from app.services import jira_links
 
     await jira_links.on_page_saved(db, raw, after, actor)
+    # Personal to-do pages (services/todo_pages.py): a to-do ticked on either side follows on the other.
+    from app.services import todo_pages
+
+    await todo_pages.on_page_saved(db, raw, after, actor)
     # A new page waiting for its auto cover gets it once it says what it's about.
     if after.get("cover_pick") == "waiting":
         await page_covers.after_save(db, after)

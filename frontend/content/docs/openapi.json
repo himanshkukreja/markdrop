@@ -28322,7 +28322,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TickBody"
+                "$ref": "#/components/schemas/app__routers__home__TickBody"
               }
             }
           },
@@ -28398,6 +28398,163 @@
           "auth": "token",
           "rateLimits": [
             "240/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/todos": {
+      "get": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "My Todos",
+        "description": "Your to-do pages, one per team you're in (never General): open count, the companies with open items and\nthe last call of each. A page is made the first time it's asked for (from the team's calls).",
+        "operationId": "my_todos_api_v1_me_todos_get",
+        "parameters": [
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/teams/{team}/todos": {
+      "get": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Team Todos",
+        "description": "The team's to-do pages: a lead gets every member's (and every member has one from then on); anyone else in\nthe team, their own. ``lead``: you lead the team. 404 outside the workspace or a team you can't open.",
+        "operationId": "team_todos_api_v1_workspaces__workspace_id__teams__team__todos_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "team",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/todos/tick": {
+      "post": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Tick",
+        "description": "Tick (or untick) one of your to-dos on your to-do page; the call's action item follows. 404: not one of\nyour to-dos; 409: already that way.",
+        "operationId": "tick_api_v1_todos_tick_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__routers__todos__TickBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
           ]
         }
       }
@@ -39437,33 +39594,6 @@
         ],
         "title": "ThreadLinkIn"
       },
-      "TickBody": {
-        "properties": {
-          "slug": {
-            "type": "string",
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Slug"
-          },
-          "block": {
-            "type": "string",
-            "pattern": "^b-[0-9A-Za-z_-]{1,40}$",
-            "title": "Block"
-          },
-          "done": {
-            "type": "boolean",
-            "title": "Done",
-            "description": "false: open it again (Undo)",
-            "default": true
-          }
-        },
-        "type": "object",
-        "required": [
-          "slug",
-          "block"
-        ],
-        "title": "TickBody"
-      },
       "TokenCreateRequest": {
         "properties": {
           "name": {
@@ -41073,6 +41203,33 @@
         ],
         "title": "AskBody"
       },
+      "app__routers__home__TickBody": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Slug"
+          },
+          "block": {
+            "type": "string",
+            "pattern": "^b-[0-9A-Za-z_-]{1,40}$",
+            "title": "Block"
+          },
+          "done": {
+            "type": "boolean",
+            "title": "Done",
+            "description": "false: open it again (Undo)",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "block"
+        ],
+        "title": "TickBody"
+      },
       "app__routers__jira__CodeIn": {
         "properties": {
           "code": {
@@ -41540,6 +41697,39 @@
         },
         "type": "object",
         "title": "StatusBody"
+      },
+      "app__routers__todos__TickBody": {
+        "properties": {
+          "block": {
+            "type": "string",
+            "pattern": "^b-[0-9A-Za-z_-]{1,40}$",
+            "title": "Block"
+          },
+          "done": {
+            "type": "boolean",
+            "title": "Done",
+            "description": "false: open it again",
+            "default": true
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug",
+            "description": "The to-do page (default: whichever of yours has it)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "block"
+        ],
+        "title": "TickBody"
       },
       "app__routers__zoom__StartIn": {
         "properties": {
