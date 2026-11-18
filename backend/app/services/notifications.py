@@ -734,6 +734,20 @@ async def _view(db: AsyncIOMotorDatabase, rows: list[dict], user_row: dict) -> l
     pics = await _pictures(db, {r.get("actor_id") or "" for r in rows})
     out = []
     for r in rows:
+        if r.get("kind") == "zoom_review":
+            # A recorded Zoom meeting waiting for its host (services/zoom_review.py): no page yet.
+            from app.services import zoom_review
+
+            z = await zoom_review.inbox_view(db, r)
+            out.append({
+                "id": str(r["_id"]), "kind": r["kind"], "read": r.get("read_at") is not None,
+                "created_at": _aware(r["created_at"]).isoformat(),
+                "actor": {"id": None, "name": "Zoom", "picture": None}, "via_ai": False,
+                "text": z["text"], "available": z["available"], "page": None, "block": None, "href": z["href"],
+                "url": z["url"], "thread_id": None, "count": z["count"], "excerpt": None, "label": z["label"],
+                "message": None,
+            })
+            continue
         if r.get("kind") == "folder_shared":
             extra = r.get("extra") or {}
             ok, href, url = await _folder_view(db, r, user_row)
@@ -834,6 +848,13 @@ async def open_one(db: AsyncIOMotorDatabase, user_id: str, notification_id: str)
     if row.get("read_at") is None:
         await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"read_at": _now()}})
     user_row = await _user_row(db, user_id)
+    if row.get("kind") == "zoom_review":
+        from app.services import zoom_review
+
+        z = await zoom_review.inbox_view(db, row)
+        if not z["available"]:
+            raise HTTPException(status_code=403, detail="That Zoom meeting isn't waiting for you any more.")
+        return {"href": z["href"], "slug": None, "block": None}
     if row.get("kind") == "folder_shared":
         ok, href, _url = await _folder_view(db, row, user_row) if user_row else (False, None, None)
         if not ok:

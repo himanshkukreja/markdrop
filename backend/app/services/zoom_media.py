@@ -904,6 +904,10 @@ async def tick(db: AsyncIOMotorDatabase) -> int:
     n = 0
     # Work a stopped process (a deploy) left half done: imports back to waiting, copies past the cap failed.
     await zoom.reclaim(db)
+    # Meetings held for their host longer than 30 days: their metadata goes (services/zoom_review.py).
+    from app.services import zoom_review
+
+    await zoom_review.expire(db)
     now = now_utc()
     await db[zoom.MEETINGS].update_many(
         {"rec_state": "copying", "rec_at": {"$lt": now - STALE}, "rec_tries": {"$gte": MAX_TRIES}},

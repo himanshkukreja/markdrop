@@ -2358,8 +2358,33 @@
     },
     "POST /api/v1/zoom/import": {
       "title": "Import past Zoom meetings",
-      "description": "Imports the chosen meetings (`uuids`, up to 50) into the Zoom team as past meetings: nobody is notified. Each result has a `status`: `imported`, `duplicate`, `waiting` (being transcribed: it comes in within minutes), `no_transcript`, `ignored` (not hosted by the team's members) or `failed` (with a `reason`), and `recording` is `queued` when its recording is being added. Admins, owners and the team's leads.",
-      "guide": {"label": "Zoom", "href": "/integrations/zoom"}
+      "description": "Imports the chosen meetings (`uuids`, up to 50) into the Zoom team as past meetings: nobody is notified. Each result has a `status`: `imported`, `duplicate`, `waiting` (being transcribed: it comes in within minutes), `no_transcript`, `ignored` (not hosted by the team's members), `held` (waiting for its host to decide), `skipped` (kept out by the rules, with a `reason`) or `failed` (with a `reason`), and `recording` is `queued` when its recording is being added. Held and skipped results have no `topic`. Admins, owners and the team's leads.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom#choose-which-meetings-come-in"}
+    },
+    "GET /api/v1/zoom/me": {
+      "title": "Your Zoom meetings setting",
+      "description": "Your choice for *When my Zoom meetings are recorded* (`share`: `auto` share automatically, the default; `ask` ask me first; `never` never bring them in), the workspaces whose Zoom team you're in (`teams`), and how many of your meetings wait for your decision (`held`).",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom#choose-which-meetings-come-in"}
+    },
+    "PUT /api/v1/zoom/me": {
+      "title": "Choose when your Zoom meetings come in",
+      "description": "Sets your choice (`share`: `auto`, `ask` or `never`). Whatever it is, a Zoom topic with \"personal\" or \"private\" never comes in, a call with someone from outside the company comes in, and an internal-only call waits for you.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom#choose-which-meetings-come-in"}
+    },
+    "PUT /api/v1/zoom/members/share": {
+      "title": "Set a Zoom-team member's choice",
+      "description": "Sets a Zoom-team member's choice (`user_id`, `share`: `auto`, `ask` or `never`) and returns the team's `members` with theirs. Admins and owners.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom#choose-which-meetings-come-in"}
+    },
+    "GET /api/v1/zoom/review": {
+      "title": "Your Zoom meetings to review",
+      "description": "Your recorded Zoom meetings waiting for your decision (every workspace, or `workspace_id`): `uuid`, `workspace_id`, `topic`, `date`, `time`, `duration_min`, `people` (names), `people_count`, why it waits (`reason`, `why`), the `team` it would go to, and when it expires (`expires_at`, 30 days after it was recorded). Only the host sees them.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom#meetings-waiting-for-you"}
+    },
+    "POST /api/v1/zoom/review": {
+      "title": "Decide a Zoom meeting",
+      "description": "Decides one meeting waiting for you (`workspace_id`, `uuid`, `decision`): `share` brings it into the Zoom team, `private` brings it in visible only to you, `skip` keeps it out (only its uuid is kept). Shared and private meetings are imported in the background (`status: importing`). Only the meeting's host; 404 once it was decided or expired.",
+      "guide": {"label": "Zoom", "href": "/integrations/zoom#meetings-waiting-for-you"}
     },
     "GET /api/v1/slack/status": {
       "title": "Slack connection status",

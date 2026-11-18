@@ -13,6 +13,13 @@ Settings (signed in, markdrop.in only):
     DELETE /connection?workspace_id=&delete_meetings=   disconnect (admins): the credentials are deleted
                                             (and the Marketplace app removed from the Zoom account)
 
+Which meetings come in (services/zoom_review.py):
+    GET    /me                              your setting "When my Zoom meetings are recorded" + your Zoom teams
+    PUT    /me {share}                      auto | ask | never
+    PUT    /members/share {workspace_id, user_id, share}   an admin sets it for a Zoom-team member
+    GET    /review?workspace_id=            your recorded meetings waiting for your decision
+    POST   /review {workspace_id, uuid, decision}          share | private | skip (the host only)
+
 Import past meetings (admins and the team's leads):
     GET    /recordings?workspace_id=&days=|from=&to=   the team members' recorded meetings
     POST   /import {workspace_id, uuids}    import the chosen ones
@@ -87,6 +94,26 @@ class MediaIn(BaseModel):
     enabled: bool = Field(..., description="Transcribe meetings without a transcript (their audio) and keep their recordings.")
 
 
+_SHARE = r"^(auto|ask|never)$"
+
+
+class ShareIn(BaseModel):
+    share: str = Field(..., pattern=_SHARE, description="auto: share automatically; ask: ask me first; never: never bring them in.")
+
+
+class MemberShareIn(BaseModel):
+    workspace_id: str = Field(..., pattern=_WS)
+    user_id: str = Field(..., pattern=_WS)
+    share: str = Field(..., pattern=_SHARE)
+
+
+class DecideIn(BaseModel):
+    workspace_id: str = Field(..., pattern=_WS)
+    uuid: str = Field(..., min_length=1, max_length=128)
+    decision: str = Field(..., pattern=r"^(share|private|skip)$",
+                          description="share: into the Zoom team; private: just for you; skip: don't bring it in.")
+
+
 class ImportIn(BaseModel):
     workspace_id: str = Field(..., pattern=_WS)
     uuids: list[str] = Field(..., min_length=1, max_length=zoom.MAX_IMPORT)
@@ -151,6 +178,55 @@ async def delete_connection(request: Request, workspace_id: str = Query(..., pat
     _app_only(request)
     return await zoom.disconnect(db, user, workspace_id, delete_meetings=delete_meetings,
                                  actor=access.actor_from_request(request, user), ctx=access.Ctx(db, surface="rest", ip=get_client_ip(request)))
+
+
+@router.get("/me", summary="Your Zoom meetings setting")
+@limiter.limit("120/minute")
+async def get_me(request: Request, db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    _app_only(request)
+    from app.services import zoom_review
+
+    return await zoom_review.me(db, user)
+
+
+@router.put("/me", summary="Choose when your recorded Zoom meetings come in")
+@limiter.limit("30/minute")
+async def put_me(request: Request, body: ShareIn, db: AsyncIOMotorDatabase = Depends(get_db),
+                 user: User = Depends(require_user)):
+    _app_only(request)
+    from app.services import zoom_review
+
+    return await zoom_review.set_me(db, user, body.share)
+
+
+@router.put("/members/share", summary="Set a Zoom-team member's setting (admins)")
+@limiter.limit("30/minute")
+async def put_member_share(request: Request, body: MemberShareIn, db: AsyncIOMotorDatabase = Depends(get_db),
+                           user: User = Depends(require_user)):
+    _app_only(request)
+    from app.services import zoom_review
+
+    return await zoom_review.set_member(db, user, body.workspace_id, body.user_id, body.share)
+
+
+@router.get("/review", summary="Your recorded Zoom meetings waiting for a decision")
+@limiter.limit("60/minute")
+async def review(request: Request, workspace_id: Optional[str] = Query(None, pattern=_WS),
+                 db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    _app_only(request)
+    from app.services import zoom_review
+
+    return await zoom_review.listing(db, user, workspace_id)
+
+
+@router.post("/review", summary="Decide whether a recorded Zoom meeting comes in")
+@limiter.limit("60/minute")
+async def decide(request: Request, body: DecideIn, db: AsyncIOMotorDatabase = Depends(get_db),
+                 user: User = Depends(require_user)):
+    _app_only(request)
+    from app.services import zoom_review
+
+    return await zoom_review.decide(db, user, body.workspace_id, body.uuid, body.decision)
 
 
 @router.get("/recordings", summary="Recorded Zoom meetings to import")

@@ -10,6 +10,12 @@
   transcribe are queued and come in a few minutes later; importing a meeting already here adds its
   recording when the switch is on.
 
+* ``zoom_review``: which of your recorded Zoom meetings come in (services/zoom_review.py). ``action:
+  "list"`` your meetings waiting for your decision (internal-only calls, or every call when you chose "ask
+  me first"); ``"decide"`` one of them (share with the Zoom team, keep it just for you, or skip it; only the
+  host decides); ``"settings"`` reads or (with ``share``) changes your setting "When my Zoom meetings are
+  recorded": auto | ask | never.
+
 Same rules as the website: workspace admins and the Zoom team's leads import; connecting is done on the
 website (Workspace settings › Integrations › Zoom). The imported meetings are ordinary meetings: the
 meeting tools (list_meetings, get_meeting, ask_meetings, …) work on them as on any other.
@@ -119,6 +125,52 @@ async def import_zoom_meetings(ctx: Context, args: dict) -> tuple[str, dict]:
                                                      "counts": c, "total": len(got["results"])}
 
 
+_CHOICE = {"auto": "share automatically", "ask": "ask me first", "never": "never bring them in"}
+
+
+async def zoom_review_tool(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import zoom_review
+
+    action = args.get("action") or "list"
+    ws_id = None
+    if args.get("workspace"):
+        ws_id, _ws, _role = await resolve_workspace(ctx, args["workspace"])
+    try:
+        if action == "settings":
+            got = await (zoom_review.set_me(ctx.db, ctx.user, args["share"]) if args.get("share")
+                         else zoom_review.me(ctx.db, ctx.user))
+            text = (f"When your Zoom meetings are recorded: {_CHOICE[got['share']]}. "
+                    "Whatever the setting: a personal or private topic never comes in, a call with someone from outside "
+                    "the company comes in, and an internal-only call waits for you. "
+                    f"{got['held']} of your meetings wait for your decision.")
+            if not got["teams"]:
+                text += " You're not in a workspace's Zoom team, so none of your Zoom meetings come in."
+            return text, {"action": "settings", "share": got["share"], "held": got["held"], "teams": got["teams"],
+                          "meetings": [], "result": None}
+        if action == "decide":
+            if not ws_id or not args.get("uuid") or args.get("decision") not in zoom_review.DECISIONS:
+                raise ToolError("Pass workspace, uuid (from action 'list') and decision: share, private or skip.")
+            res = await zoom_review.decide(ctx.db, ctx.user, ws_id, str(args["uuid"]), args["decision"], via="mcp")
+            text = {"share": "Shared with the Zoom team: it's being imported (it appears in Meetings within minutes).",
+                    "private": "Kept just for you: it's being imported, private to you.",
+                    "skip": "Skipped: Markdrop won't bring it in."}[args["decision"]]
+            return text, {"action": "decide", "result": res, "meetings": [], "share": None, "held": None, "teams": []}
+        got = await zoom_review.listing(ctx.db, ctx.user, ws_id)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    ms = got["meetings"]
+    if not ms:
+        return "No Zoom meetings wait for your decision.", {"action": "list", "meetings": [], "result": None,
+                                                           "share": None, "held": 0, "teams": []}
+    lines = [f"{len(ms)} recorded Zoom meeting{'s' if len(ms) != 1 else ''} wait for your decision "
+             "(nothing was downloaded; only you see them):"]
+    for m in ms[:50]:
+        lines.append(f"- {m['topic']} ({m.get('date') or '?'}{', ' + str(m['duration_min']) + ' min' if m.get('duration_min') else ''}, "
+                     f"{m['people_count']} people) uuid {m['uuid']}: {m['why'] or ''}")
+    lines.append("Decide with action 'decide': share (with the team), private (just for you) or skip.")
+    return "\n".join(lines), {"action": "list", "meetings": ms, "result": None, "share": None, "held": len(ms), "teams": []}
+
+
 ZOOM_TOOLS: list[Tool] = [
     Tool(
         name="zoom_status",
@@ -175,5 +227,33 @@ ZOOM_TOOLS: list[Tool] = [
                             "total": {"type": "integer"}}, ["action", "meetings", "results", "counts", "total"]),
         annotations=_ann(False, False, True),
         handler=import_zoom_meetings,
+    ),
+    Tool(
+        name="zoom_review",
+        title="Your Zoom meetings to review",
+        description=("Which of your recorded Zoom meetings come into Markdrop. A meeting whose Zoom topic says personal or "
+                     "private never comes in; one with someone from outside the company comes in; one where everyone is "
+                     "from the company waits for its host to decide; otherwise the host's setting decides (share "
+                     "automatically, ask me first, or never bring them in). A waiting meeting keeps only its topic, time, "
+                     "duration and participants' names (nothing downloaded) and only its host sees it; it expires after "
+                     "30 days. action 'list' (default): your waiting meetings (workspace optional). action 'decide': "
+                     "workspace, uuid and decision 'share' (into the Zoom team), 'private' (imported, visible only to you) "
+                     "or 'skip' (not brought in); only the host decides. action 'settings': your setting, or change it "
+                     "with share: auto | ask | never."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "workspace": {**_WORKSPACE_ARG, "description": "The workspace (list: optional; decide: required)."},
+            "action": {"type": "string", "enum": ["list", "decide", "settings"], "default": "list"},
+            "uuid": {"type": "string", "maxLength": 128, "description": "action 'decide': the meeting's uuid from action 'list'."},
+            "decision": {"type": "string", "enum": ["share", "private", "skip"]},
+            "share": {"type": "string", "enum": ["auto", "ask", "never"],
+                      "description": "action 'settings': change your setting (leave out to read it)."}}},
+        output_schema=_out({"action": {"type": "string"}, "meetings": {"type": "array", "items": {"type": "object"}},
+                            "result": {"type": ["object", "null"]}, "share": {"type": ["string", "null"]},
+                            "held": {"type": ["integer", "null"]}, "teams": {"type": "array", "items": {"type": "object"}}},
+                           ["action", "meetings"]),
+        annotations=_ann(False, False, True),
+        handler=zoom_review_tool,
     ),
 ]

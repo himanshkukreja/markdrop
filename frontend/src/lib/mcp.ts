@@ -234,6 +234,7 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
     tools: [
       { name: "zoom_status", scope: "read" },
       { name: "import_zoom_meetings", scope: "write" },
+      { name: "zoom_review", scope: "write" },
     ],
   },
   {

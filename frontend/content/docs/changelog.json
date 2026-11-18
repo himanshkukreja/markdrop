@@ -38,6 +38,20 @@
       "body": "- **Deals board.** By stage or as a list, with owner, company and \"no call in 14 days\" filters and Group by company. See [Deal folders](/integrations/hubspot#deal-folders).\n- **A page per deal.** Overview (facts, contacts, decisions, risks, open questions, next steps, suggested deal updates), Calls (Log to HubSpot and Create tasks per call), Assets and HubSpot activity.\n- **Calls filed for you.** A sure match moves the call into its deal's folder; when a company has several open deals, you pick.\n- **Read only.** Deal folders never write to HubSpot. Add `sales-email-read` and `files.ui_hidden.read` to the key to show emails and attachment names.\n- **Account pages retired.** Existing ones moved to an Accounts (archived) folder.\n- **From an AI app.** `hubspot_list_deals`, `hubspot_deal_folder` and `hubspot_sync_deals`."
     },
     {
+      "id": "zoom-choose-meetings",
+      "date": "2026-11-18",
+      "title": "Zoom: each host chooses which meetings come in",
+      "kind": "new",
+      "area": "Integrations",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Personal Zoom meetings never come in, calls with someone from outside the company come in, and a call where everyone is from the company waits for its host: Share with the team, Keep it just for me, or Skip, from the inbox, Slack or the review page.",
+      "body": "- **The rules.** A Zoom topic with \"personal\" or \"private\" never comes in; a call with someone from outside the company comes in; an internal-only call waits for its host; otherwise the host's choice decides. See [Choose which meetings come in](/integrations/zoom#choose-which-meetings-come-in).\n- **Your choice.** *When my Zoom meetings are recorded* in Settings › Account › Zoom: Share automatically (the default), Ask me first, or Never bring them in. Workspace admins can set it per member on the Zoom card.\n- **Nothing downloaded while it waits.** A waiting meeting keeps only its topic, time, duration and who joined, seen only by its host, for 30 days.\n- **Keep it just for me** brings the meeting in private to the host alone.\n- **Import past meetings** follows the same rules.\n- **MCP and API.** `zoom_review` lists, decides and changes the setting; `GET`/`POST /api/v1/zoom/review`, `GET`/`PUT /api/v1/zoom/me`."
+    },
+    {
       "id": "hubspot-write-guard",
       "date": "2026-11-17",
       "title": "HubSpot: Markdrop never deletes or overwrites",

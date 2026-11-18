@@ -112,7 +112,7 @@ function KindMark({ kind }: { kind: AppNotification["kind"] }) {
     <span className={cx(s.kind, cls)} aria-hidden>
       <span>
         {kind === "mention" || kind === "comment_mention" ? <b style={{ fontSize: 10.5, lineHeight: 1, fontWeight: 800 }}>@</b>
-          : <Icon name={kind === "shared" || kind === "folder_shared" ? "userPlus" : kind === "speakers_unnamed" ? "mic" : kind.startsWith("comment_") && kind !== "comment_resolved" ? "message" : "check"} size={10} />}
+          : <Icon name={kind === "shared" || kind === "folder_shared" ? "userPlus" : kind === "speakers_unnamed" ? "mic" : kind === "zoom_review" ? "film" : kind.startsWith("comment_") && kind !== "comment_resolved" ? "message" : "check"} size={10} />}
       </span>
     </span>
   );

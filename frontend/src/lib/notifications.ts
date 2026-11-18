@@ -39,7 +39,9 @@ export type NotificationKind = "mention" | "signoff_requested" | "shared"
   // From Markdrop itself (backend services/meeting_speakers.ask_to_name): a meeting's speakers to name.
   | "speakers_unnamed"
   // A folder shared with them (backend services/folder_access.py): one per person, not per item.
-  | "folder_shared";
+  | "folder_shared"
+  // A recorded Zoom meeting waiting for its host's decision (backend services/zoom_review.py): no page yet.
+  | "zoom_review";
 
 export interface AppNotification {
   id: string;
