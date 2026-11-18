@@ -328,9 +328,13 @@ async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
     paths = folder_service.paths_by_id(folders)
     sx = await space_extra(actor, ctx, workspace_id, space)
     folders = await _team_folders(actor, ctx, workspace_id, folders, space)
+    hide = hidden_folder_ids(folders)
+    folders = [f for f in folders if f.id not in hide]
     rows = await readable_rows(db, actor, ctx, workspace_id, NOT_HIDDEN, *([sx] if sx else []),
                                projection={"folder_id": 1, "access_level": 1, "read_password_hash": 1,
                                            "owner_id": 1, "updated_at": 1})
+    if hide:
+        rows = [r for r in rows if (r.get("folder_id") or "") not in hide]
     direct, total, root = counts(rows, folders)
     per, root_exposure = exposure(rows)
     activity = folder_activity(rows, folders)
@@ -397,6 +401,24 @@ async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
     }
 
 
+def hidden_folder_ids(folders: list) -> set[str]:
+    """Folders kept out of the file tree, the rail and browse (``hidden``: HubSpot's Deals folder and the
+    deal folders in it, services/hubspot_folders.py), with everything below them."""
+    roots = [f.id for f in folders if getattr(f, "hidden", False)]
+    if not roots:
+        return set()
+    out: set[str] = set()
+    for r in roots:
+        out.update(folder_service.subtree_ids(folders, r))
+    return out
+
+
+async def _hidden_ids(db: AsyncIOMotorDatabase, workspace_id: str) -> set[str]:
+    if not await db["folders"].find_one({"workspace_id": workspace_id, "hidden": True}, {"_id": 1}):
+        return set()
+    return hidden_folder_ids(await folder_service.list_folders(db, workspace_id))
+
+
 async def _team_folders(actor: access.Actor, ctx: access.Ctx, workspace_id: str, folders: list, space: str | None) -> list:
     """Folders a team owns are listed only to people who may read that team (CONTRACT §2), and a team
     space shows its own folders (plus those holding its items, found by the counts)."""
@@ -429,6 +451,9 @@ async def nav(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, wo
 
     sx = await space_extra(actor, ctx, workspace_id, space)
     rows = await readable_rows(db, actor, ctx, workspace_id, *([sx] if sx else []), projection=_NAV_FIELDS)
+    hide = await _hidden_ids(db, workspace_id)
+    if hide:
+        rows = [r for r in rows if (r.get("folder_id") or "") not in hide]
     parents = {r.get("parent_id") for r in rows if r.get("parent_id") is not None}
     places: dict[str, list[dict]] = {}
     for r in rows:
@@ -517,6 +542,11 @@ async def items(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
     elif folder and folder != "all":
         await folder_service._get_owned(db, workspace_id, folder)
         scope.append({"folder_id": folder})
+    if folder in ("all", "", None) and not q:
+        # Browse leaves out the hidden folders' items (the Deals section shows them); a search finds them.
+        hide = await _hidden_ids(db, workspace_id)
+        if hide:
+            scope.append({"folder_id": {"$nin": sorted(hide)}})
     sf = search_filter(q)
     extra: list[dict | None] = [kind_clause(kind), file_types.type_clause(file_type), sf,
                                 decode_cursor(cursor), access_clause(access_level), *scope]

@@ -153,6 +153,10 @@ class Accounts(V2World):
     async def test_account_page_in_the_team_and_edits_outside_the_section_stay(self):
         _m, _c, co, _d = self.booked()
         mid = await self.ready_call()
+        # Deals replaced account pages (2026-11-18): a call doesn't make one any more; an existing one is kept up to date.
+        self.assertIsNone(await self.db[hubspot_accounts.ACCOUNTS].find_one({"company_id": co}))
+        conn = await hubspot.get(self.db, self.W)
+        await hubspot_accounts.refresh(self.db, conn, co, user_id=self.uid["owner"])
         acc = await self.db[hubspot_accounts.ACCOUNTS].find_one({"company_id": co})
         self.assertIsNotNone(acc)
         raw = await self.db["documents"].find_one({"_id": acc["doc_id"]})
@@ -173,7 +177,9 @@ class Accounts(V2World):
                          hubspot_owner_id=self.ada)
         self.fh.link("meetings", m2, "companies", co)
         self.fh.link("meetings", m2, "deals", _d)
-        await self.ready_call(start=S2, topic="Acme follow-up")
+        mid2 = await self.ready_call(start=S2, topic="Acme follow-up")
+        r = await self.post(f"/api/v1/hubspot/meetings/{mid2}/account")          # Update on request
+        self.assertEqual(r.status_code, 200, r.text)
         body = (await self.db["documents"].find_one({"_id": acc["doc_id"]}))["content"]
         self.assertIn("Our champion is Grace.", body)
         self.assertIn("Renewal is in March.", body)
@@ -372,6 +378,9 @@ class MCP(V2World):
         code, res = await self.mcp_call(token, "hubspot_suggestions", {"meeting": mid, "action": "apply", "id": sug["dealstage"]["id"]})
         self.assertFalse(res.get("isError"), res)
         self.assertEqual(self.fh.objects["deals"][d]["properties"]["dealstage"], "proposal")
+        code, res = await self.mcp_call(token, "hubspot_account", {"meeting": mid})
+        self.assertTrue(res.get("isError"), res)                                  # no new account pages
+        await hubspot_accounts.refresh(self.db, await hubspot.get(self.db, self.W), _co, user_id=self.uid["owner"])
         code, res = await self.mcp_call(token, "hubspot_account", {"meeting": mid})
         self.assertFalse(res.get("isError"), res)
         self.assertIn("Acme annual", res["structuredContent"]["content"])

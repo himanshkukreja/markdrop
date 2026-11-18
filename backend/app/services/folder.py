@@ -52,6 +52,7 @@ def _to_folder(raw: dict) -> Folder:
                         if raw.get("default_access") in FOLDER_DEFAULT_LEVELS else None),
         meetings=bool(raw.get("meetings")),
         meetings_sub=bool(raw.get("meetings_sub")),
+        hidden=bool(raw.get("hidden")),
     )
 
 

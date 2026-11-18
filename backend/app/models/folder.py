@@ -36,6 +36,9 @@ class Folder:
     meetings: bool = False
     # A subfolder of it (services/meeting_series.py): Meetings/<Series> or Meetings/Other meetings.
     meetings_sub: bool = False
+    # Kept out of the file tree and browse (HubSpot's Deals folder and the deal folders in it,
+    # services/hubspot_folders.py): reached from the team's Deals section; search still finds the items.
+    hidden: bool = False
 
 
 # "folder": the folder's people and teams (services/folder_access.py).

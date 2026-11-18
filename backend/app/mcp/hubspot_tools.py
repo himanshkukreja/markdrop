@@ -13,6 +13,8 @@
 * ``hubspot_suggestions`` (Phase 2): the deal updates suggested after the call (stage, close date, amount,
   next step, the portal's competitor / budget / decision-maker fields) with their evidence; ``"suggest"``
   asks again, ``"apply"`` applies one (``id``; a person's choice, never automatic), ``"dismiss"`` hides one.
+* ``hubspot_list_deals`` / ``hubspot_deal_folder`` / ``hubspot_sync_deals``: the HubSpot team's deal folders
+  (services/hubspot_folders.py; read-only in HubSpot).
 * ``hubspot_account``: the company's account page (deals, calls, decisions, objections and risks, open
   questions and tasks); ``"refresh"`` makes or updates it.
 * ``hubspot_pipeline``: the workspace's deals with stage, amount, close date, the team's last call and why
@@ -30,7 +32,7 @@ from fastapi import HTTPException
 from app.mcp.auth import READ, WRITE
 from app.mcp.meeting_tools import _actx, _row
 from app.mcp.tools import _WORKSPACE_ARG, Context, Tool, ToolError, _ann, _out, actor_of, http_message, resolve_workspace
-from app.services import hubspot, hubspot_accounts, hubspot_deals, hubspot_notify
+from app.services import hubspot, hubspot_accounts, hubspot_deals, hubspot_folders, hubspot_notify
 
 _SETUP = "Workspace settings › Integrations › HubSpot"
 _MEETING_ARG = {"type": "string", "minLength": 1, "maxLength": 300,
@@ -232,6 +234,90 @@ async def hubspot_pipeline(ctx: Context, args: dict) -> tuple[str, dict]:
     return (head + "\n" + "\n".join(lines)) if lines else "No deals.", {"workspace_id": ws_id, "deals": deals, "at_risk": got["at_risk"]}
 
 
+def _card_line(d: dict) -> str:
+    bits = [d.get("title") or d.get("name") or "Deal", d.get("closed_label") or d.get("stage") or "no stage"]
+    if d.get("amount") is not None:
+        bits.append(f"{d['amount']:,.0f} {d.get('currency') or ''}".strip())
+    if d.get("owner"):
+        bits.append(f"owner {d['owner']}")
+    if d.get("close_date"):
+        bits.append(f"closes {d['close_date']}")
+    bits.append(f"{d.get('calls') or 0} call{'s' if d.get('calls') != 1 else ''}")
+    if d.get("last_call"):
+        bits.append(f"last call {d['last_call'].get('date')}")
+    if d.get("quiet"):
+        bits.append("no call in 14 days")
+    if d.get("pick"):
+        bits.append(f"{d['pick']} call(s) to pick the deal for")
+    return f"- [{d['id']}] " + " · ".join(bits)
+
+
+async def hubspot_list_deals(ctx: Context, args: dict) -> tuple[str, dict]:
+    ws_id, _ws, _r = await resolve_workspace(ctx, args["workspace"])
+    try:
+        got = await hubspot_folders.board(ctx.db, ctx.user, ws_id)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    deals = got["deals"]
+    if not args.get("include_closed"):
+        deals = [d for d in deals if not d["closed"]]
+    q = (args.get("q") or "").strip().casefold()
+    if q:
+        deals = [d for d in deals if q in (d.get("title") or "").casefold() or q in (d.get("owner") or "").casefold()]
+    if args.get("quiet_only"):
+        deals = [d for d in deals if d["quiet"]]
+    sync = got["sync"]
+    head = f"{len(deals)} deal{'s' if len(deals) != 1 else ''}" + (f" (synced {sync['at']})" if sync.get("at") else "") + ":"
+    return (head + "\n" + "\n".join(_card_line(d) for d in deals[:150])) if deals else "No deals.", \
+        {"workspace_id": ws_id, "deals": deals, "sync": sync}
+
+
+async def hubspot_deal_folder(ctx: Context, args: dict) -> tuple[str, dict]:
+    ws_id, _ws, _r = await resolve_workspace(ctx, args["workspace"])
+    try:
+        got = await hubspot_folders.detail(ctx.db, ctx.user, ws_id, str(args.get("deal") or ""), fresh=bool(args.get("fresh")))
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    from app.services import urls
+
+    d = got["deal"]
+    lines = [_card_line(d).removeprefix(f"- [{d['id']}] "), f"HubSpot: {d['url']}"]
+    if got.get("overview"):
+        lines.append(f"Deal overview page: {urls.markdrop_url(got['overview']['slug'])}")
+    if d.get("contacts"):
+        lines.append("Contacts: " + "; ".join(" · ".join(x for x in (c.get("name"), c.get("title"), c.get("email")) if x)
+                                              for c in d["contacts"]))
+    r = got["rollup"]
+    for head, key in (("Decisions", "decisions"), ("Objections and risks", "risks"), ("Open questions", "questions"),
+                      ("Next steps", "next_steps")):
+        if r.get(key):
+            lines.append(f"{head}:\n" + "\n".join(f"- {x['text']} ({x.get('date')})" for x in r[key]))
+    if got["calls"]:
+        lines.append("Calls:\n" + "\n".join(f"- {c['date']} {c['title']} (meeting {c['meeting_id']})"
+                                            + (" · logged to HubSpot" if c.get("logged") else "") for c in got["calls"]))
+    if got["pick"]:
+        lines.append("Waiting for someone to pick the deal (file one here with hubspot_match, action 'set' and this deal):\n"
+                     + "\n".join(f"- {c['date']} {c['title']} (meeting {c['meeting_id']})" for c in got["pick"]))
+    act = got["activity"]
+    if act["items"]:
+        lines.append("HubSpot activity (newest first):\n" + "\n".join(
+            f"- {(a.get('at') or '')[:10]} {a['kind']}: {a.get('title') or ''}" + (f" — {a['preview']}" if a.get("preview") else "")
+            for a in act["items"][:30]))
+    for mi in [*(act.get("missing") or []), *((got.get("attachments") or {}).get("missing") or [])]:
+        lines.append(f"(The HubSpot key needs {mi['scope']} to show {mi['what']}.)")
+    return "\n".join(lines), got
+
+
+async def hubspot_sync_deals(ctx: Context, args: dict) -> tuple[str, dict]:
+    ws_id, _ws, _r = await resolve_workspace(ctx, args["workspace"])
+    try:
+        got = await hubspot_folders.request_sync(ctx.db, ctx.user, ws_id)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    return ("Syncing the HubSpot deals now (reads HubSpot only; new open deals get their folders, renames and stages "
+            "follow). hubspot_list_deals shows the result in a minute."), {"workspace_id": ws_id, "sync": got}
+
+
 async def hubspot_notifications(ctx: Context, args: dict) -> tuple[str, dict]:
     if (args.get("action") or "get") == "set":
         got = await hubspot_notify.set_me(ctx.db, ctx.user, {"precall": args.get("precall"), "approve": args.get("approve")})
@@ -344,7 +430,7 @@ HUBSPOT_TOOLS: list[Tool] = [
         description=("The account page of the HubSpot company a meeting is matched to: a Markdrop page in the HubSpot team "
                      "with the company's deals, the team's calls with it, decisions, objections and risks, open questions "
                      "and open tasks (a section Markdrop keeps up to date; people's own notes around it stay). action 'get' "
-                     "(default; made if missing) or 'refresh' (rewritten now)."),
+                     "(default) or 'refresh' (rewritten now). No new account pages are made: Deals replaced them (hubspot_list_deals)."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
@@ -372,6 +458,55 @@ HUBSPOT_TOOLS: list[Tool] = [
                             "at_risk": {"type": "integer"}}, ["workspace_id", "deals"]),
         annotations=_ann(True, False, True),
         handler=hubspot_pipeline,
+    ),
+    Tool(
+        name="hubspot_list_deals",
+        title="HubSpot deals (deal folders)",
+        description=("The HubSpot team's deal folders: every open deal in the connected HubSpot account (closed ones too with "
+                     "include_closed, marked Closed won / Closed lost), with stage, amount, owner, close date, how many of the "
+                     "team's calls are filed in it, the last call, whether it's quiet (no call in 14 days) and calls waiting "
+                     "for someone to pick the deal. q: filter by deal, company or owner. The HubSpot team's members and "
+                     "workspace admins."),
+        scope=READ,
+        input_schema={"type": "object", "properties": {
+            "workspace": _WORKSPACE_ARG,
+            "q": {"type": "string", "maxLength": 100},
+            "include_closed": {"type": "boolean", "default": False},
+            "quiet_only": {"type": "boolean", "default": False}}, "required": ["workspace"]},
+        output_schema=_out({"workspace_id": {"type": "string"}, "deals": {"type": "array", "items": {"type": "object"}},
+                            "sync": {"type": "object"}}, ["workspace_id", "deals"]),
+        annotations=_ann(True, False, True),
+        handler=hubspot_list_deals,
+    ),
+    Tool(
+        name="hubspot_deal_folder",
+        title="A HubSpot deal's folder",
+        description=("One deal's folder (deal: the HubSpot deal id from hubspot_list_deals): its facts and contacts, the team's "
+                     "calls filed in it rolled up (decisions, objections and risks, open questions, next steps), the calls, "
+                     "the calls waiting for someone to pick the deal, open suggested deal updates, and HubSpot's activity on "
+                     "it (notes, emails, meetings, tasks) and attachments. fresh: read HubSpot's activity now."),
+        scope=READ,
+        input_schema={"type": "object", "properties": {
+            "workspace": _WORKSPACE_ARG,
+            "deal": {"type": "string", "pattern": "^[0-9]{1,20}$", "description": "The HubSpot deal id."},
+            "fresh": {"type": "boolean", "default": False}}, "required": ["workspace", "deal"]},
+        output_schema=_out({"deal": {"type": "object"}, "calls": {"type": "array", "items": {"type": "object"}},
+                            "pick": {"type": "array", "items": {"type": "object"}}, "rollup": {"type": "object"},
+                            "activity": {"type": "object"}}, ["deal", "calls"]),
+        annotations=_ann(True, False, True),
+        handler=hubspot_deal_folder,
+    ),
+    Tool(
+        name="hubspot_sync_deals",
+        title="Sync HubSpot deals now",
+        description=("Workspace admins: sync the HubSpot deals now instead of waiting for the next pass (every 20 minutes). "
+                     "Reads HubSpot only: new open deals get a folder, renames and stages follow, closed deals are marked."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {"workspace": _WORKSPACE_ARG}, "required": ["workspace"]},
+        output_schema=_out({"workspace_id": {"type": "string"}, "sync": {"type": "object"}}, ["workspace_id", "sync"]),
+        annotations=_ann(False, False, True),
+        handler=hubspot_sync_deals,
     ),
     Tool(
         name="hubspot_notifications",

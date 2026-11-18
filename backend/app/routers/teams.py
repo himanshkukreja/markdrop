@@ -211,7 +211,8 @@ async def sidebar(request: Request, workspace_id: str, db: AsyncIOMotorDatabase 
     if fresh is not None and (g is None or fresh.get("member_ids") != g.get("member_ids") or fresh.get("lead_ids") != g.get("lead_ids")):
         view = await T.load_view(db, workspace_id, user.id, role)
     # General first (pinned), then the rest by name.
-    mine = sorted((T.team_card(view, t) for tid, t in view.teams.items() if tid in view.member_teams),
+    links = await T.linked(db, workspace_id)
+    mine = sorted((T.with_links(T.team_card(view, t), links) for tid, t in view.teams.items() if tid in view.member_teams),
                   key=lambda c: (not c["general"], (c["name"] or "").casefold()))
     projects = sorted((T.project_card(view, p) for pid, p in view.projects.items()
                        if pid in view.readable_projects and (p.get("status") or "active") == "active"),
@@ -227,7 +228,8 @@ async def sidebar(request: Request, workspace_id: str, db: AsyncIOMotorDatabase 
 async def browse(request: Request, workspace_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
                  user: User = Depends(require_user)):
     actor, ctx, view, _role = await _ctx(request, db, user, workspace_id)
-    return jsonable_encoder({"teams": sorted((T.team_card(view, t) for t in view.teams.values()),
+    links = await T.linked(db, workspace_id)
+    return jsonable_encoder({"teams": sorted((T.with_links(T.team_card(view, t), links) for t in view.teams.values()),
                                              key=lambda c: (not c["general"], (c["name"] or "").casefold()))})
 
 
@@ -337,7 +339,7 @@ async def team_home(db, actor: access.Actor, ctx: access.Ctx, view: T.TeamView, 
     extra: dict = {}
     if T.is_general(team):
         extra = await _general_extras(db, actor, ctx, view, ppl)
-    return {**extra, "team": T.team_full(view, team, ppl), "brief": brief, "can_read": True, "recent": recent, "meetings": mt,
+    return {**extra, "team": T.with_links(T.team_full(view, team, ppl), await T.linked(db, team["workspace_id"])), "brief": brief, "can_read": True, "recent": recent, "meetings": mt,
             "memory": {"enabled": bool(ws and ws.on), "highlights": highlights,
                        "people": [{**ppl[u], "status": None} for u in members if u in ppl]},
             "jira": {"projects": list(team.get("jira_projects") or [])},
@@ -395,7 +397,7 @@ async def get_team(request: Request, workspace_id: str, team: str, db: AsyncIOMo
 
 async def _full(db, workspace_id: str, user: User, role: str, row: dict) -> dict:
     view = await T.load_view(db, workspace_id, user.id, role)
-    return jsonable_encoder(T.team_full(view, row, await T.people(db, workspace_id)))
+    return jsonable_encoder(T.with_links(T.team_full(view, row, await T.people(db, workspace_id)), await T.linked(db, workspace_id)))
 
 
 @router.patch("/{workspace_id}/teams/{team}", summary="Teams: settings")

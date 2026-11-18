@@ -99,11 +99,17 @@ SCOPES: list[dict] = [
     # Phase 2: Apply on a suggested deal update (never automatic). Optional: everything else works without it.
     {"scope": "crm.objects.deals.write", "required": False,
      "why": "Apply a suggested deal update (stage, close date, amount, next step) when someone approves it"},
+    # Deal folders (services/hubspot_folders.py): optional reads; without them the deal's emails and attachment
+    # names are left out and the deal overview says what to add.
+    {"scope": "sales-email-read", "required": False,
+     "why": "Show what the deal's emails say (subject and a short preview) in its deal folder"},
+    {"scope": "files.ui_hidden.read", "required": False,
+     "why": "Show the names of the files attached to the deal's activity (they open in HubSpot)"},
 ]
 # Read checks for a token HubSpot's token info doesn't describe (a service key): one cheap read per scope.
 PROBES = [("crm.objects.owners.read", "crm/v3/owners"), ("crm.objects.contacts.read", "crm/v3/objects/contacts"),
           ("crm.objects.companies.read", "crm/v3/objects/companies"), ("crm.objects.deals.read", "crm/v3/objects/deals")]
-UNPROBED = ["crm.objects.contacts.write", "crm.objects.deals.write"]
+UNPROBED = ["crm.objects.contacts.write", "crm.objects.deals.write", "sales-email-read", "files.ui_hidden.read"]
 
 WINDOW = timedelta(minutes=15)
 CACHE_TTL = timedelta(hours=6)
@@ -174,9 +180,10 @@ def mode_of(conn: dict | None) -> str | None:
 
 async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[CONNS].create_index("portal_id", unique=True, sparse=True)
-    from app.services import hubspot_accounts, hubspot_notify
+    from app.services import hubspot_accounts, hubspot_folders, hubspot_notify
 
     await hubspot_accounts.ensure_indexes(db)
+    await hubspot_folders.ensure_indexes(db)
     await hubspot_notify.ensure_indexes(db)
 
 
@@ -518,9 +525,10 @@ async def disconnect(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
     await require_admin(db, user, workspace_id)
     await db[CONNS].delete_one({"_id": str(workspace_id)})
     n = await _forget_matches(db, workspace_id)
-    from app.services import hubspot_deals
+    from app.services import hubspot_deals, hubspot_folders
 
     await hubspot_deals.forget(db, workspace_id)       # the cached pipeline and the weekly stage snapshots
+    await hubspot_folders.forget(db, workspace_id)     # the deals' cached HubSpot history (folders stay)
     log.info("hubspot: workspace %s disconnected HubSpot (%d matches forgotten)", workspace_id, n)
     return await status(db, user, workspace_id)
 
@@ -818,6 +826,9 @@ async def set_match(db: AsyncIOMotorDatabase, user, actor, ctx, meeting_id: str,
         m["confidence"] = "none"
         m["meeting_id"] = None
     await db[meetings_coll()].update_one({"_id": row["_id"]}, {"$set": {"hubspot.match": m}})
+    from app.services import hubspot_folders
+
+    await hubspot_folders.file_call(db, conn, await db[meetings_coll()].find_one({"_id": row["_id"]}) or row)
     return await panel(db, user, actor, ctx, meeting_id)
 
 
@@ -827,6 +838,9 @@ async def rematch(db: AsyncIOMotorDatabase, user, actor, ctx, meeting_id: str) -
         await match(db, conn, row, by=user.id)
     except HubSpotError as exc:
         raise _http_error(exc)
+    from app.services import hubspot_folders
+
+    hubspot_folders.file_soon(db, conn, meeting_id)
     return await panel(db, user, actor, ctx, meeting_id)
 
 
@@ -1283,9 +1297,9 @@ async def meeting_ready(db: AsyncIOMotorDatabase, meeting_id: str) -> None:
     * *Log calls automatically* (off by default): log it when it's not a bulk-imported past meeting and
       matched with high confidence.
     * Phase 2 (each behind a workspace switch, and never for past meetings): the suggested deal updates
-      (services/hubspot_deals.py, one AI call; never applied without a person), the company's account
-      page (services/hubspot_accounts.py), and the host's Slack message with Log / Create tasks buttons
-      (services/hubspot_notify.py)."""
+      (services/hubspot_deals.py, one AI call; never applied without a person), the call filed into its
+      deal's folder (services/hubspot_folders.py; company account pages are no longer made: Deals replaced
+      them), and the host's Slack message with Log / Create tasks buttons (services/hubspot_notify.py)."""
     if not configured():
         return
     from app.services import meetings
@@ -1298,7 +1312,7 @@ async def meeting_ready(db: AsyncIOMotorDatabase, meeting_id: str) -> None:
         return
 
     async def go() -> None:
-        from app.services import hubspot_accounts, hubspot_deals, hubspot_notify
+        from app.services import hubspot_deals, hubspot_folders, hubspot_notify
 
         try:
             r = await meetings.get_row(db, meeting_id)
@@ -1318,7 +1332,7 @@ async def meeting_ready(db: AsyncIOMotorDatabase, meeting_id: str) -> None:
                 log.info("hubspot: auto-log %s: %s", meeting_id, exc.detail)
             except Exception:
                 log.warning("hubspot: auto-log %s failed", meeting_id, exc_info=True)
-        for name, step in (("suggestions", hubspot_deals.suggest_after), ("account page", hubspot_accounts.refresh_after),
+        for name, step in (("suggestions", hubspot_deals.suggest_after), ("deal folder", hubspot_folders.file_after),
                            ("Slack offer", hubspot_notify.offer)):
             try:
                 await step(db, conn, meeting_id, m)

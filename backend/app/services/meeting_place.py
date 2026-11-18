@@ -14,7 +14,8 @@ once it exists, ``_id``/``doc_id``/``folder_id``.
 * Before the row is inserted (no ``_id``): returns the folder the new page should be made in.
 * An existing meeting: also moves its page there and updates the row's ``folder_id``.
 
-Either way the series becomes an option of that folder's Series property.
+Either way the series becomes an option of that folder's Series property. A meeting filed in its HubSpot
+deal's folder (``hubspot.filed``, services/hubspot_folders.py) keeps its page there.
 """
 
 from __future__ import annotations
@@ -38,6 +39,9 @@ async def place_meeting(db: AsyncIOMotorDatabase, workspace_id: str, meeting: di
     if meeting.get("_id") is None:
         return fid
     raw = await db["documents"].find_one({"_id": meetings.oid(meeting.get("doc_id"))}) if meeting.get("doc_id") else None
+    filed = ((meeting.get("hubspot") or {}).get("filed") or {}).get("folder_id")
+    if raw is not None and filed and raw.get("folder_id") == filed:
+        raw = None          # filed in its HubSpot deal's folder (services/hubspot_folders.py): it stays there
     if raw is not None and (raw.get("folder_id") or None) != fid and raw.get("parent_id") is None \
             and raw.get("workspace_id") == workspace_id and not raw.get("deleted_at"):
         await folder_service.file_document(db, raw, workspace_id, fid)

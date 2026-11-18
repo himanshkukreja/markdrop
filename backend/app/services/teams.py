@@ -312,6 +312,22 @@ def team_card(view: TeamView, t: dict) -> dict:
             "project_ids": team_project_ids(view, tid) if readable else [], "general": is_general(t)}
 
 
+async def linked(db: AsyncIOMotorDatabase, workspace_id: str) -> dict[str, list[str]]:
+    """{team id: the integrations linked to it} ("Zoom": its calls come in from Zoom; "HubSpot": the team
+    HubSpot works with — its Deals section, services/hubspot_folders.py)."""
+    out: dict[str, list[str]] = {}
+    for coll, name, has in (("zoom_connections", "Zoom", "team_id"), ("hubspot_connections", "HubSpot", "token_enc")):
+        row = await db[coll].find_one({"_id": str(workspace_id)}, {"team_id": 1, has: 1})
+        if row and row.get("team_id") and row.get(has):
+            out.setdefault(str(row["team_id"]), []).append(name)
+    return out
+
+
+def with_links(card: dict, links: dict[str, list[str]]) -> dict:
+    got = links.get(card.get("id") or "") or []
+    return {**card, "linked": list(got), "hubspot": "HubSpot" in got and bool(card.get("can_read"))}
+
+
 def team_full(view: TeamView, t: dict, ppl: dict[str, dict]) -> dict:
     out = team_card(view, t)
     if not out["can_read"]:

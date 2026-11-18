@@ -24,7 +24,8 @@ API = "https://api.hubspot.test"
 TOKEN = "fake-hubspot-key-for-tests-only"
 PORTAL = 4242
 ALL_SCOPES = ["crm.objects.contacts.read", "crm.objects.contacts.write", "crm.objects.companies.read",
-              "crm.objects.deals.read", "crm.objects.deals.write", "crm.objects.owners.read", "oauth"]
+              "crm.objects.deals.read", "crm.objects.deals.write", "crm.objects.owners.read", "oauth",
+              "sales-email-read", "files.ui_hidden.read"]
 # The portal's deal properties (GET /crm/v3/properties/deals): HubSpot's own, plus two custom fields.
 DEAL_PROPERTIES = [
     {"name": "dealname", "label": "Deal name", "type": "string", "fieldType": "text", "hubspotDefined": True},
@@ -39,7 +40,10 @@ DEAL_PROPERTIES = [
     {"name": "decision_maker_name", "label": "Decision maker", "type": "string", "fieldType": "text"},
 ]
 NEEDS = {"contacts": "crm.objects.contacts", "companies": "crm.objects.companies", "deals": "crm.objects.deals",
-         "meetings": "crm.objects.contacts", "tasks": "crm.objects.contacts"}
+         "meetings": "crm.objects.contacts", "tasks": "crm.objects.contacts", "notes": "crm.objects.contacts",
+         "emails": "crm.objects.contacts", "calls": "crm.objects.contacts"}
+#: What an email's content is: without sales-email-read HubSpot leaves it out.
+EMAIL_CONTENT = ("hs_email_subject", "hs_email_text", "hs_email_html")
 
 
 def ms(dt: str) -> int:
@@ -54,7 +58,9 @@ class FakeHubSpot:
         self.portal = PORTAL
         self.scopes = list(ALL_SCOPES)
         self.service_key = False
-        self.objects: dict[str, dict[str, dict]] = {k: {} for k in ("contacts", "companies", "deals", "meetings", "tasks")}
+        self.objects: dict[str, dict[str, dict]] = {k: {} for k in ("contacts", "companies", "deals", "meetings", "tasks",
+                                                                     "notes", "emails", "calls")}
+        self.files: dict[str, dict] = {}
         self.links: set[tuple[str, str, str, str]] = set()
         self.owners: list[dict] = []
         self.pipelines = [{"id": "default", "label": "Sales Pipeline", "stages": [
@@ -64,6 +70,7 @@ class FakeHubSpot:
             {"id": "closedlost", "label": "Closed lost", "metadata": {"isClosed": "true"}}]}]
         self.deal_properties = [dict(p) for p in DEAL_PROPERTIES]
         self.calls: list[tuple[str, str]] = []
+        self.searches: list[dict] = []
         self.bodies: list[tuple[str, str, dict | None]] = []
         self.n = 1000
         self._limit = 0
@@ -81,6 +88,10 @@ class FakeHubSpot:
 
     def add(self, kind: str, **props) -> str:
         rid = self._id()
+        if kind == "deals":
+            closed = {s["id"] for p in self.pipelines for s in p["stages"] if s["metadata"].get("isClosed") == "true"}
+            props.setdefault("hs_is_closed", "true" if props.get("dealstage") in closed else "false")
+            props.setdefault("hs_lastmodifieddate", "2026-11-01T00:00:00Z")
         self.objects[kind][rid] = {"id": rid, "properties": {k: (None if v is None else str(v)) for k, v in props.items()},
                                    "updatedAt": props.get("hs_lastmodifieddate") or "2026-11-01T00:00:00Z"}
         return rid
@@ -136,6 +147,11 @@ class FakeHubSpot:
             return self._need("crm.objects.deals.read") or self._json(200, {"results": self.deal_properties})
         if path == "/crm/v3/pipelines/deals":
             return self._need("crm.objects.deals.read") or self._json(200, {"results": self.pipelines})
+        if parts[:3] == ["files", "v3", "files"] and len(parts) == 4 and req.method == "GET":
+            if "files.ui_hidden.read" not in self.scopes and "files" not in self.scopes:
+                return self._err(403, "This app hasn't been granted all required scopes: files.ui_hidden.read", "MISSING_SCOPES")
+            f = self.files.get(parts[3])
+            return self._json(200, f) if f else self._err(404, "File not found", "OBJECT_NOT_FOUND")
         if parts[:3] == ["crm", "v3", "objects"]:
             return self._objects(req.method, parts[3:], dict(req.url.params), body)
         if parts[:3] == ["crm", "v4", "objects"]:
@@ -183,8 +199,8 @@ class FakeHubSpot:
         if rest[1:] == ["search"]:
             return self._json(200, self._search(kind, body or {}))
         if rest[1:] == ["batch", "read"]:
-            return self._json(200, {"status": "COMPLETE", "results": [store[str(i["id"])] for i in (body or {}).get("inputs") or []
-                                                                      if str(i["id"]) in store]})
+            return self._json(200, {"status": "COMPLETE", "results": [self._view(kind, store[str(i["id"])])
+                                                                      for i in (body or {}).get("inputs") or [] if str(i["id"]) in store]})
         rid = rest[1]
         if rid not in store:
             return self._err(404, "Object not found", "OBJECT_NOT_FOUND")
@@ -225,7 +241,24 @@ class FakeHubSpot:
                 ok &= str(body["query"]).casefold() in str(p.get("dealname") or p.get("name") or "").casefold()
             if ok:
                 out.append(o)
-        return {"total": len(out), "results": out[: int(body.get("limit") or 10)]}
+        for srt in reversed(body.get("sorts") or []):
+            name = srt.get("propertyName")
+            keyf = (lambda o, n=name: ms(o["properties"].get(n)) if str(o["properties"].get(n) or "")[:1].isdigit() else str(o["properties"].get(n) or ""))
+            out.sort(key=keyf, reverse=srt.get("direction") == "DESCENDING")
+        start = int(body.get("after") or 0)
+        n = int(body.get("limit") or 10)
+        page = out[start:start + n]
+        res = {"total": len(out), "results": [self._view(kind, o) for o in page]}
+        if start + n < len(out):
+            res["paging"] = {"next": {"after": str(start + n)}}
+        self.searches.append(body)
+        return res
+
+    def _view(self, kind: str, o: dict) -> dict:
+        """What HubSpot answers: an email without its content when the key lacks sales-email-read."""
+        if kind == "emails" and "sales-email-read" not in self.scopes:
+            return {**o, "properties": {k: v for k, v in o["properties"].items() if k not in EMAIL_CONTENT}}
+        return o
 
 
 def now_iso() -> str:

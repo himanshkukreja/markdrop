@@ -39,6 +39,8 @@ one API worker runs it (§5.1, §5.5, A6):
                              next recording to copy into R2 (services/zoom_media.py: tick)
     hubspot       every 5 min  HubSpot pre-call briefs: the HubSpot team's members' HubSpot meetings starting in
                              5-60 minutes get their brief once (services/hubspot_notify.py: tick)
+    hubspot_deals every 60 s  HubSpot deal folders: a read-only sync pass for each connected workspace whose next
+                             pass is due (every 20 min; services/hubspot_folders.py: tick)
     pptx_preview  every 5 s   PowerPoint decks' exact PDF previews: convert pending decks with headless
                              LibreOffice, one at a time, and schedule a few older decks per pass
                              (services/pptx_preview.py: tick); idle when LibreOffice isn't installed
@@ -277,6 +279,12 @@ async def _hubspot(db: AsyncIOMotorDatabase) -> None:
     await hubspot_notify.tick(db)
 
 
+async def _hubspot_deals(db: AsyncIOMotorDatabase) -> None:
+    from app.services import hubspot_folders
+
+    await hubspot_folders.tick(db)
+
+
 async def _zoom(db: AsyncIOMotorDatabase) -> None:
     from app.services import zoom_media
 
@@ -305,7 +313,7 @@ def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
                               ("ask_suggestions", 300.0, _ask_suggestions),
                               ("workspace_memory", 30.0, _workspace_memory),
                               ("jira", 60.0, _jira), ("zoom", 15.0, _zoom),
-                              ("hubspot", 300.0, _hubspot), ("pptx_preview", 5.0, _pptx_preview),
+                              ("hubspot", 300.0, _hubspot), ("hubspot_deals", 60.0, _hubspot_deals), ("pptx_preview", 5.0, _pptx_preview),
                               ("email_retry", 60.0, _email_retry)):
         _TASKS.append(loop.create_task(_loop(name, every, get_db, body)))
 

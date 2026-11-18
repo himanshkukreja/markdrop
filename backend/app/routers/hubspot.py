@@ -22,6 +22,12 @@ Phase 2 (services/hubspot_deals.py, hubspot_accounts.py, hubspot_notify.py):
     POST   /meetings/{id}/account                     make or update the company's account page
     GET    /pipeline?workspace_id=                    deals with stage, last call and why they're at risk
     GET    /me, PUT /me {precall?, approve?}          your own pre-call briefs and Slack messages
+
+Deal folders (services/hubspot_folders.py; the HubSpot team's members and workspace admins; read-only in HubSpot):
+    GET    /deals/board?workspace_id=                 the team's Deals section: every deal folder with stage, calls, last call
+    GET    /deals/{deal_id}?workspace_id=&fresh=      a Deal page: facts, contacts, roll-up, calls, Pick the deal, activity
+    POST   /deals/sync {workspace_id}                 Sync now (workspace admins): a sync pass in the background
+    GET    /meetings/{id}/chip                        the meeting page's link to its deal (no HubSpot call)
 """
 
 # No `from __future__ import annotations`: slowapi wraps these routes (see routers/docs_ai.py).
@@ -35,7 +41,7 @@ from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import is_tenant_request, require_user
-from app.services import access, hubspot, hubspot_accounts, hubspot_deals, hubspot_notify
+from app.services import access, hubspot, hubspot_accounts, hubspot_deals, hubspot_folders, hubspot_notify
 from app.utils.net import get_client_ip
 
 router = APIRouter(prefix="/api/v1/hubspot", tags=["hubspot"])
@@ -90,6 +96,10 @@ class HubSpotMeIn(BaseModel):
 
 class HubSpotMatchIn(BaseModel):
     deal_id: Optional[str] = Field(None, pattern=r"^[0-9]{1,20}$", description="The HubSpot deal; null: none of them.")
+
+
+class HubSpotSyncIn(BaseModel):
+    workspace_id: str = Field(..., pattern=_WS)
 
 
 class HubSpotTasksIn(BaseModel):
@@ -256,3 +266,45 @@ async def put_me(request: Request, body: HubSpotMeIn, db: AsyncIOMotorDatabase =
                  user: User = Depends(require_user)):
     _app_only(request)
     return await hubspot_notify.set_me(db, user, body.model_dump())
+
+
+# ── Deal folders ──────────────────────────────────────────────────────────────
+
+
+@router.get("/deals/board", summary="The HubSpot team's deals")
+@limiter.limit("60/minute")
+async def deals_board(request: Request, workspace_id: str = Query(..., pattern=_WS), db: AsyncIOMotorDatabase = Depends(get_db),
+                      user: User = Depends(require_user)):
+    """Every deal folder of the HubSpot team (open deals, and closed ones marked Closed won / Closed lost), with
+    stage, amount, owner, the team's calls and the sync state."""
+    _app_only(request)
+    return await hubspot_folders.board(db, user, workspace_id)
+
+
+@router.post("/deals/sync", summary="Sync HubSpot deals now")
+@limiter.limit("6/minute")
+async def deals_sync(request: Request, body: HubSpotSyncIn, db: AsyncIOMotorDatabase = Depends(get_db),
+                     user: User = Depends(require_user)):
+    """Workspace admins: start a sync pass now (it runs every 20 minutes on its own). Reads HubSpot only."""
+    _app_only(request)
+    return await hubspot_folders.request_sync(db, user, body.workspace_id)
+
+
+@router.get("/deals/{deal_id}", summary="A HubSpot deal's folder")
+@limiter.limit("60/minute")
+async def deal_folder(request: Request, deal_id: str, workspace_id: str = Query(..., pattern=_WS), fresh: bool = Query(False),
+                      db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """The Deal page: the deal's facts and contacts, the roll-up of its calls, the calls filed in it, the calls
+    waiting for someone to pick the deal, open suggested updates, and HubSpot's activity and attachments."""
+    _app_only(request)
+    return await hubspot_folders.detail(db, user, workspace_id, deal_id, fresh=fresh)
+
+
+@router.get("/meetings/{meeting_id}/chip", summary="A meeting's deal")
+@limiter.limit("240/minute")
+async def meeting_chip(request: Request, meeting_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                       user: User = Depends(require_user)):
+    """The meeting page's one-line link to its HubSpot deal (nothing for people outside the HubSpot team)."""
+    _app_only(request)
+    actor, ctx = _ac(request, db, user)
+    return await hubspot_folders.chip(db, user, actor, ctx, _mid(meeting_id))

@@ -1,5 +1,9 @@
 """HubSpot Phase 2: an account page per HubSpot company (brief .work/briefs/hubspot-v2.md, item 8).
 
+**Replaced by deal folders (2026-11-18, services/hubspot_folders.py).** No new account pages are made; the
+existing ones are moved to an "Accounts (archived)" folder by the backfill (scripts/hubspot_deal_folders.py)
+and can still be brought up to date on request (:func:`account` with ``refresh_now``).
+
 The first time a HubSpot-team call is matched to a company (hubspot.meeting_ready, after its summary),
 Markdrop makes a page for that company: an ordinary Markdrop Page in the workspace's **Accounts** folder,
 in the HubSpot team (``team_ids``: a private team's account pages are its members' only), titled with the
@@ -198,15 +202,16 @@ def section_markdown(company: str, deals: list[dict], calls: list[dict], when: d
     return "\n".join(out)
 
 
-def merge(content: str, section: str) -> str:
-    """The page with its auto-updated section replaced (or added at the end); the rest untouched."""
+def merge(content: str, section: str, *, start: str = START, end: str = END) -> str:
+    """The page with its auto-updated section replaced (or added at the end); the rest untouched. Also the
+    deal overview pages' (services/hubspot_folders.py, their own markers)."""
     cur = content or ""
     lines = cur.split("\n")
     try:
-        i = next(k for k, ln in enumerate(lines) if ln.strip() == START)
+        i = next(k for k, ln in enumerate(lines) if ln.strip() == start)
     except StopIteration:
         return cur.rstrip("\n") + ("\n\n" if cur.strip() else "") + section + "\n"
-    j = next((k for k in range(i + 1, len(lines)) if lines[k].strip() == END), None)
+    j = next((k for k in range(i + 1, len(lines)) if lines[k].strip() == end), None)
     if j is None:
         # The end marker was deleted: up to the next heading of the same or a higher level.
         j = next((k - 1 for k in range(i + 1, len(lines)) if lines[k].startswith("## ") or lines[k].startswith("# ")), len(lines) - 1)
@@ -282,7 +287,10 @@ async def account(db: AsyncIOMotorDatabase, user, actor, ctx, meeting_id: str, *
         if m is None:
             m = await H.match(db, conn, row)
         link = await link_for(db, conn, m)
-        if refresh_now or link is None:
+        if link is None:
+            # Deals replaced account pages (2026-11-18): an existing one is kept up to date on request, no new ones.
+            raise HTTPException(status_code=409, detail="Account pages are replaced by the team's Deals: open the call's deal instead.")
+        if refresh_now:
             company = await company_of(db, conn, m)
             if not company:
                 raise HTTPException(status_code=409, detail="This call isn't matched to a HubSpot company yet. Pick the deal first.")
