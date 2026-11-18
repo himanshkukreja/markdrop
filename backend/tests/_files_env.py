@@ -62,7 +62,8 @@ class FakeR2:
     def patches(self) -> list:
         names = ("is_configured", "head", "delete", "set_public", "set_public_prefix", "delete_prefix",
                  "put_bytes", "get_bytes", "copy_object", "presign_put", "presign_get", "presign_upload_part",
-                 "create_multipart", "list_parts", "complete_multipart", "abort_multipart", "sha256_of", "upload_part", "upload_part_file")
+                 "create_multipart", "list_parts", "complete_multipart", "abort_multipart", "sha256_of", "upload_part", "upload_part_file",
+                 "presign_put_for", "download_to")
         return [mock.patch.object(r2, n, getattr(self, n)) for n in names]
 
     # objects
@@ -123,6 +124,17 @@ class FakeR2:
 
     def presign_put(self, key, content_type):
         return f"https://r2.example/{key}?put"
+
+    def presign_put_for(self, key, content_type, expires_in):
+        return f"https://r2.example/{key}?put&ttl={expires_in}"
+
+    def download_to(self, key, path, chunk_size=8 * MB):
+        o = self.objects.get(key)
+        if o is None:
+            raise FakeClientError("NoSuchKey")
+        with open(path, "wb") as f:
+            f.write(o["data"])
+        return len(o["data"])
 
     def presign_get(self, key, expires_in=300):
         return f"https://r2.example/{key}?get"

@@ -44,6 +44,8 @@ one API worker runs it (§5.1, §5.5, A6):
     pptx_preview  every 5 s   PowerPoint decks' exact PDF previews: convert pending decks with headless
                              LibreOffice, one at a time, and schedule a few older decks per pass
                              (services/pptx_preview.py: tick); idle when LibreOffice isn't installed
+    notion_import every 5 s   Import from Notion (services/notion_import/jobs.py: tick): run the queued imports one
+                             at a time (and one a stopped process left running), expire uploads never finished
     jira          every 60 s  Jira (services/jira*.py): tick the to-dos Jira moved while their page was
                              being edited; extend the workspaces' Jira webhooks before their 30 days run out
 
@@ -291,6 +293,12 @@ async def _zoom(db: AsyncIOMotorDatabase) -> None:
     await zoom_media.tick(db)
 
 
+async def _notion_import(db: AsyncIOMotorDatabase) -> None:
+    from app.services.notion_import import jobs
+
+    await jobs.tick(db)
+
+
 async def _workspace_memory(db: AsyncIOMotorDatabase) -> None:
     from app.services import workspace_memory
 
@@ -314,7 +322,7 @@ def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
                               ("workspace_memory", 30.0, _workspace_memory),
                               ("jira", 60.0, _jira), ("zoom", 15.0, _zoom),
                               ("hubspot", 300.0, _hubspot), ("hubspot_deals", 60.0, _hubspot_deals), ("pptx_preview", 5.0, _pptx_preview),
-                              ("email_retry", 60.0, _email_retry)):
+                              ("email_retry", 60.0, _email_retry), ("notion_import", 5.0, _notion_import)):
         _TASKS.append(loop.create_task(_loop(name, every, get_db, body)))
 
 
