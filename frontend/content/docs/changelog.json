@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "nav-sections-sidebar",
+      "date": "2026-11-18",
+      "title": "A shorter sidebar: every team has the same sections",
+      "kind": "improved",
+      "area": "Teams",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "The sidebar no longer lists every meeting, page and folder under a team. Each team shows the same sections, Overview, Meetings, Deals (the team linked to HubSpot), Files & pages and People & memory, and Meetings and Deals across all your teams sit at the top.",
+      "body": "- **Meetings and Deals at the top.** Every team's meetings you can open, with a Team filter, and every deal of your teams linked to HubSpot. Meetings shows how many recorded Zoom meetings wait for you to review.\n- **Meetings tabs.** All, To review (your held Zoom meetings), With customers and Internal, plus series and search. Each meeting shows its deal when it's matched in HubSpot, its length, and whether a recording and transcript are kept.\n- **Files & pages.** A team's folders, pages and files as a tree, with archived folders grouped under Archive. Meeting pages and deal folders stay in their own sections; search still finds everything.\n- **Old links still work**, and land on the right section. See [The sidebar](/teams/overview#the-sidebar).\n- **API and MCP.** `GET /api/v1/meetings` and `list_meetings` take `audience` (customers or internal) and return the deal a call is filed in; `GET /api/v1/workspaces/{id}/nav` takes `meetings=false`."
+    },
+    {
       "id": "hubspot-closed-deal-folders",
       "date": "2026-11-18",
       "title": "HubSpot: closed deals with calls get a deal folder",

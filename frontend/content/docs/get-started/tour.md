@@ -53,12 +53,16 @@ Your own documents and files are in **My files** in the sidebar.
 | **Search** | [Search](/workspaces/search) everything you can open. |
 | **Ask** | Opens [Ask](/workspaces/ask-markdrop) (**⌘ J**). |
 | **Inbox** | Your notifications: mentions, sign-off requests and shares, with how many are unread. |
+| **Meetings** | Every team's [meetings](/workspaces/meetings) you can open, with a **Team** filter and how many recorded Zoom meetings wait for you to review. |
+| **Deals** | Every deal of your teams linked to [HubSpot](/integrations/hubspot). Only shown when one of your teams is. |
+| **Teams** | Each team's sections: **Overview**, **Meetings**, **Deals** (the team linked to HubSpot), **Files & pages** (its folders, pages and files as a tree) and **People & memory**. See [Teams](/teams/overview#the-sidebar). |
+| **Favorites** | What you starred: pages, files, teams and projects. |
 | **My files** | Everything you own. [Filter it by type](#filter-by-type) (PDFs, videos, images and more), and search by title or link. |
 | **Shared with me** | Documents and files people added you to by email, and **Access requests** waiting for your answer. A row's menu has **Remove me** to take yourself off. [Filter by type](#filter-by-type) once there's more than one kind. |
 | **Recent** | What you opened lately, signed in. [Filter by type](#filter-by-type) once there's more than one kind. |
-| **Analytics** | Views and engagement across everything you own. See [Analytics](/analytics/overview). |
-| **Trash** | What you deleted in the last 30 days, to restore or delete forever. See [Trash and restoring](/documents/trash). |
-| **Workspaces** | Each workspace you belong to. Open one for **Meetings** (its [Meetings](/workspaces/meetings) page) and its folders, pages, documents and files. Pages show their emoji, and what you have open is highlighted and scrolled into view. Point at a row for **+** (add a page inside) and **⋯**. Drop files onto a folder to upload them there. **New workspace** creates one. |
+| **Analytics** | Views and engagement across everything you own, near the bottom. See [Analytics](/analytics/overview). |
+| **Trash** | What you deleted in the last 30 days, to restore or delete forever, near the bottom. See [Trash and restoring](/documents/trash). |
+| **Workspace switcher** | At the top: the workspace the sidebar shows. Choose it to switch workspace, make a new one or open its settings. |
 | **Install app** | Shown when your browser can [install Markdrop](/get-started/install-app). |
 | **Settings** | Your display name, theme, the weekly analytics email, your [API tokens](/account/api-tokens) and [connected apps](/account/connected-apps). |
 | **Help & docs** | This documentation. |

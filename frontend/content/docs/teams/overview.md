@@ -41,13 +41,24 @@ The sidebar shows one workspace at a time. From the top:
 
 - **The workspace switcher**: the workspace's name and how many people are in it. Choose it to switch workspace, make a new one or open its settings.
 - **Search** (⌘K), **Home**, **Inbox** and **Ask** *workspace*.
-- **Favorites**: pages, files, teams and projects you starred. Choose **⋯** on any of them in the sidebar, then **Add to favorites**.
-- **Teams**: **General** first (marked **Everyone**), then the teams you're in. Choose a team to open its home; open the arrow to see its **Meetings**, **People & memory**, its projects, and its pages and files as a tree. **+** next to Teams creates a team (admins), and **Browse teams** lists the ones you're not in.
-- **You**: **My files**, **Shared with me**, **Recent**, **Analytics** and **Trash**.
+- **Meetings**: every team's meetings you can open, in one list with a **Team** filter. It shows **N to review** when recorded Zoom meetings wait for your decision.
+- **Deals**: every deal of the teams linked to [HubSpot](/integrations/hubspot). Only shown when one of your teams is.
+- **Teams**: **General** first, then the teams you're in. Open the arrow next to a team (or choose it) to see the same sections for every team:
+  - **Overview**: the team's [home](/teams/team-home).
+  - **Meetings**: the team's meetings, with tabs for **All**, **To review** (your recorded Zoom meetings waiting for a decision), **With customers** and **Internal**, a series filter and search. See [Meetings and memory](/teams/meetings-and-memory).
+  - **Deals**: only on the team linked to HubSpot, with how many deals are open. See [HubSpot](/integrations/hubspot).
+  - **Files & pages**: the team's folders, pages, documents and files as a tree. Folders whose name says *archived* are grouped under **Archive** at the end.
+  - **People & memory**: who's on the team and [what they're working on](/teams/meetings-and-memory).
+
+  **+** next to Teams creates a team (admins), and **Browse teams** lists the ones you're not in.
+- **Favorites**: pages, files, teams and projects you starred. Choose **⋯** on any of them, then **Add to favorites**.
+- **You**: **My files**, **Shared with me** and **Recent**. **Analytics** and **Trash** are at the bottom, with settings and help.
+
+The sidebar never lists a team's individual meetings, pages or files, so it stays short however much a team makes. They live in the team's sections, and [search](/workspaces/search) still finds all of them.
 
 ![The sidebar of the Acme workspace: the Acme switcher, Search, Home, Inbox and Ask Acme, then Teams with General (Everyone) and Sales open to Meetings, People & memory, Q4 launch and its pages, then Browse teams.](/docs-assets/teams/overview/sidebar.webp)
 
-The sidebar remembers which teams and folders you left open, and follows the page you're on. Arrow keys move through it and Enter opens a row. On a phone the same tree is in the menu.
+The sidebar remembers which teams you left open, and follows the page you're on: a folder you open highlights its team's **Files & pages**. Arrow keys move through it and Enter opens a row. On a phone the same sidebar is in the menu, in the same order.
 
 ![Acme on a phone with the menu open: the same switcher, Teams tree and You section.](/docs-assets/teams/overview/phone.webp)
 

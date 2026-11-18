@@ -6,13 +6,13 @@ prerequisites: [/pages/overview]
 keywords: [sub-page, subpage, child page, nested, parent, breadcrumbs, inherit, access, move, move to, drag, reorder, page tree, delete]
 ---
 
-A page can hold other pages. Sub-pages show at the bottom of their parent under **Pages inside**, in the page tree beside the page, and under the folder in your workspace's sidebar.
+A page can hold other pages. Sub-pages show at the bottom of their parent under **Pages inside**, in the page tree beside the page, and under the folder in its team's **Files & pages**.
 
 ## Add a sub-page
 
 - At the bottom of a page, under **Pages inside**, or from the page's **⋯** menu, choose **Add a sub-page** (in View mode or while you edit). The **New sub-page** gallery opens: pick a template and choose **Create page**, and the new page opens in the editor. The gallery offers the page's workspace templates (for its members), yours and the built-in ones, with the folder's default already chosen. See [Templates for a sub-page](/pages/templates#templates-for-a-sub-page).
 - While you edit the page, type `/page`: Markdrop makes an empty sub-page and puts a link to it where you typed.
-- In the page tree beside the page, or in your workspace's sidebar, point at a page and choose **+**.
+- In the page tree beside the page, or in its team's **Files & pages**, point at a page and choose **+**.
 
 You need to be signed in and able to edit the parent.
 
@@ -48,7 +48,7 @@ Rest the pointer on a closed page for a moment and it opens, so you can drop int
 
 The page shows in its new place at once. If Markdrop can't move it, it goes back and a message says why. **Undo** in the message moves it back.
 
-In your workspace's sidebar, drag a page onto another page to put it inside, or onto a folder to move it to the top level of that folder.
+In a team's **Files & pages**, drag a page onto another page to put it inside, or onto a folder to move it to the top level of that folder.
 
 ### Move to
 

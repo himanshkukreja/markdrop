@@ -26,7 +26,7 @@ A two-and-a-half-minute video of one team's day: the call's notes arrive by them
 ## Find your meetings
 
 - **Your [home](/get-started/tour#your-home)** shows the latest meetings across your workspaces, and today's in **Today**. Your action items from them are in **Your action items**.
-- **In the sidebar**, open a workspace and choose **Meetings** for its Meetings page: every meeting as a card, search, series and **Ask**.
+- **In the sidebar**, choose **Meetings** at the top for every team's meetings (with a **Team** filter), or **Meetings** under a team for that team's. Each lists the meetings by month with their date, title, deal (when one is matched in [HubSpot](/integrations/hubspot)), length and whether a recording and transcript are kept, with tabs for **All**, **To review** (your recorded Zoom meetings waiting for a decision), **With customers** (someone from outside the company was on the call) and **Internal**, plus series, search and **Ask**.
 
 ## Two ways to bring meetings in
 
