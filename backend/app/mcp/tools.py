@@ -74,7 +74,7 @@ EXPIRY_CHOICES = ["never", "1h", "1d", "7d", "30d"]
 ACCESS_CHOICES = ["link", "private", "password"]
 # Publishing / set_access also take "workspace" (members of its workspace).
 ACCESS_WITH_WORKSPACE = ["link", "private", "password", "workspace"]
-SCOPE_CHOICES = ["mine", "workspaces", "all"]
+SCOPE_CHOICES = ["mine", "workspaces", "shared", "all"]
 _SLUG_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 # A share link is markdrop.in/share/<room id>.
 SHARE_HOSTS = ("markdrop.in", "www.markdrop.in")
@@ -1083,7 +1083,8 @@ async def get_document(ctx: Context, args: dict) -> tuple[str, dict]:
 async def scoped_documents(ctx: Context, scope: str, *, query: str | None, kind: str | None,
                            page: int, limit: int, file_type: str | None = None) -> tuple[list, int]:
     """mine: the user's own; workspaces: readable rows of the workspaces they
-    belong to (A1 filter); all: both, plus documents shared with them.
+    belong to (A1 filter); shared: only what others shared with them by email
+    (Shared with me); all: mine + workspaces + shared.
     ``file_type``: one of services.file_types.FILE_TYPES (pdf, video, …)."""
     from app.services import file_types
     from app.services import library as lib_service
@@ -1096,7 +1097,11 @@ async def scoped_documents(ctx: Context, scope: str, *, query: str | None, kind:
     actor = access_service.Actor.of(ctx.user)
     actx = access_service.Ctx(ctx.db)
     ors: list[dict] = []
-    for ws, _role in await ws_service.list_for_user(ctx.db, ctx.user.id):
+    if scope == "shared":
+        granted = await access_service.granted_ids(actor, actx)
+        if granted:
+            ors.append({"_id": {"$in": granted}, "owner_id": {"$ne": ctx.user.id}})
+    for ws, _role in (await ws_service.list_for_user(ctx.db, ctx.user.id)) if scope != "shared" else []:
         rf = await access_service.readable_filter(actor, ws.id, actx)
         ors.append({"$and": [*rf.base, rf.readable]})
     if scope == "all":
@@ -2014,6 +2019,15 @@ async def list_workspace_members(ctx: Context, args: dict) -> tuple[str, dict]:
     out = {"workspace_id": ws_id, "members": members}
     lines = [f"- {r['name']} ({r['role']}, id {r['id']}" + (f", {r['email']}" if r.get("email") else "") + ")"
              for r in members]
+    if args.get("include_invitations"):
+        if not admin:
+            raise ToolError("Only the workspace's admins and owner see its invitations.")
+        from app.services import invitation as invite_service
+
+        invs = [i for i in await invite_service.list_invitations(ctx.db, ws_id) if i.effective_status == "pending"]
+        out["invitations"] = [{"id": i.id, "email": i.email, "role": i.role, "invited_by": i.invited_by_name,
+                               "created_at": iso(i.created_at), "expires_at": iso(i.expires_at)} for i in invs]
+        lines += [f"- invited: {i['email']} ({i['role']}, expires {i['expires_at']})" for i in out["invitations"]]
     return (f"{len(members)} member(s) of {ws.name}:\n" + "\n".join(lines)
             + "\nMention one in a page as :person[Name]{id=\"<id>\"}."), out
 
@@ -2151,9 +2165,57 @@ async def create_folder(ctx: Context, args: dict) -> tuple[str, dict]:
     return f"Created {out['path']}." + (f" {note}" if note else ""), out
 
 
+async def _move_many(ctx: Context, refs: list[str], folder: str | None) -> tuple[str, dict]:
+    """POST /workspaces/{id}/items/move: all checked before any moves; one refusal refuses the batch."""
+    from app.services import folder as folder_service
+    from app.services import revalidate
+
+    if len(refs) > MAX_MOVE:
+        raise ToolError(f"Move at most {MAX_MOVE} items at a time.")
+    rows: list[dict] = []
+    for ref in refs:
+        try:
+            raw = await load_for(ctx, ref, "move_in_workspace", "move")
+        except ToolError as exc:
+            raise ToolError(f"{ref}: {exc} Nothing was moved.")
+        if not raw.get("workspace_id"):
+            raise ToolError(f"{ref} isn't in a workspace (add_to_workspace files it). Nothing was moved.")
+        if all(r["_id"] != raw["_id"] for r in rows):
+            rows.append(raw)
+    ws_ids = {r["workspace_id"] for r in rows}
+    if len(ws_ids) != 1:
+        raise ToolError("Every item must be in the same workspace. Nothing was moved.")
+    ws_id = ws_ids.pop()
+    folder_id = await resolve_folder(ctx, ws_id, folder)
+    try:
+        for raw in rows:  # a name clash refuses the batch before anything moves
+            if (raw.get("folder_id") or None) != (folder_id or None):
+                await folder_service.assert_doc_fits(ctx.db, ws_id, folder_id, raw.get("slug"))
+        moved = []
+        async with revalidate.batch(ctx.db):
+            for raw in rows:
+                moved.append(await folder_service.file_document(ctx.db, raw, ws_id, folder_id))
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    where = "/".join(moved[0].get("folder_path") or []) or None if moved else None
+    items = [{**await url_pair(ctx, a), "slug": a["slug"]} for a in moved]
+    out = {"items": items, "folder": where, "moved": len(items),
+           **({k: items[0][k] for k in ("url", "markdrop_url", "workspace_url", "domain_url", "slug")} if items else {})}
+    return f"Moved {len(items)} item(s) to {where or 'the workspace root'}.", out
+
+
+MAX_MOVE = 100
+
+
 async def move_to_folder(ctx: Context, args: dict) -> tuple[str, dict]:
     from app.services import folder as folder_service
 
+    if args.get("documents"):
+        if args.get("document"):
+            raise ToolError("Give document or documents, not both.")
+        return await _move_many(ctx, [d for d in args["documents"] if isinstance(d, str) and d.strip()], args.get("folder"))
+    if not args.get("document"):
+        raise ToolError("Give document (or documents, a list).")
     raw = await load_for(ctx, args["document"], "move_in_workspace", "move")
     ws_id = raw["workspace_id"]
     folder_id = await resolve_folder(ctx, ws_id, args.get("folder"))
@@ -2963,7 +3025,8 @@ TOOLS: list[Tool] = [
         title="List my documents",
         description=("List Markdrop documents and files, newest first, optionally filtered by a title "
                      "or slug search. scope 'mine' (default): the user's own; 'workspaces': what they "
-                     "can open in their workspaces; 'all': both plus documents shared with them."),
+                     "can open in their workspaces; 'shared': only what other people shared with them by "
+                     "email (Shared with me); 'all': all of these."),
         scope=READ,
         input_schema={
             "type": "object",
@@ -3862,16 +3925,20 @@ TOOLS += [
         title="List a workspace's members",
         description=("The members of a workspace the user belongs to: name, account id and role (owner, admin, "
                      "member, viewer), and their email addresses when the user is an admin or the owner of "
-                     "the workspace. Pending invitations aren't listed. Use the id to mention someone in a page: "
+                     "the workspace. include_invitations (admins) adds the pending invitations. Use the id to mention someone in a page: "
                      ":person[Name]{id=\"<id>\"} (a name without an id also works when exactly one member has "
                      "it)."),
         scope=READ,
-        input_schema={"type": "object", "properties": {"workspace": _WORKSPACE_ARG}, "required": ["workspace"]},
-        output_schema=_out({"workspace_id": {"type": "string"}, "members": {"type": "array", "items": _out({
+        input_schema={"type": "object", "properties": {
+            "workspace": _WORKSPACE_ARG,
+            "include_invitations": {"type": "boolean", "description": "Admins: also the pending invitations."}},
+            "required": ["workspace"]},
+        output_schema=_out({"workspace_id": {"type": "string"}, "invitations": {"type": "array", "items": {"type": "object"}},
+                            "members": {"type": "array", "items": _out({
             "name": {"type": "string"}, "id": {"type": "string"},
             "role": {"type": "string", "enum": ["owner", "admin", "member", "viewer"]},
             "email": {"type": "string", "description": "Only for the workspace's admins and owner."},
-        }, ["name", "id", "role"])}}),
+        }, ["name", "id", "role"])}}, ["workspace_id", "members"]),
         annotations=_ann(True, False, True),
         handler=list_workspace_members,
     ),
@@ -3967,15 +4034,22 @@ TOOLS += [
     Tool(
         name="move_to_folder",
         title="Move a document to a folder",
-        description="Move a workspace document to another folder of the same workspace (omit folder for the root).",
+        description=("Move a workspace document to another folder of the same workspace (omit folder for the root). "
+                     "documents (a list, up to 100) moves many at once, like dragging a selection: all are checked "
+                     "first and one that can't move (or a name clash in the folder) moves none of them."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
             "document": _DOC_REF,
+            "documents": {"type": "array", "items": _DOC_REF, "minItems": 1, "maxItems": MAX_MOVE,
+                          "description": "Several items of one workspace at once (instead of document)."},
             "folder": {**_FOLDER_ARG, "description": "An existing folder (path); omit for the workspace root."},
-        }, "required": ["document"]},
-        output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "folder": _NULLABLE_STR},
-                           ["url", "markdrop_url", "slug"]),
+        }},
+        output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "folder": _NULLABLE_STR,
+                            "items": {"type": "array", "items": {"type": "object"},
+                                      "description": "With documents: each moved item's url and slug."},
+                            "moved": {"type": "integer"}},
+                           ["folder"]),
         annotations=_ann(False, False, True),
         handler=move_to_folder,
     ),
@@ -4069,6 +4143,11 @@ TOOLS += ZOOM_TOOLS
 from app.mcp.hubspot_tools import HUBSPOT_TOOLS  # noqa: E402
 
 TOOLS += HUBSPOT_TOOLS
+# Running a workspace and auditing access (get_workspace, update_workspace, invite_to_workspace,
+# update_workspace_member, get_document_access): app/mcp/workspace_admin_tools.py.
+from app.mcp.workspace_admin_tools import WORKSPACE_ADMIN_TOOLS  # noqa: E402
+
+TOOLS += WORKSPACE_ADMIN_TOOLS
 
 # Comments (Track A core; Track B review/AI; Track C insights): app/mcp/comment_tools.py and friends.
 from app.mcp.comment_tools import COMMENT_TOOLS  # noqa: E402

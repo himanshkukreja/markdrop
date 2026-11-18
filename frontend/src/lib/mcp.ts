@@ -88,6 +88,7 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
     tools: [
       { name: "set_access", scope: "write" },
       { name: "share_with_people", scope: "write" },
+      { name: "get_document_access", scope: "read" },
       { name: "request_edit_access", scope: "write" },
       { name: "list_access_requests", scope: "read" },
       { name: "decide_access_request", scope: "write" },
@@ -162,6 +163,10 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "list_folders", scope: "read" },
       { name: "list_workspace_items", scope: "read" },
       { name: "list_workspace_members", scope: "read" },
+      { name: "get_workspace", scope: "read" },
+      { name: "update_workspace", scope: "write" },
+      { name: "invite_to_workspace", scope: "write" },
+      { name: "update_workspace_member", scope: "write" },
       { name: "add_to_workspace", scope: "write" },
       { name: "remove_from_workspace", scope: "write" },
       { name: "create_folder", scope: "write" },
@@ -185,6 +190,8 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "meetings_connection", scope: "read" },
       { name: "check_meetings_now", scope: "read" },
       { name: "rename_meeting_speaker", scope: "write" },
+      { name: "update_meeting", scope: "write" },
+      { name: "delete_meeting", scope: "write" },
     ],
   },
   {

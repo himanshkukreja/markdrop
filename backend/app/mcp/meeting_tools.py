@@ -294,6 +294,73 @@ async def get_meeting(ctx: Context, args: dict) -> tuple[str, dict]:
     return text, out
 
 
+async def update_meeting(ctx: Context, args: dict) -> tuple[str, dict]:
+    """PATCH /meetings/{id} (type, series, restricted), POST /{id}/regenerate and DELETE /{id}/recording, with
+    the same checks: edit on the page for type, series and writing it again; change_access for restricted;
+    the importer or a workspace admin for the recording."""
+    row, raw = await _row(ctx, args["meeting"])
+    actor, actx = actor_of(ctx), _actx(ctx)
+    keys = [k for k in ("type", "series", "restricted", "regenerate", "remove_recording") if k in args]
+    if not keys or (args.get("regenerate") is False and len(keys) == 1):
+        raise ToolError("Nothing to change: give type, series, restricted, regenerate or remove_recording.")
+    done: list[str] = []
+    try:
+        if args.get("type") is not None:
+            row = await meetings.set_type(ctx.db, row, raw, args["type"], actor, actx)
+            done.append(f"type → {args['type']}")
+        if "series" in args:
+            from app.services import meeting_series
+
+            row = await meeting_series.set_series(ctx.db, row, raw, args["series"] or None, actor, actx)
+            raw = await meetings.page_of(ctx.db, row) or raw
+            done.append(f"series → {args['series'] or 'none'}")
+        if args.get("restricted") is not None and bool(args["restricted"]) != bool(row.get("restricted")):
+            row = await meetings.set_restricted(ctx.db, row, bool(args["restricted"]), actor, actx)
+            done.append("restricted to its attendees" if args["restricted"] else "open to the workspace again")
+        if args.get("remove_recording"):
+            from app.services import zoom_media
+
+            if not (raw.get("owner_id") == ctx.user.id or await meetings.is_ws_admin(ctx.db, row["workspace_id"], ctx.user.id)):
+                raise ToolError("Only the person who imported this meeting or a workspace admin can remove its recording.")
+            if not (row.get("recording") or {}).get("key"):
+                raise ToolError("This meeting has no recording in Markdrop.")
+            await zoom_media.remove(ctx.db, row)
+            done.append("recording removed")
+        if args.get("regenerate"):
+            await access_service.require(actor, raw, "edit_content", actx)
+            await meetings_ai.generate(ctx.db, str(row["_id"]), ctx.user)
+            done.append("summary and details written again")
+    except HTTPException as exc:
+        raise ToolError(http_message(exc)) from exc
+    row = await meetings.get_row(ctx.db, str(row["_id"])) or row
+    raw = await meetings.page_of(ctx.db, row) or raw
+    m = _meeting_out(await meetings.shape(ctx.db, row, raw, actor, actx))
+    return f"{m['title']}: " + ("; ".join(done) or "nothing changed") + f". {m['url']}", {**m, "changed": done}
+
+
+async def delete_meeting(ctx: Context, args: dict) -> tuple[str, dict]:
+    """DELETE /meetings/{id}: the importer or a workspace admin (even of a meeting restricted from them): its
+    pages to the Trash (restore_document brings them back as pages), the meeting row and its recording gone."""
+    ref = (args.get("meeting") or "").strip()
+    row = await meetings.get_row(ctx.db, ref)
+    if row is None:
+        slug = ref.rstrip("/").rsplit("/", 1)[-1].split("#", 1)[0].split("?", 1)[0]
+        doc = await ctx.db["documents"].find_one({"slug": slug}, {"meeting_id": 1})
+        if doc and doc.get("meeting_id"):
+            row = await meetings.get_row(ctx.db, doc["meeting_id"])
+    try:
+        if row is None or await meetings.require_member(ctx.db, row["workspace_id"], ctx.user.id, write=False) is None:
+            raise HTTPException(status_code=404, detail="Meeting not found")
+        title = row.get("title")
+        got = await meetings.delete_meeting(ctx.db, row, actor_of(ctx), _actx(ctx))
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            raise ToolError("Meeting not found (or the user can't open it). See list_meetings.") from exc
+        raise ToolError(http_message(exc)) from exc
+    return (f"Deleted the meeting “{title}”" + (": its pages are in the Trash for 30 days." if got.get("trashed") else ".")
+            ), {"deleted": True, "id": got["id"], "trashed": bool(got.get("trashed"))}
+
+
 async def rename_meeting_speaker(ctx: Context, args: dict) -> tuple[str, dict]:
     from app.services import meeting_speakers
 
@@ -625,5 +692,45 @@ MEETING_TOOLS: list[Tool] = [
                             "speakers": {"type": "array"}, "attendees": {"type": "array"}}),
         annotations=_ann(False, False, False),
         handler=rename_meeting_speaker,
+    ),
+    Tool(
+        name="update_meeting",
+        title="Change a meeting",
+        description=("Change a meeting as its page's ⋯ menu does: type (" + ", ".join(meetings.TYPES) + "), series (its "
+                     "recurring series' name, which also files it in that series' folder; \"\" takes it out), restricted "
+                     "(true: only its attendees can open it; false: the workspace again), regenerate (write the summary, "
+                     "Details and action items again, e.g. after naming speakers; uses Markdrop's AI) and "
+                     "remove_recording (delete the kept Zoom recording; the importer or a workspace admin). Type, "
+                     "series and regenerate need edit on the meeting; restricted needs the right to change its access."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "meeting": _MEETING_REF,
+            "type": {"type": "string", "enum": list(meetings.TYPES)},
+            "series": {"type": "string", "maxLength": 60},
+            "restricted": {"type": "boolean"},
+            "regenerate": {"type": "boolean"},
+            "remove_recording": {"type": "boolean"},
+        }, "required": ["meeting"]},
+        output_schema=_out({"id": {"type": "string"}, "title": _NULLABLE_STR, "url": {"type": "string"},
+                            "type": _NULLABLE_STR, "series": _NULLABLE_STR, "restricted": {"type": ["boolean", "null"]},
+                            "has_recording": {"type": "boolean"}, "changed": {"type": "array", "items": {"type": "string"}}},
+                           ["id", "url", "changed"]),
+        annotations=_ann(False, False, False),
+        handler=update_meeting,
+    ),
+    Tool(
+        name="delete_meeting",
+        title="Delete a meeting",
+        description=("Delete a meeting: its page and Transcript page go to the Trash for 30 days (restore_document "
+                     "brings the pages back), and the meeting itself, its kept recording and what meeting memory "
+                     "learned from it are removed. Only the person who imported it or a workspace admin. Marked as "
+                     "destructive: confirm with the user first."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {"meeting": _MEETING_REF}, "required": ["meeting"]},
+        output_schema=_out({"deleted": {"type": "boolean"}, "id": {"type": "string"}, "trashed": {"type": "boolean"}}),
+        annotations=_ann(False, True, True),
+        handler=delete_meeting,
     ),
 ]
