@@ -91,6 +91,8 @@ export interface ZoomHeld {
   uuid: string; workspace_id: string; topic: string; date: string | null; time: string | null; start_time: string | null;
   duration_min: number | null; people: string[]; people_count: number; reason: string; why: string | null;
   held_at: string | null; expires_at: string | null; team: string;
+  /** The Zoom team (a team's Meetings › To review lists its own). */
+  team_id?: string | null;
 }
 
 export interface ZoomMe { share: ZoomShare; held: number; teams: Array<{ workspace_id: string; workspace: string | null; team: string | null }> }

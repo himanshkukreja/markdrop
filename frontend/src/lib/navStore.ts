@@ -186,7 +186,8 @@ const idOf = (key: string) => key.slice(key.indexOf(sep) + 1);
 // items); "<ws>#team:<id>" a team's (navTeamKey).
 const navCache = new Cache<WorkspaceNav>((key) => {
   const [ws, space] = idOf(key).split("#");
-  return getWorkspaceNav(ws!, space || "company");
+  // A team's Files & pages (components/teams/TeamFiles): meeting pages live in its Meetings section.
+  return getWorkspaceNav(ws!, space || "company", { meetings: false });
 });
 /** The outline id of a team's tree in the rail (navSlot / useNavRetain). */
 export const navTeamKey = (ws: string, teamId: string) => `${ws}#team:${teamId}`;

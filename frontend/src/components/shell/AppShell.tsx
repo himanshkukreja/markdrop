@@ -9,14 +9,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { listSharedWithMe } from "@/lib/me";
 import { LIGHT_ENABLED } from "@/lib/theme";
 import { can, listWorkspaces, WORKSPACES_EVENT, type ItemAccess } from "@/lib/workspaces";
-import { ancestry, peekTree, useWorkspaceTree } from "@/lib/workspaceStore";
+import { peekTree, useWorkspaceTree } from "@/lib/workspaceStore";
 import { WorkspaceDndProvider } from "@/components/workspace/WorkspaceDnd";
 import { UploadProvider, useUploads } from "@/components/workspace/uploads/UploadProvider";
 import { teamName } from "@/components/workspace/folder/items";
 import { UserAvatar } from "./AccountMenu";
 import CommandPalette, { type PaletteAction } from "./CommandPalette";
 import { sendFolderCommand, usePaletteRequests, useBrowseRequests } from "./commands";
-import { SideNav, generalOf, railKeyFor, resolveRailKey, workspaceOfKey, wsFolderKey, wsRootKey, wsTeamRowKey, type RailData } from "./SideNav";
+import { SideNav, railKeyFor, resolveRailKey, workspaceOfKey, type RailData } from "./SideNav";
 import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
 import { useLocationSearch } from "./useLocation";
 
@@ -111,8 +111,8 @@ const HOME = /^\/dashboard\/?$/;
 const ASK = /^\/ask\/?$/;
 /** Analytics pages use the analytics boards' 1180px column. */
 const ANALYTICS = /^\/dashboard\/(analytics(\/|$)|live$)/;
-/** Team (board, people, projects): uses the width — cards and the "This week" columns fill it (1480px cap). */
-const TEAM = /^\/team\//;
+/** Team (board, people, projects) and Deals (the board, a deal page, /deals across teams): use the width (1480px cap). */
+const TEAM = /^\/(team\/|deals(\/|$))/;
 /** A team's / project's home (3-column dashboard): uses the width up to 1560px. */
 const TEAM_HOME = /^\/w\/[^/]+\/(teams\/[^/]+(\/settings)?|projects\/[^/]+)\/?$/;
 
@@ -129,29 +129,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, signOut } = useAuth();
   const rawActive = railKeyFor(pathname, search);
   const activeWs = workspaceOfKey(rawActive);
-  // Teams: a team's slug / a project → its row in the rail (and the rows to open), once the teams are known.
+  // Teams: a team's page, a project, a folder (by the team it's in) → that team's section row (and the team row to
+  // open), once the teams (and, for a folder, the workspace tree) are known.
   useTeamsSidebar(activeWs ? [activeWs] : [], `${pathname}?${search}`);
-  const resolved = resolveRailKey(rawActive, activeWs ? teamsSlot(activeWs) : undefined);
+  const rawFolderId = rawActive?.split(":folder:")[1];
+  const activeTree = useWorkspaceTree(activeWs).tree;
+  const resolved = resolveRailKey(rawActive, activeWs ? teamsSlot(activeWs) : undefined, activeTree?.folders);
   const active = resolved.key;
   const openTeam = resolved.open.join(",");
+  const activeFolderId = rawFolderId;
 
   const { expanded, setOpen, openAll } = useExpanded();
-  const activeTree = useWorkspaceTree(activeWs).tree;
-  const activeFolderId = active?.split(":folder:")[1];
-  // The workspace you are in opens itself, and so does every folder above the one you're in.
+  // The team you're in opens itself.
   useEffect(() => {
-    if (!activeWs) return;
-    const keys = [wsRootKey(activeWs), ...(openTeam ? openTeam.split(",") : [])];
-    if (activeTree && activeFolderId) {
-      const chain = ancestry(activeTree.folders, activeFolderId);
-      for (const f of chain.slice(0, -1)) keys.push(wsFolderKey(activeWs, f.id));
-      // The folder's team row opens too (General's when the folder is in no team).
-      const teams = teamsSlot(activeWs);
-      const owner = chain.map((f) => (f as { team_ids?: string[] }).team_ids?.[0]).find(Boolean) ?? (teams ? generalOf(teams)?.id : undefined);
-      if (owner) keys.push(wsTeamRowKey(activeWs, owner));
-    }
-    openAll(keys);
-  }, [activeWs, activeTree, activeFolderId, openAll, openTeam]);
+    if (openTeam) openAll(openTeam.split(","));
+  }, [openAll, openTeam]);
 
   const data = useRailData(user?.id ?? null);
   const [collapsed, setCollapsed] = useCollapsed();

@@ -79,9 +79,10 @@ await step("inside", async () => {
 });
 
 await step("sidebar", async () => {
+  // The folder / page tree lives on a team's Files & pages since the nav redesign (2026-11-18): General's here.
   const { p } = await ctx(browser, { token: T.member });
-  await p.goto(`${APP}/w/${WS}/f/${specs.id}`, { waitUntil: "networkidle" });
-  const tree = p.locator('aside nav[aria-label="Your drive"]');
+  await p.goto(`${APP}/w/${WS}/teams/general/pages`, { waitUntil: "networkidle" });
+  const tree = p.getByTestId("team-files");
   const row = tree.locator(`[data-rail-key="ws:${WS}:page:${parent.slug}"]`);
   // The folder's row opens to show its pages (→ on the focused row, as a tree does).
   const folderRow = tree.locator(`[data-rail-key="ws:${WS}:folder:${specs.id}"]`);

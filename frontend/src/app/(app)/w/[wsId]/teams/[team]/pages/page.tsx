@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { TeamPages } from "@/components/teams/TeamSpaces";
+import { TeamFiles } from "@/components/teams/TeamFiles";
 
 type Props = { params: Promise<{ wsId: string; team: string }> };
 
-export const metadata: Metadata = { title: "Team pages · Markdrop", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Files & pages · Markdrop", robots: { index: false, follow: false } };
 
-/** Teams (components/teams). */
+/** A team's Files & pages: its folder / page tree (components/teams/TeamFiles). */
 export default async function Page({ params }: Props) {
   const p = await params;
-  return <Suspense><TeamPages ws={decodeURIComponent(p.wsId)} team={decodeURIComponent(p.team)} /></Suspense>;
+  return <Suspense><TeamFiles ws={decodeURIComponent(p.wsId)} team={decodeURIComponent(p.team)} /></Suspense>;
 }

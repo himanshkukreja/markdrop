@@ -40,6 +40,10 @@ export interface TeamCard {
   linked?: string[];
   /** The HubSpot-linked team: its sidebar shows Deals. */
   hubspot?: boolean;
+  /** The Zoom team: your recorded Zoom meetings waiting for your decision (its Meetings › To review). */
+  to_review?: number;
+  /** The HubSpot team: its open deals (the sidebar's Deals count). */
+  deals?: number;
 }
 export interface TeamFull extends TeamCard {
   members: (Person & { role: "lead" | "member" })[];
@@ -214,12 +218,17 @@ export const finishReview = (ws: string) => mutate(ws, request<void>(`${base(ws)
 
 /* ── Hrefs ── */
 export const teamHref = (ws: string, t: Pick<TeamCard, "slug">) => `/w/${enc(ws)}/teams/${enc(t.slug)}`;
+/** A team's Files & pages: its folder / page tree (the sidebar never lists items). */
 export const teamPagesHref = (ws: string, t: Pick<TeamCard, "slug">) => `${teamHref(ws, t)}/pages`;
 export const teamSettingsHref = (ws: string, t: Pick<TeamCard, "slug">) => `${teamHref(ws, t)}/settings`;
 export const teamMeetingsHref = (ws: string, t: Pick<TeamCard, "id">) => `/meetings/${enc(ws)}?space=${enc(`team:${t.id}`)}`;
 export const teamMemoryHref = (ws: string, t: Pick<TeamCard, "id">) => `/team/${enc(ws)}?space=${enc(`team:${t.id}`)}`;
 export const teamDealsHref = (ws: string, t: Pick<TeamCard, "id">) => `/deals/${enc(ws)}?space=${enc(`team:${t.id}`)}`;
 export const dealHref = (ws: string, dealId: string) => `/deals/${enc(ws)}/${enc(dealId)}`;
+/** The sidebar's top-level Meetings and Deals: every team's that you can open (a Team filter on the page). Deals
+ *  across teams is /deals (every workspace's CRM-linked team you're in; components/hubspot/deals). */
+export const allMeetingsHref = (ws: string) => `/meetings/${enc(ws)}?space=all`;
+export const allDealsHref = () => "/deals";
 export const teamAskHref = (ws: string, t: Pick<TeamCard, "id">) => `/ask?workspace=${enc(ws)}&team=${enc(t.id)}`;
 export const projectHref = (ws: string, p: Pick<ProjectCard, "slug">) => `/w/${enc(ws)}/projects/${enc(p.slug)}`;
 export const browseHref = (ws: string) => `/w/${enc(ws)}/teams`;
