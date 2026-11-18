@@ -636,14 +636,18 @@ await step("lock-mcp", async () => {
   const up = await mcp(tok, "update_page", { document: state.slug, markdown: before.content + "\nNope\n", base_rev: before.rev });
   log("update_page while locked:", up.status, up.isError, up.text.slice(0, 120));
   if (!up.isError || !/editing|423|locked/i.test(up.text)) fail(`update_page during the lock wasn't refused: ${up.text}`);
-  const rs = await mcp(tok, "replace_section", { document: state.slug, heading: "Known limits", markdown: "## Known limits\n\nNope\n" });
-  if (!rs.isError) fail("replace_section during the lock wasn't refused");
   // append_blocks goes through and shows up in the open editor, and in Ben's read-only one.
   const ap = await mcp(tok, "append_blocks", { document: state.slug, markdown: "## Added by Claude\n\n- [ ] Draft the announcement email\n- [ ] Record the demo video" });
   if (ap.isError) fail(`append_blocks refused: ${ap.text}`);
   await p.getByText("Added by Claude").waitFor({ timeout: 10000 });
   await p.getByText("Added by Claude").scrollIntoViewIfNeeded();
   await b.p.getByText("Added by Claude").waitFor({ timeout: 15000 });
+  // A partial edit (replace_section) during the lock goes through and merges into both open editors (Senseloaf P2-3).
+  const rs = await mcp(tok, "replace_section", { document: state.slug, heading: "Added by Claude",
+    markdown: "## Added by Claude\n\n- [ ] Draft the announcement email\n- [ ] Record the demo video\n- [ ] Merged while Ada edits" });
+  if (rs.isError) fail(`replace_section during the lock was refused: ${rs.text}`);
+  await p.getByText("Merged while Ada edits").waitFor({ timeout: 15000 });
+  await b.p.getByText("Merged while Ada edits").waitFor({ timeout: 15000 });
   await shot(p, "19-editor-live-appended", { wait: 3500 });
   // Keep typing after the append: no lost or doubled text.
   await p.locator(".pb-live .ProseMirror").getByText("Record the demo video").click();
