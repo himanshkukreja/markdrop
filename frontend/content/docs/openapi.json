@@ -3,7 +3,7 @@
   "info": {
     "title": "Markdrop",
     "version": "0.1.0",
-    "x-markdrop-exported": "2026-11-17"
+    "x-markdrop-exported": "2026-11-18"
   },
   "paths": {
     "/api/v1/trash": {
@@ -25973,6 +25973,216 @@
         }
       }
     },
+    "/api/v1/zoom/me": {
+      "get": {
+        "tags": [
+          "zoom"
+        ],
+        "summary": "Your Zoom meetings setting",
+        "operationId": "get_me_api_v1_zoom_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "put": {
+        "tags": [
+          "zoom"
+        ],
+        "summary": "Choose when your recorded Zoom meetings come in",
+        "operationId": "put_me_api_v1_zoom_me_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/zoom/members/share": {
+      "put": {
+        "tags": [
+          "zoom"
+        ],
+        "summary": "Set a Zoom-team member's setting (admins)",
+        "operationId": "put_member_share_api_v1_zoom_members_share_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberShareIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/zoom/review": {
+      "get": {
+        "tags": [
+          "zoom"
+        ],
+        "summary": "Your recorded Zoom meetings waiting for a decision",
+        "operationId": "review_api_v1_zoom_review_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{24}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      },
+      "post": {
+        "tags": [
+          "zoom"
+        ],
+        "summary": "Decide whether a recorded Zoom meeting comes in",
+        "operationId": "decide_api_v1_zoom_review_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/zoom/recordings": {
       "get": {
         "tags": [
@@ -30222,6 +30432,34 @@
           "fields"
         ],
         "title": "CreateIn"
+      },
+      "DecideIn": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{24}$",
+            "title": "Workspace Id"
+          },
+          "uuid": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Uuid"
+          },
+          "decision": {
+            "type": "string",
+            "pattern": "^(share|private|skip)$",
+            "title": "Decision",
+            "description": "share: into the Zoom team; private: just for you; skip: don't bring it in."
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "uuid",
+          "decision"
+        ],
+        "title": "DecideIn"
       },
       "Decision": {
         "properties": {
@@ -35350,6 +35588,32 @@
         ],
         "title": "MemberRoleRequest"
       },
+      "MemberShareIn": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{24}$",
+            "title": "Workspace Id"
+          },
+          "user_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{24}$",
+            "title": "User Id"
+          },
+          "share": {
+            "type": "string",
+            "pattern": "^(auto|ask|never)$",
+            "title": "Share"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "user_id",
+          "share"
+        ],
+        "title": "MemberShareIn"
+      },
       "Members": {
         "properties": {
           "user_ids": {
@@ -37310,6 +37574,21 @@
         },
         "type": "object",
         "title": "SettingsPayload"
+      },
+      "ShareIn": {
+        "properties": {
+          "share": {
+            "type": "string",
+            "pattern": "^(auto|ask|never)$",
+            "title": "Share",
+            "description": "auto: share automatically; ask: ask me first; never: never bring them in."
+          }
+        },
+        "type": "object",
+        "required": [
+          "share"
+        ],
+        "title": "ShareIn"
       },
       "SignRequest": {
         "properties": {

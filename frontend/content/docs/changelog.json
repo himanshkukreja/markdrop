@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "zoom-choose-meetings",
+      "date": "2026-11-18",
+      "title": "Zoom: each host chooses which meetings come in",
+      "kind": "new",
+      "area": "Integrations",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Personal Zoom meetings never come in, calls with someone from outside the company come in, and a call where everyone is from the company waits for its host: Share with the team, Keep it just for me, or Skip, from the inbox, Slack or the review page.",
+      "body": "- **The rules.** A Zoom topic with \"personal\" or \"private\" never comes in; a call with someone from outside the company comes in; an internal-only call waits for its host; otherwise the host's choice decides. See [Choose which meetings come in](/integrations/zoom#choose-which-meetings-come-in).\n- **Your choice.** *When my Zoom meetings are recorded* in Settings › Account › Zoom: Share automatically (the default), Ask me first, or Never bring them in. Workspace admins can set it per member on the Zoom card.\n- **Nothing downloaded while it waits.** A waiting meeting keeps only its topic, time, duration and who joined, seen only by its host, for 30 days.\n- **Keep it just for me** brings the meeting in private to the host alone.\n- **Import past meetings** follows the same rules.\n- **MCP and API.** `zoom_review` lists, decides and changes the setting; `GET`/`POST /api/v1/zoom/review`, `GET`/`PUT /api/v1/zoom/me`."
+    },
+    {
       "id": "hubspot-write-guard",
       "date": "2026-11-17",
       "title": "HubSpot: Markdrop never deletes or overwrites",
