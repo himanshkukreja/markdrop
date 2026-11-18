@@ -26102,7 +26102,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/FinishIn"
+                "$ref": "#/components/schemas/app__routers__zoom__FinishIn"
               }
             }
           },
@@ -26547,7 +26547,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ImportIn"
+                "$ref": "#/components/schemas/app__routers__zoom__ImportIn"
               }
             }
           },
@@ -27839,6 +27839,399 @@
             "schema": {
               "type": "string",
               "title": "Import Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/notion/status": {
+      "get": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Notion connection status",
+        "operationId": "status_api_v1_notion_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/notion/connect/start": {
+      "post": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Start connecting Notion",
+        "operationId": "connect_start_api_v1_notion_connect_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__routers__notion_connect__StartIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/notion/connect/finish": {
+      "post": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Finish connecting Notion",
+        "operationId": "connect_finish_api_v1_notion_connect_finish_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__routers__notion_connect__FinishIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/notion/connections/{connection_id}": {
+      "delete": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Disconnect Notion",
+        "operationId": "disconnect_api_v1_notion_connections__connection_id__delete",
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connection Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/notion/connections/{connection_id}/pages": {
+      "get": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Pages shared with Markdrop in Notion",
+        "operationId": "shared_pages_api_v1_notion_connections__connection_id__pages_get",
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connection Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/notion/import": {
+      "post": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Import from Notion (connected)",
+        "operationId": "import_pages_api_v1_notion_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__routers__notion_connect__ImportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/notion/syncs/{sync_id}": {
+      "patch": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Keep a Notion import in sync",
+        "operationId": "set_keep_api_v1_notion_syncs__sync_id__patch",
+        "parameters": [
+          {
+            "name": "sync_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sync Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeepIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Stop syncing a Notion import",
+        "operationId": "remove_sync_api_v1_notion_syncs__sync_id__delete",
+        "parameters": [
+          {
+            "name": "sync_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sync Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/notion/syncs/{sync_id}/run": {
+      "post": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Sync a Notion import now",
+        "operationId": "run_sync_api_v1_notion_syncs__sync_id__run_post",
+        "parameters": [
+          {
+            "name": "sync_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sync Id"
             }
           }
         ],
@@ -34196,59 +34589,6 @@
         ],
         "title": "FileVersionsResponse"
       },
-      "FinishIn": {
-        "properties": {
-          "code": {
-            "type": "string",
-            "maxLength": 2000,
-            "minLength": 1,
-            "title": "Code"
-          },
-          "state": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 1000
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "State",
-            "description": "From Markdrop's Connect Zoom; absent for installs started in the Zoom App Marketplace."
-          },
-          "workspace_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9a-f]{24}$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Workspace Id",
-            "description": "Without a state: the workspace to connect (admins)."
-          },
-          "team_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^([0-9a-f]{24})?$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Team Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "code"
-        ],
-        "title": "FinishIn"
-      },
       "FocusBody": {
         "properties": {
           "text": {
@@ -35386,30 +35726,6 @@
         ],
         "title": "ImportCreate"
       },
-      "ImportIn": {
-        "properties": {
-          "workspace_id": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{24}$",
-            "title": "Workspace Id"
-          },
-          "uuids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "maxItems": 50,
-            "minItems": 1,
-            "title": "Uuids"
-          }
-        },
-        "type": "object",
-        "required": [
-          "workspace_id",
-          "uuids"
-        ],
-        "title": "ImportIn"
-      },
       "InviteAcceptResponse": {
         "properties": {
           "workspace_id": {
@@ -35888,6 +36204,19 @@
         },
         "type": "object",
         "title": "ItemsRemove"
+      },
+      "KeepIn": {
+        "properties": {
+          "keep_in_sync": {
+            "type": "boolean",
+            "title": "Keep In Sync"
+          }
+        },
+        "type": "object",
+        "required": [
+          "keep_in_sync"
+        ],
+        "title": "KeepIn"
       },
       "Keys": {
         "properties": {
@@ -38203,6 +38532,34 @@
           "allow"
         ],
         "title": "ResharingUpdate"
+      },
+      "Root": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 32,
+            "title": "Id",
+            "description": "A Notion page or database id."
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(page|database)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "Root"
       },
       "SchemaPut": {
         "properties": {
@@ -41580,6 +41937,88 @@
         "type": "object",
         "title": "StatusBody"
       },
+      "app__routers__notion_connect__FinishIn": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Code"
+          },
+          "state": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 10,
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "state"
+        ],
+        "title": "FinishIn"
+      },
+      "app__routers__notion_connect__ImportIn": {
+        "properties": {
+          "connection_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{4,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id",
+            "description": "Default: your only Notion connection."
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/Root"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Pages",
+            "description": "The pages / databases to import (their sub-pages come with them)."
+          },
+          "destination": {
+            "$ref": "#/components/schemas/Destination"
+          },
+          "keep_in_sync": {
+            "type": "boolean",
+            "title": "Keep In Sync",
+            "description": "Import again about every 15 minutes (only what changed).",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "pages"
+        ],
+        "title": "ImportIn"
+      },
+      "app__routers__notion_connect__StartIn": {
+        "properties": {
+          "back": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Back",
+            "description": "A path on Markdrop to come back to."
+          }
+        },
+        "type": "object",
+        "title": "StartIn"
+      },
       "app__routers__pages_ai__AskBody": {
         "properties": {
           "question": {
@@ -41716,6 +42155,13 @@
               {
                 "type": "string",
                 "maxLength": 200
+      "app__routers__zoom__FinishIn": {
+          "code": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Code"
+          "state": {
+                "maxLength": 1000
               },
               {
                 "type": "null"
@@ -41723,6 +42169,23 @@
             ],
             "title": "Slug",
             "description": "The to-do page (default: whichever of yours has it)"
+            "title": "State",
+            "description": "From Markdrop's Connect Zoom; absent for installs started in the Zoom App Marketplace."
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{24}$"
+              },
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id",
+            "description": "Without a state: the workspace to connect (admins)."
+          "team_id": {
+                "pattern": "^([0-9a-f]{24})?$"
+            "title": "Team Id"
           }
         },
         "type": "object",
@@ -41730,6 +42193,31 @@
           "block"
         ],
         "title": "TickBody"
+          "code"
+        "title": "FinishIn"
+      },
+      "app__routers__zoom__ImportIn": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{24}$",
+            "title": "Workspace Id"
+          },
+          "uuids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Uuids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "uuids"
+        "title": "ImportIn"
       },
       "app__routers__zoom__StartIn": {
         "properties": {

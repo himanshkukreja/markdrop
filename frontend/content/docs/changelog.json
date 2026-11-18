@@ -84,6 +84,20 @@
       "body": "- **One page per person per team.** \"Your Name — To-dos\" has a collapsible section for each company (the call's HubSpot company, otherwise the outside attendees' company) and one for **Internal** calls. Each section shows the open count and the date of the last call. Each item has its due date, a link to the call and the transcript moment.\n- **Always up to date.** Pages update after every call in the team and whenever a call's action items change. What you write outside Markdrop's section stays.\n- **Tick anywhere.** Ticking an item on your to-do page ticks it on the call. Ticking it on the call, from Home, from Slack or in Jira updates your page. This works even while someone has either page open.\n- **Private.** Only you and the team's leads (read only) can open it. Share it like any page.\n- **Find it** under **You › My to-dos**, or in the team's **People & memory**, where leads see everyone's.\n- **AI apps** get `my_todos`, `team_todos` (leads) and `tick_todo`. See [Personal to-do pages](/teams/to-dos)."
     },
     {
+      "id": "notion-connect",
+      "date": "2026-11-19",
+      "title": "Connect Notion, and keep imports in sync",
+      "kind": "new",
+      "area": "Pages",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Connect your Notion and import the pages you choose straight from it, no export file needed. Keep in sync brings Notion's changes over about every 15 minutes, one way.",
+      "body": "- **Connect:** **Settings** › **Integrations** › **Notion** › **Connect Notion**, or **From Notion** in **Import from Notion**. Notion asks which pages Markdrop may read; Markdrop never writes to Notion.\n- **Choose what to import:** tick pages and databases in a tree (sub-pages come with them), pick a team or My files, and **Import now**. Page icons, covers and columns come over too.\n- **Keep in sync:** about every 15 minutes Markdrop brings over what changed in Notion, reading only the pages edited since the last sync; **Sync now** checks straight away. A page you edit in Markdrop stops syncing and is never overwritten (listed as **Edited in Markdrop**).\n- **Disconnect** any time: Notion revokes Markdrop's access and the imported pages stay.\n- AI apps: `import_notion` takes `source: \"api\"`; new `notion_status` and `notion_sync` tools. See [Import from Notion](/pages/import-from-notion#connect-notion)."
+    },
+    {
       "id": "pages-live-append-doubled",
       "date": "2026-11-18",
       "title": "Pages: an AI app's quick follow-up edit no longer doubles lines in an open editor",

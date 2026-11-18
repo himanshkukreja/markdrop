@@ -8,7 +8,7 @@
 import type { DocsTopic } from "@/lib/docsLinks";
 
 export type BrandId =
-  | "slack" | "jira" | "zoom" | "hubspot" | "google-meet" | "google-docs" | "github" | "claude" | "chatgpt" | "cursor" | "vscode";
+  | "slack" | "jira" | "zoom" | "hubspot" | "google-meet" | "google-docs" | "github" | "claude" | "chatgpt" | "cursor" | "vscode" | "notion";
 
 export type IntegrationScope = "workspace" | "account";
 
@@ -263,6 +263,26 @@ const ACCOUNT: IntegrationInfo[] = [
       { q: "“Reconnect Google”", a: "Google revoked Markdrop's access. Disconnect here, then connect again." },
     ],
     docs: "googleDocs",
+  },
+  {
+    id: "notion", scope: "account", name: "Notion", group: "Documents", brand: "notion",
+    blurb: "Import the Notion pages you choose and keep them in sync.",
+    what: [
+      "Import Notion pages, sub-pages and databases into My files or a team's Files & pages.",
+      "Keep in sync brings Notion's changes over about every 15 minutes. It's one way: Markdrop never writes to Notion.",
+      "Markdrop only reads the pages you share with it in Notion.",
+    ],
+    steps: [
+      { title: "Connect Notion", body: "Approve Markdrop in Notion and pick the pages it may read." },
+      { title: "Choose what to import", body: "Tick pages and databases, and where they go." },
+      { title: "Keep in sync", body: "Optional, per import. Pages you edit in Markdrop stop syncing and are never overwritten." },
+    ],
+    troubleshooting: [
+      { q: "A page isn't listed", a: "Share it with Markdrop in Notion: ••• › Connections, then add Markdrop." },
+      { q: "“Reconnect Notion”", a: "Notion stopped accepting Markdrop's access. Connect again; your syncs pick up where they left off." },
+      { q: "“Paused”", a: "You can't add pages where it goes any more. Ask for access, then choose Sync now." },
+    ],
+    docs: "notionImport",
   },
   {
     id: "github", scope: "account", name: "GitHub", group: "Documents", brand: "github",

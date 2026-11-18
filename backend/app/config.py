@@ -705,6 +705,18 @@ class Settings(BaseSettings):
     # Atlassian's sign-in and API hosts (tests point them elsewhere).
     atlassian_auth_base: str = "https://auth.atlassian.com"
     atlassian_api_base: str = "https://api.atlassian.com"
+    # ── Notion ("Connect Notion": services/notion_import/connect.py, api.py, api_source.py, sync.py) ──
+    # Markdrop's Notion public integration (notion.so/profile/integrations › Public). Its OAuth Client ID and
+    # Client Secret go here; until both are set (and token_encryption_key, which protects people's Notion
+    # tokens at rest) "Connect Notion" is hidden and only the export-file import is offered. Its redirect URI
+    # is <frontend_url>/integrations/notion/callback. Read-only: Markdrop never writes to Notion.
+    notion_client_id: str = ""
+    notion_client_secret: str = ""
+    # Notion's API host and version (tests point the host elsewhere).
+    notion_api_base: str = "https://api.notion.com"
+    notion_version: str = "2026-03-11"
+    # Keep in sync: how often a synced Notion page is checked for changes (minutes).
+    notion_sync_minutes: int = 15
     # ── Zoom (services/zoom*.py, routers/zoom.py) ────────────────────────────
     # Two ways to connect a workspace's Zoom account, side by side:
     # * One click (the Zoom App Marketplace): Markdrop's own admin-managed, account-level "General app"
@@ -767,6 +779,10 @@ class Settings(BaseSettings):
     def slack_configured(self) -> bool:
         return bool(self.slack_client_id and self.slack_client_secret and self.slack_signing_secret
                     and self.token_encryption_key)
+
+    @property
+    def notion_configured(self) -> bool:
+        return bool(self.notion_client_id and self.notion_client_secret and self.token_encryption_key)
 
     @property
     def jira_configured(self) -> bool:

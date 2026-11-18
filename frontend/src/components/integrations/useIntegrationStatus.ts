@@ -9,6 +9,7 @@ import { getMeetConnection } from "@/lib/meetings";
 import { listConnections, type OAuthConnection } from "@/lib/oauthClient";
 import { getGoogleDocsStatus, listApiTokens } from "@/lib/api";
 import { aiAppOf } from "@/lib/integrations";
+import { notionStatus } from "@/lib/notionConnect";
 
 /**
  * One status per integration card, from the APIs the settings already use (one request per integration,
@@ -52,7 +53,7 @@ async function loadWorkspace(id: string, isAdmin: boolean): Promise<StatusMap> {
 async function loadAccount(): Promise<{ map: StatusMap; apps: OAuthConnection[] | null }> {
   let apps: OAuthConnection[] | null = null;
   const appsP = listConnections().then((a) => { apps = a; return a; });
-  const [slack, jira, gdocs, tokens, appMap] = await Promise.all([
+  const [slack, jira, gdocs, tokens, appMap, notion] = await Promise.all([
     settle(slackMe(), (m) => !m.configured ? { kind: "unavailable" }
       : m.on ? (m.teams.some((t) => !t.token_ok) ? { kind: "attention" } : { kind: "connected", label: "On" })
       : { kind: "off", label: m.teams.length ? "Off" : "Not connected" }),
@@ -65,10 +66,13 @@ async function loadAccount(): Promise<{ map: StatusMap; apps: OAuthConnection[] 
       const one = (id: string): IntegrationStatus => (seen.has(id as never) ? { kind: "connected" } : { kind: "off" });
       return { claude: one("claude"), chatgpt: one("chatgpt"), cursor: one("cursor"), "ai-apps": one("ai-apps") } as StatusMap;
     }, () => ({ claude: FAILED, chatgpt: FAILED, cursor: FAILED, "ai-apps": FAILED } as StatusMap)),
+    settle(notionStatus(), (n) => !n.configured ? { kind: "unavailable" }
+      : n.connections.some((c) => c.broken) ? { kind: "attention" }
+      : n.connections.length ? { kind: "connected" } : { kind: "off" }),
   ]);
   return {
     map: {
-      slack, jira, "google-docs": gdocs, vscode: tokens, ...appMap,
+      slack, jira, "google-docs": gdocs, vscode: tokens, notion, ...appMap,
       cli: { kind: "info", label: "API token" },
       github: { kind: "info", label: "Per guide" },
     },

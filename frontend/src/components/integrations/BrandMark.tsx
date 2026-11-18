@@ -6,7 +6,7 @@ import type { BrandId } from "@/lib/integrations";
  * on a neutral tile. Marks that lose contrast on the dark theme switch to their owner's white version there.
  * Used only to identify the integration on the Integrations pages. Markdrop's own tools get a Lucide icon.
  */
-const WHITE_IN_DARK: Partial<Record<BrandId, true>> = { jira: true, zoom: true, github: true, chatgpt: true, cursor: true };
+const WHITE_IN_DARK: Partial<Record<BrandId, true>> = { jira: true, zoom: true, github: true, chatgpt: true, cursor: true, notion: true };
 /** Wide marks (wordmarks) get more of the tile's width. */
 const WIDE: Partial<Record<BrandId, true>> = { zoom: true };
 

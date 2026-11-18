@@ -45,8 +45,13 @@ export interface NotionImportCounts {
 export interface NotionImport {
   id: string;
   state: NotionImportState;
+  /** For a Connect Notion import ("api"): the chosen pages' titles. */
   file_name: string;
   size_bytes: number;
+  /** "zip": an export file; "api": straight from Notion (Connect Notion). */
+  source?: "zip" | "api";
+  /** A scheduled Keep in sync run. */
+  sync?: boolean;
   destination: {
     kind: "team" | "personal";
     workspace_id: string | null; workspace_name: string | null;

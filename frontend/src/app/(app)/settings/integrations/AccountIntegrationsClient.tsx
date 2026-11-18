@@ -5,6 +5,7 @@ import { IntegrationGrid, type CardAction } from "@/components/integrations/Inte
 import { useIntegrationStatus, type IntegrationStatus } from "@/components/integrations/useIntegrationStatus";
 import { connectMyJira } from "@/lib/jira";
 import { connectGoogleDocs } from "@/lib/api";
+import { connectNotion } from "@/lib/notionConnect";
 import { ACCOUNT_INTEGRATIONS, integrationHref, type IntegrationInfo } from "@/lib/integrations";
 import { SettingsLoader, useRequireUser } from "../settings-shared";
 
@@ -13,6 +14,7 @@ export function accountConnect(id: string): (() => Promise<void>) | null {
   const back = integrationHref("account", id);
   if (id === "jira") return () => connectMyJira(back);
   if (id === "google-docs") return () => connectGoogleDocs(back);
+  if (id === "notion") return () => connectNotion(back);
   return null;
 }
 

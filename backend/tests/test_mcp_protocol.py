@@ -181,7 +181,7 @@ class Transport(McpTestCase):
             # Zoom (mcp/zoom_tools.py).
             "zoom_status", "import_zoom_meetings", "zoom_review",
             # Import from Notion (mcp/notion_tools.py).
-            "import_notion", "get_notion_import",
+            "import_notion", "get_notion_import", "notion_status", "notion_sync",
             # HubSpot (mcp/hubspot_tools.py).
             "hubspot_status", "hubspot_match", "log_to_hubspot", "hubspot_tasks",
             "hubspot_suggestions", "hubspot_account", "hubspot_pipeline", "hubspot_notifications",

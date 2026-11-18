@@ -21,6 +21,7 @@ export const DOCS_PAGES = {
   hubspotIntegration: "/integrations/hubspot",
   meetingsAutoImport: "/workspaces/meetings-auto-import",
   googleDocs: "/integrations/overview#google-docs",
+  notionImport: "/pages/import-from-notion",
   // Documents
   writing: "/documents/writing",
   addresses: "/documents/addresses",

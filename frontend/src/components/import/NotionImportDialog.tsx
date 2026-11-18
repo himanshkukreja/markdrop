@@ -13,7 +13,10 @@
  * Loaded lazily by components/import (useNotionImport), so entry points don't carry it in their bundles.
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { Alert, Button, Dialog, Disclosure, Icon, Input, Progress, Select, Spinner, Switch, cx, useToast } from "@/components/ui";
+import { Alert, Button, Dialog, Disclosure, Icon, Input, Progress, SegmentedControl, Select, Spinner, Switch, cx, useToast } from "@/components/ui";
+import { BrandMark } from "@/components/integrations/BrandMark";
+import { connectNotion, importFromNotion, notionSharedPages, notionStatus, type NotionSharedItem, type NotionStatus } from "@/lib/notionConnect";
+import { NotionPicker, type PickedRoot } from "./NotionPicker";
 import {
   NOTION_MAX_BYTES, cancelNotionImport, createNotionImport, folderNameFromFile, getNotionDestinations, getNotionImport,
   isActive, listNotionImports, startNotionImport, uploadNotionZip,
@@ -27,7 +30,11 @@ export interface NotionImportPreset {
   workspace: string | null;
   /** null with a workspace: its General (company-wide) space. */
   team: string | null;
+  /** Start on "From Notion" (Connect Notion) or "Export file"; default: From Notion when it's set up. */
+  source?: Source;
 }
+
+type Source = "notion" | "file";
 
 const POLL_MS = 1500;
 const PERSONAL = "personal";
@@ -74,6 +81,17 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
   const [imp, setImp] = useState<NotionImport | null>(null);
   const [uploadPct, setUploadPct] = useState<number | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  // Connect Notion: whether it's set up and connected, the shared pages, what's ticked, Keep in sync.
+  const [status, setStatus] = useState<NotionStatus | null>(null);
+  const [source, setSource] = useState<Source | null>(null);
+  const [connId, setConnId] = useState<string>("");
+  const [shared, setShared] = useState<NotionSharedItem[] | null>(null);
+  const [sharedLoading, setSharedLoading] = useState(false);
+  const [sharedError, setSharedError] = useState<string | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [roots, setRoots] = useState<PickedRoot[]>([]);
+  const [keep, setKeep] = useState(true);
+  const [connecting, setConnecting] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const abort = useRef<AbortController | null>(null);
   const openRef = useRef(open);
@@ -93,6 +111,29 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
       }, () => {});
     }
   }, [open, dests, imp]);
+
+  // Connect Notion's status, once per mount: it decides the starting source.
+  useEffect(() => {
+    if (!open || status) return;
+    notionStatus().then((st) => {
+      setStatus(st);
+      const usable = st.connections.filter((c) => !c.broken);
+      if (!connId && usable[0]) setConnId(usable[0].id);
+      setSource((cur) => cur ?? (preset?.source ?? (st.configured ? "notion" : "file")));
+    }, () => { setStatus({ configured: false, connections: [], syncs: [], sync_minutes: 15 }); setSource((cur) => cur ?? "file"); });
+  }, [open, status, connId, preset]);
+
+  const loadShared = useCallback((id: string) => {
+    setSharedLoading(true);
+    setSharedError(null);
+    notionSharedPages(id).then((r) => { setShared(r.items); setSharedLoading(false); },
+      (e) => { setSharedError(errText(e, "Couldn't load your Notion pages.")); setSharedLoading(false); });
+  }, []);
+  useEffect(() => {
+    if (!open || source !== "notion" || !connId) return;
+    setShared(null); setPicked(new Set()); setRoots([]);
+    loadShared(connId);
+  }, [open, source, connId, loadShared]);
 
   // Preselect: the preset when it's a place you can import to; else My files; else the first place.
   const places = useMemo(() => dests?.places ?? [], [dests]);
@@ -170,6 +211,28 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
   }, [imp]);
 
   /* ── start ── */
+  const destinationIn = () => (personal
+    ? { workspace: null, team: null, new_folder: !!newFolderPersonal(), folder_name: newFolderPersonal() }
+    : { workspace: place!.workspace_id, team: place!.team_id, new_folder: newFolder, folder_name: newFolder ? (folderName.trim() || null) : null });
+  // My files has no folders: a Connect Notion import of several pages gathers them under one page.
+  const newFolderPersonal = () => (source === "notion" && roots.length > 1 ? (folderName.trim() || null) : null);
+
+  const startNotion = async () => {
+    if (!connId || !roots.length || !dest) return;
+    setBusy(true);
+    setStartError(null);
+    try {
+      const created = await importFromNotion({ connection_id: connId, pages: roots.map((r) => ({ id: r.id, kind: r.kind })), destination: destinationIn(), keep_in_sync: keep });
+      announced.current = null;
+      setImp(created.import);
+      setStep("progress");
+    } catch (e) {
+      setStartError(errText(e, "Couldn't start the import. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const start = async () => {
     if (!file || !dest) return;
     setBusy(true);
@@ -229,6 +292,8 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
     setFolderTouched(false);
     setFolderName("");
     setHowOpen(true);
+    setPicked(new Set());
+    setRoots([]);
     setStep("choose");
   }, []);
 
@@ -237,13 +302,111 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
   const uploading = step === "progress" && uploadPct !== null;
 
   let title: React.ReactNode = "Import from Notion";
-  let description: React.ReactNode = "Bring pages, sub-pages and databases from a Notion export into Markdrop.";
+  let description: React.ReactNode = source === "notion" ? "Bring pages, sub-pages and databases from Notion into Markdrop." : "Bring pages, sub-pages and databases from a Notion export into Markdrop.";
   let body: React.ReactNode;
   let footer: React.ReactNode;
 
   if (step === "choose") {
+    const viaNotion = source === "notion";
+    const usable = status?.connections.filter((c) => !c.broken) ?? [];
+    const broken = status?.connections.find((c) => c.broken);
+    const connected = usable.length > 0;
+    const connect = async () => {
+      setConnecting(true);
+      try { await connectNotion("/settings/integrations/notion"); } catch (e) { setConnecting(false); toast.error(errText(e, "Couldn't open Notion. Try again.")); }
+    };
+    const sourceSwitch = status?.configured ? (
+      <SegmentedControl<Source> className="ni-source" aria-label="Import from" value={source} onChange={(v) => { setSource(v); setStartError(null); }}
+        options={[{ value: "notion", label: "From Notion", icon: "link" }, { value: "file", label: "Export file", icon: "archive" }]} />
+    ) : null;
+    const destField = (
+        <div className="ni-field">
+          <label className="ni-label" htmlFor={`${folderId}-dest`}>Import to</label>
+          {destError ? <Alert tone="danger">{destError}</Alert> : (
+            <Select id={`${folderId}-dest`} value={dest} disabled={!dests} onChange={(e) => setDest(e.target.value)} data-testid="notion-dest">
+              {!dests && <option value="">Loading…</option>}
+              {dests?.personal && <option value={PERSONAL}>My files</option>}
+              {groups.map(([wsId, g]) => (
+                <optgroup key={wsId} label={g.name}>
+                  {g.places.map((p) => <option key={placeKey(p)} value={placeKey(p)}>{p.general ? `${p.team_name || "General"} (everyone in ${g.name})` : p.team_name}</option>)}
+                </optgroup>
+              ))}
+            </Select>
+          )}
+          <p className="ni-hint">
+            <Icon name="lock" />
+            {personal ? "Only you can open the imported pages until you share them."
+              : place?.general ? `Everyone in ${place.workspace_name} can open them, like the rest of ${place.team_name || "General"}. Nothing is made public.`
+                : place ? `${place.team_name}'s members can open them, like the team's other pages. Nothing is made public.`
+                  : "Imported pages get the access of where they go. Nothing is made public."}
+          </p>
+        </div>
+    );
+    const folderField = !personal ? (
+          <div className="ni-field">
+            <Switch checked={newFolder} onChange={(e) => setNewFolder(e.target.checked)} label="Put it in a new folder" data-testid="notion-new-folder" />
+            {newFolder && (
+              <Input aria-label="New folder name" value={folderName} placeholder={viaNotion ? (roots.length === 1 ? roots[0]!.title : "Notion") : "Notion import"} maxLength={120}
+                onChange={(e) => { setFolderName(e.target.value); setFolderTouched(true); }} data-testid="notion-folder-name" />
+            )}
+            {!newFolder && <p className="ni-hint ni-hint--plain">The pages go straight into {place?.team_name || "the team"}&apos;s Files &amp; pages.</p>}
+          </div>
+    ) : null;
+    if (viaNotion) {
+      body = (
+        <div className="ni-choose" data-testid="notion-choose-api">
+          {sourceSwitch}
+          {!connected ? (
+            <div className="ni-connect" data-testid="notion-connect">
+              <BrandMark brand="notion" size={44} />
+              <h3>{broken ? "Reconnect Notion" : "Connect your Notion"}</h3>
+              <p>{broken ? "Notion stopped accepting Markdrop's access. Connect again: your synced imports pick up where they left off."
+                : "Approve Markdrop in Notion and choose the pages it may read. Markdrop only reads them: it never changes anything in Notion."}</p>
+              <Button iconLeft="link" onClick={() => void connect()} loading={connecting} data-testid="notion-connect-btn">{broken ? "Reconnect Notion" : "Connect Notion"}</Button>
+            </div>
+          ) : (
+            <>
+              <div className="ni-field">
+                <div className="ni-row-between">
+                  <span className="ni-label">Pages to import</span>
+                  {usable.length > 1 ? (
+                    <Select aria-label="Notion workspace" value={connId} onChange={(e) => setConnId(e.target.value)}>
+                      {usable.map((c) => <option key={c.id} value={c.id}>{c.workspace_name}</option>)}
+                    </Select>
+                  ) : <span className="ni-picked">{usable[0]!.workspace_name}</span>}
+                </div>
+                <NotionPicker items={shared} loading={sharedLoading} error={sharedError} onRetry={() => loadShared(connId)} value={picked}
+                  onChange={(next, r) => { setPicked(next); setRoots(r); }} />
+                <p className="ni-hint">
+                  <Icon name="info" />
+                  <span>Sub-pages and databases come with the pages you tick. Don&apos;t see a page? In Notion, choose <b>•••</b> › <b>Connections</b> and add Markdrop.</span>
+                </p>
+              </div>
+              {destField}
+              {folderField}
+              <div className="ni-keep">
+                <Switch checked={keep} onChange={(e) => setKeep(e.target.checked)} label="Keep in sync with Notion" data-testid="notion-keep" />
+                <p className="ni-hint ni-hint--plain">Notion&apos;s changes come over about every {status?.sync_minutes ?? 15} minutes. One way only: pages you edit in Markdrop stop syncing and are never overwritten.</p>
+              </div>
+            </>
+          )}
+          {startError && <Alert tone="danger">{startError}</Alert>}
+        </div>
+      );
+      footer = (
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          {connected && (
+            <Button iconLeft="download" onClick={() => void startNotion()} disabled={!roots.length || !dest || busy} loading={busy} data-testid="notion-import-now">
+              {roots.length > 1 ? `Import ${roots.length} pages` : "Import now"}
+            </Button>
+          )}
+        </>
+      );
+    } else {
     body = (
       <div className="ni-choose" data-testid="notion-choose">
+        {sourceSwitch}
         <label
           className={cx("ni-drop", over && "ni-drop--over", file && "ni-drop--has")}
           onDragOver={(e) => { e.preventDefault(); setOver(true); }}
@@ -273,38 +436,8 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
         </label>
         {fileError && <p className="ni-error" role="alert"><Icon name="alertCircle" /> {fileError}</p>}
 
-        <div className="ni-field">
-          <label className="ni-label" htmlFor={`${folderId}-dest`}>Import to</label>
-          {destError ? <Alert tone="danger">{destError}</Alert> : (
-            <Select id={`${folderId}-dest`} value={dest} disabled={!dests} onChange={(e) => setDest(e.target.value)} data-testid="notion-dest">
-              {!dests && <option value="">Loading…</option>}
-              {dests?.personal && <option value={PERSONAL}>My files</option>}
-              {groups.map(([wsId, g]) => (
-                <optgroup key={wsId} label={g.name}>
-                  {g.places.map((p) => <option key={placeKey(p)} value={placeKey(p)}>{p.general ? `${p.team_name || "General"} (everyone in ${g.name})` : p.team_name}</option>)}
-                </optgroup>
-              ))}
-            </Select>
-          )}
-          <p className="ni-hint">
-            <Icon name="lock" />
-            {personal ? "Only you can open the imported pages until you share them."
-              : place?.general ? `Everyone in ${place.workspace_name} can open them, like the rest of ${place.team_name || "General"}. Nothing is made public.`
-                : place ? `${place.team_name}'s members can open them, like the team's other pages. Nothing is made public.`
-                  : "Imported pages get the access of where they go. Nothing is made public."}
-          </p>
-        </div>
-
-        {!personal && (
-          <div className="ni-field">
-            <Switch checked={newFolder} onChange={(e) => setNewFolder(e.target.checked)} label="Put it in a new folder" data-testid="notion-new-folder" />
-            {newFolder && (
-              <Input aria-label="New folder name" value={folderName} placeholder="Notion import" maxLength={120}
-                onChange={(e) => { setFolderName(e.target.value); setFolderTouched(true); }} data-testid="notion-folder-name" />
-            )}
-            {!newFolder && <p className="ni-hint ni-hint--plain">The pages go straight into {place?.team_name || "the team"}&apos;s Files &amp; pages.</p>}
-          </div>
-        )}
+        {destField}
+        {folderField}
 
         <Disclosure summary="How to export from Notion" open={howOpen} onOpenChange={setHowOpen} className="ni-how">
           <ol className="ni-steps">
@@ -322,16 +455,23 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
         <Button iconLeft="download" onClick={() => void start()} disabled={!file || !dest || busy} loading={busy} data-testid="notion-start">Import</Button>
       </>
     );
+    }
   } else if (step === "progress" && imp) {
     const p = imp.progress;
     const serverPhase = imp.state === "queued" ? "queued" : p.phase;
-    const stages = [
+    const api = imp.source === "api";
+    const stages = api ? [
+      { key: "reading", label: "Read from Notion" },
+      { key: "pages", label: "Create pages" },
+      { key: "content", label: "Fill in content" },
+    ] : [
       { key: "upload", label: "Upload" },
       { key: "reading", label: "Read the export" },
       { key: "pages", label: "Create pages" },
       { key: "content", label: "Fill in content" },
     ];
-    const at = uploading ? 0 : serverPhase === "queued" || serverPhase === "upload" ? 1 : Math.max(1, stages.findIndex((s) => s.key === serverPhase));
+    const first = api ? 0 : 1;
+    const at = uploading ? 0 : serverPhase === "queued" || serverPhase === "upload" ? first : Math.max(first, stages.findIndex((s) => s.key === serverPhase));
     const counted = (serverPhase === "pages" || serverPhase === "content") && p.total > 0;
     let label: string;
     let value = 0, indeterminate = false, meta: React.ReactNode = null, valueText: string | undefined;
@@ -343,7 +483,8 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
     } else if (serverPhase === "queued" || serverPhase === "upload") {
       label = "Waiting to start"; indeterminate = true;
     } else if (serverPhase === "reading") {
-      label = "Reading the export"; indeterminate = p.total === 0; value = p.total ? (p.done / p.total) * 100 : 0;
+      label = api ? (p.done ? `Reading from Notion: ${plural(p.done, "page")}` : "Reading from Notion") : "Reading the export";
+      indeterminate = p.total === 0; value = p.total ? (p.done / p.total) * 100 : 0;
     } else {
       label = `${serverPhase === "pages" ? "Creating pages" : "Filling in content"} ${counted ? `${p.done.toLocaleString()} of ${p.total.toLocaleString()}` : ""}`.trim();
       value = counted ? (p.done / p.total) * 100 : 0; indeterminate = !counted;
@@ -351,10 +492,10 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
       valueText = counted ? `${p.done} of ${p.total}` : undefined;
     }
     title = "Importing from Notion";
-    description = <span className="ni-file-line"><Icon name="archive" /> <span>{imp.file_name}</span></span>;
+    description = <span className="ni-file-line"><Icon name={api ? "link" : "archive"} /> <span>{imp.file_name}</span></span>;
     body = (
       <div className="ni-progress" data-testid="notion-progress">
-        <ol className="ni-stages" aria-label="Import steps">
+        <ol className={cx("ni-stages", api && "ni-stages--3")} aria-label="Import steps">
           {stages.map((s, i) => (
             <li key={s.key} className={cx("ni-stage", i < at && "ni-stage--done", i === at && "ni-stage--now")} aria-current={i === at ? "step" : undefined}>
               <span className="ni-stage__dot">{i < at ? <Icon name="check" /> : i === at ? <Spinner size={12} /> : i + 1}</span>
@@ -412,6 +553,12 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
           </ul>
           {again.length > 0 && (
             <p className="ni-again"><Icon name="refresh" /><span>Imported before, so it was merged: {again.join(" · ")}.</span></p>
+          )}
+          {imp.source === "api" && (
+            <p className="ni-again" data-testid="notion-kept-note"><Icon name="info" /><span>
+              {keep ? <>Kept in sync with Notion: changes come over about every {status?.sync_minutes ?? 15} minutes. </> : null}
+              See and manage your Notion imports in <a href="/settings/integrations/notion">Settings › Integrations › Notion</a>.
+            </span></p>
           )}
           {top.length > 0 && !imp.result?.folder_id && (
             <div className="ni-top">

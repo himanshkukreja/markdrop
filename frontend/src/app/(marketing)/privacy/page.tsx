@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacy" },
 };
 
-const UPDATED = "17 November 2026";
+const UPDATED = "19 November 2026";
 
 function H2({ id, children }: { id: string; children: React.ReactNode }) {
   return <h2 id={id} className="mt-12 mb-3 scroll-mt-24 text-h3 text-text">{children}</h2>;
@@ -210,13 +210,14 @@ export default function PrivacyPage() {
         <Li><strong className="text-text">Google Meet (automatic import).</strong> A script runs in your own Google account with read-only Drive access. It reads only Docs that look like Meet transcripts or Gemini&rsquo;s notes and sends them to your workspace with a token that can do nothing else. Each one becomes a meeting page, as for Zoom above.</Li>
         <Li><strong className="text-text">Slack.</strong> The Slack workspace&rsquo;s name and an encrypted app token, the meetings channel, who linked which Slack account and their notification choices. Markdrop doesn&rsquo;t read your channels: it sees only messages that contain a Markdrop link, and only the link, to show its preview.</Li>
         <Li><strong className="text-text">Jira (Atlassian).</strong> Each person&rsquo;s encrypted Atlassian tokens, the connected sites, the issues linked to pages and meetings, and a short-lived copy of the issues it shows (key, summary, status, assignee, due date).</Li>
+        <Li><strong className="text-text">Notion.</strong> Read-only access to the Notion pages and databases you choose to share with Markdrop on Notion&rsquo;s consent screen, to import them and, when you turn on Keep in sync, to check them for changes about every 15 minutes. Markdrop never writes to Notion. It reads those pages&rsquo; titles, content, icons, covers, files and database properties (including the names or emails of people in person properties, to match them to your workspace&rsquo;s members), and the Notion workspace&rsquo;s name and the name and email of the person who connected it. What it imports becomes your pages in Markdrop, with the access of where you put them. We keep an encrypted access token per Notion workspace you connect, and which Notion pages became which Markdrop pages, to update them; files are downloaded only to be stored with the page they&rsquo;re on. Disconnecting asks Notion to revoke the token and deletes it and your syncs right away; the pages you imported stay until you delete them. Your connection is yours alone: nobody else can use it.</Li>
         <Li><strong className="text-text">GitHub (Markdrop Guides).</strong> Read-only access to the repositories you install the Markdrop Guides app on, to import and sync a guide&rsquo;s pages. We keep the installation and repository you chose and the files the guide uses.</Li>
         <Li><strong className="text-text">AI apps, the CLI and VS Code.</strong> An AI app you connect (for example Claude, ChatGPT or Cursor), the command-line tool and the VS Code extension act as you, with the access you approve, and can read and change what you can. We keep which app or token it is and when it was last used; revoke it in Settings at any time.</Li>
       </ul>
       <P>
         Markdrop&rsquo;s use and transfer of information received from Google APIs adheres to the{" "}
         <a className={link} href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
-        including the Limited Use requirements. Data from Google, Zoom, HubSpot, Slack, Atlassian and GitHub isn&rsquo;t sold, used
+        including the Limited Use requirements. Data from Google, Zoom, HubSpot, Slack, Atlassian, Notion and GitHub isn&rsquo;t sold, used
         for advertising or used to train AI models.
       </P>
 

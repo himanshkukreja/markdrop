@@ -92,3 +92,64 @@
 .ni-rows__t { color: var(--text); font-weight: 550; }
 .ni-rows__r { color: var(--text-muted); }
 .ni-loading { display: grid; place-items: center; padding: 32px; }
+
+/* ── Connect Notion: source switch, connect panel, picker, sync options ── */
+.ni-source { align-self: flex-start; }
+.ni-connect { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); padding: var(--space-6) var(--space-4); text-align: center;
+  border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface-inset); }
+.ni-connect h3 { margin: 0; font-size: 15px; line-height: 20px; color: var(--text); }
+.ni-connect p { margin: 0; max-width: 420px; font-size: 13px; line-height: 19px; color: var(--text-secondary); }
+.ni-row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
+.ni-picked { font-size: 12.5px; color: var(--text-muted); }
+.ni-keep { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.ni-keep .ni-hint { padding-left: 46px; }
+
+.np { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.np-box { list-style: none; margin: 0; padding: 4px; max-height: 280px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.np-box ul { list-style: none; margin: 0; padding: 0; }
+.np-box--pad { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.np-skel { border-radius: var(--radius-sm); }
+.np-empty { align-items: flex-start; }
+.np-empty p { margin: 0; font-size: 13px; line-height: 19px; color: var(--text-secondary); }
+.np-empty b { color: var(--text); font-weight: 600; }
+.np-row { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 2px 8px 2px 6px; border-radius: var(--radius-md); min-width: 0; }
+.np-row:hover { background: var(--surface-hover); }
+.np-row--on { background: var(--accent-soft); }
+.np-row .md-check { flex: none; }
+.np-twist { flex: none; width: 20px; height: 20px; display: grid; place-items: center; border: 0; padding: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); cursor: pointer; }
+.np-twist:hover { background: var(--surface-active); color: var(--text); }
+.np-twist svg { width: 14px; height: 14px; }
+.np-twist--none { cursor: default; }
+.np-twist--none:hover { background: transparent; }
+.np-icon { flex: none; width: 20px; display: grid; place-items: center; font-size: 15px; line-height: 1; color: var(--text-muted); }
+.np-icon svg { width: 14px; height: 14px; }
+.np-title { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; color: var(--text); }
+.np-kind, .np-kids { flex: none; font-size: 11.5px; line-height: 16px; padding: 1px 6px; border-radius: var(--radius-full); color: var(--text-muted); background: var(--surface-active); }
+
+/* ── Settings › Integrations › Notion ── */
+.nsy { display: flex; flex-direction: column; gap: var(--space-5); }
+.nsy-section { display: flex; flex-direction: column; gap: var(--space-3); }
+.nsy-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.nsy-head h2 { margin: 0; font-size: 15px; line-height: 20px; font-weight: 650; color: var(--text); }
+.nsy-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.nsy-item { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); min-width: 0; }
+.nsy-item:first-child { border-top: 0; }
+.nsy-line { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
+.nsy-title { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 220px; font-size: 14px; font-weight: 600; color: var(--text); }
+.nsy-title a { color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nsy-title a:hover { text-decoration: underline; text-underline-offset: 2px; }
+.nsy-title svg { flex: none; width: 15px; height: 15px; color: var(--text-muted); }
+.nsy-meta { display: flex; gap: 6px 12px; flex-wrap: wrap; font-size: 12.5px; line-height: 17px; color: var(--text-muted); }
+.nsy-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.nsy-meta svg { width: 12px; height: 12px; }
+.nsy-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.nsy-edited { margin: 0; padding: 8px 10px; border-radius: var(--radius-md); background: var(--surface-inset); font-size: 12.5px; line-height: 18px; color: var(--text-secondary); }
+.nsy-edited ul { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.nsy-edited a { color: var(--accent-text); }
+.nsy-err { margin: 0; font-size: 12.5px; line-height: 17px; color: var(--danger); }
+.nsy-conn { display: flex; align-items: center; gap: 12px; padding: 12px 14px; min-width: 0; flex-wrap: wrap; }
+.nsy-conn__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 200px; }
+.nsy-conn__name { font-size: 14px; font-weight: 600; color: var(--text); }
+.nsy-conn__sub { font-size: 12.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
+.ni-stages--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ni-again a { color: var(--accent-text); }
