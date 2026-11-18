@@ -327,14 +327,15 @@ async def listing(db: AsyncIOMotorDatabase, user, workspace_id: str | None = Non
         await zoom.role_of(db, user, workspace_id)
         q["workspace_id"] = workspace_id
     rows = await db[zoom.MEETINGS].find(q).sort("held_at", -1).limit(200).to_list(length=200)
-    teams: dict[str, str] = {}
+    teams: dict[str, tuple[str, str | None]] = {}
     out = []
     for r in rows:
         ws = r["workspace_id"]
         if ws not in teams:
             conn = await zoom.get(db, ws) or {"_id": ws}
-            teams[ws] = await _team_name(db, conn)
-        out.append({**view(r), "team": teams[ws]})
+            teams[ws] = (await _team_name(db, conn), str(conn["team_id"]) if conn.get("team_id") else None)
+        # team_id: the Zoom team (its Meetings section's "To review" tab lists these).
+        out.append({**view(r), "team": teams[ws][0], "team_id": teams[ws][1]})
     return {"meetings": out, "total": len(out)}
 
 

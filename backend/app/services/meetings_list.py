@@ -150,7 +150,8 @@ def _is_array_size(path: str) -> dict:
 CARD_PROJECTION: dict[str, Any] = {
     **{k: 1 for k in ("workspace_id", "title", "date", "time", "duration_s", "type", "series", "restricted",
                       "action_items", "transcript_slug", "doc_id", "created_at", "updated_at", "via", "history",
-                      "cover", "attendees", "ai.state", "ai.message", "team_ids", "project_ids", "routing.state")},
+                      "cover", "attendees", "ai.state", "ai.message", "team_ids", "project_ids", "routing.state",
+                      "hubspot.match", "hubspot.filed", "recording.key")},
     "n_segments": _is_array_size("$segments"),
     "has_notes": {"$and": [{"$eq": [{"$type": "$notes"}, "object"]}, {"$ne": ["$notes", {}]}]},
     "summary_src": {"$let": {"vars": {"g": "$generated.summary"}, "in": {"$cond": [
@@ -223,6 +224,7 @@ def card(row: dict, raw: dict, *, uid: str | None, admin: bool, attendees_max: i
         "segments": n, "has_transcript": n > 0, "has_notes": bool(row.get("has_notes")),
         "ai": _ai(row),
         "source": source_of(row), "history": bool(row.get("history")),
+        "has_recording": bool((row.get("recording") or {}).get("key")),
         "created_at": iso(row.get("created_at")),
         "can_delete": raw.get("owner_id") == uid or admin,
     }
@@ -282,6 +284,32 @@ def base_query(workspace_id: str, f: Filters) -> dict:
         parts.append({"$or": [{"title": rx}, {"series": rx}, {"attendees.name": rx}]})
     parts.extend(f.extra)
     return {"$and": parts}
+
+
+AUDIENCES = ("customers", "internal")
+
+
+async def audience_clause(db: AsyncIOMotorDatabase, workspace_id: str, audience: str | None) -> dict | None:
+    """The Meetings section's "With customers" / "Internal" tabs. With customers: a Customer-type call, one
+    matched to a HubSpot deal or contacts, or an attendee whose address isn't the company's (a member's, or
+    a company domain: services/zoom_review.company). Internal: every other meeting (no addresses known
+    counts as internal: most imported calls are team calls)."""
+    if not audience:
+        return None
+    if audience not in AUDIENCES:
+        raise HTTPException(status_code=422, detail=f"audience is one of {', '.join(AUDIENCES)}.")
+    from app.services import zoom_review
+
+    emails, domains = await zoom_review.company(db, workspace_id)
+    outsider: dict[str, Any] = {"$type": "string", "$nin": ["", *sorted(emails)]}
+    if domains:
+        outsider["$not"] = re.compile("@(" + "|".join(re.escape(d) for d in sorted(domains)) + ")$", re.I)
+    ext = {"$or": [{"type": "Customer"},
+                   {"hubspot.match.deal_id": {"$nin": [None, ""]}},
+                   {"hubspot.match.contact_ids.0": {"$exists": True}},
+                   {"hubspot.filed.deal_id": {"$nin": [None, ""]}},
+                   {"attendees": {"$elemMatch": {"email": outsider}}}]}
+    return ext if audience == "customers" else {"$nor": [ext]}
 
 
 async def _scan(db: AsyncIOMotorDatabase, query: dict, sort: str, start: tuple[int, list[Any] | None], limit: int,
@@ -353,10 +381,17 @@ async def list_page(db: AsyncIOMotorDatabase, workspace_id: str, actor: access.A
     from app.services import teams as teams_service
 
     view = await ctx.team_view(workspace_id, uid)
+    from app.services import hubspot_folders
+
+    deals = await hubspot_folders.card_deals(db, uid, workspace_id, [row for _seg, row, _raw in got])
     for it, (_seg, row, _raw) in zip(items, got):
         it["team_ids"] = teams_service.ids_of(row, "team_ids")
         it["teams"] = teams_service.labels(view, row)
         it["routing_state"] = (row.get("routing") or {}).get("state")
+        # The HubSpot deal it's filed in (the team's members and admins only), or "Pick the deal".
+        d = deals.get(str(row["_id"]))
+        if d:
+            it["deal"], it["deal_pick"] = d.get("deal"), bool(d.get("pick"))
     next_cursor = None
     if more and got:
         seg, row, _raw = got[-1]
@@ -370,12 +405,15 @@ async def list_page(db: AsyncIOMotorDatabase, workspace_id: str, actor: access.A
     return out
 
 
-async def facets(db: AsyncIOMotorDatabase, workspace_id: str, actor: access.Actor, ctx: access.Ctx) -> dict:
+async def facets(db: AsyncIOMotorDatabase, workspace_id: str, actor: access.Actor, ctx: access.Ctx, *,
+                 extra: dict | None = None) -> dict:
     """The series of the meetings the caller can open ([{name, count, last}], most meetings first), how
-    many they can open in all, and how many belong to no series — one pass."""
+    many they can open in all, and how many belong to no series — one pass. ``extra``: a space's clause
+    (a team's meetings, services/workspace_items.space_extra)."""
     from collections import Counter
 
-    rows = await db[COLL].find({"workspace_id": workspace_id}, {"series": 1, "date": 1, "doc_id": 1}).to_list(length=None)
+    q: dict[str, Any] = {"$and": [{"workspace_id": workspace_id}, extra]} if extra else {"workspace_id": workspace_id}
+    rows = await db[COLL].find(q, {"series": 1, "date": 1, "doc_id": 1}).to_list(length=None)
     ok, _no = await readable_pages(db, rows, actor, ctx)
     counts: Counter = Counter()
     last: dict[str, str] = {}

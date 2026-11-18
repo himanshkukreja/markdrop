@@ -203,7 +203,8 @@ def _body(m: BaseModel) -> dict:
 @limiter.limit("240/minute")
 async def sidebar(request: Request, workspace_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
                   user: User = Depends(require_user)):
-    """``{my_role, can_create, teams (mine), projects (readable), browse {open, private}, suggested (admins), review}``."""
+    """``{my_role, can_create, teams (mine), projects (readable), browse {open, private}, suggested (admins), review}``.
+    The Zoom team's card carries ``to_review`` (your held Zoom meetings) and the HubSpot team's ``deals`` (open deals)."""
     actor, ctx, view, role = await _ctx(request, db, user, workspace_id)
     g = view.teams.get(view.general_id or "")
     # The default team (General) exists and has everyone in it (it self-heals here; the sidebar asks often).
@@ -214,6 +215,7 @@ async def sidebar(request: Request, workspace_id: str, db: AsyncIOMotorDatabase 
     links = await T.linked(db, workspace_id)
     mine = sorted((T.with_links(T.team_card(view, t), links) for tid, t in view.teams.items() if tid in view.member_teams),
                   key=lambda c: (not c["general"], (c["name"] or "").casefold()))
+    mine = await T.section_counts(db, workspace_id, user.id, mine)
     projects = sorted((T.project_card(view, p) for pid, p in view.projects.items()
                        if pid in view.readable_projects and (p.get("status") or "active") == "active"),
                       key=lambda c: (c["name"] or "").casefold())
