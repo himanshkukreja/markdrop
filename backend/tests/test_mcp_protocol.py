@@ -177,7 +177,7 @@ class Transport(McpTestCase):
             # Teams inside a workspace (mcp/teams_tools.py).
             "list_teams", "get_team", "get_team_brief", "list_projects", "create_team", "update_team",
             "add_team_members", "remove_team_members", "move_to_team", "share_to_team", "edit_team_brief",
-            "create_project", "route_meeting", "list_favorites", "set_favorite",
+            "create_project", "route_meeting", "list_favorites", "set_favorite", "my_todos", "team_todos", "tick_todo",
             # Zoom (mcp/zoom_tools.py).
             "zoom_status", "import_zoom_meetings", "zoom_review",
             # HubSpot (mcp/hubspot_tools.py).
