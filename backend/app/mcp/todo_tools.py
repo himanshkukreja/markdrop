@@ -80,7 +80,7 @@ async def team_todos(ctx: Context, args: dict) -> tuple[str, dict]:
     got = await todo_pages.team(ctx.db, ctx.user, view, row)
     person = (args.get("person") or "").strip().casefold()
     cards = [c for c in got["pages"] if not person or person in c["user"]["name"].casefold() or person == c["user"]["id"]]
-    pages = [_page_out(c, await todo_pages.items_of(ctx.db, c["slug"])) for c in cards if c.get("slug")]
+    pages = [_page_out(c, await todo_pages.items_of(ctx.db, c["slug"], reader=ctx.user)) for c in cards if c.get("slug")]
     text = [f"{row.get('name')}: {len(pages)} to-do page(s)."]
     for p in pages:
         text.append(f"{p['person']}: {p['open']} open — {p['url']}")

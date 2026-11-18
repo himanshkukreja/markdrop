@@ -957,16 +957,33 @@ async def team(db: AsyncIOMotorDatabase, user, view, team_row: dict) -> dict:
     await _fresh(db, rows)
     ppl = {p["id"]: p for p in await wm.members_of(db, team_row["workspace_id"])}
     cards = [_card(r, team_row, ppl, user.id) for r in rows]
+    # Someone else's page: its counts and companies as this reader may see them (calls they can't read hidden).
+    actor, ctx = access.Actor.of(user), access.Ctx(db, surface="todos")
+    for c, r in zip(cards, rows):
+        if c["you"]:
+            continue
+        raw = await db["documents"].find_one({"_id": r["doc_id"]})
+        if raw is None:
+            continue
+        shown = await for_reader(actor, raw, ctx, raw.get("content") or "")
+        if shown != (raw.get("content") or ""):
+            c["open"], secs = summary_of(shown)
+            last = {x["name"]: x.get("last_call") for x in r.get("sections") or []}
+            c["sections"] = [{"name": x["name"], "open": x["open"], "last_call": last.get(x["name"])} for x in secs if x["open"]]
     cards.sort(key=lambda c: (not c["you"], c["user"]["name"].casefold()))
     return {"team": {"id": tid, "name": team_row.get("name")}, "lead": lead, "member": member, "pages": cards}
 
 
-async def items_of(db: AsyncIOMotorDatabase, slug: str, *, open_only: bool = True) -> list[dict]:
-    """A to-do page's items as data (MCP): [{block, done, text, company, call {title, slug}, due}]."""
-    raw = await db["documents"].find_one({"slug": slug, "deleted_at": None}, {"content": 1})
+async def items_of(db: AsyncIOMotorDatabase, slug: str, *, open_only: bool = True, reader=None) -> list[dict]:
+    """A to-do page's items as data (MCP): [{block, done, text, company, call {title, slug}, due}] — as ``reader``
+    (a user) may see them (:func:`for_reader`)."""
+    raw = await db["documents"].find_one({"slug": slug, "deleted_at": None})
+    content = (raw or {}).get("content") or ""
+    if raw is not None and reader is not None:
+        content = await for_reader(access.Actor.of(reader), raw, access.Ctx(db, surface="todos"), content)
     out = []
     company = None
-    for line in region((raw or {}).get("content") or "").split("\n"):
+    for line in region(content).split("\n"):
         h = re.match(r'^:::details\{summary="([^"]*)"', line)
         if h:
             company = h.group(1).split(" · ")[0]
@@ -1006,3 +1023,122 @@ async def tick(db: AsyncIOMotorDatabase, user, block: str, done: bool = True, *,
             raise HTTPException(status_code=409, detail="That page keeps changing. Try again in a moment.")
         return {"done": done, "slug": raw.get("slug"), "block": block}
     raise HTTPException(status_code=404, detail="That isn't one of your to-dos.")
+
+
+# ── What a reader other than the owner sees (read time) ──────────────────────
+#
+# The owner sees every item. Anyone else who reads the page (a team lead, someone it's shared with) sees an item only
+# when they can read its call NOW; the others become "N items from private calls" in their section, and a section
+# whose calls they can't read at all is folded into one "Private calls" section (no company name, no task text).
+# Applied wherever a page's Markdown is served (pages.content_for: the page, MCP, export, history, AI). A save by such
+# a reader keeps Markdrop's section as stored (:func:`restore_region`).
+
+_HEAD = re.compile(r'^:::details\{summary="([^"]*)"(.*)\}\s*$')
+PRIVATE = "Private calls"
+
+
+def _plural(n: int) -> str:
+    return f"{n} item{'s' if n != 1 else ''}"
+
+
+async def _readable_blocks(actor: access.Actor, raw: dict, ctx: access.Ctx) -> dict[str, bool]:
+    """{block: the reader can read its call} for the page's items."""
+    db = ctx.db
+    rows = await db[ITEMS].find({"todo_doc_id": raw["_id"]}, {"block": 1, "meeting_doc_id": 1}).to_list(length=MAX_ITEMS * 2)
+    ids = list({r["meeting_doc_id"] for r in rows if r.get("meeting_doc_id") is not None})
+    docs = {d["_id"]: d for d in await db["documents"].find({"_id": {"$in": ids}}, {"content": 0}).to_list(length=len(ids))} if ids else {}
+    ok: dict[Any, bool] = {}
+    for mid, d in docs.items():
+        ok[mid] = (not d.get("deleted_at")) and (await access.can(actor, d, "read", ctx)).allowed
+    return {r["block"]: ok.get(r.get("meeting_doc_id"), False) for r in rows}
+
+
+def filter_region(content: str, readable: dict[str, bool]) -> str:
+    """``content`` with the items of calls the reader can't read taken out of Markdrop's section."""
+    lines = (content or "").split("\n")
+    try:
+        i = next(k for k, ln in enumerate(lines) if ln.strip() == START)
+    except StopIteration:
+        return content
+    j = next((k for k in range(i + 1, len(lines)) if lines[k].strip() == END), None)
+    if j is None:
+        return content
+    out: list[str] = []
+    private = 0
+    k = i
+    while k < j:
+        ln = lines[k]
+        h = _HEAD.match(ln)
+        if h is None:
+            out.append(ln)
+            k += 1
+            continue
+        end = next((x for x in range(k + 1, j) if lines[x].strip() == ":::"), j)
+        body = lines[k + 1:end]
+        keep, hidden, open_ = [], 0, 0
+        for b in body:
+            m = _TASK.match(b)
+            if m and readable.get(m.group("block")) is False:
+                hidden += 1
+                continue
+            if m and m.group("mark") == " ":
+                open_ += 1
+            keep.append(b)
+        if not any(_TASK.match(b) for b in keep):
+            private += hidden
+        else:
+            parts = h.group(1).split(" · ")
+            rest = [p for p in parts[1:] if not re.match(r"^\d+ open$", p)]
+            head = " · ".join([parts[0], f"{open_} open", *rest])
+            out.append(f':::details{{summary="{_attr(head)}"{h.group(2)}}}')
+            out += keep
+            if hidden:
+                out.append(f"_{_plural(hidden)} from private calls_")
+            out.append(":::")
+        k = end + 1
+        # the blank line after a section stays (it is a normal line)
+    if private:
+        while out and not out[-1].strip():
+            out.pop()
+        out += ["", f':::details{{summary="{PRIVATE} · {_plural(private)}" heading="3" open="1"}}',
+                f"_{_plural(private)} from calls you can't open._", ":::", ""]
+    return "\n".join([*lines[:i], *out, *lines[j:]])
+
+
+async def for_reader(actor: access.Actor, raw: dict, ctx: access.Ctx, content: str) -> str:
+    if not content or START not in content:
+        return content
+    f = await access.facts(actor, raw, ctx)
+    if f.is_owner or f.secret_ok:
+        return content
+    readable = await _readable_blocks(actor, raw, ctx)
+    if all(readable.values()):
+        return content
+    return filter_region(content, readable)
+
+
+def restore_region(new: str, old: str | None) -> str:
+    """A save by someone other than the owner: Markdrop's section stays as stored (they may have been shown less)."""
+    kept = region(old or "")
+    if not kept or START not in (new or ""):
+        return new
+    return merge(new, kept)
+
+
+def summary_of(content: str) -> tuple[int, list[dict]]:
+    """(open, sections) as a page's Markdown shows them (a reader's own view of a card)."""
+    secs, total = [], 0
+    cur = None
+    for ln in region(content).split("\n"):
+        h = _HEAD.match(ln)
+        if h:
+            name = h.group(1).split(" · ")[0]
+            last = next((p[10:] for p in h.group(1).split(" · ") if p.startswith("last call ")), None)
+            cur = {"name": name, "open": 0, "last_call": None, "_last": last}
+            secs.append(cur)
+            continue
+        m = _TASK.match(ln)
+        if m and cur is not None and m.group("mark") == " ":
+            cur["open"] += 1
+            total += 1
+    return total, secs

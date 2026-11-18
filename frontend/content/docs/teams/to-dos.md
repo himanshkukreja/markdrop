@@ -37,7 +37,7 @@ Your to-do page is **private**. Only you, plus the **team's leads**, can open it
 
 To show your page to someone else, [share it](/sharing/share-with-people) like any page.
 
-You only ever see items from calls you can open. A call restricted to the people who were there shows on your page only if you were one of them.
+You only ever see items from calls you can open. On your own page that's every call you were on, including calls restricted to the people who were there. When someone else reads your page (a lead, or someone you shared it with), items from calls *they* can't open are hidden: they see "2 items from private calls" in that company's section instead, and a company that only comes up in such calls shows as **Private calls**. This is decided each time they open the page, so it follows any change in who can open the call.
 
 ## Find your to-dos
 

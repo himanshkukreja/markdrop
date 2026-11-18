@@ -27,6 +27,12 @@ GENS = {
     "Pipeline review": {"summary": "Internal review.", "highlights": [], "decisions": [], "open_questions": [], "topics": [],
                         "action_items": [{"text": "Update the forecast sheet", "owner": "Bo Chen", "due": None, "cite": "s2"}],
                         "type": "Review"},
+    "Secret pricing": {"summary": "Pricing.", "highlights": [], "decisions": [], "open_questions": [], "topics": [],
+                       "action_items": [{"text": "Send the confidential discount", "owner": "Bo Chen", "due": None, "cite": None}],
+                       "type": "Customer"},
+    "Joint pricing": {"summary": "Pricing.", "highlights": [], "decisions": [], "open_questions": [], "topics": [],
+                      "action_items": [{"text": "Draft the joint quote", "owner": "Bo Chen", "due": None, "cite": None}],
+                      "type": "Customer"},
     "Globex intro": {"summary": "Intro.", "highlights": [], "decisions": [], "open_questions": [], "topics": [],
                      "action_items": [{"text": "Share two references", "owner": "Bo Chen", "due": "Friday", "cite": None}],
                      "type": "Customer"},
@@ -326,3 +332,82 @@ class Merge(TodoWorld):
         self.assertIn("Send the pricing deck", after["content"])
         self.assertEqual(after["edit_lock"].get("user_id"), before.get("user_id"))      # still Bo's
         self.assertFalse(pages.MERGE_EDIT.get())
+
+
+class RestrictedCalls(TodoWorld):
+    """Calls restricted to their attendees: the owner sees their items; another reader (a lead) only those of calls
+    they can read now, the rest as "N items from private calls" (a company known only from such calls folds into
+    "Private calls")."""
+
+    async def restricted(self, title: str, lines: list[str]) -> dict:
+        r = await self.http.post("/api/v1/meetings/import", headers=self.session("wm"), json={
+            "workspace": self.W, "sources": [{"name": title, "text": "\n".join(lines)}], "title": title,
+            "date": "2026-11-05", "wait": True, "restricted": True, "team_ids": [self.sales]})
+        self.assertEqual(r.status_code, 200, r.text)
+        await TP.drain()
+        return r.json()["meetings"][0]
+
+    async def test_leads_see_only_calls_they_can_read(self):
+        await self.call("Pipeline review")                                                     # the team's: Ada reads it
+        secret = await self.restricted("Secret pricing", ["Bo Chen: I'll send the discount.", "Grace Hopper: Thanks."])
+        await self.db["meetings"].update_one({"_id": ObjectId(secret["id"])}, {"$push": {"attendees": {
+            "name": "Grace Hopper", "email": "grace@initech.com"}}})
+        await self.restricted("Joint pricing", ["Bo Chen: I'll draft it.", "Ada Lovelace: Good."])   # Ada attended
+        await self.rebuild("wm")
+        raw = await self.todo("wm")
+        ada = await self.user("owner")
+        self.assertFalse((await access.can(access.Actor.of(ada), await self.mpage(secret), "read", access.Ctx(self.db))).allowed)
+        # Bo (the owner) sees everything.
+        r = await self.get(raw["slug"], self.session("wm"))
+        body = r.json()["content"]
+        for want in ("Send the confidential discount", "Initech", "Draft the joint quote", "Update the forecast sheet"):
+            self.assertIn(want, body)
+        # Ada (lead, not on the secret call) sees the joint quote and the team's call, the secret one only as a count.
+        r = await self.get(raw["slug"], self.session("owner"))
+        self.assertEqual(r.status_code, 200, r.text)
+        seen = r.json()["content"]
+        self.assertIn("Draft the joint quote", seen)
+        self.assertIn("Update the forecast sheet", seen)
+        self.assertNotIn("confidential discount", seen)
+        self.assertNotIn("Initech", seen)
+        self.assertIn('summary="Private calls · 1 item"', seen)
+        self.assertIn("1 item from calls you can't open", seen)
+        # Her team card and MCP team_todos follow the same rule.
+        r = await self.http.get(f"{self.base}/teams/{self.sales}/todos", headers=self.session("owner"))
+        bo = next(c for c in r.json()["pages"] if c["user"]["id"] == self.uid["wm"])
+        self.assertNotIn("Initech", [s["name"] for s in bo["sections"]])
+        self.assertEqual(bo["open"], 2)
+        tok = await self.mcp_token("owner", write=False)
+        _s, res = await self.mcp_call(tok, "team_todos", {"workspace": self.W, "team": "Sales", "person": "Bo"})
+        texts = [i["text"] for p in res["structuredContent"]["pages"] for i in p["items"]]
+        self.assertIn("Draft the joint quote", texts)
+        self.assertNotIn("Send the confidential discount", texts)
+        # Decided at read time: Ada gets the secret call shared → she sees the item.
+        mp = await self.mpage(secret)
+        r = await self.http.post(f"/api/v1/documents/{mp['slug']}/access/people", headers=self.session("wm"),
+                                 json={"email": self.email["owner"], "role": "viewer"})
+        self.assertIn(r.status_code, (200, 201), r.text)
+        seen = (await self.get(raw["slug"], self.session("owner"))).json()["content"]
+        self.assertIn("Send the confidential discount", seen)
+        self.assertIn("Initech", seen)
+
+    async def test_a_shared_editor_never_overwrites_hidden_items_and_owner_ticks_still_sync(self):
+        secret = await self.restricted("Secret pricing", ["Bo Chen: I'll send the discount.", "Grace Hopper: Thanks."])
+        raw = await self.todo("wm")
+        r = await self.http.post(f"/api/v1/documents/{raw['slug']}/access/people", headers=self.session("wm"),
+                                 json={"email": self.email["wa"], "role": "editor"})
+        self.assertIn(r.status_code, (200, 201), r.text)
+        doc = (await self.get(raw["slug"], self.session("wa"))).json()
+        self.assertNotIn("confidential discount", doc["content"])
+        r = await self.http.put(f"/api/v1/documents/{raw['slug']}", headers=self.session("wa"),
+                                json={"title": raw["title"], "content": doc["content"] + "\nA note from Priya.\n", "base_rev": doc.get("rev")})
+        self.assertEqual(r.status_code, 200, r.text)
+        body = (await self.todo("wm"))["content"]
+        self.assertIn("Send the confidential discount", body)
+        self.assertIn("A note from Priya.", body)
+        # Bo ticks it on his page: the restricted call follows.
+        raw = await self.todo("wm")
+        blk, _ = self.block_of(raw["content"], "confidential discount")
+        self.assertEqual((await self.save(raw, TP._set_mark(raw["content"], blk, True), "wm")).status_code, 200)
+        await TP.drain()
+        self.assertTrue(self.block_of((await self.mpage(secret))["content"], "confidential discount")[1])

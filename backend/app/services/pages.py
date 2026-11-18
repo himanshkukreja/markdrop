@@ -893,6 +893,11 @@ async def content_for(actor: access.Actor, raw: dict, ctx: access.Ctx) -> str | 
         content = redact_people(content)
     if "markdrop" in content:
         content = await redact_refs(actor, ctx, content)
+    if raw.get("todo_team_id"):
+        # A personal to-do page (services/todo_pages.py): items from calls this reader can't read stay hidden.
+        from app.services import todo_pages
+
+        content = await todo_pages.for_reader(actor, raw, ctx, content)
     return content
 
 
