@@ -24,6 +24,19 @@
   "next": [],
   "entries": [
     {
+      "id": "hubspot-closed-deal-folders",
+      "date": "2026-11-18",
+      "title": "HubSpot: closed deals with calls get a deal folder",
+      "kind": "improved",
+      "area": "Integrations",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "A closed deal, won or lost, now gets a folder in the Deals section as soon as one of the team's calls is matched to it, and keeps receiving calls after it closes, such as support and training calls after signing.",
+      "body": "- **Closed won and Closed lost** deals with calls show on the board under **Show closed**. Closed deals without calls still get no folder.\n- **Still up to date.** A closed deal's name and stage are read again a few times a day; a deal that reopens updates like an open one.\n- See [Deal folders](/integrations/hubspot#deal-folders)."
+    },
+    {
       "id": "hubspot-deal-folders",
       "date": "2026-11-18",
       "title": "HubSpot: a folder for every open deal",

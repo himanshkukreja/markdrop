@@ -118,7 +118,7 @@ Open the team in the sidebar and choose **Deals**:
 
 - **Board** (the default): a column per pipeline stage, a card per deal with its company, amount, owner, last call and how many calls it has. **List** shows the same as a table.
 - **Filters**: owner, company, and **No call in 14 days**. **Group by company** puts a company's deals together.
-- A closed deal keeps its folder, marked **Closed won** or **Closed lost**, and stops updating. A deal that reopens updates again.
+- **Closed deals.** A deal that closes keeps its folder, marked **Closed won** or **Closed lost**. A deal that was already closed gets a folder as soon as one of the team's calls is matched to it (closed deals without calls get none). Calls keep arriving in a closed deal's folder, for example support and training calls after signing. Its name and stage are read again a few times a day; a deal that reopens updates like an open one. Turn on **Show closed** to see them.
 
 Choose a deal to open its page:
 
