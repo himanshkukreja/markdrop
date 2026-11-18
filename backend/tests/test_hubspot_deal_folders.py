@@ -135,7 +135,7 @@ class Sync(DealWorld):
         new = self.fh.add("deals", dealname="Fresh one", dealstage="qualifiedtobuy", hs_lastmodifieddate=later(3))
         await self.sync()
         self.assertIsNotNone((await self.deal_row(new) or {}).get("folder_id"))
-        # Closed lost: the folder stays, marked; then it stops syncing.
+        # Closed lost: the folder stays, marked; its facts then follow at the slower closed-deal pace.
         self.fh.objects["deals"][w["deal"]]["properties"].update(dealstage="closedlost", hs_is_closed="true", hs_is_closed_won="false",
                                                                   hs_lastmodifieddate=later(4))
         await self.sync()
@@ -146,7 +146,12 @@ class Sync(DealWorld):
         self.assertIn("closed lost", (await self.db["documents"].find_one({"_id": acme["doc_id"]}))["content"])
         self.fh.objects["deals"][w["deal"]]["properties"].update(dealname="Renamed after closing", hs_lastmodifieddate=later(5))
         await self.sync()
-        self.assertEqual((await self.deal_row(w["deal"]))["name"], "Acme platform")
+        self.assertEqual((await self.deal_row(w["deal"]))["name"], "Acme platform")          # not on every pass
+        await self.db[hubspot.CONNS].update_one({"_id": self.W}, {"$set": {"deals_sync.closed_at": datetime.now(timezone.utc) - HF.CLOSED_EVERY}})
+        await self.sync()
+        acme = await self.deal_row(w["deal"])
+        self.assertEqual((acme["name"], acme["closed_label"]), ("Renamed after closing", "Closed lost"))
+        self.assertEqual((await self.folder(acme["folder_id"]))["name"], "Acme Inc — Renamed after closing")
         # A big account fills in over several capped passes.
         for i in range(5):
             self.fh.add("deals", dealname=f"Bulk {i}", dealstage="qualifiedtobuy", hs_lastmodifieddate=later(10 + i))
@@ -365,4 +370,61 @@ class McpAndBackfill(DealWorld):
         await self.db[hubspot_accounts.ACCOUNTS].delete_many({})
         await self.ready_call(start=S1, topic="Acme again")
         self.assertEqual(await self.db[hubspot_accounts.ACCOUNTS].count_documents({}), 0)
+        self.assertEqual(reads_only(self.fh.calls), [])
+
+
+class ClosedDeals(DealWorld):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.fh.pipelines[0]["stages"] += [
+            {"id": "contractsigned", "label": "Contract signed and returned", "metadata": {"isClosed": "true", "probability": "1.0"}},
+            {"id": "contractlost", "label": "Contract lost and closed", "metadata": {"isClosed": "true", "probability": "0.0"}}]
+
+    def close(self, deal: str, stage: str) -> None:
+        self.fh.objects["deals"][deal]["properties"].update(dealstage=stage, hs_is_closed="true")
+
+    async def test_a_closed_deal_with_calls_gets_a_folder_and_keeps_receiving_calls(self):
+        _m, _c, co, won = self.booked()
+        self.close(won, "contractsigned")
+        quiet = self.fh.add("deals", dealname="Lost, never called", dealstage="contractlost", hs_lastmodifieddate=later(1))
+        self.fh.link("deals", quiet, "companies", co)
+        await self.sync()
+        self.assertIsNone(await self.deal_row(won))                       # closed, no call yet: nothing
+        mid = await self.ready_call()
+        row = await self.deal_row(won)
+        self.assertEqual((row["closed"], row["closed_label"]), (True, "Closed won"))      # from the stage's win probability
+        self.assertEqual((await self.page_of(mid))["folder_id"], row["folder_id"])
+        self.assertIn("closed won", (await self.db["documents"].find_one({"_id": row["doc_id"]}))["content"])
+        self.assertIsNone(await self.deal_row(quiet))                     # closed without calls: still nothing
+        # A call after signing (support and training) lands in the same folder.
+        m2 = self.fh.add("meetings", hs_meeting_title="PACE Support & Training", hs_meeting_start_time=S2, hubspot_owner_id=self.ada)
+        self.fh.link("meetings", m2, "deals", won)
+        mid2 = await self.ready_call(start=S2, topic="PACE Support & Training")
+        self.assertEqual((await self.page_of(mid2))["folder_id"], row["folder_id"])
+        b = (await self.http.get("/api/v1/hubspot/deals/board", headers=self.session("wm"), params={"workspace_id": self.W})).json()
+        card = next(d for d in b["deals"] if d["id"] == won)
+        self.assertEqual((card["closed"], card["closed_label"], card["calls"], card["quiet"]), (True, "Closed won", 2, False))
+        r = await self.http.get(f"/api/v1/hubspot/meetings/{mid2}/chip", headers=self.session("wm"))
+        self.assertEqual(r.json()["deal"]["closed_label"], "Closed won")
+        self.assertEqual(reads_only(self.fh.calls), [])
+
+    async def test_dry_run_and_apply_agree_on_closed_deals(self):
+        _m, _c, _co, lost = self.booked()
+        self.close(lost, "contractlost")
+        mid = await self.ready_call()
+        # Prod before this change: the call matched to the closed deal, no folder, nothing filed.
+        await self.db["meetings"].update_one({"_id": ObjectId(mid)}, {"$unset": {"hubspot.filed": ""}})
+        await self.db[HF.DEALS].delete_many({})
+        await self.db["folders"].delete_many({"hubspot_deal": {"$exists": True}})
+        await self.db[hubspot.CONNS].update_one({"_id": self.W}, {"$unset": {"deals_sync": ""}})
+        lines: list[str] = []
+        dry = await HF.backfill(self.db, self.W, apply=False, on_line=lines.append)
+        self.assertEqual((dry["calls_to_move"], dry["closed_deal_folders"]), (1, 1), (dry, lines))
+        self.assertTrue(any("move to Acme Corp — Acme annual (Closed lost)" in ln for ln in lines), lines)
+        self.assertEqual(await self.db[HF.DEALS].count_documents({}), 0)
+        got = await HF.backfill(self.db, self.W, apply=True, on_line=lines.append)
+        self.assertEqual(got["calls_moved"], dry["calls_to_move"], lines)
+        row = await self.deal_row(lost)
+        self.assertEqual(row["closed_label"], "Closed lost")
+        self.assertEqual((await self.page_of(mid))["folder_id"], row["folder_id"])
         self.assertEqual(reads_only(self.fh.calls), [])

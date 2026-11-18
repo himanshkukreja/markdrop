@@ -564,6 +564,17 @@ async def owners(db, conn: dict) -> list[dict]:
     return out
 
 
+def _won(meta: dict) -> bool | None:
+    """A closed stage's outcome from its win probability (HubSpot: 1.0 closed won, 0.0 closed lost); None otherwise."""
+    if str(meta.get("isClosed") or "").lower() != "true":
+        return None
+    try:
+        p = float(meta.get("probability"))
+    except (TypeError, ValueError):
+        return None
+    return True if p >= 1.0 else False if p <= 0.0 else None
+
+
 async def stages(db, conn: dict) -> list[dict]:
     """Deal stages: [{id, label, pipeline, pipeline_id, closed}] (cached for a few hours)."""
     at = _aware(conn.get("stages_at"))
@@ -575,7 +586,7 @@ async def stages(db, conn: dict) -> list[dict]:
         for s in p.get("stages") or []:
             meta = s.get("metadata") or {}
             out.append({"id": str(s.get("id")), "label": s.get("label"), "pipeline": p.get("label"), "pipeline_id": str(p.get("id")),
-                        "closed": str(meta.get("isClosed") or "").lower() == "true"})
+                        "closed": str(meta.get("isClosed") or "").lower() == "true", "won": _won(meta)})
     conn["stages"], conn["stages_at"] = out, now_utc()
     if db is not None and not conn.get("_dry"):
         await db[CONNS].update_one({"_id": conn["_id"]}, {"$set": {"stages": out, "stages_at": conn["stages_at"]}})

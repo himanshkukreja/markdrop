@@ -12,8 +12,10 @@ guard lets nothing else through and this module never asks for anything else).
 **Which deals.** The connected account's OPEN deals (every pipeline; closed = ``hs_is_closed`` or a stage
 whose metadata says ``isClosed``). The first pass pages through the open deals oldest change first; later
 passes read only the deals changed since the last one (``hs_lastmodifieddate``), at most :data:`SYNC_CAP` a
-pass, so a big account fills in over a few passes. A deal that closes keeps its folder, stops syncing and is
-marked Closed won / Closed lost; a deal that reopens syncs again. Service keys get no webhooks: a pass runs
+pass, so a big account fills in over a few passes. A deal that closes keeps its folder and is marked Closed won /
+Closed lost; its facts are read again every :data:`CLOSED_EVERY` (renames, stage; a deal that reopens syncs like
+an open one). A CLOSED deal (won or lost) the passes never brought in gets a folder as soon as a team call is
+matched to it, and keeps receiving calls (post-signing support calls, say); a closed deal without calls gets none. Service keys get no webhooks: a pass runs
 every :data:`SYNC_EVERY` and on "Sync now".
 
 **Where.** One hidden folder "Deals" in the HubSpot team (``hidden``: kept out of the file tree and browse,
@@ -75,6 +77,7 @@ OVERVIEW_TITLE = "Deal overview"
 START = "## From HubSpot and the team's calls"
 END = "*Markdrop keeps the section above up to date from HubSpot and the team's calls. Edits outside it stay.*"
 SYNC_EVERY = timedelta(minutes=20)
+CLOSED_EVERY = timedelta(hours=6)   # closed deals' facts (rename, stage, reopened) are read again at this pace
 SYNC_CAP = 40                 # deals a pass (each: a few batch reads; the overview's history on change)
 LEASE = timedelta(minutes=10)
 ACTIVITY_TTL = timedelta(minutes=15)
@@ -165,6 +168,8 @@ def closed_label(d: dict, stage_by: dict[str, dict]) -> str | None:
     if won in ("true", "false"):
         return "Closed won" if won == "true" else "Closed lost"
     st = stage_by.get(str(p.get("dealstage") or "")) or {}
+    if st.get("won") is not None:
+        return "Closed won" if st["won"] else "Closed lost"   # the stage's win probability (1.0 won, 0.0 lost)
     label = st.get("label") or ""
     if re.search(r"\bwon\b", label, re.I):
         return "Closed won"
@@ -475,7 +480,7 @@ def section_markdown(conn: dict, row: dict, calls: list[dict], act: dict | None,
     url = H.record_url(conn, "deal", row["deal_id"])
     out.append(" · ".join(facts) + (f" · [Open in HubSpot]({url})" if url else ""))
     if row.get("closed"):
-        out += ["", f"This deal is {(row.get('closed_label') or 'closed').lower()}: Markdrop stopped updating it."]
+        out += ["", f"This deal is {(row.get('closed_label') or 'closed').lower()}. Its calls still come here; HubSpot's details are read again a few times a day."]
     out += ["", "### Contacts"]
     if row.get("contacts"):
         for c in row["contacts"]:
@@ -692,7 +697,7 @@ async def ensure_deal(db, conn: dict, deal_id: str) -> dict | None:
     if not ds:
         return None
     stage_by = {s["id"]: s for s in await H.stages(db, conn)}
-    await _apply(db, conn, ds, stage_by, refresh=False)
+    await _apply(db, conn, ds, stage_by)
     return await db[DEALS].find_one({"_id": key_of(conn, deal_id)})
 
 
@@ -700,16 +705,48 @@ def _hash(*parts: Any) -> str:
     return hashlib.sha1(repr(parts).encode("utf-8")).hexdigest()[:16]
 
 
+def wanted(d: dict, stage_by: dict[str, dict], old: dict | None, with_calls: set[str], closed_too: bool = False) -> bool:
+    """Whether a HubSpot deal gets (or keeps updating) a deal folder. The dry run and the real run both ask this."""
+    if H._deal_open(d, stage_by):
+        return True
+    if old is not None and old.get("folder_id"):
+        return not old.get("closed") or closed_too       # just closed: marked now; already closed: the slow refresh
+    return str(d.get("id")) in with_calls                 # closed (won or lost) with a team call matched to it
+
+
+async def deals_with_calls(db, conn: dict, deal_ids: list[str]) -> set[str]:
+    """Those of ``deal_ids`` that a call of the team is matched to, surely enough to be filed there."""
+    from app.services import meetings
+
+    if not deal_ids:
+        return set()
+    out: set[str] = set()
+    async for r in db[meetings.COLL].find({"workspace_id": conn["_id"], "team_ids": conn["team_id"],
+                                           "hubspot.match.portal_id": conn["portal_id"],
+                                           "$or": [{"hubspot.match.deal_id": {"$in": deal_ids}}, {"hubspot.filed.deal_id": {"$in": deal_ids}}]},
+                                          {"hubspot.match": 1, "hubspot.filed": 1}):
+        hs = r.get("hubspot") or {}
+        m = hs.get("match") or {}
+        if fileable(m):
+            out.add(str(m["deal_id"]))
+        if (hs.get("filed") or {}).get("deal_id"):
+            out.add(str(hs["filed"]["deal_id"]))
+    return out & set(deal_ids)
+
+
 async def _apply(db, conn: dict, deals: list[dict], stage_by: dict[str, dict], *, refresh: bool = True,
-                 dry: list | None = None) -> int:
+                 dry: list | None = None, closed_too: bool = False) -> int:
     """Bring a batch of HubSpot deals into Markdrop: rows, folders, renames, overview pages, and the calls
-    matched to them. A deal that closed keeps what it has and stops syncing. Returns how many changed."""
+    matched to them. Which deals (:func:`wanted`): open ones; a closed deal only when a team call is matched to it
+    (won or lost, it gets a folder and keeps receiving calls) or it just closed. ``closed_too``: also the
+    deals already closed here (the slower closed-deal refresh). Returns how many changed."""
     if not deals:
         return 0
     ids = [str(d.get("id")) for d in deals]
     existing = {r["deal_id"]: r for r in await db[DEALS].find({"_id": {"$in": [key_of(conn, i) for i in ids]}}).to_list(length=len(ids))}
     owner_by = {o["id"]: o for o in await H.owners(db, conn)}
-    todo = [d for d in deals if H._deal_open(d, stage_by) or (str(d.get("id")) in existing and not existing[str(d.get("id"))].get("closed"))]
+    with_calls = await deals_with_calls(db, conn, [i for d, i in zip(deals, ids) if not H._deal_open(d, stage_by)])
+    todo = [d for d in deals if wanted(d, stage_by, existing.get(str(d.get("id"))), with_calls, closed_too)]
     if not todo:
         return 0
     companies, contacts = await _companies_contacts(db, conn, [str(d.get("id")) for d in todo])
@@ -777,6 +814,7 @@ async def _file_pending(db, conn: dict, limit: int = 50) -> int:
     from app.services import meetings
 
     n = 0
+    missing: dict[str, list[dict]] = {}
     cur = db[meetings.COLL].find({"workspace_id": conn["_id"], "team_ids": conn["team_id"], "hubspot.match.portal_id": conn["portal_id"],
                                   "hubspot.match.deal_id": {"$ne": None}, "hubspot.filed": {"$exists": False}},
                                  {"segments": 0}).limit(limit * 4)
@@ -785,12 +823,42 @@ async def _file_pending(db, conn: dict, limit: int = 50) -> int:
         if n >= limit or not fileable(m):
             continue
         if not await db[DEALS].find_one({"_id": key_of(conn, m["deal_id"]), "folder_id": {"$ne": None}}, {"_id": 1}):
+            missing.setdefault(str(m["deal_id"]), []).append(row)
             continue
         try:
             if await file_call(db, conn, row):
                 n += 1
         except HTTPException as exc:
             log.info("hubspot: filing %s: %s", row["_id"], exc.detail)
+    if missing and n < limit:
+        # Their deal has no folder yet (a closed deal the open-deal passes never bring in): one batch read, then
+        # filed like any other (a deal gone from HubSpot just stays without one).
+        stage_by = {s["id"]: s for s in await H.stages(db, conn)}
+        await _apply(db, conn, await H.batch_read(db, conn, "deals", list(missing)[:100], DEAL_PROPS), stage_by)
+        for rows in missing.values():
+            for row in rows:
+                if n >= limit:
+                    break
+                if await db[DEALS].find_one({"_id": key_of(conn, row["hubspot"]["match"]["deal_id"]), "folder_id": {"$ne": None}}, {"_id": 1}):
+                    try:
+                        if await file_call(db, conn, row):
+                            n += 1
+                    except HTTPException as exc:
+                        log.info("hubspot: filing %s: %s", row["_id"], exc.detail)
+    return n
+
+
+async def _refresh_closed(db, conn: dict) -> int:
+    """The closed deals that have a folder, read again (batch reads) every :data:`CLOSED_EVERY`: renames and
+    stage changes follow, a reopened deal syncs like an open one again."""
+    ids = [r["deal_id"] for r in await db[DEALS].find({"workspace_id": conn["_id"], "portal_id": conn["portal_id"], "closed": True,
+                                                         "folder_id": {"$ne": None}}, {"deal_id": 1}).sort("synced_at", 1).to_list(length=500)]
+    if not ids:
+        return 0
+    stage_by = {s["id"]: s for s in await H.stages(db, conn)}
+    n = 0
+    for k in range(0, len(ids), 100):
+        n += await _apply(db, conn, await H.batch_read(db, conn, "deals", ids[k:k + 100], DEAL_PROPS), stage_by, closed_too=True)
     return n
 
 
@@ -864,10 +932,16 @@ async def sync(db: AsyncIOMotorDatabase, conn: dict, *, force: bool = False, cap
             out["report"] = report
             return out
         await _file_pending(db, conn)
+        closed_at = H._aware(st.get("closed_at"))
+        refreshed_closed = closed_at is None or now_utc() - closed_at >= CLOSED_EVERY
+        if refreshed_closed:
+            await _refresh_closed(db, conn)
         total = await db[DEALS].count_documents({"workspace_id": conn["_id"], "portal_id": conn["portal_id"]})
         sets = {"deals_sync.state": "idle", "deals_sync.at": now_utc(), "deals_sync.lease_until": None,
                 "deals_sync.last_error": None, "deals_sync.deals": total,
                 "deals_sync.next_at": now_utc() + (timedelta(minutes=1) if more else SYNC_EVERY)}
+        if refreshed_closed:
+            sets["deals_sync.closed_at"] = now_utc()
         if done_initial:
             # The open deals are all in: from now on, every deal changed since the first pass began (one that
             # closed meanwhile included; reading a deal twice changes nothing).
@@ -1221,6 +1295,10 @@ async def archive_accounts(db: AsyncIOMotorDatabase, conn: dict, *, apply: bool)
     return out
 
 
+def fileable_any(c: dict) -> bool:
+    return bool(c.get("sure"))
+
+
 async def backfill(db: AsyncIOMotorDatabase, workspace_id: str, *, apply: bool, cap: int = 100000, on_line=None) -> dict:
     """The one-off for existing data: folders for every open deal, the already-matched calls moved, the account
     pages archived. ``apply=False``: what would happen, nothing written (Markdrop or HubSpot)."""
@@ -1240,17 +1318,44 @@ async def backfill(db: AsyncIOMotorDatabase, workspace_id: str, *, apply: bool, 
                                                "hubspot.match.portal_id": conn["portal_id"], "hubspot.match.deal_id": {"$ne": None}},
                                               {"title": 1, "date": 1, "hubspot": 1}):
             m = r["hubspot"]["match"]
-            calls.append({"title": r.get("title"), "date": r.get("date"), "deal_id": m.get("deal_id"),
-                          "move": fileable(m), "filed": bool((r["hubspot"].get("filed") or {}).get("deal_id"))})
+            calls.append({"title": r.get("title"), "date": r.get("date"), "deal_id": str(m.get("deal_id")),
+                          "move": fileable(m), "sure": fileable(m), "filed": bool((r["hubspot"].get("filed") or {}).get("deal_id"))})
+        # Where each call would go, decided the way --apply decides it: a deal with a folder (or getting one in
+        # this run), else its deal read now — a closed deal with a call gets a folder too (:func:`wanted`).
+        dest = {r["deal_id"]: r for r in rows}
+        async for d in db[DEALS].find({"workspace_id": workspace_id, "portal_id": conn["portal_id"], "folder_id": {"$ne": None}}):
+            dest.setdefault(d["deal_id"], {"deal_id": d["deal_id"], "title": d.get("title"), "new": False, "closed": d.get("closed"),
+                                           "closed_label": d.get("closed_label")})
+        need = list(dict.fromkeys(c["deal_id"] for c in calls if c["move"] and not c["filed"] and c["deal_id"] not in dest))
+        extra: list[dict] = []
+        if need:
+            stage_by = {s["id"]: s for s in await H.stages(db, {**conn, "_dry": True})}
+            for k in range(0, len(need), 100):
+                await _apply(db, {**conn, "_dry": True}, await H.batch_read(db, {**conn, "_dry": True}, "deals", need[k:k + 100], DEAL_PROPS),
+                             stage_by, dry=extra)
+        for r in extra:
+            dest[r["deal_id"]] = r
+            say(f"  new    {r['title']} ({r.get('closed_label') or 'open'}: it has calls)")
+        rows = rows + extra
         for c in calls:
-            say(f"  call {c['date']} {c['title']!r}: " + ("already filed" if c["filed"] else "move to deal " + c["deal_id"]
-                                                         if c["move"] else "Pick the deal (several open deals)"))
+            to = dest.get(c["deal_id"])
+            c["move"] = c["move"] and to is not None
+            label = f" ({to['closed_label']})" if to and to.get("closed_label") else ""
+            say(f"  call {c['date']} {c['title']!r}: " + ("already filed" if c["filed"] else
+                                                         f"move to {to['title']}{label}" if c["move"] else
+                                                         "stays: its deal isn't in HubSpot any more" if to is None and fileable_any(c)
+                                                         else "Pick the deal (several open deals)"))
         acc = await archive_accounts(db, conn, apply=False)
         for a in acc:
             say(f"  archive account page {a['company']!r} (/{a['slug']})")
-        return {"apply": False, "deals": len(rows), "new_folders": sum(1 for r in rows if r["new"] and not r["closed"]),
+        return {"apply": False, "deals": len(rows), "new_folders": sum(1 for r in rows if r["new"]),
+                "closed_deal_folders": sum(1 for r in extra if r["new"]),
                 "calls_to_move": sum(1 for c in calls if c["move"] and not c["filed"]),
                 "calls_to_pick": sum(1 for c in calls if not c["move"]), "account_pages": len(acc), "more": got.get("more")}
+    pending = {r["_id"]: r for r in await db[meetings.COLL].find(
+        {"workspace_id": workspace_id, "team_ids": conn["team_id"], "hubspot.match.portal_id": conn["portal_id"],
+         "hubspot.match.deal_id": {"$ne": None}, "hubspot.filed": {"$exists": False}}, {"title": 1, "date": 1, "hubspot.match": 1})
+        .to_list(length=5000) if fileable(r["hubspot"]["match"])}
     passes, changed = 0, 0
     while True:
         got = await sync(db, conn, force=True, cap=SYNC_CAP)
@@ -1260,13 +1365,13 @@ async def backfill(db: AsyncIOMotorDatabase, workspace_id: str, *, apply: bool, 
         conn = await H.get(db, workspace_id)
         if not got.get("more") or got.get("state") != "idle" or passes * SYNC_CAP >= cap:
             break
+    await _refresh_closed(db, conn)
+    async for r in db[meetings.COLL].find({"_id": {"$in": list(pending)}, "hubspot.filed": {"$exists": False}}, {"segments": 0}):
+        await file_call(db, conn, r)
     moved = 0
-    async for r in db[meetings.COLL].find({"workspace_id": workspace_id, "team_ids": conn["team_id"],
-                                           "hubspot.match.portal_id": conn["portal_id"], "hubspot.match.deal_id": {"$ne": None},
-                                           "hubspot.filed": {"$exists": False}}, {"segments": 0}):
-        if fileable(r["hubspot"]["match"]) and await file_call(db, conn, r):
-            moved += 1
-            say(f"  moved {r.get('date')} {r.get('title')!r}")
+    async for r in db[meetings.COLL].find({"_id": {"$in": list(pending)}, "hubspot.filed": {"$exists": True}}, {"title": 1, "date": 1}):
+        moved += 1                         # filed by the passes above or here (the dry run's "move to")
+        say(f"  moved {r.get('date')} {r.get('title')!r}")
     acc = await archive_accounts(db, conn, apply=True)
     total = await db[DEALS].count_documents({"workspace_id": workspace_id, "folder_id": {"$ne": None}})
     return {"apply": True, "passes": passes, "deal_folders": total, "calls_moved": moved, "account_pages_archived": len(acc)}
