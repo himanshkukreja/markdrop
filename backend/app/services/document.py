@@ -577,6 +577,10 @@ async def update_document(
     from app.services import jira_links
 
     await jira_links.on_page_saved(db, raw, after, actor)
+    # Personal to-do pages (services/todo_pages.py): a to-do ticked on either side follows on the other.
+    from app.services import todo_pages
+
+    await todo_pages.on_page_saved(db, raw, after, actor)
     # A new page waiting for its auto cover gets it once it says what it's about.
     if after.get("cover_pick") == "waiting":
         await page_covers.after_save(db, after)
