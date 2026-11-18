@@ -204,6 +204,15 @@ async def interaction(db: AsyncIOMotorDatabase, payload: dict) -> None:
         if why:
             await slack_api.respond(response_url, kit.notice(why))
         return
+    # Zoom (services/zoom_review.py): Share / Keep it just for me / Skip on the host's own message (bound to
+    # the Slack user it was sent to).
+    if parts[0] == "zr" and len(parts) == 3 and action_id in ("md_zr_share", "md_zr_private", "md_zr_skip"):
+        from app.services import zoom_review
+
+        why = await zoom_review.click(db, inst, slack_user, parts, payload)
+        if why:
+            await slack_api.respond(response_url, kit.notice(why))
+        return
     user = await slack.linked_user(db, team_id, slack_user)
     if user is None:
         await slack_api.respond(response_url, kit.link_prompt(_link_page(team_id)))

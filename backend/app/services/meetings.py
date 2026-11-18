@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextvars
 import logging
 import re
 import secrets
@@ -909,6 +910,10 @@ def organizer_of(group: list[mp.Source], people: People) -> dict | None:
             "user_id": mem["id"] if mem else None, "from": how}
 
 
+# A restricted import for its owner alone (Zoom's "Keep it just for me", services/zoom_review.py): private,
+# with no grants for the attendees.
+OWNER_ONLY: contextvars.ContextVar[bool] = contextvars.ContextVar("meetings_owner_only", default=False)
+
 SMALL_CALL = 2   # 1:1s and two-person calls are restricted to their attendees on import (owner, 2026-11-05)
 
 
@@ -1332,7 +1337,7 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
     row["base_rev"] = int((after or fresh).get("rev") or 1)
     await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"base_rev": row["base_rev"]}})
     if restricted:
-        await set_restricted(db, row, True, actor, ctx)
+        await set_restricted(db, row, True, actor, ctx, attendees=not OWNER_ONLY.get())
         row = await db[COLL].find_one({"_id": row["_id"]})
     # Teams (services/team_routing.py): into its team(s) before anything is summarised or posted.
     from app.services import team_routing
@@ -2294,8 +2299,10 @@ async def list_meetings(db: AsyncIOMotorDatabase, workspace_id: str, actor: acce
 # ── Changes ───────────────────────────────────────────────────────────────────
 
 
-async def set_restricted(db: AsyncIOMotorDatabase, row: dict, value: bool, actor: access.Actor, ctx: access.Ctx) -> dict:
-    """Restrict to attendees (private + a grant per attendee who is a member) or back to the team."""
+async def set_restricted(db: AsyncIOMotorDatabase, row: dict, value: bool, actor: access.Actor, ctx: access.Ctx, *,
+                         attendees: bool = True) -> dict:
+    """Restrict to attendees (private + a grant per attendee who is a member) or back to the team.
+    ``attendees=False``: private to the page's owner alone (no grants)."""
     from app.models.workspace import role_allows
     from app.services import workspace as ws_service
 
@@ -2306,7 +2313,8 @@ async def set_restricted(db: AsyncIOMotorDatabase, row: dict, value: bool, actor
     if value:
         raw = await access.set_level(db, raw, "private", actor, ctx)
         granted: list[str] = list(row.get("granted") or [])
-        ids = {a["user_id"] for a in [*(row.get("attendees") or []), *(row.get("invited") or [])] if a.get("user_id")}
+        ids = {a["user_id"] for a in [*(row.get("attendees") or []), *(row.get("invited") or [])] if a.get("user_id")} \
+            if attendees else set()
         users = {str(u["_id"]): u for u in await db["users"].find(
             {"_id": {"$in": [ObjectId(i) for i in ids if ObjectId.is_valid(i)]}}, {"email": 1}).to_list(length=200)}
         for uid in ids:

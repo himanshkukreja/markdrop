@@ -7,8 +7,8 @@ import {
 } from "@/components/ui";
 import { updateTeam } from "@/lib/teams";
 import {
-  zoomConnect, zoomConnectStart, zoomDisconnect, zoomImport, zoomRecordings, zoomSetMedia, zoomSetTeam, zoomStatus,
-  type ZoomRecording, type ZoomResult, type ZoomStatus,
+  ZOOM_SHARE_LABELS, zoomConnect, zoomConnectStart, zoomDisconnect, zoomImport, zoomRecordings, zoomSetMedia, zoomSetMemberShare,
+  zoomSetTeam, zoomStatus, type ZoomRecording, type ZoomResult, type ZoomShare, type ZoomStatus,
 } from "@/lib/zoom";
 
 /**
@@ -20,7 +20,9 @@ import {
  * Recorded meetings hosted by members of the chosen team come in on their own, visible to that team;
  * admins and the team's leads import past ones (Import past meetings). Meetings without a Zoom transcript use
  * Zoom's captions; an admin's Transcribe and keep recordings switch (offered when the server can, off by
- * default) transcribes the rest from their audio and keeps each meeting's video with it. Backend: routers/zoom.py.
+ * default) transcribes the rest from their audio and keeps each meeting's video with it. Which meetings come in
+ * (backend services/zoom_review.py): personal/private topics never, calls with outsiders always, internal-only calls
+ * wait for their host, otherwise each host's setting (admins set it per member here: Who decides). Backend: routers/zoom.py.
  */
 export function ZoomWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolean }) {
   const toast = useToast();
@@ -103,6 +105,8 @@ export function ZoomWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolea
               {c.imported} {c.imported === 1 ? "meeting" : "meetings"}
               {c.last_import_at ? <span className="text-text-muted"> · last {shortWhen(c.last_import_at)}</span> : null}
               {c.no_transcript ? <span className="text-text-muted"> · {c.no_transcript} without a transcript</span> : null}
+              {c.held ? <span className="text-text-muted"> · {c.held} waiting for their hosts</span> : null}
+              {c.skipped ? <span className="text-text-muted"> · {c.skipped} not brought in</span> : null}
             </dd>
             {isAdmin && (
               <>
@@ -121,6 +125,15 @@ export function ZoomWorkspaceCard({ id, isAdmin }: { id: string; isAdmin: boolea
               </>
             )}
           </dl>
+
+          {!!st.my_review && (
+            <div data-testid="zoom-my-review"><Alert tone="info" title={`${st.my_review} of your Zoom ${st.my_review === 1 ? "meeting waits" : "meetings wait"} for you`}
+              actions={<Button size="sm" href={`/integrations/zoom/review?workspace=${encodeURIComponent(id)}`}>Review</Button>}>
+              Share with the team, keep it just for you, or skip it. Only you see them until you decide.
+            </Alert></div>
+          )}
+
+          {isAdmin && st.members && st.members.length > 0 && <WhoDecides id={id} st={st} onSaved={(m) => setSt({ ...st, members: m })} />}
 
           {st.media_available && (isAdmin
             ? <MediaSwitch id={id} st={st} onSaved={setSt} />
@@ -328,7 +341,49 @@ function StateBadge({ state }: { state: string | null }) {
   if (state === "processing") return <Badge size="sm" tone="info">Importing</Badge>;
   if (state === "waiting") return <Badge size="sm" tone="info">Transcribing</Badge>;
   if (state === "ignored") return <Badge size="sm" tone="neutral">Not the team&apos;s</Badge>;
+  if (state === "held") return <Badge size="sm" tone="info">Waiting for its host</Badge>;
+  if (state === "skipped" || state === "expired") return <Badge size="sm" tone="neutral">Not brought in</Badge>;
   return null;
+}
+
+/**
+ * Who decides (admins): each Zoom-team member's "When my Zoom meetings are recorded" (they change their own in
+ * Settings › Account). Whatever it says, personal/private topics never come in, calls with someone from outside the
+ * company come in, and internal-only calls wait for their host.
+ */
+function WhoDecides({ id, st, onSaved }: { id: string; st: ZoomStatus; onSaved: (m: NonNullable<ZoomStatus["members"]>) => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState("");
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5 rounded-lg border border-border bg-bg p-3" data-testid="zoom-members">
+      <span className="text-[13px] font-medium text-text">When each host&apos;s meetings are recorded</span>
+      <p className="m-0 text-[13px] leading-5 text-text-secondary">
+        A meeting whose Zoom topic says &ldquo;personal&rdquo; or &ldquo;private&rdquo; never comes in. A call with someone from outside
+        the company comes in. A call where everyone is from the company waits for its host. Otherwise each host&apos;s choice decides;
+        they can change their own in Settings › Account.
+      </p>
+      <ul className="m-0 flex list-none flex-col gap-1 p-0">
+        {st.members!.map((m) => (
+          <li key={m.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-[13px]">
+            <span className="min-w-0 truncate text-text">{m.name}</span>
+            <span className="inline-flex items-center gap-2">
+              <Select aria-label={`When ${m.name}'s Zoom meetings are recorded`} value={m.share} disabled={busy === m.id}
+                onChange={async (e) => {
+                  setBusy(m.id);
+                  try {
+                    onSaved((await zoomSetMemberShare(id, m.id, e.target.value as ZoomShare)).members);
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : "That didn't save.");
+                  } finally { setBusy(""); }
+                }}
+                options={(["auto", "ask", "never"] as ZoomShare[]).map((v) => ({ value: v, label: ZOOM_SHARE_LABELS[v] }))} />
+              {busy === m.id && <Spinner size={14} />}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function TeamPicker({ id, st, onSaved }: { id: string; st: ZoomStatus; onSaved: (s: ZoomStatus) => void }) {
@@ -551,7 +606,7 @@ function Importer({ id, st, onClose }: { id: string; st: ZoomStatus; onClose: ()
   }, [id, range, from, to]);
   useEffect(() => { if (range !== "custom") void fetchList(); }, [range]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const ready = useMemo(() => (rows ?? []).filter((m) => !m.imported && hasSource(m)), [rows]);
+  const ready = useMemo(() => (rows ?? []).filter((m) => !m.imported && !m.hidden && hasSource(m)), [rows]);
   const allOn = ready.length > 0 && ready.every((m) => picked.has(m.uuid));
 
   return (
@@ -610,11 +665,12 @@ function Importer({ id, st, onClose }: { id: string; st: ZoomStatus; onClose: ()
               {rows.map((m) => (
                 <li key={m.uuid} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-[13px]" data-testid="zoom-row">
                   <Checkbox aria-label={`Import ${m.topic}`} checked={picked.has(m.uuid)}
-                    disabled={m.state === "waiting" || (m.imported ? !m.can_add_recording : !hasSource(m))}
+                    disabled={m.hidden || m.state === "waiting" || (m.imported ? !m.can_add_recording : !hasSource(m))}
                     onChange={(e) => setPicked((p) => { const n = new Set(p); if (e.target.checked) n.add(m.uuid); else n.delete(m.uuid); return n; })} />
-                  <span className="min-w-0 flex-[1_1_200px] truncate font-medium text-text">{m.topic}</span>
+                  <span className={`min-w-0 flex-[1_1_200px] truncate font-medium ${m.hidden ? "text-text-muted" : "text-text"}`}
+                    title={m.hidden ? m.reason ?? undefined : undefined}>{m.topic}</span>
                   <span className="text-text-muted">{m.date}{m.time ? ` ${m.time}` : ""}{m.duration_min ? ` · ${m.duration_min} min` : ""} · {m.host.name}</span>
-                  {m.imported ? (
+                  {m.hidden ? <StateBadge state={m.state} /> : m.imported ? (
                     <>
                       {m.slug ? <Link href={`/${m.slug}`} className="text-accent-text hover:underline">Open</Link> : <Badge size="sm">Imported</Badge>}
                       {m.can_add_recording && <Badge size="sm" tone="info">Add recording</Badge>}
@@ -658,6 +714,8 @@ function summary(results: ZoomResult[]): string {
     n("duplicate") && `${n("duplicate")} already here`,
     n("no_transcript") && `${n("no_transcript")} without a transcript`,
     n("ignored") && `${n("ignored")} not hosted by the team`,
+    n("held") && `${n("held")} waiting for their host to decide`,
+    n("skipped") && `${n("skipped")} not brought in (${results.find((r) => r.status === "skipped")?.reason ?? "the rules"})`,
     n("failed") && `${n("failed")} didn't import (${results.find((r) => r.status === "failed")?.reason ?? "try again"})`,
   ].filter(Boolean);
   return parts.join(", ") + ".";
