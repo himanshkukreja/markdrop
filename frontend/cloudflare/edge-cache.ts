@@ -8,9 +8,9 @@
 //   - the docs site (docs.markdrop.in): every public 200, for the deployment (its content is built in);
 //   - prerendered pages that never revalidate (landing, marketing, /login, ...: s-maxage of a day or more) on any host,
 //     for the deployment;
-//   - ISR pages (documents: revalidate 60) for at most ISR_TTL seconds. With the tag cache's colo window
-//     (open-next.config.ts regionalCacheTtlSec) the two add up to <= 60 s from an edit or an access change (the
-//     API's revalidate outbox) to every reader. The colo that receives the revalidation drops its copies at once;
+//   - ISR pages (documents: revalidate 60), fresh or stale-while-revalidating, for ISR_TTL seconds. With the tag
+//     cache's colo window (open-next.config.ts regionalCacheTtlSec) the two add up to <= 60 s from an edit or an
+//     access change (the API's revalidate outbox) to every reader. The colo that receives the revalidation drops its copies at once;
 //   - every 404 for 60 s (the documents' own revalidate).
 // Never kept: a response that sets a cookie or says private / no-store (200s), a request with credentials or the
 // signed-in hint cookie (md_si: "/" is the dashboard for them), a client navigation's RSC / prefetch request (the
@@ -63,6 +63,11 @@ export function edgeTtl(status: number, headers: Headers, docs: boolean): number
   if (!m) return 0;
   const s = Number(m[1]);
   if (s >= STATIC_TTL) return STATIC_TTL;
+  // An ISR answer, fresh (s-maxage = the seconds left) or stale (s-maxage=1/2 while it re-renders in the background):
+  // kept ISR_TTL either way. A stale answer is only ever time-stale or loose-tag-stale (an edit or access change, the
+  // strict tags, re-renders while the visitor waits: cloudflare/swr-incremental-cache.ts), so its copy is as current
+  // as a fresh one; keeping it 1 s meant a document read by a few people was never answered from the edge.
+  if (s > 0 && /stale-while-revalidate/i.test(cc)) return ISR_TTL;
   return Math.min(s, ISR_TTL);
 }
 

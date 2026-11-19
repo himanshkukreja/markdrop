@@ -40,7 +40,10 @@ test("lifetimes: docs + prerendered for the deployment, ISR briefly, 404s a minu
   const ttl = (status, h, docs = false) => edgeTtl(status, H(h), docs);
   assert.equal(ttl(200, { "cache-control": "s-maxage=31536000, stale-while-revalidate=2592000" }), STATIC_TTL);
   assert.equal(ttl(200, { "cache-control": "s-maxage=60, stale-while-revalidate=31535940" }), ISR_TTL);
-  assert.equal(ttl(200, { "cache-control": "s-maxage=5, stale-while-revalidate=2592000" }), 5);
+  // a stale ISR answer (OpenNext: s-maxage=1|2 while it re-renders) is kept as long as a fresh one
+  assert.equal(ttl(200, { "cache-control": "s-maxage=5, stale-while-revalidate=2592000" }), ISR_TTL);
+  assert.equal(ttl(200, { "cache-control": "s-maxage=1, stale-while-revalidate=2592000" }), ISR_TTL);
+  assert.equal(ttl(200, { "cache-control": "s-maxage=5" }), 5);
   assert.equal(ttl(200, { "cache-control": "s-maxage=0" }), 0);
   assert.equal(ttl(200, { "cache-control": "public, max-age=0, must-revalidate" }), 0);
   assert.equal(ttl(200, { "cache-control": "private, no-cache, no-store, max-age=0, must-revalidate" }), 0);

@@ -10,6 +10,7 @@
 // strict check, so that re-render reads fresh data. Vercel ignores this file.
 // (Same fix as the portfolio site's Workers migration, Nov 2026.)
 import type { IncrementalCache } from "@opennextjs/aws/types/overrides";
+import { timing } from "./timing";
 
 const CACHE_TAGS_HEADER = "x-next-cache-tags";
 
@@ -33,6 +34,7 @@ export function withStaleOnRevalidate(base: IncrementalCache): IncrementalCache 
       const entry = await base.get(key, cacheType);
       // slow cache reads in the logs, bucketed so wrangler tail can count them (Nov 2026: misses at the colo took 1.3-1.9 s)
       const ms = Date.now() - t0;
+      timing("inc", ms);
       if (ms > 300) console.warn(`[cache-timing] ${cacheType ?? "cache"} get ${ms > 1000 ? ">1s" : "0.3-1s"}${entry ? "" : " (none)"}`);
       if ((cacheType && cacheType !== "cache") || !entry?.value || entry.shouldBypassTagCache) return entry;
       const value = entry.value as { meta?: { headers?: Record<string, string | undefined> } };

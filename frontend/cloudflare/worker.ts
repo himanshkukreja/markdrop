@@ -18,9 +18,13 @@
 //     backend services/cf_saas.py) with the customer's host in the URL and Host header; nothing here changes it
 //     (x-md-host is honoured on test hosts only), so the middleware rewrites it to the tenant renderer exactly as on
 //     Vercel, and edge copies are kept per host. The zone's fallback origin is never fetched.
+//  9. A Server-Timing header on every page answer: edge (the copy lookup), asset / inc / tag (the prerendered-assets
+//     read, the ISR cache read, tag-cache lookups: cloudflare/timing.ts) and app (all of Next's path), in ms.
 // @ts-ignore built by `opennextjs-cloudflare build` (missing until then)
 import { default as handler } from "../.open-next/worker.js";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { DOCS_HOSTS, EDGE_HEADER, bypassReason, edgeCopy, edgeKey, edgeTtl, fromCopy, purgeKeys } from "./edge-cache";
+import { installTiming, serverTiming } from "./timing";
 
 type Env = { STAGING_HOST_OVERRIDE?: string; CF_VERSION_METADATA?: { id: string }; [k: string]: unknown };
 type Ctx = { waitUntil(p: Promise<unknown>): void; passThroughOnException?(): void };
@@ -33,6 +37,13 @@ globalThis.fetch = function fetchWithUserAgent(input: RequestInfo | URL, init?: 
   headers.set("user-agent", UA);
   return nativeFetch(input, { ...init, headers });
 } as typeof fetch;
+
+type Phases = Record<string, number>;
+const phasesOf = new AsyncLocalStorage<Phases>();
+installTiming((name, ms) => {
+  const p = phasesOf.getStore();
+  if (p) p[name] = (p[name] ?? 0) + ms;
+});
 
 const APEX = "markdrop.in";
 const POSTHOG: [string, string][] = [
@@ -58,61 +69,71 @@ function posthog(request: Request, url: URL): Promise<Response> | null {
 }
 
 export default {
-  async fetch(request: Request, env: Env, ctx: Ctx) {
-    let url = new URL(request.url);
-    if (url.hostname === APEX) {
-      // The apex only redirects; it carries HSTS too (security scan: markdrop.in → www had none).
-      return new Response(null, { status: 307, headers: {
-        location: `https://www.${APEX}${url.pathname}${url.search}`,
-        "strict-transport-security": "max-age=63072000",
-        "x-content-type-options": "nosniff",
-      } });
-    }
-    if (url.pathname.startsWith("/mdp/")) return (await posthog(request, url)) ?? new Response("Not found", { status: 404 });
-
-    const headers = new Headers(request.headers);
-    // only Cloudflare's own country, never a client-sent copy
-    headers.delete("x-vercel-ip-country");
-    const country = (request as Request & { cf?: { country?: string } }).cf?.country;
-    if (country) headers.set("cf-ipcountry", country);
-    else headers.delete("cf-ipcountry");
-    const testHost = isTestHost(url.hostname);
-    const override = headers.get("x-md-host");
-    headers.delete("x-md-host");
-    if (testHost && env.STAGING_HOST_OVERRIDE === "1" && override && /^[a-z0-9.-]+$/i.test(override)) {
-      url = new URL(url.toString());
-      url.hostname = override.toLowerCase();
-      headers.set("host", url.host);
-    }
-    const docs = DOCS_HOSTS.has(url.hostname);
-    const version = env.CF_VERSION_METADATA?.id ?? "dev";
-    const cache = (globalThis as unknown as { caches?: { default?: Cache } }).caches?.default;
-    const bypass = cache ? bypassReason(request.method, request.headers, url) : "no-cache-api";
-    const key = bypass ? null : edgeKey(new URL(request.url).origin, url, request.headers.get("accept"), version);
-    if (cache && key) {
-      const hit = await cache.match(key).catch(() => undefined);
-      if (hit) {
-        const out = fromCopy(hit, docs);
-        if (testHost) out.headers.set("x-robots-tag", "noindex, nofollow");
-        return out;
-      }
-    }
-    // a document's revalidation (the API's outbox): this colo drops its copies of that page once Next has answered
-    const purgeSlug = request.method === "POST" && url.pathname === "/api/revalidate" ? await revalidatedSlug(request) : null;
-    const res: Response = await handler.fetch(new Request(url.toString(), { method: request.method, headers, body: request.body, redirect: "manual", cf: (request as { cf?: unknown }).cf } as RequestInit), env, ctx);
-    if (cache && purgeSlug && res.status === 200) {
-      const keys = purgeKeys(purgeSlug, new URL(request.url).hostname, version);
-      ctx.waitUntil(Promise.all(keys.map((k) => cache.delete(k).catch(() => false))));
-    }
-    let state = bypass ? "BYPASS" : "MISS";
-    if (cache && key) {
-      const ttl = edgeTtl(res.status, res.headers, docs);
-      if (ttl) ctx.waitUntil(cache.put(key, edgeCopy(res, ttl)).catch(() => {}));
-      else state = "BYPASS";
-    }
-    return finish(res, testHost, state);
+  fetch(request: Request, env: Env, ctx: Ctx) {
+    const phases: Phases = {};
+    return phasesOf.run(phases, () => handle(request, env, ctx, phases));
   },
 };
+
+async function handle(request: Request, env: Env, ctx: Ctx, phases: Phases): Promise<Response> {
+  let url = new URL(request.url);
+  if (url.hostname === APEX) {
+    // The apex only redirects; it carries HSTS too (security scan: markdrop.in → www had none).
+    return new Response(null, { status: 307, headers: {
+      location: `https://www.${APEX}${url.pathname}${url.search}`,
+      "strict-transport-security": "max-age=63072000",
+      "x-content-type-options": "nosniff",
+    } });
+  }
+  if (url.pathname.startsWith("/mdp/")) return (await posthog(request, url)) ?? new Response("Not found", { status: 404 });
+
+  const headers = new Headers(request.headers);
+  // only Cloudflare's own country, never a client-sent copy
+  headers.delete("x-vercel-ip-country");
+  const country = (request as Request & { cf?: { country?: string } }).cf?.country;
+  if (country) headers.set("cf-ipcountry", country);
+  else headers.delete("cf-ipcountry");
+  const testHost = isTestHost(url.hostname);
+  const override = headers.get("x-md-host");
+  headers.delete("x-md-host");
+  if (testHost && env.STAGING_HOST_OVERRIDE === "1" && override && /^[a-z0-9.-]+$/i.test(override)) {
+    url = new URL(url.toString());
+    url.hostname = override.toLowerCase();
+    headers.set("host", url.host);
+  }
+  const docs = DOCS_HOSTS.has(url.hostname);
+  const version = env.CF_VERSION_METADATA?.id ?? "dev";
+  const cache = (globalThis as unknown as { caches?: { default?: Cache } }).caches?.default;
+  const bypass = cache ? bypassReason(request.method, request.headers, url) : "no-cache-api";
+  const key = bypass ? null : edgeKey(new URL(request.url).origin, url, request.headers.get("accept"), version);
+  if (cache && key) {
+    const t0 = Date.now();
+    const hit = await cache.match(key).catch(() => undefined);
+    phases.edge = Date.now() - t0;
+    if (hit) {
+      const out = fromCopy(hit, docs);
+      out.headers.set("server-timing", serverTiming(phases));
+      if (testHost) out.headers.set("x-robots-tag", "noindex, nofollow");
+      return out;
+    }
+  }
+  // a document's revalidation (the API's outbox): this colo drops its copies of that page once Next has answered
+  const purgeSlug = request.method === "POST" && url.pathname === "/api/revalidate" ? await revalidatedSlug(request) : null;
+  const t1 = Date.now();
+  const res: Response = await handler.fetch(new Request(url.toString(), { method: request.method, headers, body: request.body, redirect: "manual", cf: (request as { cf?: unknown }).cf } as RequestInit), env, ctx);
+  phases.app = Date.now() - t1;
+  if (cache && purgeSlug && res.status === 200) {
+    const keys = purgeKeys(purgeSlug, new URL(request.url).hostname, version);
+    ctx.waitUntil(Promise.all(keys.map((k) => cache.delete(k).catch(() => false))));
+  }
+  let state = bypass ? "BYPASS" : "MISS";
+  if (cache && key) {
+    const ttl = edgeTtl(res.status, res.headers, docs);
+    if (ttl) ctx.waitUntil(cache.put(key, edgeCopy(res, ttl)).catch(() => {}));
+    else state = "BYPASS";
+  }
+  return finish(res, testHost, state, serverTiming(phases));
+}
 
 /** The slug in a revalidate request's body (read from a copy; the request goes on to Next untouched), or null. */
 async function revalidatedSlug(request: Request): Promise<string | null> {
@@ -125,7 +146,7 @@ async function revalidatedSlug(request: Request): Promise<string | null> {
 }
 
 /** Browser cache headers like Vercel's CDN (+ the edge-cache debug header); never a shared copy of a response that sets a cookie; noindex on tests. */
-function finish(res: Response, testHost: boolean, edge: string): Response {
+function finish(res: Response, testHost: boolean, edge: string, timings: string): Response {
   const cc = res.headers.get("cache-control") || "";
   const shared = /s-maxage|stale-while-revalidate/i.test(cc);
   const cookie = res.headers.has("set-cookie") && /public|s-maxage/i.test(cc);
@@ -133,6 +154,7 @@ function finish(res: Response, testHost: boolean, edge: string): Response {
   if (res.status === 101 || (res as Response & { webSocket?: unknown }).webSocket) return res;
   const out = new Response(res.body, res);
   out.headers.set(EDGE_HEADER, edge);
+  if (timings) out.headers.set("server-timing", timings);
   if (cookie) out.headers.set("cache-control", "private, no-cache, no-store, max-age=0, must-revalidate");
   else if (shared) {
     out.headers.set("cache-control", "public, max-age=0, must-revalidate");
