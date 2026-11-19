@@ -1,7 +1,7 @@
 ---
 title: Sign-off
 description: Ask one person to approve part of a page. Only they can sign, the decision is recorded with their name and time, and the section can lock.
-updated: 2026-11-04
+updated: 2026-11-19
 prerequisites: [/pages/overview]
 keywords: [sign-off, signoff, sign off, open comments, approval, approve, approver, release approval, decision, lock, locked section, audit, history, list_signoffs, sign_off, mcp]
 ---
@@ -25,6 +25,8 @@ Sign-offs need a page in a workspace, because the person who signs has to be a m
 The person named sees the options as buttons on the block. Everyone else sees **Waiting for** and the person's name.
 
 Choose an option to sign. The block then shows the decision in its colour (green for an approval, red for a refusal, amber for something in between), the signer's name and the time. The page's [version history](/pages/history) gets an entry such as **Signed off by Riya: Approved for production**.
+
+::clip{src="/docs-assets/pages/sign-off/sign-off" alt="Release 2.6 plan shows the pill Release approval, Waiting for you. Riya chooses it to jump to the sign-off block and picks Approved for production; the block says 1 comment thread is still open on this page, and she chooses Sign off anyway. The block turns green with You signed off and the time, notes it was signed with 2 comment threads resolved and 1 still open, and locks the section above it."}
 
 The signer can choose **Change decision** to pick another option, or **Clear my decision** to withdraw it. Every change is kept.
 

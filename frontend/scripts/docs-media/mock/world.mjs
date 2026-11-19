@@ -396,6 +396,37 @@ export const myDocs = [
   mydoc("logo-refresh", "Logo refresh", "artifact", { mime: "image/png", renderer: "image", type_label: "Image", size_bytes: 420_000, original_filename: "logo-refresh.png", views: 5, updated_at: iso(9), workspace_id: null, access_level: "link" }),
 ];
 
+
+/* ── Pages (the block editor): GET /api/v1/documents/<slug>. The server render gets "sign in" from
+ * ssr-stub.mjs; the signed-in browser reads these. Content is the page's Markdown. ── */
+export const pageDoc = (slug, title, content, extra = {}) => ({
+  id: `d_${slug}`, slug, url: `https://markdrop.in/${slug}`, title, content, kind: "markdown", editor: "blocks",
+  created_at: iso(20), updated_at: iso(0, 2), expires_at: null, views: 48, rev: 7, is_password_protected: false,
+  is_owned: true, is_owner: true, can: { edit: true, share: true, delete: true, move: true }, ref: `r_${slug}`,
+  workspace_id: WS, folder_path: ["playbooks"], breadcrumbs: [], parent: null, children_count: 0, page_path: [],
+  access_level: "workspace", props: { icon: null }, comments: null, ...extra,
+});
+export const pages = {
+  "q4-pricing-playbook": pageDoc("q4-pricing-playbook", "Q4 pricing playbook", [
+    "How we price renewals, expansions and multi-year deals this quarter.",
+    "",
+    "## Discounts",
+    "",
+    "- Two-year renewals: up to 15% off",
+    "- Three-year: up to 20%, with CFO sign-off",
+    "- Expansions mid-term: prorated, no discount",
+    "",
+    "## Approvals",
+    "",
+    "Anything above the caps goes to Riya for sign-off before it reaches the customer.",
+    "",
+    "## Open questions",
+    "",
+    "- [ ] Confirm the clinic-network pricing with finance",
+    "- [ ] Update the order form template for 3-year terms",
+  ].join("\n"), { props: { icon: "📘" } }),
+};
+
 const workspaces = [workspace];
 
 /** Extra handlers per shot (set by shoot.mjs): [regex or string, fn(url, method, req) → body]. */
@@ -409,6 +440,7 @@ export function answer(u, method = "GET", req) {
   }
   if (method === "POST" && p === "/api/v1/beat") return {};
   if (p === "/api/v1/auth/me") return user;
+  { const dm = p.match(/^\/api\/v1\/documents\/([\w-]+)$/); if (dm && method === "GET" && pages[dm[1]]) return pages[dm[1]]; }
   if (p === "/api/v1/workspaces") return { workspaces };
   if (p === `/api/v1/workspaces/${WS}`) return workspace;
   if (p === `/api/v1/workspaces/${WS}/teams`) return { ...teamsSidebar, projects: [project] };

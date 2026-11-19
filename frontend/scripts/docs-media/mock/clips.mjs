@@ -3,6 +3,7 @@
  * and leads Sales). Each clip's handlers answer what its steps change (a new team, an edited line…).
  */
 import * as W from "./world.mjs";
+import NOV19 from "./clips2.mjs";
 
 const { WS, people, teams, iso, ymd } = W;
 
@@ -441,4 +442,4 @@ const changeUrl = {
   },
 };
 
-export default [createFlow, askToggle, askSuggestion, briefEdit, teamFilters, markDone, checkNow, newWorkspace, changeUrl];
+export default [...NOV19, createFlow, askToggle, askSuggestion, briefEdit, teamFilters, markDone, checkNow, newWorkspace, changeUrl];

@@ -140,6 +140,8 @@ Speech-to-text tells voices apart, but not who they are. When Markdrop couldn't 
 - **Fix a wrong name** the same way: **Rename a speaker**, then **Change** next to it.
 - **Then write it again.** The summary and **Details** were written with the old labels. Choose **Write it again** in the list (or in the panel) to write them with the names. Markdrop doesn't do this on its own, so a page someone edited doesn't get a second set of sections.
 
+::clip{src="/docs-assets/workspaces/meetings/name-speaker" alt="On the transcript of Q1 territory planning, a banner says 2 speakers aren't named yet. Riya chooses Name them; the dialog lists Speaker 2 and Speaker 3 with their talk time and lines, and Markdrop's guess for Speaker 2. She chooses Name, types Hana and picks Hana Kim, who was there; a message says Speaker 2 is Hana Kim now, and after she closes the dialog every Speaker 2 line on the transcript reads Hana Kim."}
+
 You need to be able to edit the meeting. Markdrop keeps a record of who renamed which speaker, shown at the bottom of the list.
 
 Who was there doesn't list **Speaker 2** and the like, since they aren't anyone's name. A first name that matches exactly one other person on the call ("Mayuri" from Zoom and "Mayuri Pillay") counts as that person. Two people who share a first name stay apart.

@@ -1,7 +1,7 @@
 ---
 title: Folder access
 description: Restrict a folder to people and teams. Everything inside follows, including subfolders and anything added later, and every item says why you can open it.
-updated: 2026-11-17
+updated: 2026-11-19
 prerequisites: [/workspaces/folders, /workspaces/members-and-roles, /teams/overview]
 keywords: [folder access, restrict folder, restricted folder, who can access, folder permissions, groups, teams, share folder, share_folder, set_folder_access, get_folder_access, inherited access, inherit, override, open beyond folder, default access, new items start as, why can I see this, access_why]
 ---
@@ -46,6 +46,8 @@ A subfolder inherits from every folder above it:
 In **Who can access…**, add teams from the list and people by email, pick **Can view** or **Can edit**, and keep **Tell people I add** on. Each person newly given access gets **one** email and one notification for the whole folder, never one per item. A team's members are told too.
 
 People without a Markdrop account sign in with the address you used. People outside the workspace can open the items, but can't browse the workspace.
+
+::clip{src="/docs-assets/workspaces/folder-access/share-folder" alt="In the Playbooks folder, Riya opens More folder actions and chooses Who can access…. She types maya@acme.com under People, sets Can edit and chooses Add, then Save with Tell people I add on. A message says who can access Playbooks was saved and 1 person was told."}
 
 ## What new items start as
 

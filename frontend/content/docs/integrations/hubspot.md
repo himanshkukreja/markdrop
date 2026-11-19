@@ -133,6 +133,8 @@ Choose a deal to open its page. The header has the company and deal, its stage (
 - **Assets**: files the team uploads there (ordinary Markdrop files, with their views and [view analytics](/analytics/overview)), and the files attached to the deal in HubSpot, which open in HubSpot. Drop files on the box, or choose **Upload asset**.
 - **HubSpot activity**: the deal's notes, emails (subject, a short preview and whether it was sent or received), meetings and tasks, newest first.
 
+::clip{src="/docs-assets/integrations/hubspot/deal-tour" alt="On the Sales team's Deals board, Riya opens the Northwind Health card, Platform expansion 2027. The deal page shows its stage, amount, owner and close date, the suggested deal updates and Across all calls; she then opens the Calls tab, where a call waits for someone to pick the deal above the deal's five calls, each with Log to HubSpot or Update in HubSpot and Create tasks."}
+
 ![A deal page: the company and deal name with its stage, amount, owner, close date and calls, Open in HubSpot and Upload asset; tabs Overview, Calls, Assets and HubSpot activity; the deal's facts, Team notes and contacts on the left, suggested deal updates (a stage and a close date, each with the line that supports it, Apply and Dismiss), Across all calls and Recent calls on the right.](/docs-assets/integrations/hubspot/deal-page.webp)
 
 ![A deal's Calls tab: a call waiting for someone to pick the deal with File here, then five calls, newest first, each with its action items and when it was logged, Log to HubSpot or Update in HubSpot, and Create tasks.](/docs-assets/integrations/hubspot/deal-calls.webp)
@@ -144,6 +146,8 @@ Each deal folder also has a **Deal overview** page (**Team notes** on the deal p
 A call matched to a deal moves into its folder: the meeting page with its transcript. Who can open it doesn't change, and it stays in the team's **Meetings** and in search. A call moves on its own when the match is sure: the meeting HubSpot booked on the deal, a deal someone picked, or attendees whose company has exactly one open deal.
 
 When the attendees' company has **several open deals**, Markdrop doesn't guess: the meeting shows **Pick the deal**, and each of those deals lists the call under **Calls**. Choose **File here** on the right deal (or pick it from the meeting). Picking another deal later moves the call there.
+
+::clip{src="/docs-assets/integrations/hubspot/file-here" alt="On Northwind Health's Calls tab, the call Northwind clinics — hiring forecast waits under Waiting for you to pick the deal. Riya chooses File here; a message says Filed in this deal and the call joins the deal's calls, in date order."}
 
 If someone moves a call out of its deal folder, it stays where they put it.
 

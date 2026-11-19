@@ -24,6 +24,12 @@ Meetings that arrive on their own (from Google Meet) use the suggestion. Each ca
 
 ![The Meetings list: Sales pipeline review with the Sales chip, and Q4 launch sync with the Marketing and Engineering chips.](/docs-assets/teams/meetings-and-memory/team-meetings.webp)
 
+## Name the speakers
+
+When speech-to-text can't tell who someone is, their lines show as **Speaker 2**, **Speaker 3**. Anyone who can edit the meeting can name them once, and the transcript, Ask and the team's memory use the name. See [Name the speakers](/workspaces/meetings#name-the-speakers).
+
+::clip{src="/docs-assets/workspaces/meetings/name-speaker" alt="On the transcript of Q1 territory planning, a banner says 2 speakers aren't named yet. Riya chooses Name them; the dialog lists Speaker 2 and Speaker 3 with their talk time and lines, and Markdrop's guess for Speaker 2. She chooses Name, types Hana and picks Hana Kim, who was there; a message says Speaker 2 is Hana Kim now, and after she closes the dialog every Speaker 2 line on the transcript reads Hana Kim."}
+
 ## Personal to-do pages
 
 Every member of the team gets a private to-do page with their action items from the team's calls, grouped by company. Tick an item there or on the call, and the other follows. Leads can read every member's page. See [Personal to-do pages](/teams/to-dos).

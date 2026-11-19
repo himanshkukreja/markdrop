@@ -1,12 +1,14 @@
 ---
 title: Export a page
 description: Download a page as Markdown, a Word document, a single HTML file or a PDF, with its images, its comments and the sub-pages you can open.
-updated: 2026-11-09
+updated: 2026-11-19
 prerequisites: [/pages/overview]
 keywords: [export, download, markdown, md, word, docx, microsoft word, google docs, comments, export comments, html, pdf, print, zip, sub-pages, images, portable, backup, export_page, allow_export, readers can export]
 ---
 
 You can take a page out of Markdrop as a file: portable Markdown, a Word document, one HTML file, or a PDF. Open the page's **⋯** menu and choose **Export…**, pick a format, and select **Download** or **Print to PDF…**. The file downloads where you are; if Markdrop can't make it (for example, the page's editors have just turned off exports for readers), the dialog says why.
+
+::clip{src="/docs-assets/pages/export/export-word" alt="On Q4 pricing playbook, Riya opens the page's ⋯ menu and chooses Export…. The Export page dialog offers Markdown, Word, HTML and PDF; she picks Word and chooses Download .docx, and a message says Exported “Q4 pricing playbook.docx”."}
 
 ## Formats
 

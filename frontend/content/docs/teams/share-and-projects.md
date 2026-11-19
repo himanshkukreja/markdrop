@@ -35,6 +35,8 @@ In a team's **Files & pages**, open the **⋯** menu on a folder and choose **Mo
 
 If the folder's parent stays in the old team, the folder moves to the top of the workspace. Its old addresses on your domain redirect. A big folder finishes in the background: the dialog shows the progress and you can close it. The move is listed, with who made it, in the folder's **Recent changes** (**⋯ › Who can access…**).
 
+::clip{src="/docs-assets/teams/share-and-projects/move-folder" alt="In Sales's Files & pages, Riya opens the menu on the Enablement folder and chooses Move to team…. She picks Marketing; the dialog lists what moves (4 pages, 2 documents and 3 files) and what happens to who can open them, including the public link that keeps working. She chooses Move to Marketing; the folder leaves Sales's Files & pages and a message says Enablement moved to Marketing."}
+
 Workspace admins can move any folder. A team lead can move a folder of their team to another team they're in. Meetings folders and deal folders stay where they are.
 
 ## Private teams and sharing

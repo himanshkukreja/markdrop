@@ -1,7 +1,7 @@
 ---
 title: Brand your workspace
 description: Add your site name, logo, favicon and accent colour, and choose how much viewer chrome readers see on your own domain.
-updated: 2026-10-30
+updated: 2026-11-19
 prerequisites: [/workspaces/custom-domain]
 keywords: [branding, logo, favicon, colour, color, white label, site name, preview card]
 ---
@@ -28,6 +28,8 @@ Branding shows on your own domains. Admins and the owner change it on the **Look
 ![The Logo, colours and favicon card with Favicon, Logo, Logo background, Accent colour #0F766E and White-label preview cards, beside the How your links look preview showing Acme's logo and teal accent in a browser tab and on a link preview card.](/docs-assets/workspaces/branding/branding-form.webp)
 
 The favicon and logo save as soon as they upload. Everything else waits for **Save changes** in the bar at the bottom; **Discard** throws away unsaved edits.
+
+::clip{src="/docs-assets/workspaces/branding/logo-and-accent" alt="In Look and domain, Riya drops the Acme logo on Logo; it shows in the drop zone and in the How your links look preview at once. She types #0F766E as the accent colour, and the preview's Copy link button, label and link card turn teal; then Save changes, and a message says Saved."}
 
 Markdrop re-encodes every uploaded image as a fresh PNG and keeps only the pixels, so an animated GIF keeps only its first frame.
 

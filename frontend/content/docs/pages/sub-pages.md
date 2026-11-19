@@ -1,7 +1,7 @@
 ---
 title: Sub-pages and access inheritance
 description: Nest pages inside pages. A sub-page lives with its parent and follows who can read it, until you set its own access.
-updated: 2026-11-05
+updated: 2026-11-19
 prerequisites: [/pages/overview]
 keywords: [sub-page, subpage, child page, nested, parent, breadcrumbs, inherit, access, move, move to, drag, reorder, page tree, delete]
 ---
@@ -17,6 +17,8 @@ A page can hold other pages. Sub-pages show at the bottom of their parent under 
 You need to be signed in and able to edit the parent.
 
 A sub-page lives in its parent's workspace and folder. Breadcrumbs at the top of the page lead back up through its parents.
+
+::clip{src="/docs-assets/pages/sub-pages/add-subpage" alt="At the bottom of Q4 pricing playbook, Riya chooses Add a sub-page. In the New sub-page dialog she types the title Discount approvals, picks the Decision record template (its preview shows Context, Decision and Consequences) and chooses Create page. The new page opens in the editor with the breadcrumbs Acme / Q4 pricing playbook / Discount approvals, and the page tree beside it shows it nested under Q4 pricing playbook."}
 
 ![The New sub-page dialog: inside the parent page, who can read it follows that page, the template gallery with a preview of the chosen template, and Cancel and Create page.](/docs-assets/pages/sub-pages/subpage-gallery.webp)
 
