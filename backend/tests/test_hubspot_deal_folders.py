@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 
 from app.services import hubspot, hubspot_accounts, hubspot_folders as HF
-from tests.test_hubspot_v2 import S1, S2, V2World
+from tests.test_hubspot_v2 import S1, S2, V2World, legacy_account_page
 
 
 def later(minutes: int) -> str:
@@ -350,7 +350,7 @@ class McpAndBackfill(DealWorld):
         # Before deal folders: a call matched to the deal, and a company account page (Phase 2).
         mid = await self.ready_call()
         await self.db["meetings"].update_one({"_id": ObjectId(mid)}, {"$unset": {"hubspot.filed": ""}})
-        await hubspot_accounts.refresh(self.db, self.conn, w["company"], user_id=self.uid["owner"])
+        await legacy_account_page(self.db, self.conn, w["company"], self.uid["owner"])
         acc = await self.db[hubspot_accounts.ACCOUNTS].find_one({})
         await self.db[HF.DEALS].delete_many({})
         await self.db[hubspot.CONNS].update_one({"_id": self.W}, {"$unset": {"deals_sync": ""}})

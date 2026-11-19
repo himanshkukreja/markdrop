@@ -28,6 +28,37 @@ from tests.test_hubspot import START, HubSpotWorld
 from tests.test_slack import HOOK, TEAM, SlackWorld
 
 
+async def legacy_account_page(db, conn: dict, company_id: str, user_id: str) -> dict:
+    """An account page as Phase 2 made them (Markdrop doesn't make them any more: Deals replaced them), in an
+    "Accounts" folder of the HubSpot team, with its section filled by hubspot_accounts.refresh."""
+    from app.services import folder as folder_service
+    from app.services import pages
+
+    user = await get_user_by_id(db, user_id)
+    actor, ctx = access.Actor.of(user), access.Ctx(db)
+    f = await db["folders"].find_one({"workspace_id": conn["_id"], "hubspot_accounts": True})
+    if f is None:
+        made = await folder_service.create_folder(db, conn["_id"], "Accounts", None)
+        await db["folders"].update_one({"_id": ObjectId(made.id)},
+                                       {"$set": {"hubspot_accounts": True, **T.team_update([conn["team_id"]], [])["$set"]}})
+        folder = made.id
+    else:
+        folder = str(f["_id"])
+    raw, _secret, _err = await pages.create_page(db, user, actor, ctx, title="Company", workspace=conn["_id"], folder=folder,
+                                                 content="The account page.\n")
+    raw = await db["documents"].find_one({"_id": raw["_id"]})
+    if (raw.get("access_level") or "link") != "workspace":
+        raw = await access.set_level(db, raw, "workspace", actor, ctx)
+    await T.apply_to_doc(db, raw, [conn["team_id"]], [])
+    key = f"{conn['_id']}:{conn['portal_id']}:{company_id}"
+    await db[hubspot_accounts.ACCOUNTS].insert_one({"_id": key, "workspace_id": conn["_id"], "portal_id": conn["portal_id"],
+                                                    "company_id": str(company_id), "team_id": conn["team_id"],
+                                                    "doc_id": raw["_id"], "slug": raw["slug"]})
+    got = await hubspot_accounts.refresh(db, conn, company_id, user_id=user_id)
+    assert got is not None
+    return got
+
+
 def sug_reply(user: str) -> str:
     """The fake model's suggestions: a valid stage move, close date, competitor and decision maker; and what
     must be dropped (another pipeline's stage, an unknown field, the current amount, no evidence)."""
@@ -144,7 +175,12 @@ class Suggestions(V2World):
         self.assertEqual(self.sug_calls, 0)
         self.assertFalse((await self.panel(mid))["suggestions"]["enabled"])
         st = (await self.http.get("/api/v1/hubspot/status", headers=self.session("wa"), params={"workspace_id": self.W})).json()
-        self.assertEqual(st["switches"], {"auto_log": False, "suggest": False, "accounts": True, "precall": True, "approve": True, "deal_updates": False})
+        self.assertEqual(st["switches"], {"auto_log": False, "suggest": False, "precall": True, "approve": True, "deal_updates": False})
+        # The retired "accounts" switch (Deals replaced account pages): an old client sending it isn't rejected; it's ignored.
+        r = await self.http.put("/api/v1/hubspot/settings", headers=self.session("wa"), json={"workspace_id": self.W, "accounts": False})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertNotIn("accounts", r.json()["switches"])
+        self.assertNotIn("accounts", await hubspot.get(self.db, self.W))
         r = await self.http.put("/api/v1/hubspot/settings", headers=self.session("wm"), json={"workspace_id": self.W, "suggest": True})
         self.assertEqual(r.status_code, 403)
 
@@ -156,12 +192,16 @@ class Accounts(V2World):
         # Deals replaced account pages (2026-11-18): a call doesn't make one any more; an existing one is kept up to date.
         self.assertIsNone(await self.db[hubspot_accounts.ACCOUNTS].find_one({"company_id": co}))
         conn = await hubspot.get(self.db, self.W)
-        await hubspot_accounts.refresh(self.db, conn, co, user_id=self.uid["owner"])
+        self.assertIsNone(await hubspot_accounts.refresh(self.db, conn, co, user_id=self.uid["owner"]))   # never makes one
+        self.assertIsNone(await self.db[hubspot_accounts.ACCOUNTS].find_one({"company_id": co}))
+        r = await self.post(f"/api/v1/hubspot/meetings/{mid}/account")
+        self.assertEqual(r.status_code, 409, r.text)
+        await legacy_account_page(self.db, conn, co, self.uid["owner"])
         acc = await self.db[hubspot_accounts.ACCOUNTS].find_one({"company_id": co})
         self.assertIsNotNone(acc)
         raw = await self.db["documents"].find_one({"_id": acc["doc_id"]})
         self.assertEqual(raw["team_ids"], [self.sales])
-        self.assertEqual(raw["title"], "Acme Corp")
+        self.assertEqual(acc["name"], "Acme Corp")
         body = raw["content"]
         for want in (hubspot_accounts.START, "Acme annual", "Acme discovery call", "Go with the annual plan",
                      "Security review is a blocker", "Send the proposal to Acme", hubspot_accounts.END):
@@ -380,7 +420,7 @@ class MCP(V2World):
         self.assertEqual(self.fh.objects["deals"][d]["properties"]["dealstage"], "proposal")
         code, res = await self.mcp_call(token, "hubspot_account", {"meeting": mid})
         self.assertTrue(res.get("isError"), res)                                  # no new account pages
-        await hubspot_accounts.refresh(self.db, await hubspot.get(self.db, self.W), _co, user_id=self.uid["owner"])
+        await legacy_account_page(self.db, await hubspot.get(self.db, self.W), _co, self.uid["owner"])
         code, res = await self.mcp_call(token, "hubspot_account", {"meeting": mid})
         self.assertFalse(res.get("isError"), res)
         self.assertIn("Acme annual", res["structuredContent"]["content"])

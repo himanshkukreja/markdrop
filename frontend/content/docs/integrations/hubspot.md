@@ -1,7 +1,7 @@
 ---
 title: HubSpot
 description: Your team's calls written up in HubSpot on the right deal, a folder per open deal, suggested deal updates, pre-call briefs and your pipeline in Ask.
-updated: 2026-11-18
+updated: 2026-11-19
 keywords: [hubspot, crm, deal, deals, contact, contacts, company, pipeline, stage, deal stage, amount, close date, deal owner, sales, sales team, log to hubspot, log calls, log calls automatically, internal notes, hs_internal_meeting_notes, meeting notes, call notes, booked meeting, scheduling link, hubspot zoom, duplicate, no duplicates, tasks, hubspot tasks, action items, approve, service key, service keys, private app, legacy private app, access token, pat-, scopes, crm.objects.contacts.read, crm.objects.contacts.write, crm.objects.companies.read, crm.objects.deals.read, crm.objects.owners.read, crm.objects.deals.write, pick the deal, change match, match again, disconnect, hubspot_status, hubspot_match, log_to_hubspot, hubspot_tasks, suggested updates, suggest deal updates, apply, dismiss, evidence, next step, competitor, budget, decision maker, account page, account pages, accounts folder, pre-call brief, pre-call briefs, before the call, slack, log from slack, create tasks from slack, stop these, pipeline, deals at risk, at risk, no call in 14 days, close date passed, weekly brief, ask, hubspot_suggestions, hubspot_account, hubspot_pipeline, hubspot_notifications, deal folders, deal folder, deals section, deals board, deal page, deal overview, sync now, closed won, closed lost, sales assets, attachments, emails, sales-email-read, files.ui_hidden.read, hubspot_list_deals, hubspot_deal_folder, hubspot_sync_deals]
 ---
 
@@ -178,7 +178,7 @@ With [Markdrop for Slack](/integrations/slack) connected, when a team call's sum
 
 ## The HubSpot card
 
-**Workspace settings › Integrations › HubSpot** shows the connected HubSpot account, the team, how many calls and tasks were logged, **Log calls automatically**, and switches for **Suggest deal updates**, **Pre-call briefs** and **Slack buttons after calls** (all on until an admin turns them off). Workspace admins can change the team, paste a new key (**Change key**) and disconnect. If the team is **open**, everyone in the workspace can read its meetings: the card suggests making it **private**. The card's **Account pages** switch is left from before deal folders; no new account pages are made either way (see [Account pages](#account-pages)).
+**Workspace settings › Integrations › HubSpot** shows the connected HubSpot account, the team, how many calls and tasks were logged, **Log calls automatically**, and switches for **Suggest deal updates**, **Pre-call briefs** and **Slack buttons after calls** (all on until an admin turns them off). Workspace admins can change the team, paste a new key (**Change key**) and disconnect. If the team is **open**, everyone in the workspace can read its meetings: the card suggests making it **private**.
 
 ![The connected HubSpot card: calls from Sales (private), the HubSpot account and who connected it, 41 calls and 58 tasks logged, Log calls automatically off, Suggest deal updates, Pre-call briefs and Slack buttons after calls on, Change key and Disconnect HubSpot.](/docs-assets/integrations/hubspot/card.webp)
 

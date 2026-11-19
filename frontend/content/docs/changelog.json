@@ -24,6 +24,25 @@
   "next": [],
   "entries": [
     {
+      "id": "hubspot-account-pages-switch-removed",
+      "date": "2026-11-19",
+      "title": "HubSpot: the card no longer shows an Account pages switch",
+      "kind": "fixed",
+      "area": "Integrations",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Deals replaced company account pages, but the HubSpot card still showed an Account pages switch that did nothing. It's gone, and Markdrop never makes an account page.",
+      "body": "- **The card.** **Workspace settings › Integrations › HubSpot** now shows only the switches that do something: **Suggest deal updates**, **Pre-call briefs** and **Slack buttons after calls**, plus **Log calls automatically**.\n- **Existing account pages** stay readable in the team's **Accounts (archived)** folder, and `hubspot_account` can still bring one up to date. No new ones are made.\n- **API.** `PUT /api/v1/hubspot/settings` no longer lists `accounts`, and the status's `switches` no longer include it. An older client that still sends `accounts` isn't rejected; the value is ignored.",
+      "links": [
+        {
+          "label": "Account pages",
+          "href": "/integrations/hubspot#account-pages"
+        }
+      ]
+    },
+    {
       "id": "teams-move-folder-to-team",
       "date": "2026-11-19",
       "title": "Teams: move a folder, with everything in it, to another team",
