@@ -57,7 +57,7 @@
 .dx-nav__title { padding: 0 10px 6px; }
 .dx-nav__item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: var(--radius-md); color: var(--text-secondary); font-weight: 500; text-decoration: none; }
 .dx-nav__item:hover { color: var(--text); background: var(--surface-hover); }
-.dx-nav__item[aria-current="page"] { color: var(--accent-text); background: var(--accent-soft); font-weight: 600; }
+.dx-nav__item[aria-current="page"] { color: var(--accent-text); background: var(--accent-soft); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
 .dx-nav__item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 .dx-nav__item--missing, .dx-nav__item--missing:hover { color: var(--text-muted); background: none; opacity: 0.5; cursor: default; }
 .dx-nav__label { flex: 1; min-width: 0; }

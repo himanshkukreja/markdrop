@@ -15,6 +15,7 @@ import { AskAboutPageButton } from "@/docs/client/ask/entry";
 import { ChangedBadge, DocsToc, OnThisPageBar, type TocEntry } from "@/docs/client/Toc";
 import { Feedback } from "@/docs/client/Feedback";
 import { DocsFooter, DocsHeader, DocsSidebar, DocsTopNav, SectionPages } from "@/docs/ui/Chrome";
+import { NavScroll } from "@/docs/client/NavScroll";
 import { themeLayout } from "@/docs/themeSite";
 import { ApiAside, ApiHead, ApiMain } from "@/docs/ui/ApiArticle";
 
@@ -161,9 +162,9 @@ export default async function DocsArticle({ params }: Props) {
       <DocPageProvider value={{ ...info, editUrl: undefined }}>
         <DocsHeader activeTab={tab?.id} current={page.path} />
         <div className="dx-layout dx-layout--api">
-          <aside className="dx-layout__nav">
+          <NavScroll tab={tab?.id} className="dx-layout__nav">
             <DocsSidebar tab={tab?.id} current={page.path} />
-          </aside>
+          </NavScroll>
           <main id="main" className="dx-article dx-api">
             <Breadcrumb items={crumbs} className="dx-crumbs" />
             <ApiHead op={op} />
@@ -309,9 +310,9 @@ export default async function DocsArticle({ params }: Props) {
       <DocsHeader activeTab={tab?.id} current={page.path} />
       <OnThisPageBar entries={toc} />
       <div className="dx-layout">
-        <aside className="dx-layout__nav">
+        <NavScroll tab={tab?.id} className="dx-layout__nav">
           <DocsSidebar tab={tab?.id} current={page.path} />
-        </aside>
+        </NavScroll>
 
         <main id="main" className="dx-article">
           <Breadcrumb items={crumbs} className="dx-crumbs" />
