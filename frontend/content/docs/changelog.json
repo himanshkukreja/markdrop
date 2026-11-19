@@ -24,6 +24,30 @@
   "next": [],
   "entries": [
     {
+      "id": "notion-choose-inside-and-imported-from-notion",
+      "date": "2026-11-19",
+      "title": "Notion: choose pages inside a database, and see which pages came from Notion",
+      "kind": "improved",
+      "area": "Pages",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "Import from Notion now shows your pages exactly as Notion nests them, lets you untick anything inside a page or database you tick, and every imported page says it came from Notion, with a link back.",
+      "body": "- **Notion's own tree.** Every page sits under its real parent: a database's rows appear when you open the database (50 at a time, with how many there are), a page in a column sits under the page it's on, and nothing shows up twice or loose at the top.\n- **Choose inside.** Ticking a page or database still takes everything in it, and now you can untick any page or row inside it. The parent shows a partly ticked box and the dialog sums it up, for example **12 pages, 1 database · 3 left out**. Keep in sync never brings the left-out pages back; rows added to that database in Notion later still come in.\n- **Imported from Notion.** Imported pages show a quiet line at the top with **Open in Notion**. People who can edit also see when it last synced, and whoever set up the sync gets **Sync now**. Pages imported earlier show it too.\n- **API and AI apps.** `POST /api/v1/notion/import` and `import_notion` take `exclude`; `GET /api/v1/notion/connections/{id}/databases/{id}/rows` (and `notion_status` with `database`) lists a database's rows; a page's read, `get_page` and `get_document` include its `source`.",
+      "links": [
+        {
+          "label": "Choose what to import",
+          "href": "/pages/import-from-notion#choose-what-to-import"
+        },
+        {
+          "label": "Imported from Notion on each page",
+          "href": "/pages/import-from-notion#imported-from-notion-on-each-page"
+        }
+      ]
+    },
+    {
       "id": "hubspot-account-pages-switch-removed",
       "date": "2026-11-19",
       "title": "HubSpot: the card no longer shows an Account pages switch",
