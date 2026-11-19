@@ -31,7 +31,8 @@ const routes = JSON.parse(readFileSync(".next/prerender-manifest.json", "utf8"))
 const cacheRoot = ".open-next/cache";
 let copied = 0;
 let bytes = 0;
-const skipped = { revalidates: 0, dataTags: 0, size: 0 };
+const skipped = { revalidates: 0, notPage: 0, dataTags: 0, size: 0 };
+const dataTagged = [];
 const unmatched = [];
 const walk = (dir) => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? walk(join(dir, f)) : [join(dir, f)]));
 for (const buildId of readdirSync(cacheRoot)) {
@@ -54,8 +55,13 @@ for (const buildId of readdirSync(cacheRoot)) {
     }
     const entry = JSON.parse(readFileSync(file, "utf8"));
     const tags = String(entry?.meta?.headers?.["x-next-cache-tags"] ?? "").split(",").filter(Boolean);
-    if (entry?.type !== "app" || tags.some((t) => !t.startsWith("_N_T_/"))) {
+    if (entry?.type !== "app") {
+      skipped.notPage++;
+      continue;
+    }
+    if (tags.some((t) => !t.startsWith("_N_T_/"))) {
       skipped.dataTags++;
+      if (dataTagged.length < 5) dataTagged.push(page);
       continue;
     }
     const out = join(".open-next/assets/cdn-cgi/_next_cache", buildId, relative(join(cacheRoot, buildId), file));
@@ -67,6 +73,7 @@ for (const buildId of readdirSync(cacheRoot)) {
 }
 console.log(
   `cf-postbuild: ${copied} never-revalidating pages into static assets (${(bytes / 1e6).toFixed(1)} MB); kept in R2 only: ` +
-    `${skipped.revalidates} ISR / not prerendered, ${skipped.dataTags} with data tags or not app pages, ${skipped.size} over 24 MiB`,
+    `${skipped.revalidates} ISR / not prerendered, ${skipped.notPage} route handlers, ${skipped.dataTags} with data tags ` +
+    `(${dataTagged.join(" ")}), ${skipped.size} over 24 MiB`,
 );
 if (!copied) throw new Error(`cf-postbuild: no prerendered page copied into static assets (cache layout changed?) e.g. ${unmatched.join(" ")}`);
