@@ -50,6 +50,8 @@ class SourceNode:
     # [[kind, id]…], kept on its link so an unchanged page's children are found again without asking Notion.
     unchanged: bool = False
     child_ids: list | None = None
+    # The page's address in Notion when the source knows it (the API does); None: notion.so/<id>; "": none.
+    url: str | None = None
 
     def source_hash(self) -> str:
         h = hashlib.sha256()

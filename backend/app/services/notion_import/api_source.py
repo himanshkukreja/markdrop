@@ -212,6 +212,9 @@ def emoji_of(icon: dict | None) -> str | None:
 
 # ── The picker ────────────────────────────────────────────────────────────────
 
+BLOCK_LOOKUPS = 80                  # the picker: blocks read to find the page a page sits in
+ROWS_PAGE = 50                      # the picker: a database's rows, a page at a time
+
 
 def _parent_ref(obj: dict) -> tuple[str | None, str | None]:
     """(kind, hex id) of what an object sits in: ("page", id), ("database", id), ("block", id) or (None, None)."""
@@ -226,10 +229,61 @@ def _parent_ref(obj: dict) -> tuple[str | None, str | None]:
     return None, None
 
 
+class _Blocks:
+    """The page (or database) a block sits in, read up through its parent blocks (a page in a column, a
+    toggle, a synced block). Cached, and at most ``BLOCK_LOOKUPS`` reads per listing: past that (or when a
+    block can't be read) the item stays at the top level."""
+
+    def __init__(self, client: api.Client, budget: int = BLOCK_LOOKUPS):
+        self.c = client
+        self.budget = budget
+        self.cache: dict[str, tuple[str | None, str | None]] = {}
+
+    async def owner(self, bid: str) -> tuple[str | None, str | None]:
+        seen: list[str] = []
+        cur = bid
+        res: tuple[str | None, str | None] = (None, None)
+        for _ in range(16):
+            if cur in self.cache:
+                res = self.cache[cur]
+                break
+            if self.budget <= 0:
+                break
+            self.budget -= 1
+            try:
+                b = await self.c.call("GET", f"/v1/blocks/{dashed(cur)}")
+            except api.NotionError as exc:
+                if exc.auth:
+                    raise
+                break
+            seen.append(cur)
+            k, pid = _parent_ref(b)
+            if k == "block" and pid:
+                cur = pid
+                continue
+            res = (k, pid)
+            break
+        for s in seen:
+            self.cache[s] = res
+        return res
+
+
 async def shared(client: api.Client) -> dict:
-    """What Markdrop can read: {items: [{id, kind (page|database), title, icon, parent_id, url, last_edited}],
-    truncated}. Database rows are left out (they come with their database)."""
-    items: dict[str, dict] = {}
+    """What Markdrop can read, as Notion nests it, for the picker::
+
+        {items: [{id, kind (page|database), title, icon, parent_id, parent_kind, url, last_edited,
+                  row_count (databases)}],
+         row_parents: {row id: database id}, truncated}
+
+    Every item names its real parent: a page (``parent_kind`` "page"), a database row ("row": the row comes
+    with its database, see :func:`database_rows`) or, for a page inside a block (a column, a toggle), the
+    page that block is in. Nothing is listed twice. Database rows aren't items: they're counted on their
+    database (``row_count``, what search returned) and listed when the database is opened; a row whose
+    database isn't shared with Markdrop is an item of its own (a page). An item whose parent isn't shared
+    sits at the top level (``parent_id`` null). ``row_parents``: the database of each row that has shared
+    sub-pages listed here."""
+    pages: dict[str, dict] = {}
+    dbs: dict[str, dict] = {}
     n = 0
     truncated = False
     async for obj in client.pages("POST", "/v1/search", json={
@@ -242,28 +296,80 @@ async def shared(client: api.Client) -> dict:
             continue
         kind = obj.get("object")
         if kind == "page":
-            pk, pid = _parent_ref(obj)
-            if pk == "database":
-                continue                      # a database row
-            items[hexid(obj["id"])] = {
-                "id": hexid(obj["id"]), "kind": "page", "title": title_of(obj) or "Untitled",
-                "icon": emoji_of(obj.get("icon")), "parent_id": pid if pk == "page" else None,
-                "url": obj.get("url"), "last_edited": obj.get("last_edited_time")}
+            pages.setdefault(hexid(obj.get("id")), obj)
         elif kind in ("data_source", "database"):
             par = obj.get("parent") or {}
-            dbid = hexid(par.get("database_id")) if par.get("type") == "database_id" else hexid(obj["id"])
-            dpar = obj.get("database_parent") or (obj.get("parent") if kind == "database" else None) or {}
-            pid = hexid(dpar.get("page_id")) if dpar.get("type") == "page_id" else None
-            if dbid in items:
-                continue
-            items[dbid] = {"id": dbid, "kind": "database", "title": title_of(obj) or "Untitled database",
-                           "icon": emoji_of(obj.get("icon")), "parent_id": pid, "url": obj.get("url"),
-                           "last_edited": obj.get("last_edited_time")}
-    for it in items.values():
-        if it["parent_id"] and it["parent_id"] not in items:
-            it["parent_id"] = None
-    rows = sorted(items.values(), key=lambda x: (x["title"] or "").casefold())
-    return {"items": rows, "truncated": truncated}
+            dbid = hexid(par.get("database_id")) if par.get("type") == "database_id" else hexid(obj.get("id"))
+            if dbid and dbid not in dbs:
+                dpar = obj.get("database_parent") or (obj.get("parent") if kind == "database" else None) or {}
+                dbs[dbid] = {"obj": obj, "parent": _parent_ref({"parent": dpar})}
+    blocks = _Blocks(client)
+
+    async def where(ref: tuple[str | None, str | None]) -> tuple[str | None, str | None]:
+        k, pid = ref
+        if k == "block" and pid:
+            return await blocks.owner(pid)
+        return k, pid
+
+    items: dict[str, dict] = {}
+    parents: dict[str, tuple[str | None, str | None]] = {}
+    rows: dict[str, str] = {}                 # row id → its (shared) database
+    row_count: dict[str, int] = {}
+    for pid_, obj in pages.items():
+        k, p = await where(_parent_ref(obj))
+        if k == "database" and p in dbs:
+            rows[pid_] = p
+            row_count[p] = row_count.get(p, 0) + 1
+            continue
+        items[pid_] = {"id": pid_, "kind": "page", "title": title_of(obj) or "Untitled",
+                       "icon": emoji_of(obj.get("icon")), "url": obj.get("url"),
+                       "last_edited": obj.get("last_edited_time")}
+        parents[pid_] = (k, p) if k == "page" else (None, None)
+    for dbid, d in dbs.items():
+        obj = d["obj"]
+        k, p = await where(d["parent"])
+        items[dbid] = {"id": dbid, "kind": "database", "title": title_of(obj) or "Untitled database",
+                       "icon": emoji_of(obj.get("icon")), "url": obj.get("url"),
+                       "last_edited": obj.get("last_edited_time")}
+        parents[dbid] = (k, p) if k == "page" else (None, None)
+    row_parents: dict[str, str] = {}
+    for iid, it in items.items():
+        _k, p = parents[iid]
+        if p and p != iid and p in rows:
+            it["parent_id"], it["parent_kind"] = p, "row"
+            row_parents[p] = rows[p]
+        elif p and p != iid and p in items:
+            it["parent_id"], it["parent_kind"] = p, "page" if items[p]["kind"] == "page" else "database"
+        else:
+            it["parent_id"], it["parent_kind"] = None, None
+        if it["kind"] == "database":
+            it["row_count"] = row_count.get(iid, 0)
+    out = sorted(items.values(), key=lambda x: (x["title"] or "").casefold())
+    return {"items": out, "row_parents": row_parents, "truncated": truncated}
+
+
+async def database_rows(client: api.Client, db_id: str, cursor: str | None = None,
+                        size: int = ROWS_PAGE) -> dict:
+    """One page of a database's rows, for the picker: {items: [{id, kind: "row", title, icon, parent_id
+    (the database), parent_kind, url, last_edited}], next_cursor}."""
+    nid = hexid(db_id)
+    d = await client.call("GET", f"/v1/databases/{dashed(nid)}")
+    sources = d.get("data_sources") or []
+    if not sources or d.get("in_trash") or d.get("archived"):
+        return {"items": [], "next_cursor": None}
+    body: dict[str, Any] = {"page_size": max(1, min(100, int(size)))}
+    if cursor:
+        body["start_cursor"] = cursor
+    res = await client.call("POST", f"/v1/data_sources/{sources[0]['id']}/query", json=body)
+    out = []
+    for r in res.get("results") or []:
+        if r.get("in_trash") or r.get("archived") or r.get("object") != "page":
+            continue
+        out.append({"id": hexid(r.get("id")), "kind": "row", "title": title_of(r) or "Untitled",
+                    "icon": emoji_of(r.get("icon")), "parent_id": nid, "parent_kind": "database",
+                    "url": r.get("url"), "last_edited": r.get("last_edited_time")})
+    more = bool(res.get("has_more")) and bool(res.get("next_cursor"))
+    return {"items": out, "next_cursor": res.get("next_cursor") if more else None}
 
 
 async def edited_since(client: api.Client, since: datetime) -> set[str]:
@@ -294,11 +400,16 @@ class Stop(Exception):
 class Builder:
     """Reads the chosen roots into a :class:`SourceTree`. ``known``: the writer's links for the destination
     (notion id → row), so unchanged pages aren't read again. ``changed``: from :func:`edited_since` (a
-    scheduled sync), or None (read every page's ``last_edited_time``)."""
+    scheduled sync), or None (read every page's ``last_edited_time``). ``exclude``: pages, databases and rows
+    left out in the picker (unticked under a ticked parent): neither they nor anything under them is read,
+    now or on a later sync."""
 
     def __init__(self, client: api.Client, tmpdir: str, *, known: dict[str, dict] | None = None,
-                 changed: set[str] | None = None, progress: Progress | None = None):
+                 changed: set[str] | None = None, progress: Progress | None = None,
+                 exclude: set[str] | None = None):
         self.c = client
+        self.exclude = {hexid(x) for x in exclude or ()}
+        self.left_out = 0
         self.tmp = tmpdir
         self.known = known or {}
         self.changed = changed
@@ -546,6 +657,9 @@ class Builder:
         nid = hexid(nid)
         if not _HEX.match(nid):
             return
+        if nid in self.exclude and parent_id is not None:
+            self.left_out += 1
+            return
         if nid in self.tree.nodes:
             n = self.tree.nodes[nid]
             # Picked on its own and found again under another picked page: it belongs there.
@@ -586,7 +700,7 @@ class Builder:
             await self._reuse(nid, kind, parent_id)
             return
         node = SourceNode(notion_id=nid, kind=kind, title=title, parent_id=parent_id, last_edited=last, path=nid,
-                          child_ids=[], values=values or {})
+                          child_ids=[], values=values or {}, url=raw.get("url"))
         if kind == ROW and self._fresh(nid, last):
             node.unchanged = True
             node.child_ids = list((link or {}).get("child_ids") or [])
@@ -638,8 +752,12 @@ class Builder:
         rows: list[dict] = []
         async for r in self.c.pages("POST", f"/v1/data_sources/{sources[0]['id']}/query", json={},
                                     limit=MAX_NODES):
-            if not (r.get("in_trash") or r.get("archived")):
-                rows.append(r)
+            if r.get("in_trash") or r.get("archived"):
+                continue
+            if hexid(r.get("id")) in self.exclude:
+                self.left_out += 1          # unticked in the picker: not this database's row here
+                continue
+            rows.append(r)
         node.raw = json.dumps([[c.name, c.notion_type] for c in cols] + [
             [hexid(r["id"]), r.get("last_edited_time"), {k: prop_text(v) for k, v in (r.get("properties") or {}).items()}]
             for r in rows], sort_keys=True, ensure_ascii=False).encode()
@@ -658,6 +776,7 @@ class Builder:
                 self.tree.skipped.append({"path": rid, "title": title_of(r), "reason": f"Notion answered {exc.status}."})
 
     async def build(self, roots: list[dict], name: str | None = None) -> SourceTree:
+        self.exclude -= {hexid(r["id"]) for r in roots}      # a picked root is never left out
         for r in roots:
             await self.visit(r.get("kind") or "page", r["id"], None)
         tops = self.tree.roots()

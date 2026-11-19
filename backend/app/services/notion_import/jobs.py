@@ -246,9 +246,28 @@ def _root_list(roots: list) -> list[dict]:
     return out
 
 
+MAX_EXCLUDE = 2000
+
+
+def exclude_list(exclude: list | None, roots: list[dict]) -> list[str]:
+    """The ids left out in the picker (unticked under a ticked page or database), checked; never a root."""
+    from app.services.notion_import.api_source import hexid
+
+    picked = {r["id"] for r in roots}
+    out: list[str] = []
+    for x in exclude or []:
+        h = hexid(str(x or ""))
+        if re.fullmatch(r"[0-9a-f]{32}", h) and h not in picked and h not in out:
+            out.append(h)
+    if len(out) > MAX_EXCLUDE:
+        raise HTTPException(status_code=422, detail=f"Leave out at most {MAX_EXCLUDE:,} pages at a time.")
+    return out
+
+
 async def create_api(db: AsyncIOMotorDatabase, user, *, connection_id: str | None, roots: list,
-                     destination: dict | None, keep_in_sync: bool = False) -> dict:
-    """An import of pages / databases the person shared with Markdrop in Notion (Connect Notion)."""
+                     destination: dict | None, keep_in_sync: bool = False, exclude: list | None = None) -> dict:
+    """An import of pages / databases the person shared with Markdrop in Notion (Connect Notion).
+    ``exclude``: ids under the roots to leave out (and everything under them); a kept sync remembers them."""
     from app.services.notion_import import api_source, connect
     from app.services.notion_import import sync as S
 
@@ -261,6 +280,7 @@ async def create_api(db: AsyncIOMotorDatabase, user, *, connection_id: str | Non
         raise HTTPException(status_code=422, detail="Pick at least one Notion page or database to import.")
     if len(picked) > 50:
         raise HTTPException(status_code=422, detail="Pick at most 50 pages at a time (sub-pages come with them).")
+    left_out = exclude_list(exclude, picked)
     # Titles (and kinds) from Notion itself, not from the caller.
     try:
         listing = await shared_listing(db, conn)
@@ -285,9 +305,9 @@ async def create_api(db: AsyncIOMotorDatabase, user, *, connection_id: str | Non
            "roots": picked, "file_name": (name[:197] + "…") if len(name) > 200 else name, "size_bytes": 0,
            "key": None, "dest": dest, "progress": {"phase": "reading", "done": 0, "total": 0, "current": None},
            "created_at": now, "queued_at": now, "purge_at": now + timedelta(days=KEEP_DAYS), "attempts": 0,
-           "manual": True, "since": None}
+           "manual": True, "since": None, "exclude": left_out}
     job["sync_ids"] = await S.record(db, user, connection_id=conn["_id"], roots=picked, dest=dest,
-                                     keep=keep_in_sync, job_id=jid)
+                                     keep=keep_in_sync, job_id=jid, exclude=left_out)
     await db[COLL].insert_one(job)
     kick(db)
     _ = api_source
@@ -301,6 +321,20 @@ async def shared_listing(db: AsyncIOMotorDatabase, conn: dict) -> dict:
     try:
         return await api_source.shared(c)
     except api.NotionError as exc:
+        raise _notion_http(exc)
+    finally:
+        await c.close()
+
+
+async def database_rows(db: AsyncIOMotorDatabase, conn: dict, database_id: str, cursor: str | None) -> dict:
+    from app.services.notion_import import api, api_source, connect
+
+    c = await connect.client(db, conn)
+    try:
+        return await api_source.database_rows(c, database_id, cursor)
+    except api.NotionError as exc:
+        if exc.missing:
+            raise HTTPException(status_code=404, detail="That database isn't shared with Markdrop any more.")
         raise _notion_http(exc)
     finally:
         await c.close()
@@ -324,7 +358,7 @@ async def queue_sync(db: AsyncIOMotorDatabase, row: dict, *, since: datetime | N
            "file_name": row.get("root_title") or "Notion", "size_bytes": 0, "key": None, "dest": row.get("dest") or {},
            "progress": {"phase": "reading", "done": 0, "total": 0, "current": None}, "created_at": now,
            "queued_at": now, "purge_at": now + timedelta(days=2), "attempts": 0, "sync_ids": [row["_id"]],
-           "since": since}
+           "since": since, "exclude": list(row.get("exclude") or [])}
     await db[COLL].insert_one(job)
     return job
 
@@ -522,6 +556,11 @@ async def run(db: AsyncIOMotorDatabase, job: dict) -> None:
             dest, info = await _dest(db, user, job, tree.name)
         await beat(folder_id=info["folder_id"], folder_name=info["folder_name"])
         w = W.Writer(db, tree, dest, report, progress)
+        if api_job:
+            w.via = "api"
+            if job.get("sync_ids"):
+                w.sync_by_root = {r["root_id"]: r["_id"] async for r in db["notion_syncs"].find(
+                    {"_id": {"$in": job["sync_ids"]}}, {"root_id": 1})}
         await w.run()
         cur = await db[COLL].find_one({"_id": jid}, {"state": 1})
         if cur is None or cur.get("state") != "running":
@@ -601,7 +640,8 @@ async def _read_api(db: AsyncIOMotorDatabase, user, job: dict, tmp: str, progres
     client = await connect.client(db, conn)
     try:
         changed = await api_source.edited_since(client, since) if since is not None else None
-        b = api_source.Builder(client, tmp, known=known, changed=changed, progress=progress)
+        b = api_source.Builder(client, tmp, known=known, changed=changed, progress=progress,
+                               exclude=set(job.get("exclude") or []))
         tree = await b.build(roots, name)
     except api_source.Stop:
         return None

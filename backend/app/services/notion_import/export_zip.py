@@ -314,7 +314,7 @@ def build_tree(ez: ExportZip, file_name: str | None = None) -> SourceTree:
                 match.order = len(tree.nodes) + k
             else:
                 rid = hashlib.sha1(f"{db_id}:{k}:{t}".encode()).hexdigest()[:32]
-                node = SourceNode(notion_id=rid, kind=ROW, title=(t or "Untitled")[:200], parent_id=db_id,
+                node = SourceNode(notion_id=rid, kind=ROW, url="", title=(t or "Untitled")[:200], parent_id=db_id,
                                   values=values, path=f"{db.path}#{k + 2}", raw=repr(sorted(row.items())).encode())
                 tree.add(node)
         base = len(tree.nodes) + len(rows)

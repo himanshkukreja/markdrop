@@ -17,6 +17,10 @@ last_edited, synced_rev, synced_at, detached, assets: {path: {image|file}}} make
 resumable: a page whose source hash is unchanged is left alone; one whose Markdrop revision moved since
 Markdrop wrote it was edited in Markdrop and is kept (``detached``: Phase B's sync stops updating it).
 
+Provenance: every page written gets ``source: {kind: "notion", via: "api" | "zip", notion_id, url, sync_id,
+imported_at}`` (services/notion_import/source.py reads it for the "Imported from Notion" strip). Set without
+touching the page's revision, so it never counts as an edit.
+
 Access: what the destination gives new items (the team's, the folder's "new items start as", private in
 My files) — never "anyone with the link": that default becomes "workspace".
 """
@@ -115,6 +119,10 @@ class Writer:
         self.schemas: dict[str, list[dict]] = {}   # database id → its properties (with "source")
         self.people: P.People | None = None
         self.depth: dict[str, int] = {}            # slug → page depth
+        # Provenance (``source`` on each page): how it came ("api": Connect Notion, "zip": an export) and,
+        # for Connect Notion, the sync row of each root it was imported under.
+        self.via = "zip"
+        self.sync_by_root: dict[str, str] = {}
 
     # ── links ──
 
@@ -199,6 +207,7 @@ class Writer:
         raw = await self._doc(link)
         if raw is not None:
             self.depth[raw["slug"]] = len(raw.get("page_path") or [])
+            await self._stamp(node, raw)
             return
         if node.unchanged and link is not None:
             # Deleted in Markdrop and not edited in Notion since (the API source didn't read it again): left
@@ -208,6 +217,7 @@ class Writer:
             return
         raw = await self._create(node)
         self.depth[raw["slug"]] = len(raw.get("page_path") or [])
+        await self._stamp(node, raw)
         await self._save_link(node.notion_id, kind=node.kind, doc_id=raw["_id"], slug=raw["slug"],
                               folder_id=raw.get("folder_id"), synced_rev=int(raw.get("rev", 1)), source_hash=None,
                               detached=False, assets={})
@@ -251,6 +261,30 @@ class Writer:
             self.report.error(node.path, node.title, err)
         await self._mark(raw)
         return raw
+
+    def source_of(self, node: SourceNode) -> dict:
+        """The page's provenance: where it is in Notion and (Connect Notion) the sync it comes with."""
+        nid = node.notion_id
+        # (url "": the source knows it has no page in Notion, e.g. an export's row that was only a CSV line.)
+        url = node.url if isinstance(node.url, str) and node.url.startswith("https://") else (
+            f"https://www.notion.so/{nid}" if node.url is None and re.fullmatch(r"[0-9a-f]{32}", nid or "") else None)
+        top = node
+        for _ in range(64):
+            up = self.tree.nodes.get(top.parent_id or "")
+            if up is None:
+                break
+            top = up
+        return {"kind": "notion", "via": self.via, "notion_id": nid, "url": url,
+                "sync_id": self.sync_by_root.get(top.notion_id)}
+
+    async def _stamp(self, node: SourceNode, raw: dict) -> None:
+        """``source`` on the page (only when it changed; never a revision: it isn't an edit)."""
+        want = self.source_of(node)
+        cur = raw.get("source") if isinstance(raw.get("source"), dict) else {}
+        if all(cur.get(k) == v for k, v in want.items()) and cur.get("imported_at"):
+            return
+        want["imported_at"] = cur.get("imported_at") or now_utc()
+        await self.db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"source": want}})
 
     async def _mark(self, raw: dict) -> None:
         """Into the team (a team's space), and marked as imported."""

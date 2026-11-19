@@ -1,3 +1,4 @@
+import { notionSourceOf, type NotionSource } from "@/lib/notionSource";
 import type { PagePropertiesInfo } from "@/components/pages/props/api";
 /** DocumentView's props. The contract `page.tsx` and the tenant route render with — unchanged. */
 export interface DocumentViewProps {
@@ -66,6 +67,8 @@ export interface PageFields {
   cover_pending?: boolean;
   /** Meetings: this page is a meeting (or its transcript); the reader mounts the meeting panel. */
   meeting?: { id: string; role: string; has_recording?: boolean } | null;
+  /** Imported from Notion: where it came from (and its sync, for people who can edit it). */
+  source?: NotionSource | null;
 }
 
 /** The page fields of a document read (null when it says nothing about pages). */
@@ -92,6 +95,7 @@ export function pageFieldsOf(doc: Record<string, unknown> | null | undefined): P
     cover_pending: d.cover_pending === true,
     meeting: d.meeting && typeof d.meeting === "object" && typeof (d.meeting as { id?: unknown }).id === "string"
       ? { id: (d.meeting as { id: string }).id, role: String((d.meeting as { role?: unknown }).role ?? "page") } : null,
+    source: notionSourceOf((d as { source?: unknown }).source),
   };
 }
 

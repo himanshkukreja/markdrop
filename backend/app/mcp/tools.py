@@ -1064,6 +1064,9 @@ async def get_document(ctx: Context, args: dict) -> tuple[str, dict]:
         "rev": int(doc.rev or 1),
         **meta,
     }
+    src = await notion_source_of(ctx, raw)
+    if src is not None:
+        out["source"] = src
     if paged is not None:
         out.update({k: paged[k] for k in _PAGED_KEYS if k in paged})
         out["format"] = "text"
@@ -1078,6 +1081,17 @@ async def get_document(ctx: Context, args: dict) -> tuple[str, dict]:
         return f"{name} ({out['url']}): {note}", out
     head = f"{name} ({out['url']})" + (f"\n{note}" if note else "")
     return f"{head}\n\n{content}", out
+
+
+async def notion_source_of(ctx: Context, raw: dict) -> dict | None:
+    """Imported from Notion: where it came from (and, for someone who can edit it, its sync status)."""
+    if not raw.get("source"):
+        return None
+    from app.services.notion_import import source as notion_source
+
+    actor = actor_of(ctx)
+    can_edit = bool(await access_service.can(actor, raw, "edit_content", access_service.Ctx(ctx.db)))
+    return await notion_source.for_read(ctx.db, raw, ctx.user.id, can_edit=can_edit)
 
 
 async def scoped_documents(ctx: Context, scope: str, *, query: str | None, kind: str | None,

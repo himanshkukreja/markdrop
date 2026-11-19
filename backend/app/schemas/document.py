@@ -213,6 +213,10 @@ class DocumentResponse(BaseModel):
     # Meetings (services/meetings.py): this page is a meeting ({id, role: page | transcript}); the
     # reader mounts the meeting panel, which asks GET /meetings/{id} (decided again there).
     meeting: dict | None = None
+    # Imported from Notion (services/notion_import/source.py): {kind: "notion", url, imported_at, sync}.
+    # sync (null for readers who can't edit, and for export-file imports): {state: on | off | paused |
+    # edited, last_synced_at, id?, keep_in_sync?} — id only for the person whose sync it is.
+    source: dict | None = None
     # Viewer analytics (services/analytics_prefs.py): which kinds of analytics this item collects
     # ({counts, identity, location, device, source, activity, video, pages, downloads}: bool), so
     # the reader's page sends only those. The server drops anything else anyway.

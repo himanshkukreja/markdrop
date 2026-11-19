@@ -86,6 +86,9 @@ class FakeNotion:
         self.retry_after = "1"
         self.calls: list[tuple[str, str]] = []
         self.n = 0
+        self.block_parent: dict[str, str] = {}   # block hex → the page or block it sits in
+        self.in_block: dict[str, str] = {}       # page hex → the block it sits in (a page in a column)
+        self.unshared: set[str] = set()          # pages / databases not shared with Markdrop (not searchable)
 
     def transport(self) -> httpx.MockTransport:
         return httpx.MockTransport(self.handler)
@@ -98,7 +101,8 @@ class FakeNotion:
 
     def page(self, key: str, title: str, *, parent: str | None = None, minutes_ago: float = 60, icon: str | None = None,
              cover_file: str | None = None, blocks: list[dict] | None = None, db: str | None = None,
-             props: dict | None = None) -> str:
+             props: dict | None = None, block: str | None = None) -> str:
+        """A page; ``block``: it sits in that block (a column, a toggle) of ``parent``'s page."""
         h = nid(key)
         p = {"title": title, "parent": parent, "db": db, "icon": icon, "cover_file": cover_file,
              "last_edited": ts(minutes_ago), "props": props or {}, "in_trash": False}
@@ -106,7 +110,10 @@ class FakeNotion:
         self.blocks[h] = []
         for b in blocks or []:
             self.add_block(h, b)
-        if parent and not db:
+        if block:
+            self.in_block[h] = block
+            self.add_block(block, {"type": "child_page", "child_page": {"title": title}, "id": h})
+        elif parent and not db:
             self.add_block(parent, {"type": "child_page", "child_page": {"title": title}, "id": h})
         return h
 
@@ -121,6 +128,7 @@ class FakeNotion:
             b["has_children"] = True
         self.blocks.setdefault(parent, []).append(b)
         self.block_by_id[b["id"]] = b
+        self.block_parent[b["id"]] = parent
         if kids:
             self.blocks[b["id"]] = []
             for k in kids:
@@ -179,6 +187,11 @@ class FakeNotion:
     def _block(self, b: dict, fresh: bool = False) -> dict:
         out = json.loads(json.dumps(b))
         out["id"] = dashed(b["id"])
+        par = self.block_parent.get(b["id"])
+        if par in self.pages:
+            out["parent"] = {"type": "page_id", "page_id": dashed(par)}
+        elif par:
+            out["parent"] = {"type": "block_id", "block_id": dashed(par)}
         t = out["type"]
         if t in ("image", "file", "pdf", "video", "audio") and out[t].get("type") == "file":
             key = urlsplit(out[t]["file"]["url"]).path.lstrip("/")
@@ -199,6 +212,8 @@ class FakeNotion:
         if p["db"]:
             parent = {"type": "data_source_id", "data_source_id": dashed(self.databases[p["db"]]["ds"]),
                       "database_id": dashed(p["db"])}
+        elif h in self.in_block:
+            parent = {"type": "block_id", "block_id": dashed(self.in_block[h])}
         elif p["parent"]:
             parent = {"type": "page_id", "page_id": dashed(p["parent"])}
         else:
@@ -290,8 +305,8 @@ class FakeNotion:
                                              "message": "Rate limited"}, headers={"Retry-After": self.retry_after})
         q = request.url.params
         if path == "/v1/search":
-            items = [self._page(h) for h, p in self.pages.items() if not p["in_trash"]]
-            items += [self._ds(ds) for ds in self.sources]
+            items = [self._page(h) for h, p in self.pages.items() if not p["in_trash"] and h not in self.unshared]
+            items += [self._ds(ds) for ds, src in self.sources.items() if src["db"] not in self.unshared]
             items.sort(key=lambda o: o["last_edited_time"], reverse=True)
             return httpx.Response(200, json=self._paged(items, body.get("start_cursor"), int(body.get("page_size") or 100)))
         parts = path.strip("/").split("/")

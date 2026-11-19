@@ -5,9 +5,11 @@
  *   POST   /connect/start {back?}          → {url} (Notion's consent screen; the person picks the pages to share)
  *   POST   /connect/finish {code, state}   → {connection, back}
  *   DELETE /connections/{id}               disconnect (Notion revokes the token; imported pages stay)
- *   GET    /connections/{id}/pages         the pages and databases shared with Markdrop (the picker)
- *   POST   /import                         {connection_id?, pages, destination, keep_in_sync} → {import} (an ordinary
- *                                          Notion import job: poll it with getNotionImport)
+ *   GET    /connections/{id}/pages         the pages and databases shared with Markdrop (the picker), each under
+ *                                          its real parent; database rows load with the next one
+ *   GET    /connections/{id}/databases/{db}/rows?cursor=   a database's rows, 50 at a time
+ *   POST   /import                         {connection_id?, pages, exclude, destination, keep_in_sync} → {import} (an
+ *                                          ordinary Notion import job: poll it with getNotionImport)
  *   PATCH  /syncs/{id} {keep_in_sync}      Keep in sync on / off
  *   POST   /syncs/{id}/run                 Sync now → {import, sync}
  *   DELETE /syncs/{id}                     stop following it (its pages stay)
@@ -30,13 +32,25 @@ export interface NotionConnection {
 export interface NotionSharedItem {
   /** 32-hex Notion id. */
   id: string;
-  kind: "page" | "database";
+  /** "row": a database row (from notionDatabaseRows, never in the listing itself). */
+  kind: "page" | "database" | "row";
   title: string;
   icon: string | null;
-  /** The shared page it sits in (null: a top-level shared item). */
+  /** What it sits in, when that's shared too (null: top level). */
   parent_id: string | null;
+  /** "row": it's a sub-page of a database row (shown when its database is opened). */
+  parent_kind?: "page" | "database" | "row" | null;
+  /** Databases: how many rows Notion's search returned for it. */
+  row_count?: number;
   url: string | null;
   last_edited: string | null;
+}
+
+export interface NotionSharedListing {
+  items: NotionSharedItem[];
+  /** The database of each row that has sub-pages in `items`. */
+  row_parents?: Record<string, string>;
+  truncated: boolean;
 }
 
 export interface NotionSync {
@@ -64,6 +78,8 @@ export interface NotionSync {
   counts: Partial<NotionImportCounts>;
   /** Pages edited in Markdrop since they were synced: kept as they are, no longer synced. */
   edited_in_markdrop: { title: string; slug: string; url: string }[];
+  /** How many pages were left out in the picker (never brought in by a sync). */
+  left_out?: number;
 }
 
 export interface NotionStatus {
@@ -90,9 +106,13 @@ export const disconnectNotion = (id: string) =>
   request<{ disconnected: boolean; revoked: boolean; syncs_stopped: number }>(`${P}/connections/${encodeURIComponent(id)}`, { method: "DELETE" });
 
 export const notionSharedPages = (id: string) =>
-  request<{ items: NotionSharedItem[]; truncated: boolean }>(`${P}/connections/${encodeURIComponent(id)}/pages`);
+  request<NotionSharedListing>(`${P}/connections/${encodeURIComponent(id)}/pages`);
 
-export const importFromNotion = (body: { connection_id: string; pages: { id: string; kind: "page" | "database" }[]; destination: NotionDestinationIn; keep_in_sync: boolean }) =>
+export const notionDatabaseRows = (id: string, database: string, cursor?: string | null) =>
+  request<{ items: NotionSharedItem[]; next_cursor: string | null }>(
+    `${P}/connections/${encodeURIComponent(id)}/databases/${encodeURIComponent(database)}/rows${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`);
+
+export const importFromNotion = (body: { connection_id: string; pages: { id: string; kind: "page" | "database"; title?: string }[]; exclude?: string[]; destination: NotionDestinationIn; keep_in_sync: boolean }) =>
   request<{ import: NotionImport }>(`${P}/import`, { method: "POST", body: JSON.stringify(body) });
 
 export const setKeepInSync = (id: string, keep: boolean) =>
@@ -114,18 +134,4 @@ export function readNotionState(state: string): { back: string | null } {
   } catch {
     return { back: null };
   }
-}
-
-/** Shared items as a tree: roots (parent not shared) with their children, by title. */
-export interface NotionTreeNode extends NotionSharedItem { children: NotionTreeNode[] }
-export function notionTree(items: NotionSharedItem[]): NotionTreeNode[] {
-  const by = new Map<string, NotionTreeNode>(items.map((i) => [i.id, { ...i, children: [] }]));
-  const roots: NotionTreeNode[] = [];
-  for (const n of by.values()) {
-    const p = n.parent_id ? by.get(n.parent_id) : undefined;
-    if (p) p.children.push(n); else roots.push(n);
-  }
-  const sort = (xs: NotionTreeNode[]) => { xs.sort((a, b) => a.title.localeCompare(b.title)); xs.forEach((x) => sort(x.children)); };
-  sort(roots);
-  return roots;
 }

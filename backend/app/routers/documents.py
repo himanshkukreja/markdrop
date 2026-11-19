@@ -132,6 +132,13 @@ async def _full_response(db: AsyncIOMotorDatabase, raw: dict, actor: access.Acto
     body.update(await pages.page_fields(db, raw, actor, ctx))
     # Person mentions name people only inside the page's circle.
     body["content"] = await pages.content_for(actor, raw, ctx)
+    # Imported from Notion (services/notion_import/source.py): provenance for everyone; sync status for
+    # people who can edit; Sync now for the person whose sync it is.
+    if raw.get("source"):
+        from app.services.notion_import import source as notion_source
+
+        body["source"] = await notion_source.for_read(db, raw, actor.user_id,
+                                                      can_edit=bool((body.get("can") or {}).get("edit")))
     # A video's chapters (the player's progress bar), from its owner's analysis when there is one.
     if raw.get("kind") == "artifact" and str(raw.get("mime") or "").startswith("video/"):
         from app.services import analytics_ai_doc

@@ -155,6 +155,7 @@ export function NotionSettings() {
                       <span><Icon name="folder" />{where(s)}</span>
                       <span><Icon name="refresh" />Synced {ago(s.last_synced_at)}</span>
                       {s.counts.updated ? <span>{s.counts.updated} updated last time</span> : null}
+                      {s.left_out ? <span title="Left out when you chose what to import: syncs never bring these in">{s.left_out} left out</span> : null}
                     </div>
                     <div className="nsy-actions">
                       <Switch checked={s.keep_in_sync} label="Keep in sync" disabled={busy === `keep:${s.id}`}
