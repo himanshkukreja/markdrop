@@ -159,22 +159,35 @@ export default function TeamHome({ ws, team: teamRef, settings }: { ws: string; 
       ) : (
         <>
           <AskBar href={teamAskHref(ws, t)} name={t.name} chips={chips} />
+          {/* Two independent stacks (wide main, narrow side), so a tall card in one never leaves a hole
+              in the other. On phones the stacks dissolve into one column; `order` keeps the reading
+              order: brief, what needs you, then pages and meetings, and so on. */}
           <div className="th-grid">
-            <BriefCard ws={ws} teamId={t.id} teamName={t.name} initial={home!.brief} briefId={briefId} className="th-span2" />
-            <NeedsYouCard />
-            {g && home!.across && <AcrossCard ws={ws} across={home!.across} browse={browseHref(ws)} className="th-span2" />}
-            {g ? <MeetingsCard meetings={home!.activity?.meetings?.length ? home!.activity.meetings : home!.meetings} href={meetingsHref} importHref={importHref} teams />
-              : <RecentCard items={home!.recent} href={`/w/${encodeURIComponent(ws)}/teams/${encodeURIComponent(t.slug)}/pages`} className="th-span2" empty="No pages in this team yet. Use New page, or move pages here from their Share menu." />}
-            {g ? <RecentCard items={home!.recent} href={`/w/${encodeURIComponent(ws)}`} className="th-span2" empty="Nothing in General yet. New pages and uploads here are for everyone in the workspace." />
-              : <MeetingsCard meetings={home!.meetings} href={meetingsHref} importHref={importHref} />}
-            {(home!.projects.length > 0 || t.can_manage || (g && (sidebar?.projects.length ?? 0) > 0)) && (
-              <ProjectsCard ws={ws} projects={g ? (sidebar?.projects ?? home!.projects) : home!.projects} team={home!.team} />
-            )}
-            <FeedCard className="th-span2" items={g ? home!.activity?.items ?? home!.recent : home!.recent} meetings={g ? home!.activity?.meetings ?? home!.meetings : home!.meetings} across={g} />
-            {g ? <NewPeopleCard people={home!.new_people ?? []} total={t.member_count} teams={(sidebar?.browse.open ?? 0) + (sidebar?.browse.private ?? 0) + 1} />
-              : home!.team.jira_projects.length > 0 ? <JiraCard ws={ws} keys={home!.team.jira_projects} /> : <MembersCard home={home!} ws={ws} onManage={() => setDialog(true)} />}
-            <WhoCard memory={home!.memory as MemoryHighlights & { enabled?: boolean }} href={g ? `/team/${encodeURIComponent(ws)}` : teamMemoryHref(ws, t)} className="th-span2" />
-            {!g && home!.team.jira_projects.length > 0 && <MembersCard home={home!} ws={ws} onManage={() => setDialog(true)} />}
+            <div className="th-stack th-stack--main">
+              <div style={{ order: 1 }}><BriefCard ws={ws} teamId={t.id} teamName={t.name} initial={home!.brief} briefId={briefId} /></div>
+              {g && home!.across && <div style={{ order: 3 }}><AcrossCard ws={ws} across={home!.across} browse={browseHref(ws)} /></div>}
+              <div style={{ order: 4 }}>
+                {g ? <RecentCard items={home!.recent} href={`/w/${encodeURIComponent(ws)}`} empty="Nothing in General yet. New pages and uploads here are for everyone in the workspace." />
+                  : <RecentCard items={home!.recent} href={`/w/${encodeURIComponent(ws)}/teams/${encodeURIComponent(t.slug)}/pages`} empty="No pages in this team yet. Use New page, or move pages here from their Share menu." />}
+              </div>
+              <div style={{ order: 7 }}><FeedCard items={g ? home!.activity?.items ?? home!.recent : home!.recent} meetings={g ? home!.activity?.meetings ?? home!.meetings : home!.meetings} across={g} /></div>
+              <div style={{ order: 9 }}><WhoCard memory={home!.memory as MemoryHighlights & { enabled?: boolean }} href={g ? `/team/${encodeURIComponent(ws)}` : teamMemoryHref(ws, t)} /></div>
+            </div>
+            <div className="th-stack th-stack--side">
+              <div style={{ order: 2 }}><NeedsYouCard /></div>
+              <div style={{ order: 5 }}>
+                {g ? <MeetingsCard meetings={home!.activity?.meetings?.length ? home!.activity.meetings : home!.meetings} href={meetingsHref} importHref={importHref} teams />
+                  : <MeetingsCard meetings={home!.meetings} href={meetingsHref} importHref={importHref} />}
+              </div>
+              {(home!.projects.length > 0 || t.can_manage || (g && (sidebar?.projects.length ?? 0) > 0)) && (
+                <div style={{ order: 6 }}><ProjectsCard ws={ws} projects={g ? (sidebar?.projects ?? home!.projects) : home!.projects} team={home!.team} /></div>
+              )}
+              <div style={{ order: 8 }}>
+                {g ? <NewPeopleCard people={home!.new_people ?? []} total={t.member_count} teams={(sidebar?.browse.open ?? 0) + (sidebar?.browse.private ?? 0) + 1} />
+                  : home!.team.jira_projects.length > 0 ? <JiraCard ws={ws} keys={home!.team.jira_projects} /> : <MembersCard home={home!} ws={ws} onManage={() => setDialog(true)} />}
+              </div>
+              {!g && home!.team.jira_projects.length > 0 && <div style={{ order: 10 }}><MembersCard home={home!} ws={ws} onManage={() => setDialog(true)} /></div>}
+            </div>
           </div>
           {t.visibility === "private" && <div className="mt-4"><AdminsNote /></div>}
         </>

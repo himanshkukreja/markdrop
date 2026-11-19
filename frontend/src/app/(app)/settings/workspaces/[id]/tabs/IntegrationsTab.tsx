@@ -49,7 +49,7 @@ export default function IntegrationsTab({ id, isAdmin }: WsTabProps) {
         actionOf={actionOf}
       />
       <p className="m-0 text-[13px] text-text-secondary">
-        Your own connections, like Claude, ChatGPT, VS Code, the CLI, Google Docs and Slack notifications, are in{" "}
+        Your own connections, like Notion, Google Docs, GitHub, Claude, ChatGPT, VS Code, the CLI and Slack notifications, are in{" "}
         <Link href="/settings/integrations" className="font-medium text-accent-text hover:underline">Settings › Integrations</Link>.
       </p>
     </div>

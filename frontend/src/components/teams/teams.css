@@ -213,10 +213,14 @@ a.tz-row:hover { background: var(--surface-hover); }
 .th-ask__spark { flex: none; color: var(--accent-text); }
 .th-ask__q { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; }
 .th-ask__sug { display: flex; gap: 6px; flex: none; }
-.th-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; grid-auto-flow: row dense; }
-.th-span2 { grid-column: span 2; }
-@media (max-width: 1179.98px) { .th-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 719.98px) { .th-grid { grid-template-columns: minmax(0, 1fr); } .th-span2 { grid-column: auto; } .th-acts { margin-left: 0; justify-content: flex-start; } .th-title { font-size: 24px; line-height: 30px; } }
+/* Overview: a wide main stack and a narrow side stack, each sized by its own cards. One column below
+   1100px, where the stacks dissolve and each card's `order` sets the reading order. */
+.th-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.th-span2 { grid-column: 1; }
+.th-stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.th-stack > * { min-width: 0; }
+@media (max-width: 1099.98px) { .th-grid { grid-template-columns: minmax(0, 1fr); } .th-span2 { grid-column: auto; } .th-stack { display: contents; } }
+@media (max-width: 719.98px) { .th-acts { margin-left: 0; justify-content: flex-start; } .th-title { font-size: 24px; line-height: 30px; } }
 .th-card { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 16px; min-width: 0; box-shadow: var(--shadow-sm); }
 .th-card.tz-card--flush { padding: 10px; }
 .th-ch { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; min-width: 0; }
