@@ -84,3 +84,20 @@ test("a document's revalidation drops both flavours on the app host and the host
   for (const h of ["www.markdrop.in", "next.markdrop.in"]) for (const a of ["text/html", "text/markdown"]) assert.ok(keys.includes(want(h, a)));
   assert.equal(purgeKeys("abc123", "www.markdrop.in", "v1").length, 2);
 });
+
+test("Server-Timing lists the recorded phases in ms; a recorder only while a request installed one", async () => {
+  const { installTiming, serverTiming, timing } = await import("./timing.ts");
+  assert.equal(serverTiming({ edge: 2.4, asset: 11.6, app: 40 }), "edge;dur=2, asset;dur=12, app;dur=40");
+  assert.equal(serverTiming({}), "");
+  assert.equal(serverTiming({ "bad name": 1, ok: 1 }), "ok;dur=1");
+  const seen = {};
+  timing("tag", 5); // nothing installed yet: a no-op
+  installTiming((k, ms) => (seen[k] = (seen[k] ?? 0) + ms));
+  timing("tag", 5);
+  timing("tag", 7);
+  assert.deepEqual(seen, { tag: 12 });
+  installTiming(() => {
+    throw new Error("x");
+  });
+  timing("tag", 1); // a failing recorder never breaks a request
+});
