@@ -32,15 +32,19 @@ const cacheRoot = ".open-next/cache";
 let copied = 0;
 let bytes = 0;
 const skipped = { revalidates: 0, dataTags: 0, size: 0 };
+const unmatched = [];
 const walk = (dir) => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? walk(join(dir, f)) : [join(dir, f)]));
 for (const buildId of readdirSync(cacheRoot)) {
   if (buildId === "__fetch" || !statSync(join(cacheRoot, buildId)).isDirectory()) continue;
   for (const file of walk(join(cacheRoot, buildId))) {
     if (!file.endsWith(".cache")) continue;
     const key = "/" + relative(join(cacheRoot, buildId), file).slice(0, -".cache".length).split("\\").join("/");
-    const route = routes[key === "/index" ? "/" : key];
+    // Next >= 15.5.27 keys: /route-cache/APP_PAGE/<sha256>/$/<page path> (OpenNext utils/routeCacheKey.js)
+    const page = key.replace(/^\/route-cache\/(?:PAGES|APP_PAGE|APP_ROUTE)\/[0-9a-f]{64}\/\$(?=\/)/, "");
+    const route = routes[page === "/index" ? "/" : page.startsWith("/index/") ? page.slice(6) : page];
     if (!route || route.initialRevalidateSeconds !== false) {
       skipped.revalidates++;
+      if (!route && unmatched.length < 3) unmatched.push(key);
       continue;
     }
     const size = statSync(file).size;
@@ -65,4 +69,4 @@ console.log(
   `cf-postbuild: ${copied} never-revalidating pages into static assets (${(bytes / 1e6).toFixed(1)} MB); kept in R2 only: ` +
     `${skipped.revalidates} ISR / not prerendered, ${skipped.dataTags} with data tags or not app pages, ${skipped.size} over 24 MiB`,
 );
-if (!copied) throw new Error("cf-postbuild: no prerendered page copied into static assets (cache layout changed?)");
+if (!copied) throw new Error(`cf-postbuild: no prerendered page copied into static assets (cache layout changed?) e.g. ${unmatched.join(" ")}`);
