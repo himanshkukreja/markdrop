@@ -1,7 +1,7 @@
 ---
 title: Set up teams
 description: Nothing moves when you start using teams. Turn Team groups into teams, then sort existing meetings, pages and folders in one guided review.
-updated: 2026-11-10
+updated: 2026-11-19
 nav: Set up
 keywords: [set up teams, migrate to teams, existing content, company-wide, team groups, suggested teams, guided review, sort into teams, move meetings, move pages, move folders, admins]
 ---
@@ -13,6 +13,8 @@ Everything in your workspace stays in **General**, the team everyone is in, when
 Admins open **Browse teams** and choose **New team** for each group that works together. See [Create and manage teams](/teams/create-and-manage).
 
 If your workspace has [Team groups](/workspaces/team#groups), they're offered under **Suggested from your groups**: choose **Make it a team** to start one with the same people, or **Dismiss**.
+
+::clip{src="/docs-assets/teams/set-up/new-team" alt="On Browse teams, Riya chooses New team, names it Partnerships, adds Maya Patel and Diego Alvarez, and chooses Create team. The new team's home opens."}
 
 ## 2. Sort existing content into teams
 

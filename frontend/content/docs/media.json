@@ -2699,6 +2699,26 @@
     "bytes": 179234,
     "kind": "image"
   },
+  "/docs-assets/integrations/hubspot/deal-tour.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 10.1,
+    "bytes": 286727,
+    "kind": "clip"
+  },
+  "/docs-assets/integrations/hubspot/deal-tour.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 10.1,
+    "bytes": 385389,
+    "kind": "clip"
+  },
+  "/docs-assets/integrations/hubspot/deal-tour.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 58252,
+    "kind": "poster"
+  },
   "/docs-assets/integrations/hubspot/deals-board.dark.webp": {
     "w": 2384,
     "h": 1720,
@@ -2722,6 +2742,26 @@
     "h": 1800,
     "bytes": 146840,
     "kind": "image"
+  },
+  "/docs-assets/integrations/hubspot/file-here.mp4": {
+    "w": 1440,
+    "h": 860,
+    "duration": 8.23,
+    "bytes": 114433,
+    "kind": "clip"
+  },
+  "/docs-assets/integrations/hubspot/file-here.webm": {
+    "w": 1440,
+    "h": 860,
+    "duration": 8.23,
+    "bytes": 159420,
+    "kind": "clip"
+  },
+  "/docs-assets/integrations/hubspot/file-here.webp": {
+    "w": 1440,
+    "h": 860,
+    "bytes": 53778,
+    "kind": "poster"
   },
   "/docs-assets/integrations/jira/account.dark.webp": {
     "w": 1628,
@@ -2782,6 +2822,26 @@
     "h": 1394,
     "bytes": 59146,
     "kind": "image"
+  },
+  "/docs-assets/integrations/jira/create-from-item.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 12.33,
+    "bytes": 210609,
+    "kind": "clip"
+  },
+  "/docs-assets/integrations/jira/create-from-item.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 12.33,
+    "bytes": 276065,
+    "kind": "clip"
+  },
+  "/docs-assets/integrations/jira/create-from-item.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 45568,
+    "kind": "poster"
   },
   "/docs-assets/integrations/jira/projects.dark.webp": {
     "w": 1712,
@@ -3047,6 +3107,26 @@
     "bytes": 48516,
     "kind": "image"
   },
+  "/docs-assets/integrations/zoom/share-held.mp4": {
+    "w": 1440,
+    "h": 860,
+    "duration": 10.63,
+    "bytes": 225903,
+    "kind": "clip"
+  },
+  "/docs-assets/integrations/zoom/share-held.webm": {
+    "w": 1440,
+    "h": 860,
+    "duration": 10.63,
+    "bytes": 269685,
+    "kind": "clip"
+  },
+  "/docs-assets/integrations/zoom/share-held.webp": {
+    "w": 1440,
+    "h": 860,
+    "bytes": 66470,
+    "kind": "poster"
+  },
   "/docs-assets/pages/ai/ai-menu.dark.webp": {
     "w": 1602,
     "h": 970,
@@ -3070,6 +3150,26 @@
     "h": 600,
     "bytes": 41232,
     "kind": "image"
+  },
+  "/docs-assets/pages/export/export-word.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 12.3,
+    "bytes": 259978,
+    "kind": "clip"
+  },
+  "/docs-assets/pages/export/export-word.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 12.3,
+    "bytes": 231538,
+    "kind": "clip"
+  },
+  "/docs-assets/pages/export/export-word.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 41948,
+    "kind": "poster"
   },
   "/docs-assets/pages/import-from-notion/choose.dark.webp": {
     "w": 1280,
@@ -3190,6 +3290,46 @@
     "h": 840,
     "bytes": 53788,
     "kind": "image"
+  },
+  "/docs-assets/pages/sign-off/sign-off.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 14.53,
+    "bytes": 223288,
+    "kind": "clip"
+  },
+  "/docs-assets/pages/sign-off/sign-off.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 14.53,
+    "bytes": 233987,
+    "kind": "clip"
+  },
+  "/docs-assets/pages/sign-off/sign-off.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 38336,
+    "kind": "poster"
+  },
+  "/docs-assets/pages/sub-pages/add-subpage.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 13.67,
+    "bytes": 211608,
+    "kind": "clip"
+  },
+  "/docs-assets/pages/sub-pages/add-subpage.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 13.67,
+    "bytes": 237120,
+    "kind": "clip"
+  },
+  "/docs-assets/pages/sub-pages/add-subpage.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 23260,
+    "kind": "poster"
   },
   "/docs-assets/pages/sub-pages/subpage-gallery.dark.webp": {
     "w": 1680,
@@ -3631,6 +3771,26 @@
     "bytes": 26028,
     "kind": "image"
   },
+  "/docs-assets/teams/set-up/new-team.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 13.7,
+    "bytes": 413215,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/set-up/new-team.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 13.7,
+    "bytes": 416031,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/set-up/new-team.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 66386,
+    "kind": "poster"
+  },
   "/docs-assets/teams/set-up/review.dark.webp": {
     "w": 2000,
     "h": 1280,
@@ -3654,6 +3814,26 @@
     "h": 1400,
     "bytes": 77350,
     "kind": "image"
+  },
+  "/docs-assets/teams/share-and-projects/move-folder.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 12.87,
+    "bytes": 225578,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/share-and-projects/move-folder.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 12.87,
+    "bytes": 257353,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/share-and-projects/move-folder.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 37316,
+    "kind": "poster"
   },
   "/docs-assets/teams/share-and-projects/project.dark.webp": {
     "w": 2880,
@@ -4336,6 +4516,26 @@
     "bytes": 89518,
     "kind": "image"
   },
+  "/docs-assets/workspaces/branding/logo-and-accent.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 11.37,
+    "bytes": 261979,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/branding/logo-and-accent.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 11.37,
+    "bytes": 297160,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/branding/logo-and-accent.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 67130,
+    "kind": "poster"
+  },
   "/docs-assets/workspaces/branding/tenant-branded-page.dark.webp": {
     "w": 2880,
     "h": 1240,
@@ -4435,6 +4635,26 @@
     "h": 1422,
     "bytes": 80222,
     "kind": "image"
+  },
+  "/docs-assets/workspaces/folder-access/share-folder.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 13.9,
+    "bytes": 336615,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/folder-access/share-folder.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 13.9,
+    "bytes": 399998,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/folder-access/share-folder.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 56466,
+    "kind": "poster"
   },
   "/docs-assets/workspaces/folders/folder-rename.mp4": {
     "w": 1440,
@@ -4687,6 +4907,26 @@
     "h": 1760,
     "bytes": 134946,
     "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings/name-speaker.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 12.87,
+    "bytes": 402516,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/meetings/name-speaker.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 12.87,
+    "bytes": 439392,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/meetings/name-speaker.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 59078,
+    "kind": "poster"
   },
   "/docs-assets/workspaces/meetings/organize.dark.webp": {
     "w": 896,

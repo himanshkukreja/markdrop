@@ -1,7 +1,7 @@
 ---
 title: Assign, Home and sign-off
 description: Turn a comment thread into someone's task, see the threads waiting on you on Home, and sign off knowing which discussions are still open.
-updated: 2026-11-09
+updated: 2026-11-19
 nav: Assign, Home and sign-off
 prerequisites: [/collaboration/comments]
 keywords: [assign, assignee, assign thread, task, action items, home, waiting on you, today, team page, sign-off, sign off anyway, open threads, open comments, approval, list_waiting_on_me, assign_thread]
@@ -44,6 +44,8 @@ When comment threads are still open on a page and you [sign off](/pages/sign-off
 ![A sign-off block, Launch go-ahead, with Approved and Not approved. After choosing Approved it says “2 comment threads are still open on this page.” with Sign off anyway: Approved and Cancel.](/docs-assets/collaboration/assign-and-sign-off/signoff-guard.webp)
 
 Every sign-off records the discussion as it stood: how many threads were resolved and how many were still open. The block shows it, and so does the [version history](/pages/history) entry. From an AI app, `sign_off` signs and says in its answer when threads were open.
+
+::clip{src="/docs-assets/pages/sign-off/sign-off" alt="Release 2.6 plan shows the pill Release approval, Waiting for you. Riya chooses it to jump to the sign-off block and picks Approved for production; the block says 1 comment thread is still open on this page, and she chooses Sign off anyway. The block turns green with You signed off and the time, notes it was signed with 2 comment threads resolved and 1 still open, and locks the section above it."}
 
 ## Accepted edits in the history
 

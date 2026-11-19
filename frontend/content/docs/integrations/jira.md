@@ -1,7 +1,7 @@
 ---
 title: Jira
 description: Jira issues from meetings, Team and pages (AI drafts, you review), each person's tickets on Team, to-dos and issues in step both ways, and Ask.
-updated: 2026-11-07
+updated: 2026-11-19
 keywords: [jira, jira cloud, atlassian, integration, integrations tab, connect jira site, connect my atlassian account, not set up yet, connected, default project, default issue type, projects on team, pick projects for team, create jira issue, jira issues, draft issues for action items, ai draft, review, summary, description, issue type, priority, assignee, due date, labels, chip, live chip, key, status, to do, in progress, done, two-way sync, tick, transition, webhook, via jira, retry, team board, overdue, blocked, done lately, counts only, ask, tickets, pasted jira link, restricted meeting, privacy, jira_status, create_jira_issue, link_jira_issue, list_jira_issues, transition_jira_issue, developer console, oauth 2.0 3lo, client id, client secret, callback url]
 ---
 
@@ -75,6 +75,8 @@ Markdrop AI drafts the issue from the item: a short **Summary**, a **Description
 ![Create Jira issue: the action item quoted, the line Markdrop adds linking back to the meeting, and the drafted Summary, Description, Project, Issue type, Priority, Assignee Ben Member, Due date and Labels.](/docs-assets/integrations/jira/create-dialog.webp)
 
 The issue's description gets your text, the item quoted, and a link back: "From *Checkout launch sync* · Nov 6, 2026 at 12:34", which opens the meeting at that moment of the transcript (or the page at that block). The item then shows a **chip**: the issue's key, status and assignee.
+
+::clip{src="/docs-assets/integrations/jira/create-from-item" alt="On the meeting page Globex — security review prep, Riya points at the action item Hana to send Globex the SSO setup guide for Okta by Friday and chooses + Jira. The Create Jira issue dialog fills with a drafted summary, description, project Security, type Task, priority High, assignee Hana Kim, a due date and labels. She chooses Create issue; a message says SEC-42 was created and the item shows the chip SEC-42, To Do, Hana Kim."}
 
 When AI can't run (it's off for the workspace, or AI is paused for now under its fair-use limit), the draft is the item as written, and the dialog says why. Creating the issue never depends on AI.
 

@@ -6,6 +6,7 @@
  *
  *   cd frontend
  *   NEXT_PUBLIC_API_URL=http://127.0.0.1:8799 NEXT_PUBLIC_LIGHT_THEME=true npx next dev --turbo -p 3481
+ *   node scripts/docs-media/mock/ssr-stub.mjs &      (clips of pages: the server render of /<slug> gets "sign in")
  *   node scripts/docs-media/mock/record.mjs [--list] [--still] [--keep-raw] [id-substring…]
  *
  * --still: run prepare + steps without recording and save a PNG to mock/.still-<id>.png (fast checks).
@@ -13,7 +14,8 @@
  * ≤ 1.5 MB each, light theme (like capture.mjs clips). Then run `npm run docs:media-manifest`.
  *
  * Clip: { id, page, name, url, viewport, out?, storage?, handlers?, prepare?(h), steps(h), tail?, poster?, trim? }
- * h: capture.mjs's helpers (move, click, hover, type, press, wheel, sleep, settle, loc…) plus world and goto(path).
+ * h: capture.mjs's helpers (move, click, hover, type, press, wheel, sleep, settle, loc…) plus world, goto(path) and
+ * live(msg?): sends the page's mocked live socket a message (default {type: "changed"}: the page re-reads the document).
  */
 import { chromium } from "@playwright/test";
 import { mkdirSync, rmSync } from "node:fs";
@@ -65,10 +67,16 @@ for (const clip of pick) {
     if (body && body.__raw) return route.fulfill({ status: 200, headers: cors, contentType: body.type, body: body.__raw });
     return route.fulfill({ status: 200, headers: cors, contentType: "application/json", body: JSON.stringify(body) });
   });
+  // The documents' live socket (/ws/docs/<slug>): held open, so a clip can say "changed" (h.live) and
+  // the page re-reads the document as it does when someone else edits it.
+  const sockets = [];
+  await ctx.routeWebSocket(/\/ws\/docs\//, (ws) => { sockets.push(ws); });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => console.log("pageerror", clip.id, e.message.slice(0, 200)));
+  if (process.env.MOCK_DEBUG) page.on("console", (m) => { if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) console.log("console", clip.id, m.text().slice(0, 300)); });
   const shot = { ...clip, viewport };
-  const withGoto = (h) => Object.assign(h, { world, goto: (u, o = {}) => h.page.goto(APP + u, { waitUntil: "networkidle", timeout: 180_000, ...o }) });
+  const live = (msg = { type: "changed" }) => { for (const ws of sockets) { try { ws.send(JSON.stringify(msg)); } catch { /* closed */ } } };
+  const withGoto = (h) => Object.assign(h, { world, live, goto: (u, o = {}) => h.page.goto(APP + u, { waitUntil: "networkidle", timeout: 180_000, ...o }) });
   const rawDir = path.join(HERE, ".raw", clip.id);
   rmSync(rawDir, { recursive: true, force: true });
   let rec = null;

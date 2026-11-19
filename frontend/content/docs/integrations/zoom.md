@@ -1,7 +1,7 @@
 ---
 title: Zoom
 description: Recorded Zoom meetings hosted by one team's members become meetings in that team, with a summary and action items, and if you choose, their recording.
-updated: 2026-11-18
+updated: 2026-11-19
 keywords: [zoom, activate, activation, validate fails, can't validate, zoom didn't accept, troubleshooting, zoom meetings, integration, integrations tab, connect zoom, one click, markdrop app for zoom, zoom app marketplace app, add app, approve, zoom admin, reconnect, remove the app, uninstall, removing the app, deauthorize, added apps, delete imported meetings, user:read:user:admin, server-to-server oauth, s2s oauth, zoom app marketplace, build app, account id, client id, client secret, secret token, event subscriptions, recording.transcript_completed, recording.completed, endpoint url, validate, scopes, user:read:list_users:admin, cloud_recording:read:list_user_recordings:admin, cloud_recording:read:list_recording_files:admin, meeting:read:list_past_participants:admin, cloud recording, audio transcript, create audio transcript, no transcript, import past meetings, backfill, sales team, team, private team, open team, host, participants, attendees, disconnect, zoom_status, import_zoom_meetings, captions, closed captions, cc, transcribe, transcription, speech to text, no transcript, transcribe and keep recordings, recording, recordings, video, play recording, keep recordings, remove recording, play from timestamp, jump to time, timestamps, seek, will transcribe, transcribing, add recording, speaker names, fair-use limits, subtitles, recording captions, chapters, recording chapters, name the speakers, unnamed speakers, choose which meetings come in, ask me first, share automatically, never bring them in, personal meeting, private meeting, keep it just for me, skip, review, to review, waiting for its host, internal meeting, external participants, zoom_review]
 ---
 
@@ -156,6 +156,8 @@ The same choices are on the **To review** tab of [Meetings](/workspaces/meetings
 ![The To review tab of Meetings: two recorded Zoom meetings waiting for you, Pricing page review (everyone on the call is from Acme) and Q1 territory planning (you asked to review first), each with its date, length and people, and Share with Sales, Keep it just for me and Skip.](/docs-assets/integrations/zoom/review.webp)
 
 Meetings that came in before these rules stay as they are.
+
+::clip{src="/docs-assets/integrations/zoom/share-held" alt="On the To review tab of Meetings, two recorded Zoom meetings wait. Riya chooses Share with Sales on Q1 territory planning and the row says Shared: it appears in Meetings within a few minutes; on the All tab the meeting is now in the list with the Sales chip and its summary, New territories from January."}
 
 ## Import past meetings
 
