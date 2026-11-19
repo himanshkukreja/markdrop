@@ -140,7 +140,8 @@ export const OtpInput = React.forwardRef<OtpInputHandle, OtpInputProps>(function
   const errId = `${uid}-err`;
   const groupLabel = label ?? `${length}-digit sign-in code`;
   return (
-    <div className={[s.otp, className].filter(Boolean).join(" ")}>
+    // data-md-secret: the code (boxes and hidden input) is masked in session replays.
+    <div className={[s.otp, className].filter(Boolean).join(" ")} data-md-secret="">
       <div role="group" aria-label={groupLabel} aria-describedby={typeof error === "string" ? errId : undefined}
         className={[s.otpRow, shakeClass].filter(Boolean).join(" ")}>
         {Array.from({ length }, (_, i) => (

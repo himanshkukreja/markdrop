@@ -71,7 +71,7 @@ export function KeyAnatomy({ url, fragment, mode = "explain", layout = "full", d
         data-mode={mode}
       >
         <div className={styles.cLine}>
-          <span className={`ph-sensitive ph-mask ${styles.cPath}`}>
+          <span className={`ph-sensitive ph-secret ${styles.cPath}`}>
             <Path url={url} />
           </span>
           {missing ? <MissingSlot size="sm" pointer /> : <KeyChip fragment={frag} size="sm" />}
@@ -107,7 +107,7 @@ export function KeyAnatomy({ url, fragment, mode = "explain", layout = "full", d
 
         {/* Row 2: the URL split at the # */}
         <div className={styles.urlPath}>
-          <span className={`ph-sensitive ph-mask ${styles.urlPathText}`}>
+          <span className={`ph-sensitive ph-secret ${styles.urlPathText}`}>
             <Path url={url} />
           </span>
         </div>
@@ -122,7 +122,7 @@ export function KeyAnatomy({ url, fragment, mode = "explain", layout = "full", d
           ) : (
             <span className={styles.urlFragText}>
               <KitIcon name="key" size={18} />
-              <span className={`ph-sensitive ph-mask ${styles.ellipsis}`}>{frag}</span>
+              <span className={`ph-sensitive ph-secret ${styles.ellipsis}`}>{frag}</span>
             </span>
           )}
         </div>

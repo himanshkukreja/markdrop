@@ -179,7 +179,8 @@ function CodeBox({ label, text, testid, tall }: { label: string; text: string; t
         <span>{label}</span>
         <CopyButton text={text} label={`Copy ${label}`} copiedLabel="Copied" variant="secondary" />
       </div>
-      <pre className={tall ? "mt-code__pre mt-code__pre--tall" : "mt-code__pre"} tabIndex={0}><code>{text}</code></pre>
+      {/* ph-secret: the script carries the workspace's inbox token. */}
+      <pre className={`ph-secret ${tall ? "mt-code__pre mt-code__pre--tall" : "mt-code__pre"}`} tabIndex={0}><code>{text}</code></pre>
     </div>
   );
 }

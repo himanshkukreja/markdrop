@@ -104,7 +104,7 @@ function LinkRow({ url, label, icon, primary, testId }: { url: string; label: st
           {label}
           {primary && <span className="rounded-full bg-accent px-1.5 text-[11px] font-semibold leading-4 text-on-accent">Default</span>}
         </span>
-        <code className="ph-sensitive ph-mask truncate font-mono text-[13px] text-text" title={url}>{bare(url)}</code>
+        <code className="ph-sensitive ph-secret truncate font-mono text-[13px] text-text" title={url}>{bare(url)}</code>
       </div>
       <CopyButton text={url} label="Copy" size="sm" variant={primary ? "primary" : "secondary"} announceText={`${label} link copied`} />
     </div>
@@ -466,7 +466,7 @@ export default function ShareDialog({
                   {addresses.map((a, i) => (
                     <span key={a}>
                       {i > 0 && " and "}
-                      <code className="ph-sensitive ph-mask font-mono [overflow-wrap:anywhere]">{a}</code>
+                      <code className="ph-sensitive ph-secret font-mono [overflow-wrap:anywhere]">{a}</code>
                     </span>
                   ))}
                   .

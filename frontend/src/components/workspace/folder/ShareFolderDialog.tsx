@@ -326,7 +326,7 @@ function LinkPanel({
         ) : share ? (
           <>
             <div className="flex min-w-0 items-center gap-2">
-              <Input readOnly mono value={share.url} aria-label="Folder link" wrapClassName="min-w-0 flex-1" className="ph-no-capture min-w-0 flex-1 bg-surface-inset" onFocus={(e) => e.currentTarget.select()} />
+              <Input readOnly mono value={share.url} aria-label="Folder link" wrapClassName="min-w-0 flex-1" className="ph-secret ph-no-capture min-w-0 flex-1 bg-surface-inset" onFocus={(e) => e.currentTarget.select()} />
               <CopyButton text={share.url} label="Copy link" variant="primary" size="md" announceText="Folder link copied" />
             </div>
             {share.level === "link" && hidden > 0 && (

@@ -20,7 +20,10 @@ export async function resolve(specifier, context, next) {
   return next(specifier, context);
 }`;
 register(`data:text/javascript,${encodeURIComponent(hooks)}`);
-const { cleanPath, cleanUrl, hasDocumentKey, onEncryptedPage, pageRoute, recordableUrl, scrubText } = await import("./thirdPartyAnalytics.ts");
+const {
+  REPLAY_MASKING, cleanPath, cleanUrl, hasDocumentKey, isSecretInput, maskAttributeFn, maskInputFn, maskTextFn, onEncryptedPage,
+  pageRoute, recordableUrl, scrubText,
+} = await import("./thirdPartyAnalytics.ts");
 
 const SITE = "6650f2c4a1b2c3d4e5f60718";
 
@@ -113,4 +116,58 @@ test("Markdrop URLs written in text become route shapes, by the rules of their o
   // A published guide's own pages are a customer's: shapes only.
   assert.equal(scrubText("acme.guides.markdrop.in/secret-plan"), "acme.guides.markdrop.in/[slug]");
   assert.equal(scrubText("mail me at hi@markdrop.in"), "mail me at hi@markdrop.in");
+});
+
+/** A stand-in DOM element: attributes, and the selectors its ancestors match. */
+function el({ tag = "INPUT", attrs = {}, inside = [] } = {}) {
+  return {
+    tagName: tag,
+    getAttribute: (n) => (n in attrs ? attrs[n] : null),
+    hasAttribute: (n) => n in attrs,
+    closest: (sel) => (sel.split(",").some((x) => inside.includes(x.trim())) ? {} : null),
+  };
+}
+
+test("replay records what people see and type, and blocks only secrets and encrypted documents", () => {
+  assert.equal(REPLAY_MASKING.blockClass, "ph-secret", "ph-secret is blocked, ph-no-capture no longer is");
+  assert.ok(REPLAY_MASKING.blockSelector.includes("[data-md-e2e]"), "an encrypted document's page stays blocked");
+  assert.ok(REPLAY_MASKING.blockSelector.includes("next-route-announcer"));
+  assert.equal(REPLAY_MASKING.maskAllInputs, true, "every input passes through maskInputFn");
+  assert.equal(REPLAY_MASKING.maskTextSelector, "*", "every text node passes through maskTextFn (link scrubbing)");
+});
+
+test("inputs: passwords, sign-in codes and secret fields are masked; everything else is recorded", () => {
+  const masked = [
+    el({ attrs: { type: "password" } }),
+    el({ attrs: { type: "text", "data-rr-is-password": "true" } }), // a revealed password
+    el({ attrs: { type: "text", autocomplete: "new-password" } }),
+    el({ attrs: { type: "text", autocomplete: "current-password" } }),
+    el({ attrs: { type: "text", autocomplete: "one-time-code" } }),
+    el({ attrs: { type: "text" }, inside: ["[data-md-secret]"] }), // kit/OtpInput's other boxes
+    el({ attrs: { type: "text" }, inside: [".ph-secret"] }),
+  ];
+  for (const e of masked) {
+    assert.ok(isSecretInput(e));
+    assert.equal(maskInputFn("hunter2", e), "*******");
+  }
+  for (const e of [el({ attrs: { type: "text" } }), el({ attrs: { type: "email" } }), el({ tag: "TEXTAREA" }), el({ attrs: { type: "search" } })]) {
+    assert.ok(!isSecretInput(e));
+    assert.equal(maskInputFn("Jane Doe · jane@acme.com · # Q3 plan", e), "Jane Doe · jane@acme.com · # Q3 plan");
+  }
+  // A Markdrop link typed or shown in an ordinary field is its route shape.
+  assert.equal(maskInputFn("https://markdrop.in/AbC123#k=c2VjcmV0", el({ attrs: { type: "text" } })), "https://markdrop.in/[slug]");
+});
+
+test("text and naming attributes are recorded as they are, links as route shapes", () => {
+  assert.equal(maskTextFn("Quarterly plan by Jane Doe"), "Quarterly plan by Jane Doe");
+  assert.equal(maskTextFn("see markdrop.in/AbC123"), "see markdrop.in/[slug]");
+  const div = el({ tag: "DIV" });
+  for (const name of ["title", "aria-label", "alt", "aria-description", "download", "placeholder"]) {
+    assert.equal(maskAttributeFn(name, "Jane's roadmap.md", div), "Jane's roadmap.md", name);
+  }
+  assert.equal(maskAttributeFn("title", "https://markdrop.in/AbC123", div), "https://markdrop.in/[slug]");
+  // A hidden input holds kit/OtpInput's joined code; a field inside a secret shows nothing.
+  assert.equal(maskAttributeFn("value", "123456", el({ attrs: { type: "hidden" } })), "******");
+  assert.equal(maskAttributeFn("value", "md_tok", el({ attrs: { type: "text" }, inside: [".ph-secret"] })), "******");
+  assert.equal(maskAttributeFn("value", "Roadmap", el({ attrs: { type: "text" } })), "Roadmap");
 });

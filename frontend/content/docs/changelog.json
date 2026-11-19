@@ -24,6 +24,21 @@
   "next": [],
   "entries": [
     {
+      "id": "session-replay-privacy",
+      "date": "2026-11-20",
+      "title": "Privacy: what Markdrop's session replays show",
+      "kind": "improved",
+      "area": "Privacy",
+      "products": [
+        "web"
+      ],
+      "summary": "With your consent, Markdrop's own session replays may now show what you see and type on markdrop.in, including document content. Passwords, sign-in codes, tokens and secret keys, and end-to-end encrypted documents are never recorded.",
+      "body": "- **What a replay may show.** With your consent, the pages you use and what you type on them, document content included, so we can see where the product gets in your way.\n- **What it never shows.** Passwords, sign-in codes, API tokens, integration keys, edit secrets and full document links. End-to-end encrypted documents, sign-in links and the admin pages are never recorded at all, and document links are still reported without their address.\n- **No consent, no replay.** In the EU, the EEA, the UK and Switzerland nothing is recorded until you accept. The [privacy policy](https://markdrop.in/privacy) has the details.",
+      "docs": [
+        "/security/privacy"
+      ]
+    },
+    {
       "id": "team-backlog",
       "date": "2026-11-19",
       "title": "Team backlog: every call's action items and customer asks on one shared page",

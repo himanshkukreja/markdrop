@@ -15,8 +15,8 @@
  * first in the stack, the tooltip "<Name> is editing", and in a wide bar the words beside the
  * stack. The server only marks named people (anonymous viewers never hold the lock by name).
  *
- * Recording: names, photos and the list are masked (`ph-mask`) and never autocaptured
- * (`ph-no-capture`). A join is announced politely, at most once every 10 s.
+ * Recording: names, photos and the list are recorded in replays like the rest of the page, and
+ * never autocaptured (`ph-no-capture`). A join is announced politely, at most once every 10 s.
  */
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";

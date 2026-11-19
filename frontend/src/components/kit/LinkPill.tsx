@@ -84,7 +84,7 @@ export function KeyChip({ fragment, size = "md", empty, className }: { fragment?
   const f = normalizeFragment(fragment) || "#k=";
   return (
     <span
-      className={["ph-sensitive ph-mask", styles.chip, empty ? styles.chipEmpty : "", className ?? ""].join(" ")}
+      className={["ph-sensitive ph-secret", styles.chip, empty ? styles.chipEmpty : "", className ?? ""].join(" ")}
       data-size={size}
       title={empty ? "The key goes here" : "The key. It stays in your browser."}
     >
@@ -150,7 +150,7 @@ export function LinkPill({
 
   return (
     <span
-      className={[styles.pill, className ?? ""].join(" ")}
+      className={["ph-secret", styles.pill, className ?? ""].join(" ")}
       data-size={size}
       data-variant={variant}
       title={full.replace(/^https:\/\//, "")}
@@ -160,7 +160,7 @@ export function LinkPill({
           <KitIcon name={icon} size={size === "lg" ? 14 : 12} />
         </span>
       )}
-      {/* ph-sensitive ph-mask: the slug (and any key fragment) is masked in session recordings. */}
+      {/* ph-sensitive: the slug (and any key fragment) is never autocaptured; the pill is ph-secret (never recorded). */}
       <span className={`ph-sensitive ph-mask ${styles.url}`}>
         {href ? (
           <Anchor href={href} target={target} rel={target === "_blank" ? "noopener noreferrer" : undefined} className={`md-focus ${styles.path} ${styles.pathLink}`}>

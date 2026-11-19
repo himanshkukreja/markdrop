@@ -82,7 +82,7 @@ export function SecretReveal({ value, signedIn, isOwner, onCopy, copied: copiedP
           ? <Badge tone="success" size="sm" icon="check">Copied</Badge>
           : <span className={s.secretAside}>Anyone holding it can edit or delete</span>}
       </div>
-      <div className={s.secretRow}>
+      <div className={`ph-secret ${s.secretRow}`}>
         <Input ref={inputRef} mono readOnly value={value} aria-label="Edit secret" aria-describedby={`${uid}-note`} className={s.secretInput}
           wrapClassName={s.secretInputWrap} onFocus={(e) => e.currentTarget.select()} />
         <CopyButton text={value} label="Copy secret" announceText="Edit secret copied" size="md" variant="secondary" className={s.secretCopy}

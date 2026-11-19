@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacy" },
 };
 
-const UPDATED = "19 November 2026";
+const UPDATED = "20 November 2026";
 
 function H2({ id, children }: { id: string; children: React.ReactNode }) {
   return <h2 id={id} className="mt-12 mb-3 scroll-mt-24 text-h3 text-text">{children}</h2>;
@@ -79,8 +79,9 @@ export default function PrivacyPage() {
         </Li>
         <Li>
           <strong className="text-text">PostHog</strong> (product analytics and session recordings, hosted in the US). On
-          markdrop.in, guides.markdrop.in and docs.markdrop.in it records pages, clicks and scrolling, and a replay
-          of how each page was used. When you sign in, your visits are linked to your account&rsquo;s email.
+          markdrop.in, guides.markdrop.in and docs.markdrop.in it records pages, clicks and scrolling, and, with your
+          consent, a replay of how each page was used. A replay may show what you see and type on Markdrop, including
+          document content. When you sign in, your visits are linked to your account&rsquo;s email.
         </Li>
         <Li>
           <strong className="text-text">Google Analytics</strong> (aggregate traffic reports).
@@ -91,7 +92,7 @@ export default function PrivacyPage() {
         <Li>Document and file links. A document is reported as an anonymous reference, never its address.</Li>
         <Li>Anything after <code className="font-mono text-code">#</code> in a link, including encryption keys, and sign-in or invite tokens.</Li>
         <Li>Anything at all from an encrypted document&rsquo;s page: they don&rsquo;t run there.</Li>
-        <Li>What you write or publish. A replay shows the page around a document or file, never its content: documents, files, editors, previews and lists of your documents are blanked out, titles, names and email addresses are hidden, and every text field is masked.</Li>
+        <Li>Passwords, sign-in codes, API tokens and secret keys: a replay never shows them.</Li>
         <Li>A replay of a sign-in link or of our admin pages: those are never recorded.</Li>
         <Li>The contents or names of files you send with Share.</Li>
       </ul>

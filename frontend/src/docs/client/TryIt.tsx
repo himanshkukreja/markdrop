@@ -221,8 +221,8 @@ function ResponsePanel({ result, onClear }: { result: Result; onClear: () => voi
     );
   const shown = result.text !== null && result.text.length > SHOW_MAX ? result.text.slice(0, SHOW_MAX) : result.text;
   return (
-    // ph-no-capture: the API's answer is the reader's own data (documents, account).
-    <section className="dx-tryit__resp ph-no-capture" aria-label="Response" aria-live="polite">
+    // ph-secret: the API's answer can hold a token or an edit secret; never recorded.
+    <section className="dx-tryit__resp ph-secret ph-no-capture" aria-label="Response" aria-live="polite">
       <div className="dx-tryit__resphead">
         <Badge tone={statusTone(result.status)} size="sm" dot className="dx-tryit__status">
           {result.status} {result.statusText}
@@ -512,6 +512,7 @@ export function TryIt({ op }: { op: TryItOperation }) {
             size="sm"
             mono
             type={showToken ? "text" : "password"}
+            className="ph-secret"
             value={token}
             placeholder={tryIt.tokenPrefix ? `${tryIt.tokenPrefix}…` : "Your API token"}
             autoComplete="off"
@@ -576,6 +577,7 @@ export function TryIt({ op }: { op: TryItOperation }) {
                 size="sm"
                 mono
                 type={secret && !showToken ? "password" : "text"}
+                className={secret ? "ph-secret" : undefined}
                 value={creds[key] ?? ""}
                 placeholder={placeholder}
                 autoComplete="off"
@@ -655,8 +657,8 @@ export function TryIt({ op }: { op: TryItOperation }) {
           <span>Your request</span>
           {error && <span className="dx-tryit__err">{error}</span>}
         </div>
-        {/* ph-no-capture: what the reader typed (ids, slugs, bodies) and the tail of their token. */}
-        <pre className="dx-tryit__pre ph-no-capture" aria-label="The curl command for this request">
+        {/* ph-secret: the command carries the reader's token. */}
+        <pre className="dx-tryit__pre ph-secret ph-no-capture" aria-label="The curl command for this request">
           <code>{shown}</code>
         </pre>
       </div>

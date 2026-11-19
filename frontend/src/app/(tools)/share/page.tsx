@@ -324,8 +324,8 @@ export default function SharePage() {
             <div className="flex min-w-0 flex-col gap-2">
               <label htmlFor="share-link" className="text-eyebrow text-text-muted">Share this link</label>
               <div className="flex min-w-0 items-center gap-2">
-                {/* ph-no-capture: the room link is the key to the files. */}
-                <Input id="share-link" mono readOnly value={prettyUrl} iconPrefix="link" wrapClassName="min-w-0 flex-1" className="ph-no-capture"
+                {/* ph-secret: the room link is the key to the files. */}
+                <Input id="share-link" mono readOnly value={prettyUrl} iconPrefix="link" wrapClassName="min-w-0 flex-1" className="ph-secret ph-no-capture"
                   onFocus={(e) => e.currentTarget.select()} />
                 <span className="hidden shrink-0 gap-2 sm:flex">
                   <CopyButton text={shareUrl} label="Copy link" variant="primary" size="md" />
@@ -336,7 +336,7 @@ export default function SharePage() {
                 Up to 10 people at once, each choosing what to download. The link stops working when you end sharing or close this tab.
               </p>
             </div>
-            <div className="ph-no-capture order-first flex justify-center sm:order-none">
+            <div className="ph-secret ph-no-capture order-first flex justify-center sm:order-none">
               <QRFrame key={roomId} value={shareUrl} size={phone ? 160 : 152} label="Scan to open" caption="Point a phone camera at it."
                 expandable layout={phone ? "stack" : "row"} />
             </div>
@@ -405,7 +405,7 @@ export default function SharePage() {
       {active && (
         <Disclosure summary="Recipient prefers the terminal?" className={cx("rounded-xl border border-border bg-surface px-4 py-1", ui.card)}>
           <div className="space-y-2 pb-3 pt-1">
-            <CommandBlock command={`markdrop get ${roomId}`} className="ph-no-capture" />
+            <CommandBlock command={`markdrop get ${roomId}`} className="ph-secret ph-no-capture" />
             <p className="text-caption text-text-muted">
               They need the Markdrop CLI.{" "}
               <ReadMore topic="cliInstall">How to install it</ReadMore>

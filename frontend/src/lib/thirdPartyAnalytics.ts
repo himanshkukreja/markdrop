@@ -8,10 +8,14 @@
  *    Journeys tab resolves it from our own database.
  *  - URL fragments (E2E keys `#k=`, tenant hand-off tokens) and query strings (signed tokens).
  *    UTM tags are read by PostHog separately, before this layer, so campaigns still attribute.
- *  - What people write. Documents, artifacts, files, editors, previews and lists of a person's own
- *    documents carry `ph-no-capture` (not recorded, clicks not autocaptured); titles, names and
- *    emails in the page around them carry `ph-sensitive ph-mask` (text masked). Every input is
- *    masked in replays, and so is every naming attribute (title, aria-label, alt: maskAttributeFn).
+ *  - Secrets. Session replay records what people see and type, documents and editors included,
+ *    except: password fields, sign-in codes (kit/OtpInput, `data-md-secret`) and any field whose
+ *    autocomplete says password or one-time-code, whose values are masked (maskInputFn); and
+ *    anything tagged `ph-secret`, the recorder's blockClass (not recorded at all): API tokens,
+ *    integration keys and scripts that carry one, edit secrets, DNS verification values, full
+ *    links that carry a slug or key (share, folder and P2P room links, key anatomy, QR codes).
+ *    `ph-no-capture` now only keeps clicks there out of autocapture, `ph-sensitive` keeps text out of
+ *    autocaptured events, and `ph-mask` (left on names and titles) no longer masks anything.
  *  - Anything at all on /admin, on a workspace's custom domain or a published guide, or with
  *    `md_notrack` set.
  *  - Anything at all on an end-to-end encrypted document's page — with or without its #k= key in
@@ -23,14 +27,14 @@
  * Session replay records every page of markdrop.in, guides.markdrop.in and docs.markdrop.in
  * (lib/analyticsPath isRecordable), except /admin, the sign-in hand-offs (/auth/*), an address
  * whose query or fragment carries a value that can be a secret (?token=, #k=, #token=), and an
- * encrypted document's page. A document, share room or invite is recorded as page chrome around
- * blocked content. The Meta events inside recordings carry the page URL, so `$snapshot` batches
- * are sanitised as well: every URL in them is its route shape, without query or fragment.
+ * encrypted document's page. Markdrop links written out in text, attributes and input values are
+ * route shapes (scrubText), so a slug never shows in a recording either. The Meta events inside
+ * recordings carry the page URL, so `$snapshot` batches are sanitised as well: every URL in them
+ * is its route shape, without query or fragment.
  *
- * A Guides screen (/guides/<site>…) is reported as its route shape, with the customer's words in
- * it blocked or masked (`ph-no-capture` on the editor, previews and lists of pages, sites,
- * redirects and questions; `ph-sensitive ph-mask` on names and addresses). Readers of a published
- * guide meet none of this: those sites run none of Markdrop's trackers (docs/client/AppTrackers).
+ * A Guides screen (/guides/<site>…) is reported as its route shape, and recorded like any other
+ * page (the editor, previews and lists included). Readers of a published guide meet none of this:
+ * those sites run none of Markdrop's trackers (docs/client/AppTrackers).
  * Markdrop's own docs (docs.markdrop.in) are public pages, reported as /docs-site/<path> (the
  * route they are served from) with their real address in $current_url.
  *
@@ -168,24 +172,44 @@ export function scrubText(text: string): string {
   });
 }
 
-function maskTextFn(text: string, element?: HTMLElement | null): string {
-  if (element?.closest?.(".ph-mask, title")) return text.replace(/\S/g, "*");
+/** Text in replays: Markdrop links become route shapes; nothing else is masked (secrets are blocked). */
+export function maskTextFn(text: string): string {
   return scrubText(text);
 }
 
-/**
- * Attributes that name things: a document's title in a tooltip, a person in an aria-label, a file
- * name to download as. Replays never show them, so they are masked on every page. Placeholders
- * (visible) are masked inside `.ph-mask` only.
- */
-const NAMING_ATTRS = new Set(["title", "alt", "aria-label", "aria-description", "aria-valuetext", "download"]);
+/** Where a field's value is masked in replays: wrappers of sign-in codes and other secret fields. */
+const SECRET_FIELD = ".ph-secret, [data-md-secret]";
 
-function maskAttributeFn(name: string, value: string, element?: Element): string {
-  if (NAMING_ATTRS.has(name)) return value.replace(/\S/g, "*");
-  if (name === "placeholder" && element?.closest?.(".ph-mask")) return value.replace(/\S/g, "*");
-  // maskAllInputs leaves hidden inputs alone, and one holds a sign-in code (kit/OtpInput).
-  if (name === "value" && element instanceof HTMLInputElement && element.type === "hidden") return value.replace(/\S/g, "*");
-  return value;
+/**
+ * A field whose value replays never show: a password (also once revealed: rrweb marks it
+ * data-rr-is-password, and its autocomplete still says password), a sign-in code, or a field inside
+ * `ph-secret` / `data-md-secret`.
+ */
+export function isSecretInput(element?: Element | null): boolean {
+  if (!element) return false;
+  const type = (element.getAttribute?.("type") ?? "").toLowerCase();
+  if (type === "password" || element.hasAttribute?.("data-rr-is-password")) return true;
+  if (/password|one-time-code/i.test(element.getAttribute?.("autocomplete") ?? "")) return true;
+  return !!element.closest?.(SECRET_FIELD);
+}
+
+/**
+ * Every input value passes through here (maskAllInputs): secrets are masked, everything else is
+ * recorded as typed, with Markdrop links in it as route shapes.
+ */
+export function maskInputFn(text: string, element?: Element | null): string {
+  return isSecretInput(element) ? "*".repeat(text.length) : scrubText(text);
+}
+
+/**
+ * Attributes: recorded as they are (titles, aria-labels, alt text), with Markdrop links as route
+ * shapes, except a hidden input's value (maskAllInputs leaves hidden inputs alone, and one holds
+ * a sign-in code: kit/OtpInput) and any value inside a secret field.
+ */
+export function maskAttributeFn(name: string, value: string, element?: Element | null): string {
+  if (name === "value" && element?.tagName === "INPUT" && (element.getAttribute?.("type") ?? "").toLowerCase() === "hidden") return value.replace(/\S/g, "*");
+  if ((name === "value" || name === "placeholder") && element?.closest?.(SECRET_FIELD)) return value.replace(/\S/g, "*");
+  return scrubText(value);
 }
 
 const ATTR_URL = new Set(["href", "src", "action", "data-href", "srcset", "poster"]);
@@ -318,6 +342,25 @@ function beforeSend(cr: CaptureResult | null): CaptureResult | null {
   return cr;
 }
 
+/**
+ * What session replay masks and blocks (the privacy rules in this module's docstring). Every input
+ * and every text node passes through the functions above: only secrets are masked, and Markdrop
+ * links become route shapes. `ph-secret` (blockClass) is never recorded at all; nor is an encrypted
+ * document's page (its data-md-e2e marker), blocked whole even in the instant before replay stops;
+ * nor the scratch element Mermaid renders a diagram's labels into on <body> (reading/DiagramFrame:
+ * render id mmd-…, Mermaid's element d<id>, its sandbox i<id>); nor Next's route announcer, which
+ * reads out the previous page's title after every client-side navigation.
+ */
+export const REPLAY_MASKING = {
+  maskAllInputs: true,
+  maskInputFn,
+  maskTextSelector: "*",
+  maskTextFn,
+  maskAttributeFn,
+  blockClass: "ph-secret",
+  blockSelector: '[data-md-e2e], [id^="dmmd-"], [id^="immd-"], next-route-announcer, #__next-route-announcer__',
+} as const;
+
 // ── PostHog ──────────────────────────────────────────────────────────────────
 
 function loadPostHog(m: AnalyticsMode): Promise<PostHog | null> {
@@ -346,20 +389,7 @@ function loadPostHog(m: AnalyticsMode): Promise<PostHog | null> {
         // Replay starts only on recordable pages, with consent (syncRecording).
         disable_session_recording: true,
         session_recording: {
-          maskAllInputs: true,
-          // Every text node passes through maskTextFn: links to documents become route shapes,
-          // and page titles and .ph-mask text are masked outright.
-          maskTextSelector: "*",
-          maskTextFn,
-          // Naming attributes (title, aria-label, alt…) are masked everywhere.
-          maskAttributeFn,
-          // `ph-no-capture` (the default blockClass) blocks content; an encrypted document's page
-          // (its data-md-e2e marker) is blocked whole, even in the instant before replay stops;
-          // and so is the scratch element Mermaid renders a diagram's labels into on <body>
-          // (reading/DiagramFrame: render id mmd-…, Mermaid's element d<id>, its sandbox i<id>);
-          // and Next's route announcer, which reads out the previous page's title (a document's
-          // title, or its slug) after every client-side navigation.
-          blockSelector: '[data-md-e2e], [id^="dmmd-"], [id^="immd-"], next-route-announcer, #__next-route-announcer__',
+          ...REPLAY_MASKING,
           // Uncompressed, so before_send can scrub link attributes in snapshots (scrubSnapshot).
           // Requests are still gzipped on the wire.
           compress_events: false,

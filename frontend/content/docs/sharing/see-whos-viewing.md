@@ -79,6 +79,6 @@ The rules don't change: no email addresses, only the count on an encrypted docum
 
 - Presence is held in memory while people have the page open, then forgotten. It's never logged, stored or added to analytics.
 - Your section is reported at most every couple of seconds, and only as the heading you're in, the page number or the rough time in a video: never what you select or type.
-- Session recordings never include the avatars, names or the list.
+- Markdrop's own session recordings (with your consent) may show the avatars and names, like the rest of the page. See [How Markdrop measures its own site](/security/privacy#how-markdrop-measures-its-own-site).
 
 See also the [privacy policy](https://markdrop.in/privacy).

@@ -224,13 +224,13 @@ export default function TokensClient() {
           <div className="flex min-w-0 flex-col gap-4">
             <Alert tone="warning">This is the only time the full token is shown.</Alert>
             <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
-              {/* ph-no-capture: the secret itself, never recorded (not even masked). */}
+              {/* ph-secret: the token itself, never recorded (not even masked). */}
               <Input
                 mono
                 readOnly
                 value={fresh.token}
                 aria-label="Your new token"
-                className="ph-no-capture"
+                className="ph-secret ph-no-capture"
                 wrapClassName="min-w-0 flex-1"
                 onFocus={(e) => e.currentTarget.select()}
               />

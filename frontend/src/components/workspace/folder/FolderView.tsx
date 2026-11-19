@@ -726,7 +726,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
                         {address && (
                           <>
                             <span aria-hidden>·</span>
-                            <code className="ph-sensitive ph-mask max-w-full truncate rounded-sm bg-surface-inset px-1.5 py-px font-mono text-caption text-text-secondary">{address}</code>
+                            <code className="ph-sensitive ph-secret max-w-full truncate rounded-sm bg-surface-inset px-1.5 py-px font-mono text-caption text-text-secondary">{address}</code>
                           </>
                         )}
                         {folder?.access && (

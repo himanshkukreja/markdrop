@@ -67,7 +67,7 @@ function metaLine(ov: { doc: AnalyticsDoc; versions_marks: { date: string; versi
   const parts: React.ReactNode[] = [KIND_WORD[d.kind]];
   if ((d.kind === "video" || d.kind === "audio") && d.duration_s) parts.push(clock(d.duration_s));
   if (d.kind === "pdf" && d.npages) parts.push(pagesLabel(d.npages));
-  parts.push(<code key="a" className="ph-sensitive ph-mask font-mono text-caption break-all">{d.address}</code>);
+  parts.push(<code key="a" className="ph-sensitive ph-secret font-mono text-caption break-all">{d.address}</code>);
   const fv = d.file_version ?? 1;
   if (fv > 1) {
     const mark = ov.versions_marks.find((m) => m.version === fv);
