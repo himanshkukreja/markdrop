@@ -24,6 +24,26 @@
   "next": [],
   "entries": [
     {
+      "id": "todos-create-refresh-page-tasks",
+      "date": "2026-11-19",
+      "title": "To-dos: create or refresh yours in one click, with tasks from the team's pages",
+      "kind": "new",
+      "area": "Teams",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Anyone in a team can now make their to-do page, or bring it up to date, from the team's Overview or You › My to-dos. Tasks on the team's pages that @mention you now land on it too, in their own section.",
+      "body": "- **Create my to-dos / Refresh to-dos.** On a team's **Overview** (and on each card in **You › My to-dos**), one click makes your to-do page from everything the team has, or pulls in anything new since. A message says what changed, such as **Added 2 new · 5 open**, or **Up to date**.\n- **Tasks from the team's pages.** Checkbox lines on the team's own pages that @mention you appear in a **From the team's pages** section, each linked to the task on its page. Ticking works both ways, like call action items.\n- **Leads.** **Create for everyone** in the team's **People & memory** makes a page for every member who doesn't have one.\n- **MCP and API.** New tool `refresh_my_todos`; new routes `POST /api/v1/workspaces/{workspace_id}/teams/{team}/todos/mine` (create or refresh yours), `GET …/todos/mine` (do you have one) and `POST …/todos/all` (leads).",
+      "links": [
+        {
+          "label": "To-do pages",
+          "href": "/teams/to-dos"
+        }
+      ]
+    },
+    {
       "id": "hubspot-account-pages-switch-removed",
       "date": "2026-11-19",
       "title": "HubSpot: the card no longer shows an Account pages switch",
