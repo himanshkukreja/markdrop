@@ -4,7 +4,10 @@ brief .work/briefs/jason-folders-todos.md §2).
     GET  /api/v1/me/todos                               your to-do pages across your teams (You › My to-dos)
     GET  /api/v1/workspaces/{ws}/teams/{team}/todos     the team's to-do pages (leads: every member's; others: theirs)
     POST /api/v1/todos/tick                             {block, done} tick one of your to-dos (and its call's)
-    MCP  my_todos, team_todos, tick_todo                (mcp/todo_tools.py)
+    GET  /api/v1/workspaces/{ws}/teams/{team}/todos/mine   does your page exist (no build): the button's label
+    POST /api/v1/workspaces/{ws}/teams/{team}/todos/mine   "Create my to-dos" / "Refresh to-dos": :func:`refresh`
+    POST /api/v1/workspaces/{ws}/teams/{team}/todos/all    leads: "Create for everyone" (:func:`ensure_team`)
+    MCP  my_todos, team_todos, tick_todo, refresh_my_todos   (mcp/todo_tools.py)
     scripts/todo_pages.py                               the backfill (dry run by default)
 
 **The page.** "<Name> — To-dos" in the team's hidden "To-dos" folder (``folders.todo_root``: kept out of the file
@@ -16,6 +19,15 @@ the header says company · N open · last call. Each item is the person's action
 meeting page that @mentions them): the task, due date, the call it came from (a link to the item on the meeting
 page) and the transcript moment when there is one. What the person writes outside the section stays
 (hubspot_accounts.merge). No items yet: :data:`EMPTY`.
+
+**The team's pages** (owner, 2026-11-19; brief .work/briefs/todos-refresh.md) are a second source: task lines
+(``- [ ] … {#b-…}``) that @mention the person on the team's own pages (``team_ids`` has the team; not meeting pages,
+not to-do pages, nothing in a hidden folder such as the Deals folder's deal internals) that they can read. They go in
+their own collapsible section, :data:`PAGES_SECTION`, after the company sections; each links to the item on its page.
+Same identity (the block id) and the same two-way ticking as calls (``todo_items.meeting_doc_id`` is then the page's
+id). Saving such a page rebuilds the to-do pages that already exist for the people its changed task lines mention
+(:func:`_from_team_page`; a save without a person chip costs one substring test). At most :data:`MAX_TEAM_PAGES`
+pages are read, newest edit first.
 
 **Identity.** An item on the to-do page carries the SAME block id as the action item on the meeting page
 (``{#b-…}``): that is the task's identity. ``todo_items`` remembers, per (to-do page, block), the meeting page it
@@ -41,7 +53,8 @@ Calls the person can't read never show on their page.
 
 **Who gets one.** Every member of a team (not General) once the team uses to-dos: the first call with action items
 in the team, the backfill, or someone opening the team's to-dos. A member added later gets theirs at once
-(teams.add_members / set_leads / create_team call :func:`team_changed`).
+(teams.add_members / set_leads / create_team call :func:`team_changed`). Anyone in the team can also make or refresh
+theirs in one click (:func:`refresh`, synchronous: "Added N new · M open"); a lead can make everyone's.
 
 Collections
     todo_pages   _id "<team>:<user>": workspace_id, team_id, user_id, doc_id, slug, open, sections [{name, open,
@@ -75,6 +88,9 @@ END = ("*Markdrop keeps the section above up to date from the team's calls. Tick
        "both follow. Write your own to-dos above or below it.*")
 EMPTY = "_No open action items yet — they'll appear here after your next call._"
 INTERNAL = "Internal"
+PAGES_KEY = "pages"                 # the section of items from the team's own pages (always last)
+PAGES_SECTION = "From the team's pages"
+MAX_TEAM_PAGES = 200                # the team's pages a rebuild reads (newest edit first)
 DONE_SHOWN = timedelta(days=14)     # a ticked item stays (to untick) this long after it was ticked
 MAX_MEETINGS = 600                  # the team's latest calls a rebuild reads
 MAX_ITEMS = 400
@@ -241,17 +257,18 @@ def _clean_text(rest: str, uid: str) -> tuple[str, str | None, str | None]:
     if cm:
         moment = cm.group(0).strip()
     text = _CITE.sub("", rest)
-    due = None
-    dm = _DUE.search(text)
-    if dm:
-        due = dm.group(1).strip()
-        text = text[: dm.start()]
 
     def person(m: re.Match) -> str:
         if f'id="{uid}"' in (m.group(0) or ""):
             return " "
         return m.group(1).strip()
-    text = _PERSON.sub(person, text)
+    # People first: on a team's own page the person's chip can come after the due date.
+    text = re.sub(r"[ \t]+", " ", _PERSON.sub(person, text)).rstrip()
+    due = None
+    dm = _DUE.search(text)
+    if dm:
+        due = dm.group(1).strip()
+        text = text[: dm.start()]
     text = re.sub(r"\s+", " ", text).strip(" ,;:-·")
     if text[:1].islower():
         text = text[:1].upper() + text[1:]
@@ -349,6 +366,7 @@ class Item:
     date: str | None
     company_key: str
     company: str
+    source: str = "call"       # "call" | "page" (one of the team's pages)
 
 
 @dataclass
@@ -381,9 +399,7 @@ async def collect(db: AsyncIOMotorDatabase, team: dict, user) -> Collected:
         .to_list(length=MAX_MEETINGS)
     by_doc = {r["doc_id"]: r for r in rows if r.get("doc_id") is not None}
     out = Collected()
-    if not by_doc:
-        return out
-    docs = await db["documents"].find(
+    docs = [] if not by_doc else await db["documents"].find(
         {"_id": {"$in": list(by_doc)}, "deleted_at": None, "encrypted": {"$ne": True},
          "content": {"$regex": re.escape(f'id="{uid}"')}}).to_list(length=len(by_doc))
     actor, ctx = access.Actor.of(user), access.Ctx(db, surface="todos")
@@ -404,8 +420,60 @@ async def collect(db: AsyncIOMotorDatabase, team: dict, user) -> Collected:
                 continue
             out.items.append(Item(ln.block, text, due, moment, ln.done, raw["_id"], raw["slug"], title,
                                   mrow.get("date"), key, name))
+    seen = {it.block for it in out.items}
     out.items.sort(key=lambda it: (it.date or ""), reverse=True)
-    out.items = out.items[:MAX_ITEMS]
+    from_pages = [it for it in await collect_pages(db, team, user, set(by_doc)) if it.block not in seen]
+    out.items = (out.items + from_pages)[:MAX_ITEMS]
+    return out
+
+
+async def _hidden_folders(db: AsyncIOMotorDatabase, workspace_id: str) -> list[str]:
+    """The workspace's hidden folders (Deals and its deal folders, To-dos, archives) and everything under them."""
+    rows = await db["folders"].find({"workspace_id": workspace_id}, {"parent_id": 1, "hidden": 1}).to_list(length=20000)
+    kids: dict[str, list[str]] = {}
+    for r in rows:
+        kids.setdefault(str(r.get("parent_id") or ""), []).append(str(r["_id"]))
+    out: set[str] = set()
+    todo = [str(r["_id"]) for r in rows if r.get("hidden")]
+    while todo:
+        f = todo.pop()
+        if f in out:
+            continue
+        out.add(f)
+        todo += kids.get(f, [])
+    return list(out)
+
+
+async def collect_pages(db: AsyncIOMotorDatabase, team: dict, user, skip: set | None = None) -> list[Item]:
+    """The person's tasks on the team's own pages: task lines with a block id that @mention them, on pages in the
+    team they can read (not meeting pages, to-do pages, or anything in a hidden folder), newest edit first."""
+    from app.services import md_outline
+
+    ws, tid, uid = team["workspace_id"], str(team["_id"]), user.id
+    q: dict[str, Any] = {"workspace_id": ws, "team_ids": tid, "deleted_at": None, "encrypted": {"$ne": True},
+                         "meeting_id": None, "todo_team_id": None, "content": {"$regex": re.escape(f'id="{uid}"')}}
+    hidden = await _hidden_folders(db, ws)
+    if hidden:
+        q["folder_id"] = {"$nin": [*hidden, *[ObjectId(h) for h in hidden if ObjectId.is_valid(h)]]}
+    if skip:
+        q["_id"] = {"$nin": list(skip)}
+    docs = await db["documents"].find(q).sort([("updated_at", -1), ("_id", -1)]).limit(MAX_TEAM_PAGES) \
+        .to_list(length=MAX_TEAM_PAGES)
+    actor, ctx = access.Actor.of(user), access.Ctx(db, surface="todos")
+    out: list[Item] = []
+    for raw in docs:
+        mine = [ln for ln in task_lines(raw.get("content") or "") if f'id="{uid}"' in ln.rest]
+        if not mine or not (await access.can(actor, raw, "read", ctx)).allowed:
+            continue
+        title = md_outline.display_title(raw) or raw.get("title") or "Untitled page"
+        when = _aware(raw.get("updated_at") or raw.get("created_at"))
+        day = when.date().isoformat() if when else None
+        for ln in mine:
+            text, due, _moment = _clean_text(ln.rest, uid)
+            if not text:
+                continue
+            out.append(Item(ln.block, text, due, None, ln.done, raw["_id"], raw["slug"], title, day, PAGES_KEY,
+                            PAGES_SECTION, source="page"))
     return out
 
 
@@ -433,7 +501,7 @@ def item_line(it: Item, done: bool) -> str:
     parts = [it.text]
     if it.due:
         parts.append(f"due {it.due}")
-    call = meetings.md_inline(it.meeting_title)[:120] + (f" · {_fmt_day(it.date)}" if it.date else "")
+    call = meetings.md_inline(it.meeting_title)[:120] + (f" · {_fmt_day(it.date)}" if it.date and it.source == "call" else "")
     link = f"[{call}](/{it.meeting_slug}#{it.block})"
     tail = f" — {link}" + (f" · {it.moment}" if it.moment else "")
     return f"- [{'x' if done else ' '}] {' · '.join(parts)}{tail} {{#{it.block}}}"
@@ -461,9 +529,10 @@ def sections(items: list[Item], state: dict[str, bool], shown: Callable[[Item, b
             continue
         opened = [it for it in visible if not state[it.block]]
         closed = [it for it in visible if state[it.block]]
-        last = max((it.date or "" for it in its), default="") or None
+        last = None if key == PAGES_KEY else (max((it.date or "" for it in its), default="") or None)
         out.append(Section(key, names[key], len(opened), last, [item_line(it, state[it.block]) for it in opened + closed]))
-    out.sort(key=lambda s: (s.key == "internal", -(int((s.last_call or "0000-00-00").replace("-", "")) or 0), s.name.casefold()))
+    out.sort(key=lambda s: (s.key == PAGES_KEY, s.key == "internal", -(int((s.last_call or "0000-00-00").replace("-", "")) or 0),
+                            s.name.casefold()))
     return out
 
 
@@ -489,8 +558,9 @@ def merge(content: str, section: str) -> str:
 def intro(team_name: str) -> str:
     from app.services import meetings
 
-    return (f"Your action items from the calls in **{meetings.md_inline(team_name)}**, by company. Tick one here or on its call: both follow. "
-            f"Only you and the team's leads can see this page; share it like any page.")
+    return (f"Your action items from the calls in **{meetings.md_inline(team_name)}**, by company, and the tasks on its pages that "
+            f"mention you. Tick one here or where it came from: both follow. Only you and the team's leads can see this page; "
+            f"share it like any page.")
 
 
 # ── The page ──────────────────────────────────────────────────────────────────
@@ -623,6 +693,8 @@ class Built:
     sections: list[dict] = field(default_factory=list)
     written: bool = False
     skipped: str | None = None
+    added: int = 0             # items shown now that the page didn't have before
+    created: bool = False      # the page was made by this build
 
 
 async def build(db: AsyncIOMotorDatabase, team_id: str, user_id: str, *, apply: bool = True) -> Built:
@@ -651,7 +723,9 @@ async def _build(db: AsyncIOMotorDatabase, team: dict, user, out: Built, apply: 
     tid, uid = str(team["_id"]), user.id
     got = await collect(db, team, user)
     out.meetings = got.meetings
-    raw = await _page(db, team, user, create=apply)
+    had = await _page(db, team, user, create=False)
+    raw = had if had is not None or not apply else await _page(db, team, user, create=True)
+    out.created = had is None and raw is not None
     page_marks = marks(region((raw or {}).get("content") or "")) if raw else {}
     stored = {}
     if raw is not None:
@@ -688,6 +762,7 @@ async def _build(db: AsyncIOMotorDatabase, team: dict, user, out: Built, apply: 
 
     secs = sections(got.items, state, shown)
     out.items = sum(1 for it in got.items if shown(it, state[it.block]))
+    out.added = sum(1 for it in got.items if it.block not in stored and shown(it, state[it.block]))
     out.open = sum(s.open for s in secs)
     out.sections = [{"name": s.name, "open": s.open, "last_call": s.last_call} for s in secs]
     if not apply or raw is None:
@@ -732,6 +807,27 @@ async def ensure_team(db: AsyncIOMotorDatabase, team_id: str, *, apply: bool = T
         if on_line:
             on_line(_line(b))
     return out
+
+
+async def refresh(db: AsyncIOMotorDatabase, team_id: str, user) -> dict:
+    """"Create my to-dos" / "Refresh to-dos": make or rebuild the caller's page in the team now, from the team's calls
+    and pages. ``{slug, href, open, added, created}``. The caller checked the team (member, not General)."""
+    b = await build(db, team_id, user.id)
+    if b.skipped:
+        raise HTTPException(status_code=409 if b.skipped == "couldn't make the page" else 404,
+                            detail="Couldn't make your to-do page. Try again in a moment." if b.skipped == "couldn't make the page"
+                            else f"No to-do page here ({b.skipped}).")
+    return {"slug": b.slug, "href": f"/{b.slug}" if b.slug else None, "open": b.open, "added": b.added, "created": b.created}
+
+
+async def status(db: AsyncIOMotorDatabase, team_id: str, user_id: str) -> dict:
+    """Does the person have a to-do page in the team (nothing is made): ``{exists, slug, href, open, updated_at}``."""
+    row = await db[PAGES].find_one({"_id": page_key(team_id, user_id), "doc_id": {"$ne": None}})
+    if row is not None and not await db["documents"].find_one({"_id": row["doc_id"], "deleted_at": None}, {"_id": 1}):
+        row = None
+    slug = (row or {}).get("slug")
+    return {"exists": row is not None, "slug": slug, "href": f"/{slug}" if slug else None, "open": int((row or {}).get("open") or 0),
+            "updated_at": (row or {}).get("built_at")}
 
 
 def _line(b: Built) -> str:
@@ -781,6 +877,8 @@ async def on_page_saved(db: AsyncIOMotorDatabase, before: dict, after: dict, act
             await _from_todo_page(db, before, after, actor)
         elif after.get("meeting_id"):
             await _from_meeting_page(db, before, after)
+        elif after.get("team_ids") or before.get("team_ids"):
+            await _from_team_page(db, before, after)
     except Exception:
         log.warning("todos: the save hook failed", exc_info=True)
 
@@ -828,6 +926,30 @@ async def meeting_people_changed(db: AsyncIOMotorDatabase, doc_id, who: set[str]
         # The team now uses to-dos: everyone in it gets a page.
         if who & members and not await db[PAGES].find_one({"team_id": tid}, {"_id": 1}):
             team_changed_now(db, tid)
+
+
+async def _from_team_page(db: AsyncIOMotorDatabase, before: dict, after: dict) -> None:
+    """One of a team's own pages saved: the people its changed task lines mention get their (existing) to-do pages
+    rebuilt. Cheap first: a save without a person chip on either side stops at a substring test."""
+    from app.services import teams as T
+
+    a_text, b_text = before.get("content") or "", after.get("content") or ""
+    if ":person[" not in a_text and ":person[" not in b_text:
+        return
+    a, b = _people_lines(a_text), _people_lines(b_text)
+    moved = set(T.ids_of(before, "team_ids")) != set(T.ids_of(after, "team_ids")) or bool(after.get("deleted_at"))
+    if a == b and not moved:
+        return
+    who: set[str] = set()
+    for blk in set(a) | set(b):
+        if moved or a.get(blk) != b.get(blk):
+            who |= mentions((a.get(blk) or (False, ""))[1]) | mentions((b.get(blk) or (False, ""))[1])
+    tids = list(dict.fromkeys([*T.ids_of(before, "team_ids"), *T.ids_of(after, "team_ids")]))
+    if not who or not tids:
+        return
+    async for r in db[PAGES].find({"team_id": {"$in": tids}, "user_id": {"$in": list(who)}, "doc_id": {"$ne": None}},
+                                  {"team_id": 1, "user_id": 1}):
+        schedule(db, r["team_id"], r["user_id"])
 
 
 def team_changed_now(db: AsyncIOMotorDatabase, team_id: str) -> None:
@@ -904,6 +1026,12 @@ async def _fresh(db: AsyncIOMotorDatabase, rows: list[dict]) -> None:
 
 async def mine(db: AsyncIOMotorDatabase, user, *, workspace_id: str | None = None, team_id: str | None = None) -> list[dict]:
     """Your to-do pages across your teams (made now when missing)."""
+    return (await mine_and_missing(db, user, workspace_id=workspace_id, team_id=team_id))[0]
+
+
+async def mine_and_missing(db: AsyncIOMotorDatabase, user, *, workspace_id: str | None = None,
+                           team_id: str | None = None) -> tuple[list[dict], list[dict]]:
+    """(your to-do pages, the teams you're in where there's still none — it couldn't be made: "Create my to-dos")."""
     from app.services import teams as T
 
     ws_ids = [workspace_id] if workspace_id else [
@@ -913,6 +1041,7 @@ async def mine(db: AsyncIOMotorDatabase, user, *, workspace_id: str | None = Non
         q["_id"] = _oid(team_id)
     teams = await db[T.TEAMS].find(q).to_list(length=500)
     rows = []
+    missing = []
     for t in teams:
         tid = str(t["_id"])
         row = await db[PAGES].find_one({"_id": page_key(tid, user.id)})
@@ -921,6 +1050,8 @@ async def mine(db: AsyncIOMotorDatabase, user, *, workspace_id: str | None = Non
             row = await db[PAGES].find_one({"_id": page_key(tid, user.id)})
         if row is not None and row.get("doc_id"):
             rows.append((row, t))
+        else:
+            missing.append({"team": {"id": tid, "name": t.get("name"), "slug": t.get("slug")}, "workspace_id": t["workspace_id"]})
     await _fresh(db, [r for r, _t in rows])
     names = {}
     for ws in {r["workspace_id"] for r, _t in rows}:
@@ -933,7 +1064,10 @@ async def mine(db: AsyncIOMotorDatabase, user, *, workspace_id: str | None = Non
         c["workspace"] = {"id": r["workspace_id"], "name": names.get(r["workspace_id"])}
         out.append(c)
     out.sort(key=lambda c: (-c["open"], (c["team"]["name"] or "").casefold()))
-    return out
+    for m in missing:
+        m["workspace"] = {"id": m["workspace_id"], "name": names.get(m["workspace_id"])
+                          or (await db["workspaces"].find_one({"_id": _oid(m["workspace_id"])}, {"name": 1}) or {}).get("name")}
+    return out, missing
 
 
 async def team(db: AsyncIOMotorDatabase, user, view, team_row: dict) -> dict:

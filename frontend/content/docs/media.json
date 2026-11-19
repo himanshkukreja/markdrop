@@ -3731,6 +3731,70 @@
     "bytes": 55856,
     "kind": "image"
   },
+  "/docs-assets/teams/to-dos/create.dark.mp4": {
+    "w": 1440,
+    "h": 864,
+    "duration": 11.27,
+    "bytes": 714453,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/to-dos/create.dark.webm": {
+    "w": 1440,
+    "h": 864,
+    "duration": 11.27,
+    "bytes": 353038,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/to-dos/create.dark.webp": {
+    "w": 1440,
+    "h": 864,
+    "bytes": 38830,
+    "kind": "poster"
+  },
+  "/docs-assets/teams/to-dos/create.mp4": {
+    "w": 1440,
+    "h": 864,
+    "duration": 11.07,
+    "bytes": 682362,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/to-dos/create.webm": {
+    "w": 1440,
+    "h": 864,
+    "duration": 11.07,
+    "bytes": 369408,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/to-dos/create.webp": {
+    "w": 1440,
+    "h": 864,
+    "bytes": 39780,
+    "kind": "poster"
+  },
+  "/docs-assets/teams/to-dos/page.dark.webp": {
+    "w": 2560,
+    "h": 1620,
+    "bytes": 116586,
+    "kind": "image"
+  },
+  "/docs-assets/teams/to-dos/page.webp": {
+    "w": 2560,
+    "h": 1620,
+    "bytes": 122380,
+    "kind": "image"
+  },
+  "/docs-assets/teams/to-dos/refresh.dark.webp": {
+    "w": 2560,
+    "h": 1520,
+    "bytes": 122628,
+    "kind": "image"
+  },
+  "/docs-assets/teams/to-dos/refresh.webp": {
+    "w": 2560,
+    "h": 1520,
+    "bytes": 124536,
+    "kind": "image"
+  },
   "/docs-assets/videos/analytics-tour.mp4": {
     "w": 1920,
     "h": 1080,

@@ -177,7 +177,7 @@ class Transport(McpTestCase):
             # Teams inside a workspace (mcp/teams_tools.py).
             "list_teams", "get_team", "get_team_brief", "list_projects", "create_team", "update_team",
             "add_team_members", "remove_team_members", "move_to_team", "share_to_team", "edit_team_brief",
-            "create_project", "route_meeting", "list_favorites", "set_favorite", "my_todos", "team_todos", "tick_todo",
+            "create_project", "route_meeting", "list_favorites", "set_favorite", "my_todos", "team_todos", "tick_todo", "refresh_my_todos",
             # Zoom (mcp/zoom_tools.py).
             "zoom_status", "import_zoom_meetings", "zoom_review",
             # Import from Notion (mcp/notion_tools.py).
@@ -244,7 +244,7 @@ class Transport(McpTestCase):
     async def test_modern_tools_list_and_call(self):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
-        self.assertEqual(len(r.json()["result"]["tools"]), 190)
+        self.assertEqual(len(r.json()["result"]["tools"]), 191)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")

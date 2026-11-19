@@ -12,6 +12,9 @@
 
 .td-team { margin: 4px 0 22px; }
 .td-team__head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.td-team__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.td-card__acts { position: relative; z-index: 1; display: flex; justify-content: flex-end; margin-top: auto; }
+.td-card--missing { border-style: dashed; }
 
 .td-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 .td-card { position: relative; display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 14px; border: 1px solid var(--border);
@@ -49,4 +52,5 @@
   .td-title { font-size: 24px; line-height: 30px; }
   .td-cards { grid-template-columns: 1fr; }
   .td-card { min-height: 44px; }
+  .td-card__acts .md-btn { min-height: 44px; }
 }

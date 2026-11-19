@@ -21,6 +21,7 @@ import {
   type Brief, type BriefKind, type BriefSummary, type MemoryHighlights, type ProjectCard, type TeamFull, type TeamHome as Home, type TeamHomeLocked, type TeamItem, type TeamMeetingCard,
 } from "@/lib/teams";
 import { AcrossCard, AskBar, FeedCard, MeetingsCard, NeedsYouCard, NewPeopleCard, RecentCard, WhoCard } from "./HomeCards";
+import { RefreshTodosButton } from "@/components/todos/RefreshTodos";
 import { TeamDialog } from "./TeamDialog";
 import { AdminsNote, TeamTile, fmtShortDate } from "./parts";
 import { CreateProjectDialog } from "./TeamSpaces";
@@ -142,6 +143,7 @@ export default function TeamHome({ ws, team: teamRef, settings }: { ws: string; 
             </>
           )}
           {!locked && member && <Button iconLeft="plus" href={`/pages/new?workspace=${encodeURIComponent(ws)}${g ? "" : `&team=${encodeURIComponent(t.id)}`}`}>New page</Button>}
+          {!locked && t.my_role && !g && <RefreshTodosButton ws={ws} team={t.id} />}
           {t.my_role && !g && <LeaveButton ws={ws} team={t} />}
           {t.can_manage && !locked && <IconButton icon="settings" label="Team settings" variant="ghost" onClick={() => setDialog(true)} data-testid="team-settings-open" />}
         </div>

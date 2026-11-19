@@ -28850,6 +28850,172 @@
         }
       }
     },
+    "/api/v1/workspaces/{workspace_id}/teams/{team}/todos/mine": {
+      "get": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "My Team Todo Status",
+        "description": "Whether you have a to-do page in the team (``exists``, its ``slug``, ``open``), without making one: the\nteam's \"Create my to-dos\" / \"Refresh to-dos\" button. 404 for General; 403 when you're not in the team.",
+        "operationId": "my_team_todo_status_api_v1_workspaces__workspace_id__teams__team__todos_mine_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "team",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      },
+      "post": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Refresh My Team Todos",
+        "description": "Create your to-do page in the team, or refresh it, now: your action items from the team's calls and the tasks\non the team's pages that mention you. ``added``: items it didn't have before; ``open``: open now; ``created``:\nthe page is new. 404 for General; 403 when you're not in the team.",
+        "operationId": "refresh_my_team_todos_api_v1_workspaces__workspace_id__teams__team__todos_mine_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "team",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "6/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/teams/{team}/todos/all": {
+      "post": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Create Team Todos",
+        "description": "Leads: make a to-do page for every member of the team who has none yet (``created``: how many). 403 for\nanyone who doesn't lead the team; 404 for General.",
+        "operationId": "create_team_todos_api_v1_workspaces__workspace_id__teams__team__todos_all_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "team",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "3/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/teams/{team}/todos": {
       "get": {
         "tags": [

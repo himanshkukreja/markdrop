@@ -9,10 +9,12 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Alert, Avatar, Icon, Skeleton } from "@/components/ui";
 import { fmtDay } from "@/lib/team";
-import { teamTodos, todoSummary, type TeamTodos as TeamTodosT, type TodoCard } from "@/lib/todos";
+import { teamTodos, todoSummary, type MissingTodo, type TeamTodos as TeamTodosT, type TodoCard } from "@/lib/todos";
+import { CreateTeamTodosButton, RefreshTodosButton } from "./RefreshTodos";
 import "./todos.css";
 
-export function TodoCards({ cards, by }: { cards: TodoCard[]; by: "person" | "team" }) {
+/** ``onRefreshed``: your own cards get "Refresh to-dos" (and the list reloads after it). */
+export function TodoCards({ cards, by, missing = [], onRefreshed }: { cards: TodoCard[]; by: "person" | "team"; missing?: MissingTodo[]; onRefreshed?: () => void }) {
   return (
     <ul className="td-cards" data-testid="todo-cards">
       {cards.map((c) => {
@@ -46,9 +48,25 @@ export function TodoCards({ cards, by }: { cards: TodoCard[]; by: "person" | "te
             ) : (
               <p className="td-empty-line">No open action items yet — they&apos;ll appear here after the next call.</p>
             )}
+            {onRefreshed && c.you && (
+              <div className="td-card__acts"><RefreshTodosButton ws={c.workspace_id} team={c.team.id} exists size="sm" variant="ghost" onDone={onRefreshed} /></div>
+            )}
           </li>
         );
       })}
+      {missing.map((m) => (
+        <li key={`missing:${m.team.id}`} className="td-card td-card--missing" data-testid="todo-missing">
+          <div className="td-card__top">
+            <span className="td-card__glyph" aria-hidden><Icon name="checkSquare" /></span>
+            <div className="td-card__who">
+              <p className="td-card__name" title={m.team.name ?? "Team"}><span className="td-card__nametext">{m.team.name ?? "Team"}</span></p>
+              <p className="td-card__sub">{m.workspace?.name ? `${m.workspace.name} · ` : ""}No to-do page yet</p>
+            </div>
+          </div>
+          <p className="td-empty-line">Your action items from the team&apos;s calls and the tasks on its pages that mention you, in one page.</p>
+          <div className="td-card__acts"><RefreshTodosButton ws={m.workspace_id} team={m.team.id} exists={false} size="sm" variant="primary" onDone={onRefreshed} /></div>
+        </li>
+      ))}
     </ul>
   );
 }
@@ -57,27 +75,32 @@ export function TodoCards({ cards, by }: { cards: TodoCard[]; by: "person" | "te
 export function TeamTodos({ ws, team }: { ws: string; team: string }) {
   const [data, setData] = useState<TeamTodosT | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     let live = true;
     teamTodos(ws, team).then((d) => { if (live) setData(d); }).catch((e) => { if (live) setError(e instanceof Error ? e.message : "Couldn't load the to-dos."); });
     return () => { live = false; };
-  }, [ws, team]);
+  }, [ws, team, tick]);
+  const reload = () => setTick((n) => n + 1);
   if (error) return <Alert tone="danger" className="td-alert">{error}</Alert>;
   if (data && (data.general || !data.pages.length)) return null;
   return (
     <section className="td-team" aria-labelledby="td-team-h" data-testid="team-todos">
       <div className="td-team__head">
-        <h2 id="td-team-h" className="td-h2"><Icon name="checkSquare" />{data?.lead ? "Everyone's to-dos" : "Your to-dos"}</h2>
+        <div className="td-team__row">
+          <h2 id="td-team-h" className="td-h2"><Icon name="checkSquare" />{data?.lead ? "Everyone's to-dos" : "Your to-dos"}</h2>
+          {data?.lead && <CreateTeamTodosButton ws={ws} team={team} onDone={reload} />}
+        </div>
         <p className="td-muted">
           {data?.lead
-            ? "Each member's action items from the team's calls, by company. As a lead you can read every member's page; only they edit it."
-            : "Your action items from the team's calls, by company. Only you and the team's leads see your page."}
+            ? "Each member's action items from the team's calls, by company, and the tasks on the team's pages that mention them. As a lead you can read every member's page; only they edit it."
+            : "Your action items from the team's calls, by company, and the tasks on the team's pages that mention you. Only you and the team's leads see your page."}
         </p>
       </div>
       {!data ? (
         <div className="td-cards">{[0, 1, 2].map((i) => <Skeleton key={i} variant="rect" height={120} />)}</div>
       ) : (
-        <TodoCards cards={data.pages} by="person" />
+        <TodoCards cards={data.pages} by="person" onRefreshed={reload} />
       )}
     </section>
   );

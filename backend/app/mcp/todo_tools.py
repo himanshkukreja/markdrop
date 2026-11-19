@@ -1,7 +1,8 @@
 """MCP tools for personal to-do pages (services/todo_pages.py): one page per person per team, from the team's calls.
 
 READ: ``my_todos`` (yours, across your teams), ``team_todos`` (a team's leads: every member's open items).
-WRITE: ``tick_todo`` (yours; the call's action item follows).
+WRITE: ``tick_todo`` (yours; the call's action item follows), ``refresh_my_todos`` (create or refresh yours in a team now,
+from its calls and the tasks on its pages that mention you).
 
 The same rules as the website (routers/todos.py): a to-do page is its owner's; the team's leads read every member's.
 """
@@ -112,6 +113,44 @@ async def tick_todo(ctx: Context, args: dict) -> tuple[str, dict]:
             {"done": got["done"], "block": block, "url": public_url(got["slug"])})
 
 
+async def refresh_my_todos(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import access
+    from app.services import teams as T
+
+    ref = (args.get("team") or "").strip()
+    rows = []
+    if args.get("workspace"):
+        ws_ids = [await _workspace_id(ctx, args["workspace"])]
+    else:
+        ws_ids = [m["workspace_id"] for m in await ctx.db["memberships"].find({"user_id": ctx.user.id}, {"workspace_id": 1}).to_list(length=500)]
+    for ws in ws_ids:
+        row = await T.get_team(ctx.db, ws, ref)
+        if row is None:
+            continue
+        view = await access.Ctx(ctx.db, surface="mcp").team_view(ws, ctx.user.id)
+        if str(row["_id"]) in view.readable_teams:
+            rows.append(row)
+    if not rows:
+        raise ToolError(f"No team “{ref}” you can open. list_teams shows them.")
+    if len(rows) > 1:
+        raise ToolError(f"“{ref}” is a team in several of your workspaces. Pass workspace.")
+    row = rows[0]
+    if T.is_general(row):
+        raise ToolError("General has no to-do pages. Pick one of your other teams.")
+    if ctx.user.id not in (row.get("member_ids") or []):
+        raise ToolError(f"You're not in {row.get('name')}. Join it to get a to-do page there.")
+    try:
+        got = await todo_pages.refresh(ctx.db, str(row["_id"]), ctx.user)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    url = public_url(got["slug"]) if got.get("slug") else None
+    what = "Created your to-do page" if got["created"] else "Refreshed your to-do page"
+    news = f"added {got['added']} new" if got["added"] else "up to date"
+    return (f"{what} in {row.get('name')}: {news} · {got['open']} open — {url}",
+            {"team": row.get("name"), "team_id": str(row["_id"]), "slug": got["slug"], "url": url, "open": got["open"],
+             "added": got["added"], "created": got["created"]})
+
+
 TODO_TOOLS = [
     Tool(name="my_todos", title="Your to-dos from the team's calls",
          description=("Your personal to-do pages, one per team (never General): your action items from the team's calls, "
@@ -134,4 +173,13 @@ TODO_TOOLS = [
                                                         "done": {"type": "boolean"}}, "required": ["item"]},
          output_schema=_out({"done": {"type": "boolean"}, "block": {"type": "string"}, "url": {"type": "string"}}),
          annotations=_ann(False, False, True), handler=tick_todo),
+    Tool(name="refresh_my_todos", title="Create or refresh your to-do page", writes=True, scope=WRITE,
+         description=("Create your to-do page in a team (not General), or refresh it now: your action items from the team's calls "
+                      "and the tasks on the team's pages that @mention you, each linked to where it came from. Returns how many "
+                      "items are new (added), how many are open, and whether the page was just made (created). Safe to repeat."),
+         input_schema={"type": "object", "properties": {"team": _TEAM, "workspace": _WS}, "required": ["team"]},
+         output_schema=_out({"team": {"type": ["string", "null"]}, "team_id": {"type": "string"}, "slug": {"type": ["string", "null"]},
+                             "url": {"type": ["string", "null"]}, "open": {"type": "integer"}, "added": {"type": "integer"},
+                             "created": {"type": "boolean"}}),
+         annotations=_ann(False, False, True), handler=refresh_my_todos),
 ]
