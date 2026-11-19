@@ -153,7 +153,7 @@ async def create_team(ctx: Context, args: dict) -> tuple[str, dict]:
 async def update_team(ctx: Context, args: dict) -> tuple[str, dict]:
     view, _actx, role = await _view(ctx, args["workspace"])
     row = await _team(ctx, view, args["team"])
-    body = {k: args[k] for k in ("name", "description", "visibility", "jira_projects", "slack_comments", "meetings_by_attendees") if args.get(k) is not None}
+    body = {k: args[k] for k in ("name", "description", "visibility", "jira_projects", "slack_comments", "meetings_by_attendees", "backlog") if args.get(k) is not None}
     if "slack_channel_id" in args:
         body["slack_channel"] = ({"id": args["slack_channel_id"], "name": args.get("slack_channel_name")}
                                  if args.get("slack_channel_id") else None)
@@ -456,13 +456,14 @@ TEAMS_TOOLS = [
          description=("Change a team's name, description, Slack channel (slack_channel_id; \"\" clears), whether new and "
                       "resolved comments on the team's pages post there (slack_comments), whether new meetings join it by who "
                       "attended (meetings_by_attendees; off: only meetings imported or moved into it, e.g. from Zoom), "
+                      "whether its backlog page fills from its calls (backlog), "
                       "Jira projects (keys), weekly digest on/off (leads and admins), visibility (admins only), or its leads "
                       "(admins only: names, emails or ids; the full list, at least one)."),
          input_schema={"type": "object", "properties": {
              "workspace": _WS, "team": _TEAM, "name": {"type": "string", "maxLength": 60},
              "description": {"type": "string", "maxLength": 280}, "visibility": {"type": "string", "enum": ["open", "private"]},
              "slack_channel_id": {"type": "string", "maxLength": 40}, "slack_channel_name": {"type": "string", "maxLength": 80},
-             "slack_comments": {"type": "boolean"}, "meetings_by_attendees": {"type": "boolean"},
+             "slack_comments": {"type": "boolean"}, "meetings_by_attendees": {"type": "boolean"}, "backlog": {"type": "boolean"},
              "jira_projects": {"type": "array", "items": _STR, "maxItems": 10}, "digest": {"type": "boolean"},
              "leads": {**_LIST, "minItems": 1, "maxItems": 50}},
              "required": ["workspace", "team"]},

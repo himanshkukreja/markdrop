@@ -587,6 +587,10 @@ async def update_document(
     from app.services import todo_pages
 
     await todo_pages.on_page_saved(db, raw, after, actor)
+    # Team backlogs (services/team_backlog.py): edits on a backlog page flow back; a call's changes fill its teams'.
+    from app.services import team_backlog
+
+    await team_backlog.on_page_saved(db, raw, after, actor)
     # A new page waiting for its auto cover gets it once it says what it's about.
     if after.get("cover_pick") == "waiting":
         await page_covers.after_save(db, after)

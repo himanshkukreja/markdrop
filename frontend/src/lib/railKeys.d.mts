@@ -1,6 +1,6 @@
 import type { TeamCard, TeamsSidebar } from "./teams";
 
-export type TeamSection = "overview" | "meetings" | "deals" | "files" | "memory";
+export type TeamSection = "overview" | "meetings" | "deals" | "backlog" | "files" | "memory";
 export const TEAM_SECTIONS: readonly TeamSection[];
 export function wsRootKey(id: string): string;
 export function wsFolderKey(id: string, folderId: string): string;

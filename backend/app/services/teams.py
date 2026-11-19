@@ -340,6 +340,12 @@ async def section_counts(db: AsyncIOMotorDatabase, workspace_id: str, user_id: s
         by_id[ht] = {**by_id[ht], "deals": await db["hubspot_deal_folders"].count_documents(
             {"workspace_id": str(workspace_id), "portal_id": hc["portal_id"], "closed": {"$ne": True},
              "folder_id": {"$nin": [None, ""]}})}
+    # The team's backlog page (services/team_backlog.py): the sidebar's Backlog row and its open count.
+    async for r in db["team_backlog_pages"].find({"workspace_id": str(workspace_id)}, {"slug": 1, "open": 1, "off": 1}):
+        c = by_id.get(r["_id"])
+        if c is None or r.get("off") or not c.get("can_read") or c.get("general") or not r.get("slug"):
+            continue
+        by_id[r["_id"]] = {**c, "backlog": {"slug": r["slug"], "open": int(r.get("open") or 0)}}
     return [by_id[c["id"]] for c in cards]
 
 
@@ -357,6 +363,7 @@ def team_full(view: TeamView, t: dict, ppl: dict[str, dict]) -> dict:
         members=[{**ppl[u], "role": "lead" if u in leads else "member"} for u in (t.get("member_ids") or []) if u in ppl],
         slack_channel=t.get("slack_channel"), slack_comments=t.get("slack_comments") is not False,
         meetings_by_attendees=t.get("meetings_by_attendees") is not False,
+        backlog_enabled=t.get("backlog_off") is not True and not is_general(t),
         jira_projects=list(t.get("jira_projects") or []),
         digest=t.get("digest") or {"enabled": True, "email": True, "slack": True},
         admins_can_see=True, created_at=t.get("created_at"))
@@ -595,6 +602,10 @@ async def update_team(db: AsyncIOMotorDatabase, view: TeamView, team: dict, body
         sets["slack_comments"] = bool(body["slack_comments"])
     if body.get("meetings_by_attendees") is not None:
         sets["meetings_by_attendees"] = bool(body["meetings_by_attendees"])
+    if body.get("backlog") is not None:
+        if is_general(team):
+            raise Refused(409, "General has no backlog. Each of your other teams has one.")
+        sets["backlog_off"] = not bool(body["backlog"])
     if body.get("jira_projects") is not None:
         keys = [k for k in dict.fromkeys(_clean(k, 20).upper() for k in body["jira_projects"]) if re.fullmatch(r"[A-Z][A-Z0-9_]{0,19}", k)]
         sets["jira_projects"] = keys[:MAX_JIRA]
@@ -605,6 +616,13 @@ async def update_team(db: AsyncIOMotorDatabase, view: TeamView, team: dict, body
         return team
     sets["updated_at"] = now_utc()
     row = await db[TEAMS].find_one_and_update({"_id": team["_id"]}, {"$set": sets}, return_document=True)
+    if "backlog_off" in sets:
+        await db["team_backlog_pages"].update_one({"_id": tid}, {"$set": {"off": sets["backlog_off"]}})
+    if sets.get("backlog_off") is False and team.get("backlog_off") is True:
+        # Turned back on: read the team's calls (services/team_backlog.py).
+        from app.services import team_backlog
+
+        team_backlog.schedule(db, tid)
     if "visibility" in sets and sets["visibility"] != team.get("visibility"):
         await _items_access_changed(db, {"team_ids": tid})
         _changed(await _ws_members(db, view.workspace_id))
@@ -884,6 +902,10 @@ async def apply_to_doc(db: AsyncIOMotorDatabase, raw: dict, tids: list[str], pid
         from app.services import todo_pages
 
         await todo_pages.meeting_people_changed(db, m["doc_id"], None, extra_teams=ids_of(m, "team_ids"))
+        # Team backlogs (services/team_backlog.py): the call's items join the new teams' and leave the old ones'.
+        from app.services import team_backlog
+
+        await team_backlog.meeting_changed(db, m["doc_id"], extra_teams=ids_of(m, "team_ids"))
     return [d["slug"] for d in await db["documents"].find({"_id": {"$in": ids}}, {"slug": 1}).to_list(length=len(ids)) if d.get("slug")]
 
 

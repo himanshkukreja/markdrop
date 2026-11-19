@@ -1238,6 +1238,9 @@ async def page_fields(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
         "meeting": ({"id": raw["meeting_id"], "role": raw.get("meeting_role") or "page"}
                     if raw.get("meeting_id") else None),
     }
+    # A team's backlog (services/team_backlog.py): the reader and the editor show its filter bar.
+    if raw.get("backlog_team_id"):
+        out["backlog"] = {"team_id": raw["backlog_team_id"], "workspace_id": raw.get("workspace_id")}
     if out["meeting"] is not None:
         out["meeting"]["has_recording"] = await _meeting_has_recording(db, raw["meeting_id"], actor, ctx)
     if raw.get("editor") == "blocks" and not raw.get("encrypted"):

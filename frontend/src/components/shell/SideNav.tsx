@@ -22,7 +22,7 @@ import dynamic from "next/dynamic";
 import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
 import { favoritesSlot, isFavorite, toggleFavorite, useFavorites, type Favorite, type FavoriteKind } from "@/lib/favorites";
 import {
-  allDealsHref, allMeetingsHref, browseHref, reviewHref, teamHref as teamHomeHref, teamDealsHref, teamMeetingsHref, teamMemoryHref,
+  allDealsHref, allMeetingsHref, browseHref, reviewHref, teamHref as teamHomeHref, teamBacklogHref, teamDealsHref, teamMeetingsHref, teamMemoryHref,
   teamPagesHref, teamSettingsHref, type TeamCard,
 } from "@/lib/teams";
 
@@ -191,7 +191,7 @@ function Pill({ children, label, accent }: { children: React.ReactNode; label: s
 }
 
 /** A team's sections, in this order for every team (General too): Overview, Meetings, Deals (the CRM-linked
- *  team only), Files & pages, People & memory (lib/railKeys TEAM_SECTIONS). Never its meetings, pages, files or
+ *  team only), Backlog (teams with a backlog page; never General), Files & pages, People & memory (lib/railKeys TEAM_SECTIONS). Never its meetings, pages, files or
  *  folders: those live in their section. */
 function teamNode(c: Ctx, t: TeamCard, onFiles: ((wsId: string, folderId: string | null, label: string, files: File[]) => void) | null): TreeNode {
   const { ws } = c;
@@ -205,6 +205,9 @@ function teamNode(c: Ctx, t: TeamCard, onFiles: ((wsId: string, folderId: string
       marker: review > 0 ? <Pill accent label={`${review} to review`}>{review} to review</Pill> : undefined },
     ...(t.hubspot ? [{ key: k("deals"), sig: sig("tdeals", t.id, t.deals), label: "Deals", icon: <Icon name="briefcase" size={16} />, href: teamDealsHref(ws.id, t), leaf: true,
       marker: t.deals ? <Pill label={`${t.deals} open`}>{t.deals}</Pill> : undefined } satisfies TreeNode] : []),
+    ...(t.backlog && !t.general ? [{ key: k("backlog"), sig: sig("tbl", t.id, t.backlog.slug, t.backlog.open), label: "Backlog",
+      icon: <Icon name="list" size={16} />, href: teamBacklogHref(ws.id, t)!, leaf: true,
+      marker: t.backlog.open ? <Pill label={`${t.backlog.open} open`}>{t.backlog.open}</Pill> : undefined } satisfies TreeNode] : []),
     { key: k("files"), sig: sig("tfiles", t.id, t.slug), label: "Files & pages", icon: <Icon name="folder" size={16} />, href: teamPagesHref(ws.id, t), leaf: true },
     { key: k("memory"), sig: sig("tmem", t.id, t.general), label: "People & memory", icon: <Icon name="users" size={16} />,
       href: t.general ? `/team/${encodeURIComponent(ws.id)}` : teamMemoryHref(ws.id, t), leaf: true },

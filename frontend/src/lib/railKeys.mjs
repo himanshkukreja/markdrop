@@ -24,10 +24,10 @@ export const wsReviewKey = (id) => `ws:${id}:review`;
 export const ALL_DEALS_KEY = "deals";
 /** A workspace's Deals (/deals/<id>) and a deal page (/deals/<id>/<deal>): the CRM-linked team's Deals row. */
 export const wsDealsKey = (id) => `ws:${id}:deals`;
-/** A team's row (its expand key), or one of its sections: overview | meetings | deals | files | memory. */
+/** A team's row (its expand key), or one of its sections: overview | meetings | deals | backlog | files | memory. */
 export const wsTeamRowKey = (id, teamId, sub) => `ws:${id}:team:${teamId}${sub ? `:${sub}` : ""}`;
 /** A team's sections, in the sidebar's order (Deals: the CRM-linked team only). */
-export const TEAM_SECTIONS = ["overview", "meetings", "deals", "files", "memory"];
+export const TEAM_SECTIONS = ["overview", "meetings", "deals", "backlog", "files", "memory"];
 
 /** Which rail item the URL points at (`search`: the query string, with or without "?"). */
 export function railKeyFor(pathname, search) {
@@ -70,6 +70,9 @@ export function railKeyFor(pathname, search) {
   if (dl) return spaceTeam ? wsTeamRowKey(decodeURIComponent(dl[1]), spaceTeam, "deals") : wsDealsKey(decodeURIComponent(dl[1]));
   const tm = pathname.match(/^\/team\/([^/]+)(?:\/.*)?$/);
   if (tm) return spaceTeam ? wsTeamRowKey(decodeURIComponent(tm[1]), spaceTeam, "memory") : wsTeamKey(decodeURIComponent(tm[1]));
+  // A team's backlog page (/<slug>?space=team:<id>&ws=<ws>, the sidebar's Backlog row).
+  const wsq = q.get("ws");
+  if (spaceTeam && wsq && /^\/[^/]+\/?$/.test(pathname) && !pathname.startsWith("/dashboard")) return wsTeamRowKey(wsq, spaceTeam, "backlog");
   if (pathname === "/search") return "search";
   if (pathname === "/ask") {
     const ws = q.get("workspace");

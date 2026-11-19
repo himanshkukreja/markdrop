@@ -120,6 +120,7 @@ class TeamPatch(BaseModel):
     jira_projects: Optional[list[str]] = Field(None, max_length=20)
     digest: Optional[Digest] = None
     meetings_by_attendees: Optional[bool] = Field(None, description="Add new meetings to this team when its members are half or more of the attendees (default on). Off: only meetings imported or moved into it, such as from Zoom.")
+    backlog: Optional[bool] = Field(None, description="Keep the team's backlog page up to date from its calls (default on; not General). Off: the page stays as it is and leaves the sidebar.")
 
 
 class Members(BaseModel):

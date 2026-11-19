@@ -1,0 +1,33 @@
+/* The backlog page's filter bar (components/backlog/BacklogBar.tsx). Design tokens only, so light and dark follow
+   the theme. Phones: the chips scroll sideways, the menus wrap, 44px touch targets. */
+
+.bl-bar { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 6px; padding: 12px; border: 1px solid var(--border);
+  border-radius: 14px; background: var(--surface); color: var(--text); }
+.bl-cats { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: -2px; padding: 2px; }
+.bl-cats::-webkit-scrollbar { display: none; }
+.bl-chip { display: inline-flex; align-items: center; gap: 6px; flex: none; height: 30px; padding: 0 10px; border: 1px solid var(--border);
+  border-radius: var(--radius-full); background: var(--surface); color: var(--text-secondary); font-size: 13px; font-weight: 550;
+  cursor: pointer; transition: background 120ms var(--ease-out), border-color 120ms var(--ease-out), color 120ms var(--ease-out); }
+.bl-chip:hover { border-color: var(--border-strong); color: var(--text); }
+.bl-chip:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; }
+.bl-chip--on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+.bl-chip__n { min-width: 18px; padding: 0 5px; border-radius: var(--radius-full); background: var(--surface-active); color: inherit;
+  font-size: 11.5px; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+.bl-chip--on .bl-chip__n { background: var(--surface); }
+.bl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bl-row--end { gap: 6px; }
+.bl-search { flex: 1 1 200px; min-width: 160px; }
+.bl-select { min-width: 132px; }
+.bl-count { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.bl-spacer { flex: 1; }
+.bl-private { margin: 0; font-size: 12.5px; line-height: 18px; color: var(--text-muted); }
+
+@media (max-width: 640px) {
+  .bl-bar { padding: 10px; border-radius: 12px; }
+  .bl-chip { height: 36px; }
+  .bl-search { flex-basis: 100%; }
+  .bl-select { flex: 1 1 calc(50% - 8px); min-width: 0; }
+}
+@media (pointer: coarse) {
+  .bl-chip { min-height: 44px; }
+}

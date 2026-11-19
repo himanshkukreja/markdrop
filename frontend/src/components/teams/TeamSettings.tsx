@@ -193,6 +193,13 @@ export function Integrations({ ws, team, onSaved, bare }: { ws: string; team: Te
             <p className="tz-muted">On: a new meeting joins this team when its members are half or more of the attendees. Off: only meetings imported or moved into it, such as from Zoom.</p>
           </div>
         )}
+        {!team.general && (
+          <div className="flex flex-col gap-1">
+            <Switch label="Team backlog" checked={team.backlog_enabled !== false} disabled={busy} data-testid="team-backlog"
+              onChange={(e) => void save({ backlog: e.target.checked }, e.target.checked ? "The backlog fills from the team's calls" : "Backlog off")} />
+            <p className="tz-muted">On: every call&apos;s action items and customer asks land on the team&apos;s Backlog page, sorted into categories. Off: the page stays as it is and leaves the sidebar.</p>
+          </div>
+        )}
         <Field label="Slack channel" hint="The team's meeting posts, weekly brief and comment notices go here.">
           {channels === null ? <Skeleton variant="rect" height={36} /> : channels === false || channels.length === 0 ? (
             <Input value={team.slack_channel?.name ? `#${team.slack_channel.name}` : ""} disabled placeholder="A workspace admin connects Slack in Workspace settings › Integrations" aria-label="Slack channel" />

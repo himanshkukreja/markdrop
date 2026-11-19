@@ -451,7 +451,7 @@ async def collect_pages(db: AsyncIOMotorDatabase, team: dict, user, skip: set | 
 
     ws, tid, uid = team["workspace_id"], str(team["_id"]), user.id
     q: dict[str, Any] = {"workspace_id": ws, "team_ids": tid, "deleted_at": None, "encrypted": {"$ne": True},
-                         "meeting_id": None, "todo_team_id": None, "content": {"$regex": re.escape(f'id="{uid}"')}}
+                         "meeting_id": None, "todo_team_id": None, "backlog_team_id": None, "content": {"$regex": re.escape(f'id="{uid}"')}}
     hidden = await _hidden_folders(db, ws)
     if hidden:
         q["folder_id"] = {"$nin": [*hidden, *[ObjectId(h) for h in hidden if ObjectId.is_valid(h)]]}
@@ -877,6 +877,8 @@ async def on_page_saved(db: AsyncIOMotorDatabase, before: dict, after: dict, act
             await _from_todo_page(db, before, after, actor)
         elif after.get("meeting_id"):
             await _from_meeting_page(db, before, after)
+        elif after.get("backlog_team_id"):
+            return                      # the team's backlog (services/team_backlog.py): its own items, not anyone's to-dos
         elif after.get("team_ids") or before.get("team_ids"):
             await _from_team_page(db, before, after)
     except Exception:

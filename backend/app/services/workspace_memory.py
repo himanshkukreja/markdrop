@@ -1142,6 +1142,7 @@ async def stale_sources(db: AsyncIOMotorDatabase, ws: WsInfo, state: dict, *, li
         {"workspace_id": ws.id, "updated_at": {"$gte": since, "$lte": now - DEBOUNCE},
          "encrypted": {"$ne": True}, "template": {"$ne": True}, "meeting_id": {"$exists": False},
          "todo_team_id": {"$exists": False},      # personal to-do pages: the calls' own items, read there
+         "backlog_team_id": {"$exists": False},   # team backlogs (services/team_backlog.py): the same
          "deleted_at": None, "kind": {"$in": [None, "markdown"]}},
         _PAGE_PICK).sort("updated_at", 1).limit(400).to_list(length=400)
     done = {r["_id"]: r for r in await db[SOURCES].find(

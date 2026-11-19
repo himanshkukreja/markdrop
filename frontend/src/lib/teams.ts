@@ -46,6 +46,8 @@ export interface TeamCard {
   to_review?: number;
   /** The HubSpot team: its open deals (the sidebar's Deals count). */
   deals?: number;
+  /** The team's backlog page (services/team_backlog.py): the sidebar's Backlog row and its open items. */
+  backlog?: { slug: string; open: number };
 }
 export interface TeamFull extends TeamCard {
   members: (Person & { role: "lead" | "member" })[];
@@ -54,6 +56,8 @@ export interface TeamFull extends TeamCard {
   slack_comments?: boolean;
   /** New meetings join the team by who attended (default on); off: only meetings imported or moved into it. */
   meetings_by_attendees?: boolean;
+  /** The team's backlog fills from its calls (default on; never General). */
+  backlog_enabled?: boolean;
   jira_projects: string[];
   digest: { enabled: boolean; email: boolean; slack: boolean };
   admins_can_see: boolean;
@@ -170,7 +174,7 @@ export const browseTeams = (ws: string) => request<{ teams: TeamCard[] }>(`${bas
 export const getTeamHome = (ws: string, tid: string) => request<TeamHome | TeamHomeLocked>(`${base(ws)}/teams/${enc(tid)}`);
 export const createTeam = (ws: string, body: { name: string; icon?: string | null; color?: TeamColor; description?: string; visibility: Visibility; lead_ids: string[]; member_ids: string[] }) =>
   mutate(ws, request<TeamFull>(`${base(ws)}/teams`, json("POST", body)));
-export const updateTeam = (ws: string, tid: string, body: Partial<Pick<TeamFull, "name" | "icon" | "color" | "description" | "slack_channel" | "slack_comments" | "meetings_by_attendees" | "jira_projects" | "digest" | "visibility">>) =>
+export const updateTeam = (ws: string, tid: string, body: Partial<Pick<TeamFull, "name" | "icon" | "color" | "description" | "slack_channel" | "slack_comments" | "meetings_by_attendees" | "jira_projects" | "digest" | "visibility">> & { backlog?: boolean }) =>
   mutate(ws, request<TeamFull>(`${base(ws)}/teams/${enc(tid)}`, json("PATCH", body)));
 export const deleteTeam = (ws: string, tid: string) => mutate(ws, request<void>(`${base(ws)}/teams/${enc(tid)}`, json("DELETE")));
 export const addTeamMembers = (ws: string, tid: string, user_ids: string[]) =>
@@ -259,6 +263,9 @@ export const teamPagesHref = (ws: string, t: Pick<TeamCard, "slug">) => `${teamH
 export const teamSettingsHref = (ws: string, t: Pick<TeamCard, "slug">) => `${teamHref(ws, t)}/settings`;
 export const teamMeetingsHref = (ws: string, t: Pick<TeamCard, "id">) => `/meetings/${enc(ws)}?space=${enc(`team:${t.id}`)}`;
 export const teamMemoryHref = (ws: string, t: Pick<TeamCard, "id">) => `/team/${enc(ws)}?space=${enc(`team:${t.id}`)}`;
+/** A team's backlog page, marked so the sidebar keeps the team's Backlog row active there. */
+export const teamBacklogHref = (ws: string, t: Pick<TeamCard, "id" | "backlog">) =>
+  t.backlog ? `/${enc(t.backlog.slug)}?space=${enc(`team:${t.id}`)}&ws=${enc(ws)}` : null;
 export const teamDealsHref = (ws: string, t: Pick<TeamCard, "id">) => `/deals/${enc(ws)}?space=${enc(`team:${t.id}`)}`;
 export const dealHref = (ws: string, dealId: string) => `/deals/${enc(ws)}/${enc(dealId)}`;
 /** The sidebar's top-level Meetings and Deals: every team's that you can open (a Team filter on the page). Deals

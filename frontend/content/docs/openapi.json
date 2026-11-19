@@ -29190,6 +29190,304 @@
         }
       }
     },
+    "/api/v1/workspaces/{workspace_id}/teams/{team}/backlog": {
+      "get": {
+        "tags": [
+          "backlog"
+        ],
+        "summary": "Backlog Status",
+        "description": "The team's backlog page: ``slug`` / ``href`` (null until the team's first call), ``open`` and ``counts`` (open\nitems per category), the categories and statuses, and — leads only — ``private``: open items only from calls\nrestricted to their attendees, kept off the page (a count, nothing else). 404 for General.",
+        "operationId": "backlog_status_api_v1_workspaces__workspace_id__teams__team__backlog_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "team",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/teams/{team}/backlog/items": {
+      "get": {
+        "tags": [
+          "backlog"
+        ],
+        "summary": "Backlog Items",
+        "description": "The team's backlog items as data, as you may read them: an item shows when you can open one of the calls it\ncame from (items only from calls you can't open are left out; leads get their count as ``private``).",
+        "operationId": "backlog_items_api_v1_workspaces__workspace_id__teams__team__backlog_items_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "team",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "feature",
+                    "bug",
+                    "improvement",
+                    "task",
+                    "follow_up",
+                    "question"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "in_progress",
+                    "done",
+                    "wont_do"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "name": "include_done",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include Done"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/teams/{team}/backlog/refresh": {
+      "post": {
+        "tags": [
+          "backlog"
+        ],
+        "summary": "Refresh Backlog",
+        "description": "Leads and workspace admins: re-read every call in the team into its backlog now (new items, repeats merged,\ncategories for items that were waiting) and rewrite the page. Safe to repeat.",
+        "operationId": "refresh_backlog_api_v1_workspaces__workspace_id__teams__team__backlog_refresh_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "team",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "3/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/backlog/items/{item_id}": {
+      "patch": {
+        "tags": [
+          "backlog"
+        ],
+        "summary": "Update Backlog Item",
+        "description": "Change an item's category, status, owner or text (members of its team). Your change wins: the model and the\ncall never change it back. Done ticks the call's action item too. 404: no such item you can read.",
+        "operationId": "update_backlog_item_api_v1_backlog_items__item_id__patch",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/oauth/requests/{request_id}": {
       "get": {
         "tags": [
@@ -32883,6 +33181,18 @@
             ],
             "title": "Meeting"
           },
+          "backlog": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backlog"
+          },
           "source": {
             "anyOf": [
               {
@@ -33512,6 +33822,18 @@
               }
             ],
             "title": "Meeting"
+          },
+          "backlog": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backlog"
           },
           "source": {
             "anyOf": [
@@ -36318,6 +36640,74 @@
         },
         "type": "object",
         "title": "ItemIn"
+      },
+      "ItemPatch": {
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "feature",
+                  "bug",
+                  "improvement",
+                  "task",
+                  "follow_up",
+                  "question"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "in_progress",
+                  "done",
+                  "wont_do"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner",
+            "description": "A workspace member's id; \"\" clears the owner."
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "title": "ItemPatch"
       },
       "ItemTeams": {
         "properties": {
@@ -39901,6 +40291,18 @@
             ],
             "title": "Meetings By Attendees",
             "description": "Add new meetings to this team when its members are half or more of the attendees (default on). Off: only meetings imported or moved into it, such as from Zoom."
+          },
+          "backlog": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backlog",
+            "description": "Keep the team's backlog page up to date from its calls (default on; not General). Off: the page stays as it is and leaves the sidebar."
           }
         },
         "type": "object",

@@ -683,6 +683,12 @@ class Settings(BaseSettings):
     workspace_memory_enabled: bool = True
     workspace_memory_daily_usd: float = 3.0
     workspace_memory_monthly_usd: float = 30.0
+    # Team backlogs (services/team_backlog.py, ledger feature "team_backlog"): sorting each call's items into
+    # categories, finding its customer asks and matching repeats (owner decision 2026-11-19: $3 a day, $30 a month;
+    # the admin AI tab overrides them).
+    team_backlog_enabled: bool = True
+    team_backlog_daily_usd: float = 3.0
+    team_backlog_monthly_usd: float = 30.0
 
     # ── Markdrop for Slack (services/slack*.py, routers/slack.py) ────────────
     # The one Slack app Markdrop owns (docs-platform/slack/manifest.yaml + SETUP.md). All three come

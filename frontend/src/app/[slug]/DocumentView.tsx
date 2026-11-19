@@ -103,6 +103,8 @@ import { CommentsHost, CommentsButton, CommentsPanel, CommentLayer } from "@/com
 import { onExportRequest } from "@/lib/commentsInsights";
 // From meetings (components/pages/memory) in View mode: the bar's button and the same panel as in Edit.
 const MeetingMemory = dynamic(() => import("@/components/pages/memory/MeetingMemory").then((m) => m.MeetingMemory), { ssr: false, loading: () => null });
+// A team's backlog page (components/backlog): the filter bar above the page, in View and in Edit.
+const BacklogBar = dynamic(() => import("@/components/backlog/BacklogBar").then((m) => m.BacklogBar), { ssr: false, loading: () => null });
 const TranslateDialog = dynamic(() => import("@/components/pages/ai/TranslateDialog").then((m) => m.TranslateDialog), { ssr: false, loading: () => null });
 
 /**
@@ -984,6 +986,12 @@ export default function DocumentView(props: DocumentViewProps) {
         ? <TenantRecording meetingId={page.meeting.id} role={page.meeting.role} title={displayTitle} workspaceId={page.workspace_id ?? null} />
         : null)
     : null;
+  // A team's backlog (services/team_backlog.py): its filter bar, over what this reader was sent.
+  // One at a time (the editor is mounted early, hidden): the reader's while reading, the editor's while editing.
+  const backlogBar = (editing: boolean) => readable && isPage && page?.backlog && !showRaw && !gated && editing === !!editMode
+    ? <BacklogBar content={displayContent} workspaceId={page.backlog.workspace_id ?? page.workspace_id ?? null} teamId={page.backlog.team_id}
+      editing={editing} signedIn={!!user && !tenant} />
+    : null;
   // Imported from Notion: provenance for every reader; sync status / Sync now for whoever may see them.
   const notionSource = isPage && page?.source && !gated
     ? <NotionSourceStrip source={page.source} settingsHref={tenant ? null : "/settings/integrations/notion"} /> : null;
@@ -1080,7 +1088,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 domainUrl={page?.workspace_url ?? null}
               />
             }
-            head={<PageHead title={displayTitle} props={pageProps!} resolve={resolvePageAsset} below={<>{notionSource}<SignoffSummary slug={slug} />{readerProps}{meetingBar}{pageBacklinks}</>} />}
+            head={<PageHead title={displayTitle} props={pageProps!} resolve={resolvePageAsset} below={<>{notionSource}<SignoffSummary slug={slug} />{readerProps}{meetingBar}{pageBacklinks}{backlogBar(false)}</>} />}
             footer={pageFooter}
           >
             {notices}
@@ -1166,7 +1174,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 shareUrl,
                 onCopied: copyLinkEvent,
                 menu: editorDocMenu,
-                below: meetingBar || notionSource ? <>{notionSource}{meetingBar}{pageBacklinks}</> : pageBacklinks,
+                below: meetingBar || notionSource || page?.backlog ? <>{notionSource}{meetingBar}{pageBacklinks}{backlogBar(true)}</> : pageBacklinks,
                 properties: page?.page_properties ?? null,
                 propertiesHref: propsHref,
                 footer: pageFooter,

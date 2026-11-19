@@ -4195,6 +4195,10 @@ TOOLS += TEAMS_TOOLS
 from app.mcp.todo_tools import TODO_TOOLS  # noqa: E402
 
 TOOLS += TODO_TOOLS
+# Team backlogs (team_backlog, update_backlog_item, refresh_team_backlog): app/mcp/backlog_tools.py.
+from app.mcp.backlog_tools import BACKLOG_TOOLS  # noqa: E402
+
+TOOLS += BACKLOG_TOOLS
 add_space(TOOLS)
 
 for _t in TOOLS:

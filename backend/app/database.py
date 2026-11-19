@@ -301,6 +301,9 @@ async def connect() -> None:
         from app.services import todo_pages as _todo_pages
 
         await _todo_pages.ensure_indexes(db)
+        from app.services import team_backlog as _team_backlog
+
+        await _team_backlog.ensure_indexes(db)
         from app.services import folder_access as _folder_access
 
         await _folder_access.ensure_indexes(db)

@@ -95,6 +95,7 @@ from app.routers.hubspot import router as hubspot_router
 from app.routers.ask import router as ask_router
 from app.routers.home import router as home_router
 from app.routers.todos import router as todos_router
+from app.routers.backlog import router as backlog_router
 from app.routers.og import router as og_router
 from app.routers.share import router as share_router
 from app.routers.sync import router as sync_router
@@ -375,6 +376,7 @@ app.include_router(notion_connect_router)
 app.include_router(ask_router)
 app.include_router(home_router)
 app.include_router(todos_router)
+app.include_router(backlog_router)
 app.include_router(oauth_router)
 app.include_router(mcp_router)
 

@@ -24,6 +24,26 @@
   "next": [],
   "entries": [
     {
+      "id": "team-backlog",
+      "date": "2026-11-19",
+      "title": "Team backlog: every call's action items and customer asks on one shared page",
+      "kind": "new",
+      "area": "Teams",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Each team now has a Backlog page that fills after every call: action items plus the feature requests, bugs and follow-ups customers raised, sorted into categories, with repeats from several calls merged.",
+      "body": "- **One page per team.** **Backlog** sits next to Meetings in the team's sidebar. It's a real page: edit it, comment on items, share it and see its versions.\n- **Filled after every call.** Each action item, plus customer asks from the call's notes, lands under **Feature request**, **Bug**, **Improvement**, **Task**, **Follow-up** or **Question**, with the company, owner, the call it came from and how many calls mentioned it.\n- **Filter bar.** Category chips with counts, status, company, owner, search and Hide done, in view and while editing; the filter is in the link, so you can share a filtered view. Copy or export CSV.\n- **Edits flow back.** Tick to mark done (the call's action item is ticked too), move a line to change its category, edit its wording, add `· In progress`, or delete it for Won't do. Your change always wins.\n- **Private calls stay private.** Items only from calls restricted to their attendees stay off the page; leads see a count.\n- **MCP and API.** New tools `team_backlog`, `update_backlog_item` and `refresh_team_backlog`; new routes `GET /api/v1/workspaces/{workspace_id}/teams/{team}/backlog` (and `/items`), `POST …/backlog/refresh` (leads) and `PATCH /api/v1/backlog/items/{item_id}`; `backlog` on `PATCH /api/v1/workspaces/{workspace_id}/teams/{team_id}` turns it off or on.",
+      "links": [
+        {
+          "label": "Team backlog",
+          "href": "/teams/backlog"
+        }
+      ]
+    },
+    {
       "id": "todos-create-refresh-page-tasks",
       "date": "2026-11-19",
       "title": "To-dos: create or refresh yours in one click, with tasks from the team's pages",

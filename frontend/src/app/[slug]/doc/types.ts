@@ -67,6 +67,8 @@ export interface PageFields {
   cover_pending?: boolean;
   /** Meetings: this page is a meeting (or its transcript); the reader mounts the meeting panel. */
   meeting?: { id: string; role: string; has_recording?: boolean } | null;
+  /** A team's backlog page (services/team_backlog.py): the page shows its filter bar. */
+  backlog?: { team_id: string; workspace_id: string | null } | null;
   /** Imported from Notion: where it came from (and its sync, for people who can edit it). */
   source?: NotionSource | null;
 }
@@ -96,6 +98,8 @@ export function pageFieldsOf(doc: Record<string, unknown> | null | undefined): P
     meeting: d.meeting && typeof d.meeting === "object" && typeof (d.meeting as { id?: unknown }).id === "string"
       ? { id: (d.meeting as { id: string }).id, role: String((d.meeting as { role?: unknown }).role ?? "page") } : null,
     source: notionSourceOf((d as { source?: unknown }).source),
+    backlog: d.backlog && typeof d.backlog === "object" && typeof (d.backlog as { team_id?: unknown }).team_id === "string"
+      ? { team_id: (d.backlog as { team_id: string }).team_id, workspace_id: (d.backlog as { workspace_id?: string | null }).workspace_id ?? null } : null,
   };
 }
 

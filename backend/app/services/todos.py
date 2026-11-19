@@ -26,7 +26,8 @@ _SAFE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")  # ids become field names on the se
 
 def eligible(raw: dict) -> bool:
     """A block page whose words may be read (never encrypted or password-protected, never a file)."""
-    return (raw.get("editor") == "blocks" and raw.get("kind") != "artifact"
+    # Not a team's backlog (services/team_backlog.py): its lines are the calls' items, already on Home from the call.
+    return (raw.get("editor") == "blocks" and raw.get("kind") != "artifact" and not raw.get("backlog_team_id")
             and not raw.get("encrypted") and not raw.get("read_password_hash"))
 
 

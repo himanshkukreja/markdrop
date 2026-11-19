@@ -70,3 +70,9 @@ test("the rest of the rail and the Ask link", () => {
   assert.equal(askLinkFor(wsTeamRowKey(W, "s", "meetings")), "/ask?workspace=ws1&team=s");
   assert.equal(askLinkFor("home", "ws2"), "/ask?workspace=ws2");
 });
+
+test("a team's backlog page keeps its Backlog row active", () => {
+  assert.deepEqual(at("/sales-backlog", "space=team:s&ws=ws1&category=bug"), { key: wsTeamRowKey(W, "s", "backlog"), open: [wsTeamRowKey(W, "s")] });
+  assert.equal(railKeyFor("/sales-backlog", ""), null);
+  assert.equal(railKeyFor("/sales-backlog", "space=team:s"), null);
+});
