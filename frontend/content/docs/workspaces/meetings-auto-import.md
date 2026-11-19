@@ -77,7 +77,7 @@ When the last run found nothing, the page says what to look at: meetings left ou
 
 The script checks every 5 minutes by itself. Right after a call, you don't have to wait: on the Meetings page, select **Check for new meetings** (on phones it's in the **⋯** menu; on Home, under Meetings). The connected scripts run at once, and Markdrop says what arrived: "Found 1 new meeting.", "No new meetings.", or that Google hasn't filled in the notes yet. Any member can press it, once a minute per workspace. The line under **Google Meet connected** shows when it last checked.
 
-::clip{src="/docs-assets/workspaces/meetings-auto-import/check-now" alt="Check for new meetings on the Meetings page: the script runs, and a new meeting, Design review, arrives at the top marked Auto."}
+::clip{src="/docs-assets/workspaces/meetings-auto-import/check-now" alt="Check for new meetings on the Meetings page: the script runs, Found 1 new meeting, and the new meeting, Hooli — kickoff call, arrives at the top of the list."}
 
 Markdrop can't look in your Drive itself, so it asks your script to run. Turn this on once, as the person who connected Google Meet (the button says **Turn on Check now** until you do):
 

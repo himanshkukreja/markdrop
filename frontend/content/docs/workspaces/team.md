@@ -18,7 +18,7 @@ A two-and-a-half-minute video of one team's day: Team's board, one person's page
 
 ## Turn it on
 
-Open **Team** in the workspace's sidebar (under **Meetings**) and choose **Turn on Team memory**, or switch on **Team memory** in the workspace's **Settings › Advanced**. Only admins and owners can. Members and viewers see that an admin can turn it on.
+Open **People & memory** under **General** in the workspace's sidebar and choose **Turn on Team memory**, or switch on **Team memory** in the workspace's **Settings › Advanced**. Only admins and owners can. Members and viewers see that an admin can turn it on.
 
 Turning it on also sets the workspace's **Weekly summary timezone** to the timezone of the admin's browser, when none was set. Admins can change it under the switch in **Settings › Advanced**.
 
@@ -52,7 +52,7 @@ Above the cards, five numbers: on track, blocked or waiting, due this week, over
 
 Filter by person, status, [group](#groups) or project, and pick **This week** or **2 weeks**. The five numbers follow the filters, so picking a group sums up that group. The **Projects** tab shows each recurring project with the people on it and what each of them last said about it.
 
-::clip{src="/docs-assets/workspaces/team/filters" alt="Filtering the Team board: Blocked or waiting leaves Priya, waiting on Raj for the API keys, with the blockers list below; then back to everyone, and a group."}
+::clip{src="/docs-assets/workspaces/team/filters" alt="Filtering the Team board: Blocked or waiting leaves Alex, waiting on Sam for SSO through Okta, with the blockers list below; then back to everyone, and the Launch crew group."}
 
 On a phone, the numbers sit two by two above the This week card, and the cards stack.
 

@@ -24,7 +24,7 @@ Markdrop doesn't convert your file. Readers get exactly the bytes you uploaded, 
 
 Markdrop's player looks and works the same in every browser. It has play and pause, a scrubber that shows what has loaded, back and forward 10 seconds, volume, playback speed from 0.25× to 2×, picture in picture where the browser supports it, and full screen.
 
-![The Markdrop video player paused mid-video with the speed menu open from 0.25× to 2×, and the control bar: play, back and forward 10 seconds, volume, the time, the speed, picture in picture and full screen.](/docs-assets/files/video-and-audio/video-player-controls.webp)
+![The Markdrop video player paused at 0:13 with a caption on screen, “Your revenue dashboard updates while you watch.” The progress bar is in the workspace's teal accent and split into chapters; pointing at it shows the chapter What teams get at 0:34. The control bar: play, back and forward 10 seconds, volume, the time, the current chapter (Dashboards that update live), the speed, captions, picture in picture and full screen.](/docs-assets/files/video-and-audio/video-player-controls.webp)
 
 ### Keyboard shortcuts
 
