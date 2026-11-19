@@ -411,3 +411,118 @@ class RestrictedCalls(TodoWorld):
         self.assertEqual((await self.save(raw, TP._set_mark(raw["content"], blk, True), "wm")).status_code, 200)
         await TP.drain()
         self.assertTrue(self.block_of((await self.mpage(secret))["content"], "confidential discount")[1])
+
+
+class FromPages(TodoWorld):
+    """The team's own pages as a source, and "Create my to-dos" / "Refresh to-dos" (brief .work/briefs/todos-refresh.md)."""
+
+    def task(self, text: str, who: str, block: str, done: bool = False) -> str:
+        return f'- [{"x" if done else " "}] {text} :person[Someone]{{id="{self.uid[who]}"}} {{#{block}}}'
+
+    async def team_page(self, lines: list[str], **extra) -> dict:
+        body = "# Launch plan\n\nSome notes.\n\n" + "\n".join(lines) + "\n"
+        return await self.mkdoc("W", grants=False, team_ids=[self.sales], content=body, title="Launch plan", **extra)
+
+    async def refresh(self, who: str, team: str | None = None):
+        return await self.http.post(f"{self.base}/teams/{team or self.sales}/todos/mine", headers=self.session(who))
+
+    async def test_tasks_on_team_pages_land_in_their_own_section_and_refresh_is_idempotent(self):
+        await self.call("Pipeline review")
+        await self.db[TP.PAGES].delete_many({})          # nobody has a page yet (never backfilled)
+        await self.db["documents"].delete_many({"todo_team_id": {"$ne": None}})
+        page = await self.team_page([
+            self.task("Draft the onboarding doc · due Friday", "wm", "b-onb001"),
+            self.task("Review the launch copy", "owner", "b-ada001"),                 # Ada's, not Bo's
+            '- [ ] An unanchored task :person[Bo]{id="%s"}' % self.uid["wm"],        # no block id: not a to-do
+            "```", self.task("In a code fence", "wm", "b-fence01"), "```",
+        ])
+        # Not sources: a page in a hidden folder (deal internals), a page in another team, a private page Bo can't read.
+        deals = await self.db["folders"].insert_one({"workspace_id": self.W, "name": "Deals", "hidden": True, "parent_id": None})
+        deal = await self.db["folders"].insert_one({"workspace_id": self.W, "name": "Acme — Renewal", "parent_id": str(deals.inserted_id)})
+        await self.team_page([self.task("Deal internal task", "wm", "b-deal001")], folder_id=str(deal.inserted_id))
+        await self.mkdoc("W", grants=False, team_ids=[self.eng], content=self.task("Eng task", "wm", "b-eng0001"))
+        await self.mkdoc("P", grants=False, team_ids=[self.sales], content=self.task("Ada's private note", "wm", "b-priv001"))
+
+        st = await self.http.get(f"{self.base}/teams/{self.sales}/todos/mine", headers=self.session("wm"))
+        self.assertEqual((st.status_code, st.json()["exists"]), (200, False), st.text)
+        r = await self.refresh("wm")
+        self.assertEqual(r.status_code, 200, r.text)
+        got = r.json()
+        self.assertEqual((got["created"], got["added"], got["open"]), (True, 2, 2), got)
+        body = (await self.todo("wm"))["content"]
+        self.assertIn(f'summary="{TP.PAGES_SECTION} · 1 open"', body)
+        self.assertLess(body.index("Internal ·"), body.index(TP.PAGES_SECTION))   # after the company sections
+        self.assertIn(f"Draft the onboarding doc · due Friday — [Launch plan](/{page['slug']}#b-onb001) {{#b-onb001}}", body)
+        for absent in ("Review the launch copy", "unanchored", "In a code fence", "Deal internal", "Eng task", "private note"):
+            self.assertNotIn(absent, body)
+        st = (await self.http.get(f"{self.base}/teams/{self.sales}/todos/mine", headers=self.session("wm"))).json()
+        self.assertEqual((st["exists"], st["slug"], st["open"]), (True, got["slug"], 2))
+        # Again: nothing new, nothing rewritten.
+        rev = (await self.todo("wm"))["rev"]
+        again = (await self.refresh("wm")).json()
+        self.assertEqual((again["created"], again["added"], again["open"], again["slug"]), (False, 0, 2, got["slug"]))
+        self.assertEqual((await self.todo("wm"))["rev"], rev)
+        # A task the save hook didn't see (written straight to the store): Refresh pulls it in.
+        await self.db["documents"].update_one({"_id": page["_id"]}, {"$set": {
+            "content": page["content"] + self.task("Book the venue", "wm", "b-venue01") + "\n"}})
+        again = (await self.refresh("wm")).json()
+        self.assertEqual((again["added"], again["open"]), (1, 3))
+        self.assertIn("Book the venue", (await self.todo("wm"))["content"])
+        # MCP: the same, by team name.
+        tok = await self.mcp_token("wm", write=True)
+        _s, res = await self.mcp_call(tok, "refresh_my_todos", {"team": "Sales"})
+        self.assertFalse(res.get("isError"), res)
+        sc = res["structuredContent"]
+        self.assertEqual((sc["created"], sc["added"], sc["open"], sc["slug"]), (False, 0, 3, got["slug"]))
+        _s, res = await self.mcp_call(tok, "refresh_my_todos", {"team": "General"})
+        self.assertTrue(res.get("isError"), res)
+
+    async def test_ticking_a_page_task_follows_both_ways_and_new_tasks_arrive_on_save(self):
+        page = await self.team_page([self.task("Draft the onboarding doc", "wm", "b-onb002")])
+        self.assertEqual((await self.refresh("wm")).status_code, 200)
+        # Ticked from the to-do page → the team page's line is ticked.
+        r = await self.http.post("/api/v1/todos/tick", headers=self.session("wm"), json={"block": "b-onb002", "done": True})
+        self.assertEqual(r.status_code, 200, r.text)
+        await TP.drain()
+        src = await self.db["documents"].find_one({"_id": page["_id"]})
+        self.assertTrue(self.block_of(src["content"], "onboarding")[1])
+        # Opened again on the team page (an ordinary save) → the to-do page follows.
+        r = await self.save(src, TP._set_mark(src["content"], "b-onb002", False), "owner")
+        self.assertEqual(r.status_code, 200, r.text)
+        await TP.drain()
+        self.assertFalse(self.block_of((await self.todo("wm"))["content"], "onboarding")[1])
+        # A new task mentioning Bo, saved on the page → on his to-do page without a click.
+        src = await self.db["documents"].find_one({"_id": page["_id"]})
+        r = await self.save(src, src["content"] + self.task("Send the invite list", "wm", "b-invite1") + "\n", "owner")
+        self.assertEqual(r.status_code, 200, r.text)
+        await TP.drain()
+        self.assertIn("Send the invite list", (await self.todo("wm"))["content"])
+        # An ordinary save without people chips schedules nothing.
+        plain = await self.mkdoc("W", grants=False, team_ids=[self.sales], content="# Notes\n\nNothing here.\n")
+        before = (await self.todo("wm"))["rev"]
+        r = await self.save(plain, plain["content"] + "More.\n", "owner")
+        self.assertEqual(r.status_code, 200, r.text)
+        await TP.drain()
+        self.assertEqual((await self.todo("wm"))["rev"], before)
+
+    async def test_who_may_create_and_refresh(self):
+        general = await T.ensure_general(self.db, self.W)
+        # Not in the workspace's private team Sales (Eng's ownv): 404; an open team you're not in (Eng for Bo): 403.
+        self.assertEqual((await self.refresh("ownv")).status_code, 404)
+        self.assertEqual((await self.refresh("wm", self.eng)).status_code, 403)
+        self.assertEqual((await self.http.get(f"{self.base}/teams/{self.eng}/todos/mine", headers=self.session("wm"))).status_code, 403)
+        # General: none.
+        self.assertEqual((await self.refresh("wm", str(general["_id"]))).status_code, 404)
+        # Create for everyone: leads only.
+        await self.db[TP.PAGES].delete_many({})
+        r = await self.http.post(f"{self.base}/teams/{self.sales}/todos/all", headers=self.session("wm"))
+        self.assertEqual(r.status_code, 403, r.text)
+        r = await self.http.post(f"{self.base}/teams/{self.sales}/todos/all", headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json()["created"], 3)          # Ada, Bo, Ravi
+        r = await self.http.post(f"{self.base}/teams/{self.sales}/todos/all", headers=self.session("owner"))
+        self.assertEqual(r.json()["created"], 0)
+        # You › My to-dos lists the pages and the teams still without one.
+        r = await self.http.get("/api/v1/me/todos", headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(([p["team"]["id"] for p in r.json()["pages"]], r.json()["missing"]), ([self.sales], []))
