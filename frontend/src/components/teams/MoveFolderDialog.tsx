@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Dialog, Field, Icon, Progress, Select, Skeleton, useToast } from "@/components/ui";
 import { browseTeams, folderMoveJob, moveFolderToTeam, previewFolderMove, type FolderMoveJob, type FolderMovePreview, type TeamCard } from "@/lib/teams";
 import { refreshTree } from "@/lib/workspaceStore";
+import { pagesChanged } from "@/lib/navStore";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
@@ -53,6 +54,7 @@ export function MoveFolderDialog({ ws, folder, fromTeam, onClose, admin }: {
 
   const finish = (name: string) => {
     refreshTree(ws, 0);
+    pagesChanged(); // both teams' cached page lists, or the moved pages show loose until the next poll
     toast.success(`Moved “${folder?.name}” to ${name}`);
     onClose();
   };
