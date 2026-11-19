@@ -5,7 +5,8 @@
  * to-do page in Sales from two customer calls (Northwind, Globex) and the "Q4 renewals tracker" page's tasks, and one
  * page task his page hasn't seen yet (so Refresh adds it).
  *
- *   STACK_ID=… DOCS_MEDIA_DATA=$PB_WORK/stack/data npm run docs:media -- todos-page todos-refresh
+ *   STACK_ID=… DOCS_MEDIA_DATA=$PB_WORK/stack/data npm run docs:media -- todos-page todos-refresh todos-create-clip
+ * (todos-create-clip last: it gives Alex a new to-do page.)
  */
 import { execFileSync } from "node:child_process";
 import path from "node:path";
@@ -21,6 +22,11 @@ const forgetLastTask = (h) => execFileSync(PY, ["-c", `import pymongo
 c = pymongo.MongoClient("mongodb://127.0.0.1:27019")["${DB}"]
 d = c["documents"].find_one({"slug": "${h.fx.todos.alex}"})
 c["todo_items"].delete_many({"todo_doc_id": d["_id"], "block": "b-td0004"})`], { encoding: "utf8" });
+
+/** Alex has no to-do page in Sales yet (the clip's "Create my to-dos" makes a fresh one each theme). */
+const noPageYet = (h) => execFileSync(PY, ["-c", `import pymongo
+c = pymongo.MongoClient("mongodb://127.0.0.1:27019")["${DB}"]
+c["todo_pages"].delete_many({"user_id": "${h.fx.users.member.id}", "team_id": "${h.fx.teams.sales.id}"})`], { encoding: "utf8" });
 
 export default [
   {
@@ -64,5 +70,44 @@ export default [
       await h.settle(400);
     },
     crop: "viewport",
+  },
+  {
+    id: "todos-create-clip",
+    page: PAGE,
+    name: "create",
+    kind: "clip",
+    auth: "member",
+    url: "/dashboard",
+    viewport: { width: 1200, height: 720 },
+    themes: ["light", "dark"],
+    tail: 400,
+    prepare: async (h) => {
+      noPageYet(h);
+      await h.goto(`/w/${encodeURIComponent(h.fx.workspace.id)}/teams/${h.fx.teams.sales.slug}`);
+      await h.loc("[data-testid='team-home']").waitFor({ timeout: 30000 });
+      await h.page.waitForFunction(() => document.querySelector("[data-testid='todos-refresh']")?.textContent?.trim() === "Create my to-dos",
+        null, { timeout: 30000 });
+      await h.settle(500);
+      await h.page.mouse.move(600, 420);
+    },
+    steps: async (h) => {
+      await h.sleep(250);
+      await h.click(h.page.getByTestId("todos-refresh"));
+      const toast = h.page.locator(".md-toast").last();
+      await toast.waitFor({ timeout: 20000 });
+      await h.sleep(1100);
+      await h.click(toast.getByRole("button", { name: "Open" }));
+      await h.page.getByText("From the team's pages").first().waitFor({ timeout: 30000 });
+      await h.settle(300);
+      await h.sleep(300);
+      await h.wheel(260);
+      await h.sleep(900);
+      const link = h.page.getByRole("link", { name: /Northwind renewal call/ }).first();
+      await h.hover(link, 350);
+      await h.click(link);
+      await h.page.waitForURL((u) => u.hash.startsWith("#b-"), { timeout: 20000 }).catch(() => {});
+      await h.settle(400);
+      await h.sleep(1200);
+    },
   },
 ];

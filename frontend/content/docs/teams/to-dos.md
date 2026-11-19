@@ -14,6 +14,8 @@ Every member of a team (not General) gets one page, **"Your Name — To-dos"**, 
 
 On the team's **Overview**, click **Create my to-dos** if you don't have a page in that team yet (you joined later, say, or the team never had one). Markdrop makes it straight away from everything the team has: the action items from its calls and the tasks on its pages. Once you have a page, the same button says **Refresh to-dos**: it checks again and pulls in anything new since, such as a call whose items didn't land or a task someone just gave you on a page.
 
+::clip{src="/docs-assets/teams/to-dos/create" theme="both" alt="On the Sales team's Overview, Alex clicks Create my to-dos. A message says Added 6 new · 6 open; he clicks Open and his to-do page shows a section per company from the team's calls (Globex, Northwind) and From the team's pages with three tasks from the Q4 renewals tracker. He clicks Northwind renewal call next to an item and the meeting page opens, with the same item under Action items."}
+
 ![The team's Overview with the Refresh to-dos button and the result](/docs-assets/teams/to-dos/refresh.webp)
 
 When it's done, a message says what changed, for example **Added 2 new · 5 open**, or **Up to date** when nothing was missing, with a link to the page. Refreshing is safe to repeat: items you already have, and your ticks, stay as they are.

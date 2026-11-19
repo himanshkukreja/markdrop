@@ -35,7 +35,7 @@ await step("create", async () => {
   if ((await btn.innerText()).trim() !== "Create my to-dos") fail(`Riya's button reads "${await btn.innerText()}"`);
   await btn.click();
   const t = await toastText(p);
-  if (!/Your to-do page is ready · \d+ open/.test(t)) fail(`toast: ${t}`);
+  if (!/Your to-do page is ready · \d+ open|Added \d+ new · \d+ open/.test(t)) fail(`toast: ${t}`);
   await p.waitForFunction(() => document.querySelector("[data-testid='todos-refresh']")?.textContent?.trim() === "Refresh to-dos", null, { timeout: 15000 });
   await p.getByRole("button", { name: "Open" }).last().click();
   await p.waitForURL((u) => !u.pathname.includes("/teams/"), { timeout: 20000 });

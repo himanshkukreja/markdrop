@@ -41,7 +41,7 @@ export function RefreshTodosButton({ ws, team, exists: known, size = "md", varia
       const r = await refreshMyTodos(ws, team);
       setExists(true);
       const href = r.href;
-      toast.success(r.created ? `Your to-do page is ready · ${r.open} open` : refreshMessage(r),
+      toast.success(r.created && !r.added ? `Your to-do page is ready · ${r.open} open` : refreshMessage(r),
         href ? { action: { label: "Open", onClick: () => router.push(href) }, duration: 6500 } : undefined);
       onDone?.();
     } catch (e) {
