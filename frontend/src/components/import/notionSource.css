@@ -1,0 +1,22 @@
+/* "Imported from Notion" (NotionSourceStrip): one quiet line above the page's content. */
+.nsrc { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; margin: 4px 0 10px; padding: 5px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); font-size: 12.5px; line-height: 18px;
+  color: var(--text-secondary); width: fit-content; max-width: 100%; }
+.nsrc-mark { display: inline-grid; place-items: center; width: 16px; height: 16px; flex: none; }
+.nsrc-mark img { width: 14px; height: 14px; display: block; }
+.nsrc-dark { display: none !important; }
+:root[data-theme="dark"] .nsrc-light, .dark .nsrc-light { display: none !important; }
+:root[data-theme="dark"] .nsrc-dark, .dark .nsrc-dark { display: block !important; }
+.nsrc-label { color: var(--text); font-weight: 500; }
+.nsrc-sep { color: var(--text-muted); }
+.nsrc-state { color: var(--text-secondary); }
+.nsrc-state--paused, .nsrc-state--edited { color: var(--text-muted); }
+.nsrc-link { color: var(--text-secondary); text-decoration: underline; text-decoration-color: var(--border-strong, var(--border)); text-underline-offset: 2px; white-space: nowrap; }
+.nsrc-link:hover { color: var(--text); text-decoration-color: currentColor; }
+.nsrc-link:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; border-radius: 3px; }
+.nsrc-actions { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; }
+.nsrc-actions .md-btn { height: 24px; padding: 0 8px; font-size: 12px; }
+@media (max-width: 520px) {
+  .nsrc { width: 100%; }
+  .nsrc-actions { margin-left: 0; flex-basis: 100%; }
+}

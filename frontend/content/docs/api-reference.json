@@ -2378,12 +2378,17 @@
     },
     "GET /api/v1/notion/connections/{connection_id}/pages": {
       "title": "Pages shared with Markdrop",
-      "description": "The pages and databases you shared with Markdrop in Notion (`items`: `id`, `kind` page or database, `title`, emoji `icon`, `parent_id` when its parent is shared too, `last_edited`). Database rows aren't listed: they come with their database. Up to 2,000 (`truncated`).",
-      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion#connect-notion"}
+      "description": "The pages and databases you shared with Markdrop in Notion, each under its real parent (`items`: `id`, `kind` page or database, `title`, emoji `icon`, `parent_id` and `parent_kind` (page, database or row) when its parent is shared too, `last_edited`; databases also `row_count`). A page inside a column or toggle sits under the page it's on; one whose parent isn't shared is at the top level. Database rows aren't listed: list them with the next call. `row_parents`: the database of each row that has sub-pages listed here. Up to 2,000 (`truncated`).",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion#choose-what-to-import"}
+    },
+    "GET /api/v1/notion/connections/{connection_id}/databases/{database_id}/rows": {
+      "title": "A Notion database's rows",
+      "description": "One page of a shared database's rows, in Notion's order (`items`: `id`, `kind: row`, `title`, `icon`, `parent_id` the database), 50 at a time; pass `next_cursor` back as `cursor` for the next. Use their ids in `exclude` to leave some rows out of an import.",
+      "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion#choose-what-to-import"}
     },
     "POST /api/v1/notion/import": {
       "title": "Import from Notion (connected)",
-      "description": "Imports `pages` (up to 50 Notion page or database ids; everything under them comes too) into `destination` (as for an export: `workspace`, `team`, `folder`, `new_folder`, `folder_name`; omit `workspace` for My files) and returns the import (`source: api`), followed like any Notion import. `keep_in_sync`: bring Notion's changes over about every 15 minutes, one way. Imported items get the destination's default access, never public; you must be able to add pages there.",
+      "description": "Imports `pages` (up to 50 Notion page or database ids; everything under them comes too) into `destination` (as for an export: `workspace`, `team`, `folder`, `new_folder`, `folder_name`; omit `workspace` for My files) and returns the import (`source: api`), followed like any Notion import. `exclude`: ids under those pages to leave out (sub-pages, databases or database rows, with everything under them); a sync never brings them back, but pages and rows added in Notion later still come. `keep_in_sync`: bring Notion's changes over about every 15 minutes, one way. Imported items get the destination's default access, never public; you must be able to add pages there.",
       "guide": {"label": "Import from Notion", "href": "/pages/import-from-notion#connect-notion"}
     },
     "PATCH /api/v1/notion/syncs/{sync_id}": {

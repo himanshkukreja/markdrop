@@ -3071,6 +3071,26 @@
     "bytes": 41232,
     "kind": "image"
   },
+  "/docs-assets/pages/import-from-notion/choose-inside.mp4": {
+    "w": 1440,
+    "h": 968,
+    "duration": 13.67,
+    "bytes": 268224,
+    "kind": "clip"
+  },
+  "/docs-assets/pages/import-from-notion/choose-inside.webm": {
+    "w": 1440,
+    "h": 968,
+    "duration": 13.67,
+    "bytes": 262899,
+    "kind": "clip"
+  },
+  "/docs-assets/pages/import-from-notion/choose-inside.webp": {
+    "w": 1440,
+    "h": 968,
+    "bytes": 45268,
+    "kind": "poster"
+  },
   "/docs-assets/pages/import-from-notion/choose.dark.webp": {
     "w": 1280,
     "h": 1012,
@@ -3085,15 +3105,35 @@
   },
   "/docs-assets/pages/import-from-notion/connect-picker.dark.webp": {
     "w": 1280,
-    "h": 1548,
-    "bytes": 62986,
+    "h": 2082,
+    "bytes": 91480,
     "kind": "image"
   },
   "/docs-assets/pages/import-from-notion/connect-picker.webp": {
     "w": 1280,
-    "h": 1548,
-    "bytes": 67990,
+    "h": 2082,
+    "bytes": 94978,
     "kind": "image"
+  },
+  "/docs-assets/pages/import-from-notion/imported-page.mp4": {
+    "w": 1440,
+    "h": 856,
+    "duration": 6.63,
+    "bytes": 65605,
+    "kind": "clip"
+  },
+  "/docs-assets/pages/import-from-notion/imported-page.webm": {
+    "w": 1440,
+    "h": 856,
+    "duration": 6.63,
+    "bytes": 106182,
+    "kind": "clip"
+  },
+  "/docs-assets/pages/import-from-notion/imported-page.webp": {
+    "w": 1440,
+    "h": 856,
+    "bytes": 38928,
+    "kind": "poster"
   },
   "/docs-assets/pages/import-from-notion/progress.dark.webp": {
     "w": 1280,
@@ -3117,6 +3157,18 @@
     "w": 1280,
     "h": 1288,
     "bytes": 58744,
+    "kind": "image"
+  },
+  "/docs-assets/pages/import-from-notion/source-strip.dark.webp": {
+    "w": 1800,
+    "h": 668,
+    "bytes": 27832,
+    "kind": "image"
+  },
+  "/docs-assets/pages/import-from-notion/source-strip.webp": {
+    "w": 1800,
+    "h": 668,
+    "bytes": 28890,
     "kind": "image"
   },
   "/docs-assets/pages/import-from-notion/sync-status.dark.webp": {

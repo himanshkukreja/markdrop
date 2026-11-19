@@ -105,7 +105,7 @@
 .ni-keep .ni-hint { padding-left: 46px; }
 
 .np { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
-.np-box { list-style: none; margin: 0; padding: 4px; max-height: 280px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.np-box { list-style: none; margin: 0; padding: 4px; max-height: min(360px, 46vh); overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
 .np-box ul { list-style: none; margin: 0; padding: 0; }
 .np-box--pad { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .np-skel { border-radius: var(--radius-sm); }
@@ -153,3 +153,7 @@
 .nsy-conn__sub { font-size: 12.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
 .ni-stages--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ni-again a { color: var(--accent-text); }
+.np-more { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 2px 8px; font-size: 12.5px; color: var(--text-muted); }
+.np-more .np-skel { flex: 1; max-width: 260px; }
+.np-sum { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; font-size: 12.5px; color: var(--text-secondary); }
+.np-sum b { color: var(--text); font-weight: 600; }

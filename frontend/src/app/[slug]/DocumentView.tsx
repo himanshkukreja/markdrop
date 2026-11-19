@@ -1,5 +1,6 @@
 "use client";
 
+import { NotionSourceStrip } from "@/components/import/NotionSourceStrip";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -983,6 +984,9 @@ export default function DocumentView(props: DocumentViewProps) {
         ? <TenantRecording meetingId={page.meeting.id} role={page.meeting.role} title={displayTitle} workspaceId={page.workspace_id ?? null} />
         : null)
     : null;
+  // Imported from Notion: provenance for every reader; sync status / Sync now for whoever may see them.
+  const notionSource = isPage && page?.source && !gated
+    ? <NotionSourceStrip source={page.source} settingsHref={tenant ? null : "/settings/integrations/notion"} /> : null;
   // From meetings in View mode (signed-in members of the page's workspace; the server decides what
   // they see): related decisions and action items for the section in view. Insert, for someone who
   // can edit, opens Edit with it after that section, as Ask Markdrop's Insert does.
@@ -1076,7 +1080,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 domainUrl={page?.workspace_url ?? null}
               />
             }
-            head={<PageHead title={displayTitle} props={pageProps!} resolve={resolvePageAsset} below={<><SignoffSummary slug={slug} />{readerProps}{meetingBar}{pageBacklinks}</>} />}
+            head={<PageHead title={displayTitle} props={pageProps!} resolve={resolvePageAsset} below={<>{notionSource}<SignoffSummary slug={slug} />{readerProps}{meetingBar}{pageBacklinks}</>} />}
             footer={pageFooter}
           >
             {notices}
@@ -1162,7 +1166,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 shareUrl,
                 onCopied: copyLinkEvent,
                 menu: editorDocMenu,
-                below: meetingBar ? <>{meetingBar}{pageBacklinks}</> : pageBacklinks,
+                below: meetingBar || notionSource ? <>{notionSource}{meetingBar}{pageBacklinks}</> : pageBacklinks,
                 properties: page?.page_properties ?? null,
                 propertiesHref: propsHref,
                 footer: pageFooter,

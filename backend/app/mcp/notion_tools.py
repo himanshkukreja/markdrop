@@ -89,7 +89,7 @@ async def _import_api(ctx: Context, args: dict) -> tuple[str, dict]:
     try:
         job = await jobs.create_api(ctx.db, ctx.user, connection_id=args.get("connection"),
                                     roots=[{"id": p} if isinstance(p, str) else p for p in pages], destination=dest,
-                                    keep_in_sync=bool(args.get("keep_in_sync")))
+                                    keep_in_sync=bool(args.get("keep_in_sync")), exclude=args.get("exclude") or [])
     except HTTPException as exc:
         raise ToolError(http_message(exc))
     out = jobs.out(job)
@@ -180,7 +180,21 @@ async def notion_status(ctx: Context, args: dict) -> tuple[str, dict]:
         data["pages"] = listing["items"]
         lines.append(f"Shared with Markdrop ({len(listing['items'])}):")
         for it in listing["items"][:200]:
-            lines.append(f"- {it['kind']} {it['id']}: {it['title']}" + (f" (in {it['parent_id']})" if it["parent_id"] else ""))
+            where = ""
+            if it["parent_id"]:
+                where = f" (in {'database row ' if it.get('parent_kind') == 'row' else ''}{it['parent_id']})"
+            rows = f", {it['row_count']} rows" if it["kind"] == "database" and it.get("row_count") else ""
+            lines.append(f"- {it['kind']} {it['id']}: {it['title']}{rows}{where}")
+        if args.get("database"):
+            try:
+                got = await jobs.database_rows(ctx.db, conn, str(args["database"]).replace("-", "").lower(),
+                                               args.get("cursor"))
+            except HTTPException as exc:
+                raise ToolError(http_message(exc))
+            data["rows"], data["next_cursor"] = got["items"], got["next_cursor"]
+            lines.append(f"Rows of {args['database']} ({len(got['items'])}"
+                         + (", more: pass cursor " + got["next_cursor"] if got["next_cursor"] else "") + "):")
+            lines += [f"- row {r['id']}: {r['title']}" for r in got["items"]]
     return "\n".join(lines), data
 
 
@@ -246,6 +260,11 @@ NOTION_TOOLS: list[Tool] = [
                 "Notion (see notion_status); pass pages.")},
             "pages": {"type": "array", "maxItems": 50, "items": {"type": "string", "minLength": 32, "maxLength": 36},
                       "description": "source api: Notion page or database ids (sub-pages come with them)."},
+            "exclude": {"type": "array", "maxItems": 2000, "items": {"type": "string", "minLength": 32, "maxLength": 36},
+                        "description": (
+                            "source api: Notion ids under the chosen pages / databases to leave out (sub-pages, "
+                            "child databases or database rows), with everything under them. Keep in sync "
+                            "remembers them; pages added in Notion later still come.")},
             "connection": {"type": "string", "maxLength": 64,
                            "description": "source api: the Notion connection id (default: the only one)."},
             "keep_in_sync": {"type": "boolean", "default": False, "description": (
@@ -280,15 +299,22 @@ NOTION_TOOLS: list[Tool] = [
             "Whether the user connected Notion (Connect Notion: read-only, the pages they chose to share with "
             "Markdrop), their imports kept in sync with Notion (each root's last sync, whether it's kept in sync, "
             "paused, and the pages edited in Markdrop that no longer sync), and with list_pages the Notion pages and "
-            "databases shared with Markdrop with their ids (to import with import_notion source \"api\")."),
+            "databases shared with Markdrop with their ids, each under its real parent (to import with import_notion source "
+            "\"api\"); with database, that database's rows (to leave some out with import_notion's exclude)."),
         scope=READ,
         input_schema={"type": "object", "properties": {
             "list_pages": {"type": "boolean", "default": False,
                            "description": "Also list the pages and databases shared with Markdrop."},
             "connection": {"type": "string", "maxLength": 64,
-                           "description": "With list_pages: which Notion connection (default: the only one)."}}},
+                           "description": "With list_pages: which Notion connection (default: the only one)."},
+            "database": {"type": "string", "minLength": 32, "maxLength": 36, "description": (
+                "With list_pages: also list this database's rows (50 at a time; their ids can go in "
+                "import_notion's exclude).")},
+            "cursor": {"type": "string", "maxLength": 200,
+                       "description": "With database: the next_cursor of the previous rows listing."}}},
         output_schema=_out({"configured": {"type": "boolean"}, "connections": {"type": "array"},
-                            "syncs": {"type": "array"}, "pages": {"type": "array"}}, ["configured"]),
+                            "syncs": {"type": "array"}, "pages": {"type": "array"}, "rows": {"type": "array"},
+                            "next_cursor": {"type": ["string", "null"]}}, ["configured"]),
         annotations=_ann(True, False, True),
         handler=notion_status,
     ),

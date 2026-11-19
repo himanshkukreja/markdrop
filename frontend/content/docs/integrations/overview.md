@@ -59,7 +59,7 @@ Markdrop only sees the Google Docs it created. To stop, choose **Disconnect** on
 
 ## Notion
 
-Connect Notion in **Settings › Integrations › Notion** and choose, in Notion, the pages Markdrop may read. Then tick the pages to import, pick a team or My files, and leave **Keep in sync** on to bring Notion's changes over about every 15 minutes, one way. Markdrop never writes to Notion, and a page you edit in Markdrop stops syncing instead of being overwritten. **Disconnect** revokes Markdrop's access; the imported pages stay. See [Import from Notion](/pages/import-from-notion#connect-notion).
+Connect Notion in **Settings › Integrations › Notion** and choose, in Notion, the pages Markdrop may read. Then tick the pages to import (untick anything inside them to leave it out), pick a team or My files, and leave **Keep in sync** on to bring Notion's changes over about every 15 minutes, one way. Markdrop never writes to Notion, and a page you edit in Markdrop stops syncing instead of being overwritten. Each imported page says **Imported from Notion** at the top, with a link back to it in Notion. **Disconnect** revokes Markdrop's access; the imported pages stay. See [Import from Notion](/pages/import-from-notion#connect-notion).
 
 ## Related
 

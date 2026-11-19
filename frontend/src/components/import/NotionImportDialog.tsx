@@ -16,7 +16,8 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { Alert, Button, Dialog, Disclosure, Icon, Input, Progress, SegmentedControl, Select, Spinner, Switch, cx, useToast } from "@/components/ui";
 import { BrandMark } from "@/components/integrations/BrandMark";
 import { connectNotion, importFromNotion, notionSharedPages, notionStatus, type NotionSharedItem, type NotionStatus } from "@/lib/notionConnect";
-import { NotionPicker, type PickedRoot } from "./NotionPicker";
+import { NotionPicker, emptySelection, type NotionPick } from "./NotionPicker";
+import type { Selection } from "@/lib/notionPickerCore.mjs";
 import {
   NOTION_MAX_BYTES, cancelNotionImport, createNotionImport, folderNameFromFile, getNotionDestinations, getNotionImport,
   isActive, listNotionImports, startNotionImport, uploadNotionZip,
@@ -88,8 +89,10 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
   const [shared, setShared] = useState<NotionSharedItem[] | null>(null);
   const [sharedLoading, setSharedLoading] = useState(false);
   const [sharedError, setSharedError] = useState<string | null>(null);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [roots, setRoots] = useState<PickedRoot[]>([]);
+  const [rowParents, setRowParents] = useState<Record<string, string>>({});
+  const [picked, setPicked] = useState<Selection>(emptySelection);
+  const [pick, setPick] = useState<NotionPick | null>(null);
+  const roots = pick?.roots ?? [];
   const [keep, setKeep] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -126,12 +129,12 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
   const loadShared = useCallback((id: string) => {
     setSharedLoading(true);
     setSharedError(null);
-    notionSharedPages(id).then((r) => { setShared(r.items); setSharedLoading(false); },
+    notionSharedPages(id).then((r) => { setShared(r.items); setRowParents(r.row_parents ?? {}); setSharedLoading(false); },
       (e) => { setSharedError(errText(e, "Couldn't load your Notion pages.")); setSharedLoading(false); });
   }, []);
   useEffect(() => {
     if (!open || source !== "notion" || !connId) return;
-    setShared(null); setPicked(new Set()); setRoots([]);
+    setShared(null); setPicked(emptySelection()); setPick(null);
     loadShared(connId);
   }, [open, source, connId, loadShared]);
 
@@ -222,7 +225,7 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
     setBusy(true);
     setStartError(null);
     try {
-      const created = await importFromNotion({ connection_id: connId, pages: roots.map((r) => ({ id: r.id, kind: r.kind })), destination: destinationIn(), keep_in_sync: keep });
+      const created = await importFromNotion({ connection_id: connId, pages: roots.map((r) => ({ id: r.id, kind: r.kind, title: r.title })), exclude: pick?.exclude ?? [], destination: destinationIn(), keep_in_sync: keep });
       announced.current = null;
       setImp(created.import);
       setStep("progress");
@@ -292,8 +295,8 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
     setFolderTouched(false);
     setFolderName("");
     setHowOpen(true);
-    setPicked(new Set());
-    setRoots([]);
+    setPicked(emptySelection());
+    setPick(null);
     setStep("choose");
   }, []);
 
@@ -375,11 +378,18 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
                     </Select>
                   ) : <span className="ni-picked">{usable[0]!.workspace_name}</span>}
                 </div>
-                <NotionPicker items={shared} loading={sharedLoading} error={sharedError} onRetry={() => loadShared(connId)} value={picked}
-                  onChange={(next, r) => { setPicked(next); setRoots(r); }} />
+                <NotionPicker connectionId={connId} items={shared} rowParents={rowParents} loading={sharedLoading} error={sharedError} onRetry={() => loadShared(connId)} value={picked}
+                  onChange={(next, p) => { setPicked(next); setPick(p); }} />
+                {roots.length > 0 && pick && (
+                  <p className="np-sum" data-testid="notion-pick-summary"><span><b>{pick.summary}</b></span></p>
+                )}
                 <p className="ni-hint">
                   <Icon name="info" />
-                  <span>Sub-pages and databases come with the pages you tick. Don&apos;t see a page? In Notion, choose <b>•••</b> › <b>Connections</b> and add Markdrop.</span>
+                  <span>
+                    Ticking a page or database takes everything inside it; untick anything inside to leave it out.
+                    {pick?.leavesOutRows && keep ? " Rows added to that database later in Notion still come in on sync." : ""}
+                    {" "}Don&apos;t see a page? In Notion, choose <b>•••</b> › <b>Connections</b> and add Markdrop.
+                  </span>
                 </p>
               </div>
               {destField}
@@ -398,7 +408,7 @@ export default function NotionImportDialog({ open, onClose, preset }: { open: bo
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           {connected && (
             <Button iconLeft="download" onClick={() => void startNotion()} disabled={!roots.length || !dest || busy} loading={busy} data-testid="notion-import-now">
-              {roots.length > 1 ? `Import ${roots.length} pages` : "Import now"}
+              Import now
             </Button>
           )}
         </>

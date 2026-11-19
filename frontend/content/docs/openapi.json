@@ -28077,6 +28077,78 @@
         }
       }
     },
+    "/api/v1/notion/connections/{connection_id}/databases/{database_id}/rows": {
+      "get": {
+        "tags": [
+          "import"
+        ],
+        "summary": "A Notion database's rows",
+        "operationId": "database_rows_api_v1_notion_connections__connection_id__databases__database_id__rows_get",
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connection Id"
+            }
+          },
+          {
+            "name": "database_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Database Id"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/notion/import": {
       "post": {
         "tags": [
@@ -32811,6 +32883,18 @@
             ],
             "title": "Meeting"
           },
+          "source": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
           "track": {
             "anyOf": [
               {
@@ -33428,6 +33512,18 @@
               }
             ],
             "title": "Meeting"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
           },
           "track": {
             "anyOf": [
@@ -38707,6 +38803,19 @@
               }
             ],
             "title": "Kind"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "Shown until Notion's own title is read."
           }
         },
         "type": "object",
@@ -42146,6 +42255,15 @@
             "title": "Keep In Sync",
             "description": "Import again about every 15 minutes (only what changed).",
             "default": false
+          },
+          "exclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 2000,
+            "title": "Exclude",
+            "description": "Notion ids under the chosen pages to leave out (unticked in the picker), with everything under them. Keep in sync remembers them; pages added in Notion later still come."
           }
         },
         "type": "object",

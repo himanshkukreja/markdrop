@@ -48,6 +48,7 @@ from app.mcp.tools import (
     url_pair,
 )
 from app.mcp.tools import access_why  # folder access: why the user can open a page
+from app.mcp.tools import notion_source_of  # imported from Notion: the page's provenance
 from app.services import access as access_service
 from app.services import live, page_asset_uploads, page_assets, page_blocks, page_props, page_templates, pages, revalidate
 
@@ -488,6 +489,9 @@ async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
     }
     if typed is not None:
         out["property_values"] = typed
+    src = await notion_source_of(ctx, raw)
+    if src is not None:
+        out["source"] = src            # imported from Notion: {kind, url, imported_at, sync}
     if note:
         out["note"] = note
     if shape is not None:

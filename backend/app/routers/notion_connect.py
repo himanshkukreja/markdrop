@@ -5,9 +5,12 @@ and keep it in sync, one way (Notion → Markdrop). Read-only in Notion.
     POST   /api/v1/notion/connect/start {back?}     → {url}: Notion's consent screen (pick the pages to share)
     POST   /api/v1/notion/connect/finish {code, state}   the end of it (stores my token, encrypted)
     DELETE /api/v1/notion/connections/{id}          disconnect (revokes the token; imported pages stay)
-    GET    /api/v1/notion/connections/{id}/pages    the pages and databases I shared with Markdrop (the picker)
+    GET    /api/v1/notion/connections/{id}/pages    the pages and databases I shared with Markdrop (the picker),
+                                                    each under its real parent
+    GET    /api/v1/notion/connections/{id}/databases/{db}/rows?cursor=   a database's rows, a page at a time
     POST   /api/v1/notion/import                    import chosen pages → an import job (follow it at
-                                                    GET /api/v1/imports/notion/{id}); keep_in_sync per root
+                                                    GET /api/v1/imports/notion/{id}); keep_in_sync per root;
+                                                    exclude: what to leave out under them (kept by the sync)
     PATCH  /api/v1/notion/syncs/{id} {keep_in_sync} turn Keep in sync on or off
     POST   /api/v1/notion/syncs/{id}/run            Sync now → the job
     DELETE /api/v1/notion/syncs/{id}                stop following that root (its pages stay)
@@ -17,9 +20,10 @@ import goes only where its owner can add pages (checked again on every sync).
 """
 
 # No `from __future__ import annotations`: slowapi wraps these routes (see routers/docs_ai.py).
+import re
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
 
@@ -30,6 +34,7 @@ from app.routers.auth import require_user
 from app.routers.notion_import import Destination
 from app.services.notion_import import connect, jobs
 from app.services.notion_import import sync as S
+from app.services.notion_import.api_source import hexid
 
 router = APIRouter(prefix="/api/v1/notion", tags=["import"])
 
@@ -52,6 +57,7 @@ class FinishIn(BaseModel):
 class Root(BaseModel):
     id: str = Field(..., min_length=32, max_length=36, description="A Notion page or database id.")
     kind: Optional[str] = Field(None, pattern="^(page|database)$")
+    title: Optional[str] = Field(None, max_length=200, description="Shown until Notion's own title is read.")
 
 
 class ImportIn(BaseModel):
@@ -60,6 +66,9 @@ class ImportIn(BaseModel):
                               description="The pages / databases to import (their sub-pages come with them).")
     destination: Destination = Field(default_factory=Destination)
     keep_in_sync: bool = Field(False, description="Import again about every 15 minutes (only what changed).")
+    exclude: list[str] = Field(default_factory=list, max_length=2000, description=(
+        "Notion ids under the chosen pages to leave out (unticked in the picker), with everything under them. "
+        "Keep in sync remembers them; pages added in Notion later still come."))
 
 
 class KeepIn(BaseModel):
@@ -103,12 +112,25 @@ async def shared_pages(request: Request, connection_id: str, user: User = Depend
     return await jobs.shared_listing(db, conn)
 
 
+@router.get("/connections/{connection_id}/databases/{database_id}/rows", summary="A Notion database's rows")
+@limiter.limit("60/minute")
+async def database_rows(request: Request, connection_id: str, database_id: str,
+                        cursor: Optional[str] = Query(None, max_length=200),
+                        user: User = Depends(require_user), db: AsyncIOMotorDatabase = Depends(get_db)):
+    connect.need_configured()
+    conn = await connect.get_own(db, user, connection_id)
+    if not re.fullmatch(r"[0-9a-f]{32}", hexid(database_id)):
+        raise HTTPException(status_code=404, detail="That database wasn't found.")
+    return await jobs.database_rows(db, conn, hexid(database_id), cursor)
+
+
 @router.post("/import", status_code=201, summary="Import from Notion (connected)")
 @limiter.limit("20/minute")
 async def import_pages(request: Request, body: ImportIn, user: User = Depends(require_user),
                        db: AsyncIOMotorDatabase = Depends(get_db)):
     job = await jobs.create_api(db, user, connection_id=body.connection_id, roots=[p.model_dump() for p in body.pages],
-                                destination=body.destination.model_dump(), keep_in_sync=body.keep_in_sync)
+                                destination=body.destination.model_dump(), keep_in_sync=body.keep_in_sync,
+                                exclude=body.exclude)
     return {"import": jobs.out(job)}
 
 

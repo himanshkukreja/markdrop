@@ -17,7 +17,7 @@ import made), and whether to keep it in sync. A kept root is imported again abou
 
 {_id: ns_…, user_id, connection_id, root_id, root_kind, root_title, dest, keep, paused, next_at,
  last_synced_at, last_full_at, last_job_id, last_state, last_error, last_counts, detached [{title, slug}],
- created_at}
+ exclude [notion id] (left out in the picker), created_at}
 """
 
 from __future__ import annotations
@@ -88,6 +88,7 @@ def out(row: dict, job: dict | None = None) -> dict:
         "last_error": row.get("last_error"), "last_job_id": row.get("last_job_id"),
         "counts": row.get("last_counts") or {},
         "edited_in_markdrop": row.get("detached") or [],
+        "left_out": len(row.get("exclude") or []),
     }
 
 
@@ -108,8 +109,10 @@ async def _own(db: AsyncIOMotorDatabase, user, sid: str) -> dict:
 
 
 async def record(db: AsyncIOMotorDatabase, user, *, connection_id: str, roots: list[dict], dest: dict, keep: bool,
-                 job_id: str) -> list[str]:
-    """One sync row per imported root (found again when the same root goes to the same place)."""
+                 job_id: str, exclude: list[str] | None = None) -> list[str]:
+    """One sync row per imported root (found again when the same root goes to the same place). ``exclude``:
+    what was left out in the picker; every later sync leaves it out too (new pages added in Notion still
+    come: it's a list of what to leave out, not of what to bring)."""
     ids = []
     now = now_utc()
     for r in roots:
@@ -117,7 +120,8 @@ async def record(db: AsyncIOMotorDatabase, user, *, connection_id: str, roots: l
         await db[COLL].update_one({"_id": sid}, {
             "$set": {"user_id": user.id, "connection_id": connection_id, "root_id": r["id"],
                      "root_kind": r.get("kind") or "page", "root_title": r.get("title") or "Untitled",
-                     "keep": bool(keep), "paused": None, "last_job_id": job_id, "next_at": now + every()},
+                     "keep": bool(keep), "paused": None, "last_job_id": job_id, "next_at": now + every(),
+                     "exclude": list(exclude or [])},
             "$setOnInsert": {"dest": dest, "created_at": now}}, upsert=True)
         ids.append(sid)
     return ids
