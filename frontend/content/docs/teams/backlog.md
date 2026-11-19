@@ -12,7 +12,7 @@ It's a real page. You can edit it, comment on an item, share it and see its vers
 
 ![A team's backlog page: the filter bar, then a collapsible heading per category with its items](/docs-assets/teams/backlog/page.webp)
 
-::clip{src="/docs-assets/teams/backlog/fill" theme="both" alt="A new customer call lands in the Sales team. On the Sales backlog page, its items appear under Feature request, Bug and Follow-up. Alex drags Dark mode for reports from Feature request to Improvement, comments on the CSV export item, and ticks Send the pricing deck; on the call's page the same action item is now ticked."}
+::clip{src="/docs-assets/teams/backlog/fill" theme="both" alt="On the Sales backlog page, Riya clicks the Bug chip and only the Safari login bug shows; she clicks Feature request and types csv, and one item is left: Export usage reports to CSV, mentioned in 2 calls. She clears the filters, ticks Send the renewal pricing deck under Follow-up and opens its call from the line: on the Northwind renewal call's page the same action item is now ticked."}
 
 ## Find it
 

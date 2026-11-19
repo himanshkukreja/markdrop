@@ -243,7 +243,7 @@ async def team_sources(db: AsyncIOMotorDatabase, ws_id: str, *, now: datetime | 
     out_p: list[dict] = []
     cur = db["documents"].find(
         {"workspace_id": ws_id, "updated_at": {"$gte": since}, "deleted_at": None, "encrypted": {"$ne": True},
-         "meeting_role": None, **narrow},
+         "meeting_role": None, "backlog_team_id": None, **narrow},     # a team's backlog: its calls' items, read there
         {"title": 1, "content": 1, "updated_at": 1, "access_level": 1, "read_password_hash": 1, "workspace_id": 1,
          "parent_id": 1, "access_inherit": 1, "encrypted": 1, "deleted_at": 1, "expires_at": 1, "kind": 1,
          "original_filename": 1, "meeting_id": 1, "team_ids": 1, "project_ids": 1}).sort("updated_at", -1).limit(MAX_PAGES * 3)
