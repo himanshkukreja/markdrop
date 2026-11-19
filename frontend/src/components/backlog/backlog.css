@@ -1,10 +1,9 @@
 /* The backlog page's filter bar (components/backlog/BacklogBar.tsx). Design tokens only, so light and dark follow
-   the theme. Phones: the chips scroll sideways, the menus wrap, 44px touch targets. */
+   the theme. The chips wrap onto a second line (never cut off), the menus wrap, 44px touch targets. */
 
 .bl-bar { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 6px; padding: 12px; border: 1px solid var(--border);
   border-radius: 14px; background: var(--surface); color: var(--text); }
-.bl-cats { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: -2px; padding: 2px; }
-.bl-cats::-webkit-scrollbar { display: none; }
+.bl-cats { display: flex; flex-wrap: wrap; gap: 6px; }
 .bl-chip { display: inline-flex; align-items: center; gap: 6px; flex: none; height: 30px; padding: 0 10px; border: 1px solid var(--border);
   border-radius: var(--radius-full); background: var(--surface); color: var(--text-secondary); font-size: 13px; font-weight: 550;
   cursor: pointer; transition: background 120ms var(--ease-out), border-color 120ms var(--ease-out), color 120ms var(--ease-out); }

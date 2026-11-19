@@ -200,7 +200,7 @@ export function hideCss(items, f) {
   const hidden = items.filter((i) => !matches(i, f));
   if (!hidden.length) return "";
   const rules = [];
-  const sel = (b) => `li[data-bid="${css(b)}"], li:has(> p[data-bid="${css(b)}"])`;
+  const sel = (b) => `li[data-bid="${css(b)}"], li:has(> p[data-bid="${css(b)}"]), li:has(> .dxe-li > p[data-bid="${css(b)}"])`;
   rules.push(`${hidden.map((i) => sel(i.block)).join(",\n")} { display: none !important; }`);
   const byCat = new Map();
   for (const i of items) byCat.set(i.category, [...(byCat.get(i.category) ?? []), i]);
