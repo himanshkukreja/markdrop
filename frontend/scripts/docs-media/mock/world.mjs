@@ -3,7 +3,8 @@
  * built in memory. No backend, no database: Playwright answers each request to the fake API origin.
  * Names are made up (Acme, Riya Sharma, Northwind Health…); keep it that way.
  */
-export const WS = "ws_acme";
+/** A real-looking id: some pages (Ask) accept only 24-hex workspace ids. */
+export const WS = "6a3c0ffee0acbe0000000001";
 const NOW = Date.parse(process.env.MOCK_NOW || "2026-11-19T10:30:00Z");
 const DAY = 86_400_000;
 export const iso = (dAgo = 0, h = 0) => new Date(NOW - dAgo * DAY - h * 3600_000).toISOString();

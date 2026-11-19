@@ -15,8 +15,8 @@
   asks again, ``"apply"`` applies one (``id``; a person's choice, never automatic), ``"dismiss"`` hides one.
 * ``hubspot_list_deals`` / ``hubspot_deal_folder`` / ``hubspot_sync_deals``: the HubSpot team's deal folders
   (services/hubspot_folders.py; read-only in HubSpot).
-* ``hubspot_account``: the company's account page (deals, calls, decisions, objections and risks, open
-  questions and tasks); ``"refresh"`` makes or updates it.
+* ``hubspot_account``: the company's existing (archived) account page (deals, calls, decisions, objections
+  and risks, open questions and tasks); ``"refresh"`` updates it. No new ones are made: Deals replaced them.
 * ``hubspot_pipeline``: the workspace's deals with stage, amount, close date, the team's last call and why
   they're at risk (no call in 14 days, close date passed).
 * ``hubspot_notifications``: your own pre-call briefs and Slack messages after calls (on or off).

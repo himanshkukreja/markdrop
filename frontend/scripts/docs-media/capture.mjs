@@ -99,7 +99,10 @@ const opt = (name) => {
 const onlyTheme = opt("--theme");
 const ids = argv.filter((a, i) => !a.startsWith("--") && argv[i - 1] !== "--theme");
 
-if (flag("--list")) {
+/** Run as a script (not imported for its helpers, as mock/record.mjs does). */
+const IS_MAIN = !!process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (IS_MAIN && flag("--list")) {
   for (const s of SHOTS) console.log(`${s.id.padEnd(28)} ${s.kind.padEnd(10)} ${s.page}`);
   process.exit(0);
 }
@@ -802,7 +805,12 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error(e.stack || e);
-  process.exit(1);
-});
+if (IS_MAIN) {
+  main().catch((e) => {
+    console.error(e.stack || e);
+    process.exit(1);
+  });
+}
+
+// For mock/record.mjs: the same cursor, screencast and encoders, against the mocked API.
+export { BUDGET, initScript, helpers, startScreencast, framesToVideo, probe, encodeMp4, encodeWebm, toWebp, sleep };

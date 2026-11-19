@@ -19,12 +19,12 @@ You need a Markdrop account. You can own up to 10 workspaces, and be a member of
 
 ::::steps
 ### Open New workspace
-In the sidebar, under **Workspaces**, choose **New workspace**. It takes you to [Settings › Workspaces](https://markdrop.in/settings/workspaces); choose the **New workspace** button there.
+Open the workspace menu at the top of the sidebar (your workspace's name) and choose **New workspace**. It takes you to [Settings › Workspaces](https://markdrop.in/settings/workspaces); choose the **New workspace** button there.
 
 ### Name it
 Type a **Name**, like `Acme`, and choose **Create workspace**. Names can be up to 80 characters, and you can change the name later.
 
-::clip{src="/docs-assets/workspaces/create/new-workspace" alt="Choosing New workspace in the sidebar, then the New workspace button on Settings › Workspaces, typing Marketing and choosing Create workspace; the new workspace opens with its Get set up checklist."}
+::clip{src="/docs-assets/workspaces/create/new-workspace" alt="Choosing New workspace in the workspace menu at the top of the sidebar, then the New workspace button on Settings › Workspaces, typing Acme Labs and choosing Create workspace; the new workspace opens with its Get set up checklist."}
 
 ### Follow Get set up
 The new workspace opens with a **Get set up** checklist for admins: name your workspace, invite your team, add your first file, and (optional) use your own domain. Each step ticks itself off when it's done. Choose **Hide this checklist** to hide it; it stays hidden on that device. It shows only while the workspace is new (its first 14 days, with fewer than 3 items) and until the first three steps are done.

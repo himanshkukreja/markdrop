@@ -3,7 +3,7 @@
   "info": {
     "title": "Markdrop",
     "version": "0.1.0",
-    "x-markdrop-exported": "2026-11-18"
+    "x-markdrop-exported": "2026-11-19"
   },
   "paths": {
     "/api/v1/trash": {
@@ -27275,7 +27275,7 @@
         "tags": [
           "hubspot"
         ],
-        "summary": "Make or update a meeting's account page",
+        "summary": "Update a meeting's archived account page",
         "operationId": "account_api_v1_hubspot_meetings__meeting_id__account_post",
         "parameters": [
           {
@@ -35487,18 +35487,6 @@
             ],
             "title": "Suggest",
             "description": "Suggest deal updates after a call matched to a deal (on by default; never applied without a person)."
-          },
-          "accounts": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Accounts",
-            "description": "Keep an account page per HubSpot company (on by default)."
           },
           "precall": {
             "anyOf": [

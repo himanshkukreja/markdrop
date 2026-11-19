@@ -32,7 +32,7 @@ General, the team everyone is in, works a little differently: admins can rename 
 
 Connecting the team's Slack channel and Jira projects is optional; you can do it later in its settings. On a phone the dialog opens from the bottom of the screen.
 
-::clip{src="/docs-assets/teams/create-and-manage/create-flow" alt="Sam opens Browse teams, chooses New team, names it Customer Success, picks the handshake emoji and pink, chooses Private (a note says workspace admins can see every team's content), adds Maya Patel and creates it. The new team's home opens."}
+::clip{src="/docs-assets/teams/create-and-manage/create-flow" alt="On Browse teams, Riya chooses New team, names it Customer Success, picks the handshake emoji and pink, chooses Private (a note says workspace admins can see every team's content), adds Maya Patel and creates it. The new team's home opens."}
 
 ## Open or private
 

@@ -1,22 +1,21 @@
-"""HubSpot Phase 2: an account page per HubSpot company (brief .work/briefs/hubspot-v2.md, item 8).
+"""HubSpot Phase 2: the company account pages (brief .work/briefs/hubspot-v2.md, item 8) — retired.
 
-**Replaced by deal folders (2026-11-18, services/hubspot_folders.py).** No new account pages are made; the
-existing ones are moved to an "Accounts (archived)" folder by the backfill (scripts/hubspot_deal_folders.py)
-and can still be brought up to date on request (:func:`account` with ``refresh_now``).
+**Replaced by deal folders (2026-11-18, services/hubspot_folders.py).** Markdrop doesn't make account pages
+any more (there's no switch for them either): the existing ones were moved to an "Accounts (archived)"
+folder by the backfill (scripts/hubspot_deal_folders.py), stay readable there, and an existing one can
+still be brought up to date on request (:func:`account` with ``refresh_now``; :func:`refresh` never makes
+a page).
 
-The first time a HubSpot-team call is matched to a company (hubspot.meeting_ready, after its summary),
-Markdrop makes a page for that company: an ordinary Markdrop Page in the workspace's **Accounts** folder,
-in the HubSpot team (``team_ids``: a private team's account pages are its members' only), titled with the
-company's name. Its **auto-updated section** sits between two marker lines (:data:`START` heading …
-:data:`END`): the company's deals with stage, amount and close date; the timeline of the team's calls
-with that company (link + one line each); decisions; objections and risks (from the suggested-updates
-call, services/hubspot_deals.py); open questions; open tasks (the calls' action items, marked when
-they're HubSpot tasks already). Each new call for the company rewrites only that section; whatever
+An account page is an ordinary Markdrop Page in the HubSpot team (``team_ids``), titled with the company's
+name. Its **auto-updated section** sits between two marker lines (:data:`START` heading … :data:`END`):
+the company's deals with stage, amount and close date; the timeline of the team's calls with that company
+(link + one line each); decisions; objections and risks (from the suggested-updates call,
+services/hubspot_deals.py); open questions; open tasks. A refresh rewrites only that section; whatever
 people write above or below it stays. A section someone deleted comes back at the end of the page.
 
 Only the team's calls that the whole team can read go in (never a meeting restricted to its attendees),
 and only this workspace's HubSpot account. Written through the website's save path, quietly (nobody is
-notified about it), as the person who imported the call (else whoever connected HubSpot).
+notified about it), as the person who asked for the refresh.
 
 Collections
     hubspot_accounts   _id "<workspace>:<portal>:<company id>": workspace_id, portal_id, company_id, name,
@@ -39,7 +38,6 @@ from app.services.hubspot_api import HubSpotError
 log = logging.getLogger("markdrop.hubspot")
 
 ACCOUNTS = "hubspot_accounts"
-FOLDER_NAME = "Accounts"
 START = "## From HubSpot and the team's calls"
 END = "*Markdrop keeps the section above up to date from HubSpot and the team's calls. Edits outside it stay.*"
 MAX_CALLS = 20
@@ -58,70 +56,31 @@ def _key(conn: dict, company_id: str) -> str:
     return f"{conn['_id']}:{conn['portal_id']}:{company_id}"
 
 
-async def company_of(db, conn: dict, m: dict) -> str | None:
-    """The call's company: the match's first company, else the deal's."""
-    if m.get("company_ids"):
-        return str(m["company_ids"][0])
-    if m.get("deal_id"):
-        got = (await H.assoc(db, conn, "deals", [m["deal_id"]], "companies")).get(str(m["deal_id"]), [])
-        return got[0] if got else None
+async def _existing(db: AsyncIOMotorDatabase, conn: dict, m: dict | None) -> tuple[dict, dict] | None:
+    """The matched company's existing account page: (its hubspot_accounts row, the page), else None."""
+    ids = [str(c) for c in (m or {}).get("company_ids") or []][:3]
+    if not ids:
+        return None
+    async for row in db[ACCOUNTS].find({"_id": {"$in": [_key(conn, c) for c in ids]}, "doc_id": {"$ne": None}}):
+        raw = await db["documents"].find_one({"_id": row["doc_id"]}, {"slug": 1, "deleted_at": 1})
+        if raw is not None and not raw.get("deleted_at"):
+            return row, raw
     return None
 
 
 async def link_for(db: AsyncIOMotorDatabase, conn: dict, m: dict | None) -> dict | None:
     """The panel's link to the account page of the matched company (when it exists)."""
-    ids = [str(c) for c in (m or {}).get("company_ids") or []][:3]
-    if not ids:
+    got = await _existing(db, conn, m)
+    if got is None:
         return None
-    row = await db[ACCOUNTS].find_one({"_id": {"$in": [_key(conn, c) for c in ids]}, "doc_id": {"$ne": None}})
-    if row is None:
-        return None
-    raw = await db["documents"].find_one({"_id": row["doc_id"]}, {"slug": 1, "deleted_at": 1})
-    if raw is None or raw.get("deleted_at"):
-        return None
+    row, raw = got
     return {"name": row.get("name"), "slug": raw["slug"], "href": f"/{raw['slug']}", "updated_at": H.iso(row.get("updated_at"))}
-
-
-async def refresh_after(db: AsyncIOMotorDatabase, conn: dict, meeting_id: str, m: dict) -> dict | None:
-    """hubspot.meeting_ready: the company's account page, made or brought up to date."""
-    from app.services import meetings
-
-    if not H.switch(conn, "accounts"):
-        return None
-    row = await meetings.get_row(db, meeting_id)
-    if row is None or row.get("restricted") or m.get("confidence") not in ("high", "medium"):
-        return None
-    company = await company_of(db, conn, m)
-    if not company:
-        return None
-    if not m.get("company_ids"):
-        await db[meetings.COLL].update_one({"_id": row["_id"], "hubspot.match.portal_id": conn["portal_id"]},
-                                           {"$set": {"hubspot.match.company_ids": [company]}})
-    uid = row.get("imported_by") or row.get("created_by") or conn.get("connected_by")
-    return await refresh(db, conn, company, user_id=str(uid) if uid else None)
 
 
 async def _user(db, user_id: str | None):
     from app.services.user import get_user_by_id
 
     return await get_user_by_id(db, user_id) if user_id else None
-
-
-async def _folder(db, conn: dict, user_id: str) -> str:
-    """The workspace's Accounts folder (made once, in the HubSpot team)."""
-    from app.services import folder as folder_service
-    from app.services import teams as T
-
-    ws = conn["_id"]
-    f = await db["folders"].find_one({"workspace_id": ws, "hubspot_accounts": True}, sort=[("created_at", 1)])
-    if f is None:
-        made = await folder_service.create_folder(db, ws, FOLDER_NAME, None)
-        await db["folders"].update_one({"_id": ObjectId(made.id)}, {"$set": {"hubspot_accounts": True,
-                                                                             **T.team_update([conn["team_id"]], [])["$set"]}})
-        f = await db["folders"].find_one({"workspace_id": ws, "hubspot_accounts": True}, sort=[("created_at", 1), ("_id", 1)])
-        if f is not None and str(f["_id"]) != made.id:
-            await db["folders"].delete_one({"_id": ObjectId(made.id)})
-    return str(f["_id"])
 
 
 def _e(text: Any) -> str:
@@ -219,10 +178,15 @@ def merge(content: str, section: str, *, start: str = START, end: str = END) -> 
 
 
 async def refresh(db: AsyncIOMotorDatabase, conn: dict, company_id: str, *, user_id: str | None) -> dict | None:
-    """Make or rewrite the company's account page. Returns its row (None: nobody to write it as)."""
+    """Rewrite an existing account page's section. Returns its row (None: the company has no account page, or
+    nobody to write it as). Never makes a page: Deals replaced them."""
     from app.services import access, meetings, pages
-    from app.services import teams as T
 
+    key = _key(conn, company_id)
+    acc = await db[ACCOUNTS].find_one({"_id": key})
+    raw = await db["documents"].find_one({"_id": acc["doc_id"]}) if acc and acc.get("doc_id") else None
+    if raw is None or raw.get("deleted_at"):
+        return None
     user = await _user(db, user_id) or await _user(db, conn.get("connected_by"))
     if user is None or not conn.get("team_id"):
         return None
@@ -240,31 +204,8 @@ async def refresh(db: AsyncIOMotorDatabase, conn: dict, company_id: str, *, user
         {"segments": 0}).sort([("date", -1), ("created_at", -1)]).limit(MAX_CALLS).to_list(length=MAX_CALLS)
     now = now_utc()
     section = section_markdown(name, deals, calls, now)
-    key = _key(conn, company_id)
-    acc = await db[ACCOUNTS].find_one({"_id": key})
     actor, ctx = access.Actor.of(user), access.Ctx(db)
-    raw = await db["documents"].find_one({"_id": acc["doc_id"]}) if acc and acc.get("doc_id") else None
-    if raw is not None and raw.get("deleted_at"):
-        raw = None
-    if raw is None:
-        folder = await _folder(db, conn, user.id)
-        try:
-            raw, _secret, _err = await pages.create_page(db, user, actor, ctx, title=name[:150], workspace=conn["_id"],
-                                                         folder=folder, content="\n")
-        except HTTPException as exc:
-            log.info("hubspot: couldn't make the account page of %s: %s", company_id, exc.detail)
-            return None
-        raw = await db["documents"].find_one({"_id": raw["_id"]}) or raw
-        if (raw.get("access_level") or "link") != "workspace":
-            raw = await access.set_level(db, raw, "workspace", actor, ctx)
-        await T.apply_to_doc(db, raw, [conn["team_id"]], [])
-        await db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"hubspot_company": key}})
-        raw = await db["documents"].find_one({"_id": raw["_id"]})
-        intro = (f"The account page of **{_e(name)}**. Write your own notes above or below the section Markdrop keeps "
-                 "up to date.\n\n")
-        content = intro + section + "\n"
-    else:
-        content = merge(raw.get("content") or "", section)
+    content = merge(raw.get("content") or "", section)
     if content != (raw.get("content") or ""):
         try:
             await pages.check_page_lock(raw, actor, ctx, content)
@@ -273,13 +214,12 @@ async def refresh(db: AsyncIOMotorDatabase, conn: dict, company_id: str, *, user
             log.info("hubspot: couldn't update the account page %s (%s)", raw.get("slug"), exc.detail)
     await db[ACCOUNTS].update_one({"_id": key}, {"$set": {
         "workspace_id": conn["_id"], "portal_id": conn["portal_id"], "company_id": str(company_id), "name": name,
-        "team_id": conn["team_id"], "doc_id": raw["_id"], "slug": raw.get("slug"), "updated_at": now, "meetings": len(calls)},
-        "$setOnInsert": {"created_at": now}}, upsert=True)
+        "team_id": conn["team_id"], "doc_id": raw["_id"], "slug": raw.get("slug"), "updated_at": now, "meetings": len(calls)}})
     return await db[ACCOUNTS].find_one({"_id": key})
 
 
 async def account(db: AsyncIOMotorDatabase, user, actor, ctx, meeting_id: str, *, refresh_now: bool = False) -> dict:
-    """The meeting's account page (MCP, the panel's Update button): made or refreshed on request."""
+    """The meeting's existing account page (MCP, the panel's Update button), refreshed on request. 409: none."""
     row, conn = await H._usable(db, user, actor, ctx, meeting_id)
     hs = row.get("hubspot") or {}
     m = hs.get("match") if (hs.get("match") or {}).get("portal_id") == conn["portal_id"] else None
@@ -291,20 +231,12 @@ async def account(db: AsyncIOMotorDatabase, user, actor, ctx, meeting_id: str, *
             # Deals replaced account pages (2026-11-18): an existing one is kept up to date on request, no new ones.
             raise HTTPException(status_code=409, detail="Account pages are replaced by the team's Deals: open the call's deal instead.")
         if refresh_now:
-            company = await company_of(db, conn, m)
-            if not company:
-                raise HTTPException(status_code=409, detail="This call isn't matched to a HubSpot company yet. Pick the deal first.")
-            if not m.get("company_ids"):
-                from app.services import meetings
-
-                await db[meetings.COLL].update_one({"_id": row["_id"]}, {"$set": {"hubspot.match.company_ids": [company]}})
-                m = {**m, "company_ids": [company]}
-            await refresh(db, conn, company, user_id=user.id)
-            link = await link_for(db, conn, m)
+            acc, _raw = await _existing(db, conn, m) or ({}, None)
+            if acc.get("company_id"):
+                await refresh(db, conn, acc["company_id"], user_id=user.id)
+            link = await link_for(db, conn, m) or link
     except HubSpotError as exc:
         raise H._http_error(exc)
-    if link is None:
-        raise HTTPException(status_code=409, detail="Markdrop couldn't make the account page.")
     raw = await db["documents"].find_one({"slug": link["slug"]})
     from app.services import access
 

@@ -14,7 +14,7 @@ Switch on **Ask the whole company** to ask across everything you can read in the
 
 The suggested questions follow too: on a team they're written from that team's own meetings and pages of the last week, so Sales sees Sales questions and General sees the company's. See [A team's own](/workspaces/ask-markdrop#a-teams-own).
 
-::clip{src="/docs-assets/teams/ask-and-search/ask-toggle" alt="The Ask page on Ask Sales, with team chips for Sales and Marketing. Riya turns on Ask the whole company and the title changes to Ask Acme, then turns it off again."}
+::clip{src="/docs-assets/teams/ask-and-search/ask-toggle" alt="The Ask page on Ask Sales, with team chips for General, Sales, Marketing and Engineering. Riya turns on Ask the whole company and the title changes to Ask Acme, then turns it off again."}
 
 The chips under the title switch between your teams.
 
