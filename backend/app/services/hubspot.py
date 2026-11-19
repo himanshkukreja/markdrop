@@ -492,7 +492,8 @@ async def set_auto_log(db: AsyncIOMotorDatabase, user, workspace_id: str, on: bo
 
 #: The workspace's switches and their defaults (Phase 2: every one that sends a message or uses AI can be
 #: turned off by a workspace admin; each person can also turn off what reaches them, services/hubspot_notify).
-SWITCHES = {"auto_log": False, "suggest": True, "accounts": True, "precall": True, "approve": True, "deal_updates": False}
+#: (No "accounts" switch since deal folders replaced account pages: an old client's value is ignored.)
+SWITCHES = {"auto_log": False, "suggest": True, "precall": True, "approve": True, "deal_updates": False}
 
 
 def switch(conn: dict | None, key: str) -> bool:
@@ -968,7 +969,7 @@ async def panel(db: AsyncIOMotorDatabase, user, actor, ctx, meeting_id: str) -> 
                           "meeting_id": lg.get("meeting_id"),
                           "url": (base["deal"] or {}).get("url") or (base["contacts"][0]["url"] if base["contacts"] else None)}
     base["portal_url"] = f"https://{conn.get('ui_domain') or 'app.hubspot.com'}"
-    # Phase 2: suggested deal updates (services/hubspot_deals.py) and the account page (hubspot_accounts.py).
+    # Phase 2: suggested deal updates (services/hubspot_deals.py) and the archived account page, if any (hubspot_accounts.py).
     from app.services import hubspot_accounts, hubspot_deals
 
     base["suggestions"] = hubspot_deals.suggestions_view(row, conn, m, switch(conn, "suggest"))

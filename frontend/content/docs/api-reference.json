@@ -2230,7 +2230,7 @@
     },
     "PUT /api/v1/hubspot/settings": {
       "title": "HubSpot's switches",
-      "description": "Turns the workspace's HubSpot switches on or off; send only the ones to change. `auto_log` (Log calls automatically, off by default): a team call whose summary is written and that matched the meeting HubSpot booked is logged on its own. `suggest` (on): suggested deal updates after calls. `accounts` (on): account pages. `precall` (on): pre-call briefs to the team's members. `approve` (on): the Slack message with Log to HubSpot and Create tasks to a call's host. Returns the status. Admins and owners.",
+      "description": "Turns the workspace's HubSpot switches on or off; send only the ones to change. `auto_log` (Log calls automatically, off by default): a team call whose summary is written and that matched the meeting HubSpot booked is logged on its own. `suggest` (on): suggested deal updates after calls. `precall` (on): pre-call briefs to the team's members. `approve` (on): the Slack message with Log to HubSpot and Create tasks to a call's host. `deal_updates` (off): let Apply on a suggested update change the deal. Returns the status. Admins and owners.",
       "guide": {"label": "HubSpot", "href": "/integrations/hubspot#the-hubspot-card"}
     },
     "DELETE /api/v1/hubspot/connection": {
@@ -2284,8 +2284,8 @@
       "guide": {"label": "HubSpot", "href": "/integrations/hubspot#suggested-deal-updates"}
     },
     "POST /api/v1/hubspot/meetings/{meeting_id}/account": {
-      "title": "Update a meeting's account page",
-      "description": "Makes or rewrites the account page of the HubSpot company the meeting is matched to: a page in the HubSpot team with the company's deals, calls, decisions, objections and risks, open questions and tasks, in a section Markdrop keeps up to date (notes outside it stay). Returns its `name`, `slug`, `href` and `updated_at`. 409 when the meeting has no company.",
+      "title": "Update a meeting's archived account page",
+      "description": "Rewrites the existing account page of the HubSpot company the meeting is matched to (Deals replaced account pages: none are made, and existing ones are in the team's Accounts (archived) folder): the company's deals, calls, decisions, objections and risks, open questions and tasks, in a section Markdrop keeps up to date (notes outside it stay). Returns its `name`, `slug`, `href` and `updated_at`. 409 when the company has no account page.",
       "guide": {"label": "HubSpot", "href": "/integrations/hubspot#account-pages"}
     },
     "GET /api/v1/hubspot/pipeline": {

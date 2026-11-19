@@ -4,7 +4,7 @@ Settings (signed in, markdrop.in only; workspace admins change them):
     GET    /status?workspace_id=            the Integrations card: connected?, the team, scopes, counts
     PUT    /connection                      {workspace_id, token?, team_id?}: save the HubSpot key (checked with HubSpot)
     PUT    /team                            {workspace_id, team_id}: whose calls go to HubSpot
-    PUT    /settings                        {workspace_id, auto_log?, suggest?, accounts?, precall?, approve?}: the switches
+    PUT    /settings                        {workspace_id, auto_log?, suggest?, precall?, approve?, deal_updates?}: the switches
     DELETE /connection?workspace_id=        disconnect: the key, the cached HubSpot lists and every match are deleted
 
 A meeting (people who can read it and are in the HubSpot team, or workspace admins):
@@ -19,7 +19,7 @@ Phase 2 (services/hubspot_deals.py, hubspot_accounts.py, hubspot_notify.py):
     POST   /meetings/{id}/suggestions                 suggest deal updates again (one AI request)
     POST   /meetings/{id}/suggestions/{sid}/apply     apply one (PATCHes the deal; never automatic)
     POST   /meetings/{id}/suggestions/{sid}/dismiss   dismiss one
-    POST   /meetings/{id}/account                     make or update the company's account page
+    POST   /meetings/{id}/account                     update the company's existing (archived) account page
     GET    /pipeline?workspace_id=                    deals with stage, last call and why they're at risk
     GET    /me, PUT /me {precall?, approve?}          your own pre-call briefs and Slack messages
 
@@ -83,7 +83,6 @@ class HubSpotSettingsIn(BaseModel):
     workspace_id: str = Field(..., pattern=_WS)
     auto_log: Optional[bool] = Field(None, description="Log the team's calls to HubSpot after their summary is written, when the match is confident (off by default).")
     suggest: Optional[bool] = Field(None, description="Suggest deal updates after a call matched to a deal (on by default; never applied without a person).")
-    accounts: Optional[bool] = Field(None, description="Keep an account page per HubSpot company (on by default).")
     precall: Optional[bool] = Field(None, description="Pre-call briefs to the team's members before their HubSpot meetings (on by default).")
     approve: Optional[bool] = Field(None, description="A Slack message to the call's host with Log to HubSpot and Create tasks buttons (on by default).")
     deal_updates: Optional[bool] = Field(None, description="Let Apply on a suggested deal update change the deal in HubSpot (off by default; the key also needs crm.objects.deals.write).")
@@ -235,7 +234,7 @@ async def dismiss_suggestion(request: Request, meeting_id: str, suggestion_id: s
     return await hubspot_deals.dismiss(db, user, actor, ctx, _mid(meeting_id), _sid(suggestion_id))
 
 
-@router.post("/meetings/{meeting_id}/account", summary="Make or update a meeting's account page")
+@router.post("/meetings/{meeting_id}/account", summary="Update a meeting's archived account page")
 @limiter.limit("20/minute")
 async def account(request: Request, meeting_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
                   user: User = Depends(require_user)):

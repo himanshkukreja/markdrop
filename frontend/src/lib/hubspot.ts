@@ -29,7 +29,7 @@ import { request } from "@/lib/workspaces";
 export interface HubSpotScope { scope: string; why: string; required: boolean }
 export interface HubSpotTeam { id: string; name: string; visibility: "open" | "private"; slug?: string | null }
 
-export type HubSpotSwitch = "auto_log" | "suggest" | "accounts" | "precall" | "approve";
+export type HubSpotSwitch = "auto_log" | "suggest" | "precall" | "approve";
 
 export interface HubSpotStatus {
   /** The workspace's switches (auto_log off by default, the rest on). */
