@@ -194,6 +194,13 @@ class LikelyDone(Stage3World):
 
 
 class Planner(Stage3World):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        # The planner ships off (config.ask_planner_enabled); these tests turn it on.
+        saved = settings.ask_planner_enabled
+        self.addCleanup(lambda: setattr(settings, "ask_planner_enabled", saved))
+        settings.ask_planner_enabled = True
+
     async def test_hard_question_runs_the_loop_on_the_planner_model(self):
         secret = await self.team("Secret", "private", "wa", ["wa"])
         await self.put("bo-1", "Zebra launch plan", "Body", owner="wm")

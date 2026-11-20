@@ -660,8 +660,9 @@ class Settings(BaseSettings):
     search_ai_daily_usd: float = 2.0
     search_ai_monthly_usd: float = 20.0
     # Ask's planner (services/ask_plan.py): the questions the router marks hard (multi-step) get a short lookup loop
-    # and their answer from this model; everything else stays on Haiku. Off: every question on Haiku.
-    ask_planner_enabled: bool = True
+    # and their answer from this model; everything else stays on Haiku. Off: every question on Haiku. Off by default
+    # (owner, 2026-11-20): p95 doubled (≈7 → 14 s) and ≈2.7× cost for a mixed gain — on again once tuned and re-measured.
+    ask_planner_enabled: bool = False
     ask_planner_model: str = "claude-sonnet-5-5"
     # The planner's model also writes the answer; off (default): Haiku answers from the planner's lookups (eval 2026-11-20:
     # the same quality on hard questions at a quarter of the cost).
