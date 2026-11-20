@@ -49,3 +49,7 @@ a.wc-li:hover { background: var(--surface-hover); }
 .wc-li small { flex: none; color: var(--text-muted); font-size: 12px; }
 .wc-sum { display: block; color: var(--text-muted); font-size: 12.5px; line-height: 17px; white-space: normal; }
 .tm-card__hover { position: relative; z-index: 1; }
+/* Touch: the board avatar that opens a card is a 44px target (the avatar is 40px; the margin keeps the layout). */
+@media (pointer: coarse) {
+  .tm-card__hover .pc-trigger { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; margin: -2px; }
+}
