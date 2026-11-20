@@ -67,6 +67,7 @@ export function toChat(e: AskEvent, kind: AssistantScopeKind): ChatEvent | null 
       sources: e.ranked && e.ranked.length ? e.ranked.slice(0, 8).map((it) => toSource(it as never, link)) : undefined,
       note: e.scope?.label ?? null,
       threadId: e.thread_id ?? undefined,
+      people: e.people && e.people.length ? e.people : undefined,
     };
     case "limit": return { type: "limit", message: e.message };
     case "error": return { type: "error", message: e.detail, retryable: e.code !== "not_found" };

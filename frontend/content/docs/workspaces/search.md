@@ -1,8 +1,8 @@
 ---
 title: Search
 description: Find anything you can open with ⌘K. Search reads titles, headings, text and file contents, forgives typos, and answers questions with AI.
-updated: 2026-11-07
-keywords: [search, find, command k, cmd k, ctrl k, fuzzy, typo, global search, ask ai, ai search, question, trash, filters, workspace search, search this workspace, only this workspace, recent searches, recently opened, meetings, transcript, whole transcript, pdf text, html text, word, docx, excel, xlsx, csv, captions, video captions, page number, slack, /markdrop search, search log]
+updated: 2026-11-20
+keywords: [same answers as ask, one engine, search, find, command k, cmd k, ctrl k, fuzzy, typo, global search, ask ai, ai search, question, trash, filters, workspace search, search this workspace, only this workspace, recent searches, recently opened, meetings, transcript, whole transcript, pdf text, html text, word, docx, excel, xlsx, csv, captions, video captions, page number, slack, /markdrop search, search log]
 ---
 
 Press :kbd[⌘K] (:kbd[Ctrl+K] on Windows and Linux), or select the search field at the top of the app, and start typing. Search looks through everything you can open, wherever it lives, and shows results as you type.
@@ -56,9 +56,7 @@ Inside a workspace, the workspace you're in ranks a little higher, and one more 
 
 Type a question, like `how do we onboard contractors?`, or select **Ask AI ✦**. Search also asks on its own when what you type reads like a question or a description.
 
-1. AI turns your question into search terms.
-2. Search finds up to 40 items you can open that match them.
-3. AI reads their titles and short excerpts, picks the relevant ones and writes a short answer. Each claim cites its source as a number you can select.
+The answer comes from the same AI as [Ask](/workspaces/ask-markdrop): it knows who is asking, reads Markdrop's own records (who created what, exact counts and lists, comments, meetings and their action items), and answers "who knows about…", "what changed since I last looked" and questions about a person (with their card on top). Each claim cites its source as a number you can select.
 
 The answer streams in above the results, with its sources listed under it. AI can be wrong, so check the sources. An answer is never blank: if it runs long, you get what was written and a note that it was cut short.
 
@@ -68,7 +66,7 @@ Only the matching excerpts of items you can open are sent, never anything else. 
 
 AI search needs an account and counts towards your AI limits. When a limit is reached, search still works and the card says when AI will be back.
 
-For a conversation, with follow-ups, meeting transcripts and ready-made questions like **Catch me up on this week**, use [Ask](/workspaces/ask-markdrop) at the top of your home.
+Search's answer is one question at a time. For a conversation, with follow-ups and ready-made questions like **Catch me up on this week**, use [Ask](/workspaces/ask-markdrop) at the top of your home.
 
 ## Search from an AI app
 
@@ -80,7 +78,7 @@ To show workspace admins what people [couldn't find](/analytics/content-gaps), M
 
 ## Search from Slack
 
-With [Markdrop for Slack](/integrations/slack), `/markdrop search onboarding` finds what you can open, and only you see the results. `/markdrop ask` answers a question.
+With [Markdrop for Slack](/integrations/slack), `/markdrop search onboarding` finds what you can open, and only you see the results. `/markdrop ask` answers a question, the same way Ask does.
 
 ## Search from the terminal or the API
 

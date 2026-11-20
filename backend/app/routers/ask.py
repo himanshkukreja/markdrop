@@ -87,7 +87,7 @@ class AskBody(BaseModel):
     # is cut, never a 422 the panel can only show as "hit a problem").
     question: str = Field("", max_length=2000)
     thread_id: Optional[str] = Field(None, max_length=40)
-    intent: Optional[Literal["ask", "catch_up", "my_actions", "page"]] = None
+    intent: Optional[Literal["ask", "catch_up", "my_actions", "page", "what_changed"]] = None
     page: Optional[str] = Field(None, max_length=200, description="Ask AI in this page (its slug): the page, then its "
                                 "workspace's meetings (recorded decisions first) and documents. Implies intent \"page\".")
     scope: Optional[ScopeBody] = Field(None, description="What to answer from (the assistant). Without it: everything "

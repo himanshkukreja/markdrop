@@ -275,6 +275,9 @@ async def connect() -> None:
         from app.services import likely_done as _likely_done
 
         await _likely_done.ensure_indexes(db)
+        from app.services import what_changed as _what_changed
+
+        await _what_changed.ensure_indexes(db)
         from app.services import search_log as _search_log
 
         await _search_log.ensure_indexes(db)

@@ -28,6 +28,7 @@ import { useWorkspaceTree } from "@/lib/workspaceStore";
 import { quickSearch, type QuickFile } from "@/lib/me";
 import { track } from "@/lib/track";
 import type { WidgetProps } from "./widgets";
+import { markVisit } from "@/lib/people";
 import "./dashboard.css";
 
 const load = (name: keyof typeof import("./widgets")) =>
@@ -38,7 +39,7 @@ const load = (name: keyof typeof import("./widgets")) =>
 const OWN: Record<string, React.ComponentType<WidgetProps>> = {
   favorites: load("FavoritesWidget"), folder: load("FolderWidget"), backlog: load("BacklogWidget"), brief: load("BriefWidget"),
   memory: load("MemoryWidget"), deals: load("DealsWidget"), activity: load("ActivityWidget"), views: load("ViewsWidget"),
-  pinned: load("PinnedWidget"), quick: load("QuickWidget"), ask: load("AskWidget"),
+  pinned: load("PinnedWidget"), quick: load("QuickWidget"), ask: load("AskWidget"), changes: load("ChangesWidget"),
 };
 const TeamMeetings = load("TeamMeetingsWidget");
 
@@ -70,6 +71,8 @@ export function Dashboard({ userId, renderHome, editing, onEditing: setEditing }
   const seq = useRef(0);
   const timer = useRef<number | null>(null);
   const ws = d?.workspace?.id ?? null;
+  // A look at the workspace: "What changed since I last looked" counts from its end (lib/people.ts).
+  useEffect(() => { if (ws) markVisit(ws); }, [ws]);
 
   // The layout: this device's copy at once, then the server's.
   useEffect(() => {

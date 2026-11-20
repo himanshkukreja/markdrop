@@ -26,7 +26,9 @@ import { TeamDialog } from "./TeamDialog";
 import { AdminsNote, TeamTile, fmtShortDate } from "./parts";
 import { CreateProjectDialog } from "./TeamSpaces";
 import { teamsSlot } from "@/lib/teamsStore";
+import { markVisit } from "@/lib/people";
 import "./teams.css";
+import { PersonHover } from "@/components/people/PersonCard";
 
 const KIND_ICON: Record<BriefKind, string> = { shipped: "checkCircle", decision: "flag", update: "refresh", blocker: "alert", focus: "zap", note: "message" };
 const KIND_LABEL: Record<BriefKind, string> = { shipped: "Shipped", decision: "Decision", update: "Update", blocker: "Blocker", focus: "Focus", note: "Note" };
@@ -82,6 +84,9 @@ export default function TeamHome({ ws, team: teamRef, settings }: { ws: string; 
   useEffect(() => setDialog(!!settings), [settings]);
   const t = data?.team;
   useAssistantHere({ workspace: ws });
+  // "What changed since I last looked" counts from the end of this look (lib/people.ts).
+  const seenTeam = data && (data as { can_read?: boolean }).can_read !== false ? t?.id : undefined;
+  useEffect(() => { if (seenTeam) markVisit(ws, { team: seenTeam }); }, [ws, seenTeam]);
 
   if (error && !data) {
     return (
@@ -450,7 +455,9 @@ function MembersCard({ home, ws, onManage }: { home: Home; ws: string; onManage?
           const st = statusOf.get(m.id);
           return (
             <li key={m.id} className="tz-row">
-              <Avatar name={m.name || m.email} src={m.picture ?? undefined} size="sm" />
+              <PersonHover userId={m.id} workspace={ws} label={`${m.name || m.email}: card`}>
+                <Avatar name={m.name || m.email} src={m.picture ?? undefined} size="sm" />
+              </PersonHover>
               <span className="tz-row__main">
                 <span className="tz-row__title">{m.name || m.email}</span>
                 {st?.label && <span className="tz-row__sub">{st.emoji ? `${st.emoji} ` : ""}{st.label}</span>}

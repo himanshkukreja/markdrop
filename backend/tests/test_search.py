@@ -33,7 +33,7 @@ from app.services import ai_output, ai_usage, search, search_ai, search_index
 from app.services import search_text as st
 
 settings = get_settings()
-_AI_SAVED = ("search_ai_enabled", "search_ai_daily_usd", "search_ai_monthly_usd")
+_AI_SAVED = ("search_ai_enabled", "search_ai_daily_usd", "search_ai_monthly_usd", "search_ai_engine")
 
 
 class SearchWorld(AccessWorld):
@@ -641,6 +641,7 @@ class AISearch(SearchWorld, AIEnv):
         settings.search_ai_enabled = True
         settings.search_ai_daily_usd = 2.0
         settings.search_ai_monthly_usd = 20.0
+        settings.search_ai_engine = "search"     # the older engine (⌘K runs on Ask's: tests/test_ai_stage4.py)
         self.addCleanup(self.restore_ai)
         self.addCleanup(lambda: [setattr(settings, k, v) for k, v in self.saved_s.items()])
         await self.put("onboarding", "Onboarding Playbook",

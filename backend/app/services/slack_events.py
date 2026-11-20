@@ -116,7 +116,7 @@ async def _search(db: AsyncIOMotorDatabase, inst: dict, user, q: str, response_u
 
 
 async def _ask(db: AsyncIOMotorDatabase, inst: dict, user, q: str, response_url: str | None, *, meetings: bool) -> None:
-    from app.services import access, meetings_ai, pages_ai, search_ai
+    from app.services import access, ask_surfaces, meetings_ai, pages_ai, search_ai
 
     actor, ctx = access.Actor.of(user, cred="session"), access.Ctx(db, surface="slack")
     try:
@@ -133,6 +133,11 @@ async def _ask(db: AsyncIOMotorDatabase, inst: dict, user, q: str, response_url:
                 base, _, frag = href.partition("#")
                 sources.append({"n": c.get("label") or i, "title": c.get("text") or c.get("label") or "Source",
                                 "url": _abs(base) + (f"#{frag}" if frag else "")})
+        elif ask_surfaces.engine() == "ask":
+            # Ask Markdrop's engine (who's asking, Team memory, the index, deals, Jira), as ⌘K (services/ask_surfaces.py).
+            done = await ask_surfaces.slack(db, actor, ctx, q, scope=await _scope_for(db, inst, user))
+            sources = [{"n": c["n"], "title": c.get("title"), "url": _abs(c.get("url") or c.get("slug"))}
+                       for c in done.get("citations") or [] if c.get("url") or c.get("slug")]
         else:
             done = await search_ai.collect(search_ai.ask(db, actor, ctx, q, scope=await _scope_for(db, inst, user),
                                                          via="slack"))

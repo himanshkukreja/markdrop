@@ -9,6 +9,8 @@ import { FileIcon, Icon, Spinner } from "@/components/ui";
 import { askSearch, type AskEvent, type Citation, type SearchItem, type TrashHit } from "@/lib/search";
 import { citeSegments, highlight, KIND_LABELS, shortAgo, whereOf } from "@/lib/searchCore.mjs";
 import s from "./search.module.css";
+import { PersonCardView } from "@/components/people/PersonCard";
+import type { PersonCardData } from "@/lib/people";
 
 /** Text with the server's match ranges as <mark>. */
 export function Marked({ text, marks, className }: { text: string; marks?: unknown; className?: string }) {
@@ -90,6 +92,8 @@ export interface AiState {
   citations: Citation[];
   ranked: SearchItem[];
   message: string;
+  /** A question about a person: their card(s), above the answer (components/people). */
+  people?: PersonCardData[];
 }
 
 const IDLE: AiState = { status: "idle", question: "", stage: null, text: "", answer: "", citations: [], ranked: [], message: "" };
@@ -114,7 +118,7 @@ export function useAiSearch() {
           case "status": return { ...st, stage: e.stage };
           case "results": return { ...st, ranked: e.items || [] };
           case "delta": return { ...st, stage: "answering", text: st.text + e.text };
-          case "done": return { ...st, status: "done", stage: null, answer: e.answer || st.text, citations: e.citations || [] };
+          case "done": return { ...st, status: "done", stage: null, answer: e.answer || st.text, citations: e.citations || [], people: e.people || [] };
           case "limit": return { ...st, status: "limit", stage: null, message: e.message };
           case "error": return { ...st, status: "error", stage: null, message: e.detail || "AI search hit a problem. Try again." };
           default: return st;
@@ -195,6 +199,9 @@ export function AiAnswer({ state, onOpen, onRetry, compact }: {
         </p>
       ) : (
         <div className={s.aiBody}>
+          {state.people && state.people.length > 0 && (
+            <div className="pc-cards" data-testid="ai-people">{state.people.map((p) => <PersonCardView key={p.id} card={p} compact />)}</div>
+          )}
           {blocks.length ? blocks.map((b, i) => {
             const lines = b.split("\n");
             if (lines.every((l) => /^\s*[-*]\s+/.test(l))) {

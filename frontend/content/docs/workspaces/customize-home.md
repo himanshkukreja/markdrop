@@ -3,7 +3,7 @@ title: Customize your Home
 description: Choose what your Home shows. Add, move and remove widgets in a main and a side column, start from a template, and set a default for your workspace.
 updated: 2026-11-20
 nav: Customize your Home
-keywords: [home, dashboard, customize, customise, widgets, add widget, move widget, main column, side column, template, templates, writer, meetings first, sales, manager, reset to default, workspace default, needs you, my to-dos, team backlog, recent pages, favorites, folder, meetings, team brief, who's doing what, deals, activity, views, pinned page, quick actions, ask suggestions, get_dashboard, set_dashboard]
+keywords: [what changed widget, since you last looked, home, dashboard, customize, customise, widgets, add widget, move widget, main column, side column, template, templates, writer, meetings first, sales, manager, reset to default, workspace default, needs you, my to-dos, team backlog, recent pages, favorites, folder, meetings, team brief, who's doing what, deals, activity, views, pinned page, quick actions, ask suggestions, get_dashboard, set_dashboard]
 ---
 
 Your **Home** is the first screen after you sign in. The greeting and the Ask bar are always at the top. Under them are two columns of widgets that you choose: a wide **main** column and a narrow **side** column. Everyone starts with the same Default Home. You can change yours without changing anyone else's.
@@ -43,6 +43,7 @@ A Home can have up to 16 widgets. On a phone or a narrow window, the two columns
 | **Team brief** | A team's weekly brief. | Team |
 | **Who's doing what** | A team's [memory](/teams/meetings-and-memory): who is working on what. | Team |
 | **Deals** | Open HubSpot deals with their stage and amount. Only in a workspace with [HubSpot](/integrations/hubspot) connected. | How many |
+| **What changed** | What happened since you last looked at the workspace or one team: meetings and their decisions, new and updated pages and files, action items, comments. See [What changed](/workspaces/team#what-changed). | Team, how many |
 | **Activity** | New pages, files and meetings across the teams you can see. | How many |
 | **My documents' views** | Views and readers of what you published, and your top links. | Last 7 or 30 days |
 | **Pinned page** | One page you choose, shown right on your Home to read. | Page |

@@ -4,6 +4,7 @@
  * `ChatTransport` turns a question into `ChatEvent`s, citations arrive already described, and scope /
  * context are opaque values the transport understands.
  */
+import type { PersonCardData } from "@/lib/people";
 import type { ReactNode } from "react";
 
 /** One source an answer cites. `token` is what the model wrote between brackets ("s12", "M2-s14", "3"). */
@@ -40,7 +41,9 @@ export type ChatEvent =
   /** What it is reading; `note`: which part it picked ("Only Daily standup · last month"). */
   | { type: "sources"; items: ChatSource[]; note?: string | null }
   | { type: "delta"; text: string }
-  | { type: "done"; answer: string; citations: ChatCitation[]; sources?: ChatSource[]; note?: string | null; threadId?: string | null }
+  | { type: "done"; answer: string; citations: ChatCitation[]; sources?: ChatSource[]; note?: string | null; threadId?: string | null;
+      /** A question about a person: their card(s), shown above the answer (components/people/PersonCard.tsx). */
+      people?: PersonCardData[] }
   /** An AI budget or limit ("AI budget reached, try again later"). */
   | { type: "limit"; message: string }
   | { type: "error"; message: string; retryable?: boolean };
@@ -72,6 +75,8 @@ export interface ChatTurn {
   scopeNote?: string | null;
   citations: ChatCitation[];
   sources: ChatSource[];
+  /** Person cards for a question about a person (above the answer). */
+  people?: PersonCardData[];
 }
 
 /** A suggested question; `label` (optional): a small topic line above it ("Sourcing"). */

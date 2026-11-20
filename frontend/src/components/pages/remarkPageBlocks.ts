@@ -241,7 +241,7 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
             parent.children![index] = { type: "text", value: textOf(node) };
             return;
           } else if (node.name === "person") {
-            set(node, "span", { dataPb: "person", dataLabel: textOf(node).trim() || "a person" });
+            set(node, "span", { dataPb: "person", dataLabel: textOf(node).trim() || "a person", dataUid: attr(node, "id") || undefined });
             node.children = [];
           } else if (node.name === "kbd" && node.children?.length) {
             set(node, "kbd", { className: ["md-kbd"] });

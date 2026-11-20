@@ -44,6 +44,7 @@ import type { JiraIssue, JiraLink } from "@/lib/jira";
 import "./pages.css";
 import "./page-blocks.css";
 import "@/components/jira/jira.css";
+import { PersonHover } from "@/components/people/PersonCard";
 
 // Jira chips load only on pages that have some (components/jira; never on a public page's first paint).
 const JiraChip = dynamic(() => import("@/components/jira/JiraChip").then((m) => m.JiraChip), { ssr: false, loading: () => null });
@@ -62,7 +63,7 @@ export interface PageJira {
 
 
 const PB_ATTRS = ["dataPb", "dataOpen", "dataKind", "dataLabel", "dataSrc", "dataMode", "dataAsset", "dataIcon", "dataColor", "dataHeading", "dataUrl", "dataTitle", "dataDesc", "dataImage", "dataSite", "dataPerson", "dataOptions", "dataLock", "dataRef", "dataQuery"];
-const PB_PROPS = ["data-pb", "data-open", "data-kind", "data-label", "data-src", "data-mode", "data-asset", "data-icon", "data-color", "data-heading", "data-url", "data-title", "data-desc", "data-image", "data-site", "data-person", "data-options", "data-lock", "data-ref", "data-query"];
+const PB_PROPS = ["data-pb", "data-open", "data-kind", "data-label", "data-src", "data-mode", "data-asset", "data-icon", "data-color", "data-heading", "data-url", "data-title", "data-desc", "data-image", "data-site", "data-person", "data-options", "data-lock", "data-ref", "data-query", "data-uid"];
 
 /** Block attributes (attrs.mjs) any element may carry: anchor, colours, image and table layout. */
 const BLOCK_ATTRS = ["dataBid", "dataColor", "dataBg", "dataWidth", "dataAlign", "dataWidths", "dataHcol", "dataHrow", "dataCaption", "dataBlock"];
@@ -280,12 +281,15 @@ function Span({ node: _n, children, ...rest }: P<"span">) {
   }
   if (pb === "color") return <span data-color={str(rest["data-color"])} data-bg={str(rest["data-bg"])}>{children}</span>;
   if (pb === "person") {
-    return (
+    const chip = (
       <span className="pb-mention pb-mention--person">
         <span aria-hidden>@</span>
         <span className="ph-mask">{String(rest["data-label"] ?? "")}</span>
       </span>
     );
+    // Signed-in readers who share a workspace with them get the person's card on hover / click (else a plain chip).
+    const uid = str(rest["data-uid"]);
+    return uid && /^[0-9a-f]{24}$/.test(uid) ? <PersonHover userId={uid} label={`${String(rest["data-label"] ?? "Person")}: card`}>{chip}</PersonHover> : chip;
   }
   if (pb === "asset") {
     return (
