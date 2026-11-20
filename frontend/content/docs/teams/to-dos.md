@@ -1,7 +1,7 @@
 ---
 title: Personal to-do pages
 description: Your action items from the team's calls and the tasks on its pages that mention you, on one page. Create or refresh it in one click.
-updated: 2026-11-19
+updated: 2026-11-20
 nav: To-do pages
 keywords: [to-dos, todos, to do list, my to-dos, create my to-dos, refresh to-dos, create for everyone, page tasks, task mentions, action items, personal to-do page, per person, per company, hubspot company, internal, tick, check off, sync, two-way, team leads, private, backfill, my_todos, team_todos, tick_todo, refresh_my_todos]
 ---
@@ -40,6 +40,8 @@ A ticked item stays on the page for two weeks, so you can untick it. A page with
 Write your own to-dos and notes above or below Markdrop's section. Markdrop never changes them. It only rewrites what's between the section's heading and its closing line.
 
 ## Tick it anywhere
+
+Your open to-dos also show in the **My to-dos** widget on your [Home](/workspaces/customize-home), where you can tick them.
 
 An item on your to-do page and the action item on the meeting page are the same task:
 

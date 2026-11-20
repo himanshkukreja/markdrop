@@ -1,7 +1,7 @@
 ---
 title: Assign, Home and sign-off
 description: Turn a comment thread into someone's task, see the threads waiting on you on Home, and sign off knowing which discussions are still open.
-updated: 2026-11-19
+updated: 2026-11-20
 nav: Assign, Home and sign-off
 prerequisites: [/collaboration/comments]
 keywords: [assign, assignee, assign thread, task, action items, home, waiting on you, today, team page, sign-off, sign off anyway, open threads, open comments, approval, list_waiting_on_me, assign_thread]
@@ -25,7 +25,7 @@ To track it in Jira instead, choose **Create Jira issue** on the thread. See [Tu
 
 ## Waiting on you, on Home
 
-Home's **Today** lists the comment threads waiting on you, newest first:
+Home's **Today** (part of the **Needs you** widget on the Default Home; you can [move or add it](/workspaces/customize-home)) lists the comment threads waiting on you, newest first:
 
 - threads **assigned** to you,
 - threads whose newest message **mentions** you,

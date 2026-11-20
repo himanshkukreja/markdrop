@@ -1,7 +1,7 @@
 ---
 title: Team backlog
 description: One shared page per team with every action item and customer ask from its calls, sorted into categories after every call. Filter, edit and comment.
-updated: 2026-11-19
+updated: 2026-11-20
 nav: Backlog
 keywords: [backlog, team backlog, product backlog, action items, customer asks, feature requests, bugs, improvements, follow-ups, questions, categories, auto categorized, triage, sales calls, customer calls, dedupe, mentioned in calls, filter, filter bar, hide done, export csv, copy list, in progress, won't do, refresh backlog, team settings, private calls, team_backlog, update_backlog_item, refresh_team_backlog]
 ---
@@ -77,6 +77,8 @@ Your change always wins. Markdrop's automatic sorting never changes a category, 
 Select an item's text and comment, as on any page. Comments stay attached to the item when the list updates after a new call, when you move it to another category, and when its status changes.
 
 ## Stays in step with the calls
+
+To keep a team's backlog in view, add the **Team backlog** widget to your [Home](/workspaces/customize-home), filtered to a category or status, for example the Sales team's open follow-ups.
 
 An item from an action item and the action item on the meeting page are kept in step:
 

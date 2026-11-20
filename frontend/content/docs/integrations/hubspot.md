@@ -1,7 +1,7 @@
 ---
 title: HubSpot
 description: Your team's calls written up in HubSpot on the right deal, a folder per open deal, suggested deal updates, pre-call briefs and your pipeline in Ask.
-updated: 2026-11-19
+updated: 2026-11-20
 keywords: [hubspot, crm, deal, deals, contact, contacts, company, pipeline, stage, deal stage, amount, close date, deal owner, sales, sales team, log to hubspot, log calls, log calls automatically, internal notes, hs_internal_meeting_notes, meeting notes, call notes, booked meeting, scheduling link, hubspot zoom, duplicate, no duplicates, tasks, hubspot tasks, action items, approve, service key, service keys, private app, legacy private app, access token, pat-, scopes, crm.objects.contacts.read, crm.objects.contacts.write, crm.objects.companies.read, crm.objects.deals.read, crm.objects.owners.read, crm.objects.deals.write, pick the deal, change match, match again, disconnect, hubspot_status, hubspot_match, log_to_hubspot, hubspot_tasks, suggested updates, suggest deal updates, apply, dismiss, evidence, next step, competitor, budget, decision maker, account page, account pages, accounts folder, pre-call brief, pre-call briefs, before the call, slack, log from slack, create tasks from slack, stop these, pipeline, deals at risk, at risk, no call in 14 days, close date passed, weekly brief, ask, hubspot_suggestions, hubspot_account, hubspot_pipeline, hubspot_notifications, deal folders, deal folder, deals section, deals board, deal page, deal overview, sync now, closed won, closed lost, sales assets, attachments, emails, sales-email-read, files.ui_hidden.read, hubspot_list_deals, hubspot_deal_folder, hubspot_sync_deals]
 ---
 
@@ -114,7 +114,7 @@ Apply needs the `crm.objects.deals.write` scope on the key. Without it, Apply sa
 
 Every **open** deal in the connected HubSpot account, in every pipeline, gets a folder for the HubSpot team: its calls, what HubSpot knows about it and the team's sales assets, in one place. Only the HubSpot team's members (and workspace admins) see deals; no other team does.
 
-Open the team in the sidebar and choose **Deals**. The header shows how many deals are open, what the pipeline is worth, when the deals were last synced, and **Open HubSpot**. Under it, one row of controls:
+Open the team in the sidebar and choose **Deals**. (Want open deals on your Home too? Add the **Deals** widget, or start from the **Sales** template: see [Customize your Home](/workspaces/customize-home).) The header shows how many deals are open, what the pipeline is worth, when the deals were last synced, and **Open HubSpot**. Under it, one row of controls:
 
 - **Board** (the default): a column per pipeline stage with its deal count and total amount. A card shows the deal, its company, the owner, the amount, the close date and how many calls it has. A deal without calls says **No calls yet**; a deal whose last call was more than 14 days ago says **Quiet N days**. A long stage shows its five biggest deals first, then **Show N more**; an empty stage folds into a thin strip. The board scrolls sideways on its own; the page doesn't.
 - **List**: the same deals as a table. Choose a column heading to sort by it (again to reverse).
