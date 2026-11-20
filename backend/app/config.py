@@ -659,6 +659,10 @@ class Settings(BaseSettings):
     search_ai_enabled: bool = True
     search_ai_daily_usd: float = 2.0
     search_ai_monthly_usd: float = 20.0
+    # The engine behind ⌘K's AI answer and Slack's /markdrop ask (AI quality stage 4, R9): "ask" (default) — Ask
+    # Markdrop's (services/ask_markdrop.py: who's asking, Team memory, the index, deals, Jira); "search" — the older
+    # one-shot AI search (services/search_ai.ask), kept as a switch back.
+    search_ai_engine: str = "ask"
     # Ask's planner (services/ask_plan.py): the questions the router marks hard (multi-step) get a short lookup loop
     # and their answer from this model; everything else stays on Haiku. Off: every question on Haiku. Off by default
     # (owner, 2026-11-20): p95 doubled (≈7 → 14 s) and ≈2.7× cost for a mixed gain — on again once tuned and re-measured.

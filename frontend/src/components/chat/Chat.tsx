@@ -14,6 +14,7 @@
  *    edits the last question, Esc stops an answer (or closes the sources); scope chips; a stop button.
  *  - Screen readers: the thread is a log; a finished answer is announced once (not every streamed word).
  */
+import { PersonCardView } from "@/components/people/PersonCard";
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState,
   type KeyboardEvent, type ReactNode } from "react";
 import Markdown, { type Components } from "react-markdown";
@@ -321,6 +322,9 @@ const TurnView = memo(function TurnView({ turn, pattern, assistantName, activeTo
         <div className="ch-a__body">
           <span className="ch-sr">{assistantName}:</span>
           {turn.scopeNote && <p className="ch-scopenote" data-testid="chat-scopenote"><Icon name="filter" />{turn.scopeNote}</p>}
+          {turn.people && turn.people.length > 0 && shown && (
+            <div className="pc-cards" data-testid="chat-people">{turn.people.map((p) => <PersonCardView key={p.id} card={p} compact />)}</div>
+          )}
           {typing && (
             <div className="ch-typing" role="status" data-testid="chat-typing">
               <span className="ch-dots" aria-hidden><i /><i /><i /></span>

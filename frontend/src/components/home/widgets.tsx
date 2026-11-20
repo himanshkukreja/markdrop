@@ -29,7 +29,10 @@ import { FeedCard, ItemIcon, MeetingsCard, WhoCard } from "@/components/teams/Ho
 import { BriefCard } from "@/components/teams/TeamHome";
 import { fmtShortDate } from "@/components/teams/parts";
 import { track } from "@/lib/track";
+import { getChanges, markVisit, type Changes } from "@/lib/people";
+import { inApp } from "@/components/people/PersonCard";
 import "@/components/teams/teams.css";
+import "@/components/people/people.css";
 
 const PageRenderer = dynamic(() => import("@/components/pages/PageRenderer").then((m) => m.PageRenderer), {
   ssr: false, loading: () => <Skeleton variant="rect" height={160} />,
@@ -235,6 +238,59 @@ export function ActivityWidget({ ws, w }: WidgetProps) {
     <div data-testid="home-w-activity">
       <FeedCard items={(h.activity?.items ?? h.recent).slice(0, count - meets.length)} meetings={meets} across />
     </div>
+  );
+}
+
+/* ── What changed since I last looked ── */
+
+function sinceText(c: Changes): string {
+  const d = new Date(c.since);
+  const when = Number.isNaN(d.getTime()) ? "" : d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return c.basis === "visit" ? `Since you last looked · ${when}` : c.basis === "default" ? "The last 7 days (no earlier visit)" : `Since ${when}`;
+}
+
+export function ChangesWidget({ ws, w }: WidgetProps) {
+  const team = typeof w.settings.team === "string" ? w.settings.team : null;
+  const count = n(w, 6);
+  const got = useLoad<Changes>(ws ? `changes:${ws}:${team ?? ""}:${count}` : null, () => getChanges(ws!, { team, limit: count }));
+  useEffect(() => { if (ws && got) markVisit(ws, team ? { team } : undefined); }, [ws, team, got]);
+  const title = team ? `What changed in ${teamName(ws, team) ?? "the team"}` : "What changed";
+  const total = got ? Object.values(got.totals).reduce((a, b) => a + b, 0) : 0;
+  const groups = got ? ([
+    ["mic", "Meetings", got.totals.meetings, got.meetings.slice(0, count).map((m, i) => (
+      <a key={i} className="wc-li md-focus" href={inApp(m.url) ?? "#"} data-testid="home-change">
+        <span className="wc-t" dir="auto">{m.title}{m.summary ? <span className="wc-sum">{m.summary}</span> : null}</span>
+        <small>{fmtShortDate(m.date)}</small></a>))],
+    ["check", "Decisions", got.totals.decisions, got.decisions.slice(0, Math.min(3, count)).map((d, i) => (
+      <a key={i} className="wc-li md-focus" href={inApp(d.url) ?? "#"}><span className="wc-t" dir="auto">{d.text}</span><small>{d.meeting}</small></a>))],
+    ["plus", "New pages & files", got.totals.documents_new, got.documents_new.slice(0, count).map((d, i) => (
+      <a key={i} className="wc-li md-focus" href={inApp(d.url) ?? "#"} data-testid="home-change">
+        <span className="wc-t" dir="auto">{d.title}</span><small>{[d.by, fmtShortDate(d.at)].filter(Boolean).join(" · ")}</small></a>))],
+    ["edit", "Updated", got.totals.documents_updated, got.documents_updated.slice(0, count).map((d, i) => (
+      <a key={i} className="wc-li md-focus" href={inApp(d.url) ?? "#"} data-testid="home-change">
+        <span className="wc-t" dir="auto">{d.title}</span><small>{[d.by, fmtShortDate(d.at)].filter(Boolean).join(" · ")}</small></a>))],
+    ["checkSquare", "Action items", got.totals.action_items, got.action_items.slice(0, Math.min(4, count)).map((a, i) => (
+      <a key={i} className="wc-li md-focus" href={inApp(a.url) ?? "#"}>
+        <span className="wc-t" dir="auto">{a.done ? <s>{a.text}</s> : a.text}</span><small>{a.owner ?? ""}</small></a>))],
+    ["message", "Comments", got.totals.comments, got.comments.slice(0, Math.min(4, count)).map((c, i) => (
+      <a key={i} className="wc-li md-focus" href={inApp(c.url) ?? "#"}>
+        <span className="wc-t" dir="auto">{c.by ? `${c.by}: ` : ""}{c.text || "a comment"}<span className="wc-sum">on {c.on}</span></span>
+        <small>{fmtShortDate(c.at)}</small></a>))],
+  ] as const).filter(([, , t]) => t > 0) : [];
+  return (
+    <Card w={w} icon="history" title={title} chip={got ? `${total} new` : undefined}>
+      {got === null ? <Rows n={4} /> : got === false ? <Failed /> : (
+        <>
+          <p className="wc-since" data-testid="home-changes-since">{sinceText(got)}</p>
+          {groups.length === 0 ? <p className="th-empty">Nothing new since then.</p> : groups.map(([icon, label, t, rows]) => (
+            <div key={label} className="wc-group">
+              <h3 className="wc-h"><Icon name={icon} size={13} /> {label} <b>{t}</b></h3>
+              {rows}
+            </div>
+          ))}
+        </>
+      )}
+    </Card>
   );
 }
 

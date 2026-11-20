@@ -211,9 +211,14 @@ async def person_card(ctx: Context, args: dict) -> tuple[str, dict]:
     names = ask_route._Names(ctx.db, actor, actx)
     await names.load([ws])
     teams = await ask_route._team_names(actx, ctx.user.id, [ws])
-    sec = await ask_route._person_card(ctx.db, actor, actx, {"id": p["id"], "name": p["name"]}, [ws], teams, names)
-    lines = [sec.head] + [f"- {r.text}" for r in sec.rows]
-    return "\n".join(lines), {"person": {"id": p["id"], "name": p["name"]}, "lines": [r.text for r in sec.rows]}
+    from app.services import person_cards
+
+    card = await person_cards.card(ctx.db, actor, actx, ws, p["id"], names=names, teams=teams, big=True)
+    if card is None:
+        raise ToolError(f"No member “{args.get('person')}” in this workspace.")
+    head, rows = person_cards.text_lines(card)
+    return "\n".join([head] + [f"- {r}" for r in rows]), {"person": {"id": p["id"], "name": p["name"]}, "lines": rows,
+                                                         "card": card}
 
 
 async def team_overview(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -227,6 +232,54 @@ async def team_overview(ctx: Context, args: dict) -> tuple[str, dict]:
     text = "\n\n".join("\n".join([s.head] + [f"- {r.text}" for r in s.rows] + ([s.tail] if s.tail else [])) for s in secs)
     return text, {"team": team.get("name"), "team_id": str(team["_id"]),
                   "sections": [{"head": s.head, "lines": [r.text for r in s.rows]} for s in secs]}
+
+
+async def what_changed_tool(ctx: Context, args: dict) -> tuple[str, dict]:
+    from datetime import datetime, timezone
+
+    from app.services import what_changed
+
+    ws = await _ws(ctx, args["workspace"])
+    actor, actx = actor_of(ctx), access.Ctx(ctx.db, surface="mcp")
+    team = await _team(ctx, actx, ws, args.get("team"))
+    project = None
+    if args.get("project"):
+        view = await actx.team_view(ws, ctx.user.id)
+        ref = str(args["project"]).strip()
+        project = ref if ref in view.readable_projects else next(
+            (pid for pid in view.readable_projects if ((view.projects.get(pid) or {}).get("name") or "").casefold() == ref.casefold()), None)
+        if project is None:
+            raise ToolError(f"No project “{ref}” you can open.")
+    since = None
+    if args.get("since"):
+        try:
+            since = datetime.fromisoformat(str(args["since"]).replace("Z", "+00:00"))
+        except ValueError:
+            raise ToolError("since: an ISO date or time (YYYY-MM-DD or YYYY-MM-DDTHH:MM).")
+        if since.tzinfo is None:
+            since = since.replace(tzinfo=timezone.utc)
+    ch = await what_changed.changes(ctx.db, actor, actx, ws, since=since, team=str(team["_id"]) if team else None,
+                                    project=project, limit=max(1, min(int(args.get("limit") or 12), 50)))
+    label = (f"team {team.get('name')}" if team else None)
+    return what_changed.text(ch, label=label), ch.as_dict()
+
+
+async def who_knows_tool(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import search, search_ai, who_knows
+
+    ws = await _ws(ctx, args["workspace"])
+    topic = str(args.get("topic") or "").strip()[:200]
+    if not topic:
+        raise ToolError("topic: what to find people for.")
+    actor, actx = actor_of(ctx), access.Ctx(ctx.db, surface="mcp")
+    cands, _w = await search_ai.retrieve(ctx.db, actor, actx, search.Query(q=topic, scope=ws, snippets=False), [topic])
+    items = [(c.raw["_id"], None, []) for c in cands if c.kind in search.DOC_KINDS and (c.raw or {}).get("_id") is not None
+             and not c.raw.get("encrypted")]
+    found = await who_knows.connected(ctx.db, actor, actx, items)
+    if not found:
+        return f"Nobody stands out for “{topic}” in what you can open.", {"people": []}
+    return (f"People connected to “{topic}”, strongest first:\n" + "\n".join(f"- {x}" for x in who_knows.lines(found)),
+            {"people": found})
 
 
 INDEX_TOOLS = [
@@ -254,7 +307,7 @@ INDEX_TOOLS = [
                       "says they are working on. person: name, email or id; two members sharing a name → pass the full name."),
          scope=READ, input_schema={"type": "object", "properties": {"workspace": _WS, "person": _PERSON},
                                    "required": ["workspace", "person"]},
-         output_schema=_out({"person": _O, "lines": {"type": "array", "items": {"type": "string"}}}),
+         output_schema=_out({"person": _O, "lines": {"type": "array", "items": {"type": "string"}}, "card": _O}),
          annotations=_ann(True, False, True), handler=person_card),
     Tool(name="team_overview", title="A team at a glance",
          description=("A team you can open: roster and lead, what each member is working on (Team memory), the latest weekly "
@@ -281,4 +334,25 @@ INDEX_TOOLS = [
                                     "required": ["key"]},
          output_schema=_out({"dismissed": {"type": "boolean"}}),
          annotations=_ann(False, False, True), handler=dismiss_likely_done),
+    Tool(name="what_changed", title="What changed since I last looked",
+         description=("What changed in a workspace (or one team or project of it) since you last looked there — the end of your "
+                      "previous visit on the website; never visited: the last 7 days — or since a date you give: meetings held "
+                      "(with summaries) and the decisions recorded in them, new and updated documents, action items written "
+                      "down, comment threads with activity. Only what you can open, with exact totals."),
+         scope=READ, input_schema={"type": "object", "properties": {
+             "workspace": _WS, "team": _TEAM,
+             "project": {"type": "string", "maxLength": 80, "description": "A project id or name you can open."},
+             "since": {"type": "string", "maxLength": 40, "description": "YYYY-MM-DD or an ISO time; default: when you last looked."},
+             "limit": {"type": "integer", "minimum": 1, "maximum": 50}}, "required": ["workspace"]},
+         output_schema=_out({"since": {"type": "string"}, "basis": {"type": "string"}, "totals": _O}),
+         annotations=_ann(True, False, True), handler=what_changed_tool),
+    Tool(name="who_knows", title="Who knows about a topic",
+         description=("The people connected to a topic in a workspace, strongest first, each with why: who created or edited the "
+                      "documents about it, owns their action items, commented on them, or attended the meetings about it. "
+                      "Only items you can open."),
+         scope=READ, input_schema={"type": "object", "properties": {
+             "workspace": _WS, "topic": {"type": "string", "maxLength": 200, "description": "What to find people for."}},
+             "required": ["workspace", "topic"]},
+         output_schema=_out({"people": {"type": "array", "items": _O}}),
+         annotations=_ann(True, False, True), handler=who_knows_tool),
 ]

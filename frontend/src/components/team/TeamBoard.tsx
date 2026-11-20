@@ -26,6 +26,7 @@ import { TeamTodos } from "@/components/todos/TodoCards";
 import { JiraCardLine, JiraGlance, JiraTeamContext, useJiraTeam } from "@/components/jira/JiraTeam";
 import type { JiraTeam } from "@/lib/jira";
 import "./team.css";
+import { PersonHover } from "@/components/people/PersonCard";
 
 type Range = "7" | "14";
 
@@ -301,7 +302,9 @@ function MemberCard({ c, ws, days, today, jira }: { c: Card; ws: string; days: n
     <li className={`tm-card tm-card--${c.status.state}`} data-testid="team-card" data-person={c.name}>
       <Link href={personHref(ws, c.id)} className="tm-card__link" aria-label={`${c.name}: ${c.status.label}`} />
       <div className="tm-card__top">
-        <Avatar name={c.name} src={c.avatar_url ?? undefined} size="lg" />
+        <PersonHover userId={c.id} workspace={ws} className="tm-card__hover" label={`${c.name}: card`}>
+          <Avatar name={c.name} src={c.avatar_url ?? undefined} size="lg" />
+        </PersonHover>
         <div className="tm-card__who">
           <p className="tm-card__name" title={c.name}><span className="tm-card__nametext">{c.name}</span>{c.you && <span className="tm-you">You</span>}</p>
           <p className="tm-card__role">{c.title || (c.role ? c.role[0]!.toUpperCase() + c.role.slice(1) : "")}</p>

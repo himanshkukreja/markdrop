@@ -16,6 +16,7 @@
  * Signed-in only. Everything cited is something the asker can open now (the server decides it again
  * before answering and when a conversation is reopened); the UI never filters for privacy.
  */
+import type { PersonCardData } from "@/lib/people";
 import { API_BASE, getToken } from "@/lib/api";
 import { request } from "@/lib/workspaces";
 import { SseParser } from "@/lib/pages-ai/sse";
@@ -90,7 +91,9 @@ export type AskEvent =
   | { type: "results"; items: AskResultItem[]; note?: string | null }
   | { type: "delta"; text: string }
   | { type: "done"; request_id: string; thread_id: string | null; intent: AskIntent | "page" | "meetings"; answer: string; citations: AskCitation[]; ranked: AskResultItem[]; truncated?: boolean;
-      scope?: { kind: AssistantScopeKind; label: string } | null; engine?: string | null }
+      scope?: { kind: AssistantScopeKind; label: string } | null; engine?: string | null;
+      /** A question about a person: their card(s) (lib/people.ts). */
+      people?: PersonCardData[] }
   | { type: "limit"; reason: string; message: string }
   | { type: "error"; detail: string; code?: string };
 

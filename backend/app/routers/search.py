@@ -137,5 +137,10 @@ class AskBody(BaseModel):
 async def ask(request: Request, body: AskBody, db: AsyncIOMotorDatabase = Depends(get_db),
               user: User = Depends(require_user)):
     actor, ctx = _ac(request, db, user)
+    from app.services import ask_surfaces
+
+    if ask_surfaces.engine() == "ask":
+        # One engine (AI quality stage 4): Ask Markdrop's, in this endpoint's contract (services/ask_surfaces.py).
+        return sse(ask_surfaces.palette(db, actor, ctx, body.question, scope=_scope(body.scope)))
     gen = search_ai.ask(db, actor, ctx, body.question, scope=_scope(body.scope), current=_ws_id(body.current))
     return sse(gen)

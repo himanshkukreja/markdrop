@@ -61,7 +61,7 @@ FEATURE = search_ai.FEATURE          # the budget decision: see the module docst
 MODEL = search_ai.MODEL
 RESERVE = 0.015
 COLL = "ask_threads"
-INTENTS = ("ask", "catch_up", "my_actions", "page")
+INTENTS = ("ask", "catch_up", "my_actions", "page", "what_changed")
 MAX_QUESTION = 500
 MAX_CANDIDATES = 30
 EXCERPT_CHARS = 600
@@ -264,10 +264,18 @@ _ACTIONS = re.compile(
     r"|on my plate|assigned to me)\b", re.I)
 
 
+# "What changed since I last looked?": since the person's last visit (services/what_changed.py), not a fixed week.
+_SINCE_LOOKED = re.compile(
+    r"\bsince (?:i|we) (?:last |were last |was last )?(?:looked|checked|visited|logged in|was here|were here|came by|was in)\b"
+    r"|\bsince my last (?:visit|look|check|login)\b|\bsince (?:the )?last time i (?:looked|checked|visited|was here)\b", re.I)
+
+
 def detect_intent(question: str) -> str:
-    """ask | catch_up | my_actions, from the words (the chips send theirs)."""
+    """ask | catch_up | my_actions | what_changed, from the words (the chips send theirs)."""
     if _ACTIONS.search(question or ""):
         return "my_actions"
+    if _SINCE_LOOKED.search(question or ""):
+        return "what_changed"
     if _CATCH.search(question or ""):
         return "catch_up"
     return "ask"
@@ -1494,6 +1502,7 @@ def where_in_page(context: dict | None) -> str:
 
 EMPTY = {
     "ask": "Nothing you can open matches that.",
+    "what_changed": "Nothing you can open changed since you last looked.",
     "page": "Nothing in this page or its workspace answers that.",
     "catch_up": f"Nothing you can open changed in the last {CATCHUP_DAYS} days.",
     "my_actions": "You have no open action items. Tasks that @mention you in pages you can open show up here.",
@@ -1562,6 +1571,8 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
                    scope_label=(f"This page: {page_raw.get('title') or 'Untitled'}" if page_raw is not None
                                 else "My files" if mine else None if scope else "Everything"))
 
+    index = ask_route.Index()          # the index block (person cards ride on ``done``)
+
     async def finish(answer: str, citations: list[dict], ranked: list[dict], *, stop: str | None, record: bool,
                      outcome: str = "ok", **extra) -> tuple[str, dict]:
         tid = None
@@ -1575,7 +1586,8 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
                 run.log["conversation_id"] = f"t:{tid}"
             await run.record(outcome, stop_reason=stop, chars_out=len(answer), cited=len(citations), **extra)
         return ev("done", request_id=run.request_id, thread_id=tid, intent=intent, answer=answer,
-                  citations=citations, ranked=ranked, usage=run.usage(), truncated=stop == "max_tokens")
+                  citations=citations, ranked=ranked, usage=run.usage(), truncated=stop == "max_tokens",
+                  people=index.cards[:ask_route.MAX_PEOPLE] if index.cards and "person" in index.kinds else [])
 
     # my_actions with nothing open needs no model: answer before any limit.
     action_sources: list[Source] | None = None
@@ -1607,7 +1619,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
             # "Who am I?", "which workspaces am I in?": the You block answers it; no search, no expansion call.
             sources, withheld, system = [], 0, ANSWER_SYSTEM
             run.meta.update(candidates=0, personal=True, profile=True)
-        elif intent in ("ask", "page"):
+        elif intent in ("ask", "page", "what_changed"):
             yield ev("status", stage="understanding")
             try:
                 standalone, terms, route_raw = await _expand(run, question, history, ctx.now.date())
@@ -1626,12 +1638,18 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
             # Light routing (services/ask_route.py): count / list / time / person / team questions read Markdrop's
             # records first — exact tables, a person card, the team overview.
             route = ask_route.parse(route_raw, about, ctx.now.date())
-            if intent == "ask":
+            if intent in ("ask", "what_changed"):
                 try:
                     index = await ask_route.build(db, actor, ctx, about, route, people, scope,
                                                   narrowed=keep is not None or mine)
                 except Exception:
                     log.warning("ask: index block failed", exc_info=True)
+                if intent == "what_changed" and keep is None and not mine:
+                    # Since the person last looked at this workspace / team / project (services/what_changed.py).
+                    try:
+                        await _changes_index(db, actor, ctx, scope, index)
+                    except Exception:
+                        log.warning("ask: what changed failed", exc_info=True)
                 # Hard questions (several lookups put together): the planner's short lookup loop, and its model
                 # answers (services/ask_plan.py). Everything else stays on Haiku.
                 if route.hard and keep is None and not mine and await _planner_ok(db):
@@ -1670,7 +1688,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
             sources = action_sources or []
             system = ACTIONS_SYSTEM
             run.meta.update(candidates=len(sources), withheld=withheld)
-        about_me = you is not None and intent in ("ask", "page") and ask_me.is_personal(
+        about_me = you is not None and intent in ("ask", "page", "what_changed") and ask_me.is_personal(
             question if standalone == question else f"{question}\n{standalone}")
         if not sources and not about_me and index.empty:
             yield ev("results", items=[])
@@ -1679,18 +1697,27 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
 
         # Markdrop's own records on each item (creator, dates, teams, status, comments, a meeting's action
         # items) and, for a question, the items' comment threads (services/ask_context.py).
-        if intent in ("ask", "page", "catch_up") and sources:
+        if intent in ("ask", "page", "catch_up", "what_changed") and sources:
             try:
                 await ask_context.annotate(db, actor, ctx, sources)
                 if intent != "catch_up":
                     await ask_context.add_comments(db, actor, ctx, sources)
             except Exception:
                 log.warning("ask: source records failed", exc_info=True)
-        if intent in ("ask", "page") and sources:
+        if intent in ("ask", "page", "what_changed") and sources:
             try:
                 await _index_pass(db, actor, ctx, sources)
             except Exception:
                 log.warning("ask: index pass failed", exc_info=True)
+        if intent in ("ask", "what_changed") and sources and keep is None and not mine:
+            # "Who knows about X?": the people connected to the items found for it (services/who_knows.py).
+            from app.services import who_knows
+
+            if who_knows.is_expert_question(question if standalone == question else f"{question}\n{standalone}"):
+                try:
+                    await _experts(db, actor, ctx, sources, index)
+                except Exception:
+                    log.warning("ask: who knows failed", exc_info=True)
         index_text = index.render({s.key: s.n for s in sources}) if not index.empty else ""
         yield ev("status", stage="answering")
         by_n = {s.n: s for s in sources}
@@ -1701,7 +1728,8 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
                  + (people.note + "\n\n" if people.note else "")
                  + f"The question (from the person asking, not from a document): {question}"
                  + (f"\n(As a standalone question: {standalone})" if standalone != question else "")
-                 + ("\nThe question mixes Hindi and English: write the answer in English." if ask_me.is_hinglish(question) else ""))
+                 + ("\nThe question mixes Hindi and English: write the answer in English." if ask_me.is_hinglish(question) else "")
+                 + (CHANGES_NOTE if intent == "what_changed" else ""))
         if intent == "page":
             asked = (f"The page is item [1], titled: {page_raw.get('title') or '(untitled)'}\n"
                      + where_in_page(context) + asked)
@@ -1746,7 +1774,60 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
         run.release()
 
 
-EMPTY_Q = {"ask": "", "page": "", "catch_up": "Catch me up on this week", "my_actions": "What are my open action items?"}
+CHANGES_NOTE = ("\nThey asked what changed since they last looked: answer from the \"What changed\" records (they say the date "
+                "it counts from — say it), meetings first with what was decided, then documents (new, then updated), "
+                "action items and comment threads, newest first and grouped; never present anything older than that "
+                "date as new. Nothing in a group: leave the group out.")
+
+
+async def _experts(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, sources: list[Source],
+                   index: "ask_route.Index") -> None:
+    from app.services import who_knows
+
+    items = [(s.cand.raw["_id"], f"[{s.n}]", [ln.get("speaker") for ln in s.lines.values() if ln.get("speaker")])
+             for s in sources if s.tag == "document" and s.cand is not None and s.cand.kind in search.DOC_KINDS
+             and (s.cand.raw or {}).get("_id") is not None]
+    found = await who_knows.connected(db, actor, ctx, items)
+    if found:
+        index.sections.insert(0, ask_route.Section(
+            "People connected to this topic, strongest first (from the items found for it: who created or edited them, "
+            "spoke about it, owns its action items, commented):", [ask_route.Row(None, x) for x in who_knows.lines(found)]))
+        index.kinds.insert(0, "experts")
+
+
+async def _changes_index(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, scope: str | None,
+                         index: "ask_route.Index") -> None:
+    """The "What changed" sections for this question, first in the index block (and their documents as candidates):
+    the request's team / project space, else the workspace asked in, else each of the asker's workspaces (up to 3)."""
+    from app.services import teams as teams_service, what_changed
+
+    team = project = None
+    if ctx.space:
+        sp = teams_service.parse_space(ctx.space)
+        team, project = (sp.id, None) if sp.kind == "team" else ((None, sp.id) if sp.kind == "project" else (None, None))
+    wss = [scope] if scope else (await ask_route._wss(db, actor, ctx, None))[:3]
+    secs: list = []
+    docs: list[dict] = []
+    for ws in wss:
+        ch = await what_changed.changes(db, actor, ctx, ws, team=team, project=project)
+        label = None
+        if team or project:
+            view = await ctx.team_view(ws, actor.user_id)
+            label = ((view.teams.get(team) or {}).get("name") if team else (view.projects.get(project) or {}).get("name"))
+            label = f"{'team' if team else 'project'} {label}" if label else None
+        elif len(wss) > 1:
+            w = await db["workspaces"].find_one({"_id": ask_route.ai_index._oid(ws)}, {"name": 1})
+            label = (w or {}).get("name")
+        for head, rows in what_changed.sections(ch, label=label):
+            secs.append(ask_route.Section(head, [ask_route.Row(k, t) for k, t in rows]))
+        docs += [d for d in ch.docs if all(d["_id"] != x["_id"] for x in docs)]
+    index.sections[:0] = secs
+    index.docs[:0] = [d for d in docs[:ask_route.CAND_DOCS] if all(d["_id"] != x["_id"] for x in index.docs)]
+    index.kinds.insert(0, "changes")
+    index.limit = max(index.limit, ask_route.BLOCK_CHARS_TEAM)
+
+
+EMPTY_Q = {"ask": "", "page": "", "what_changed": "", "catch_up": "Catch me up on this week", "my_actions": "What are my open action items?"}
 
 
 def settings_planner_model() -> str:

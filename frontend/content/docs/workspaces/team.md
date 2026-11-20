@@ -2,8 +2,8 @@
 title: "Team: your workspace memory"
 nav: Team
 description: Who is doing what in your workspace, from its meetings and pages. Status, focus, targets, blockers and projects, each line linked to its source.
-updated: 2026-11-07
-keywords: [team, jira, jira tickets, create jira issue, team memory, set_my_status, set_focus_note, hide_team_line, correct_team_line, mark_team_item_done, list_team_groups, save_team_group, delete_team_group, send_weekly_summary_now, timezone, weekly summary timezone, send now, mark done, groups, weekly summary, this week, monday summary, workspace memory, who is doing what, status, what is someone working on, standup, sync-up, targets, due dates, commitments, blockers, waiting on, quiet lately, on track, focus, set status, on leave, projects, swimlanes, hide a line, this is wrong, correct, privacy, restricted meetings, ai, turn on, turn off, list_team, get_person_profile, get_project_status, mcp]
+updated: 2026-11-20
+keywords: [person card, hover card, what changed, since i last looked, last visit, team, jira, jira tickets, create jira issue, team memory, set_my_status, set_focus_note, hide_team_line, correct_team_line, mark_team_item_done, list_team_groups, save_team_group, delete_team_group, send_weekly_summary_now, timezone, weekly summary timezone, send now, mark done, groups, weekly summary, this week, monday summary, workspace memory, who is doing what, status, what is someone working on, standup, sync-up, targets, due dates, commitments, blockers, waiting on, quiet lately, on track, focus, set status, on leave, projects, swimlanes, hide a line, this is wrong, correct, privacy, restricted meetings, ai, turn on, turn off, list_team, get_person_profile, get_project_status, mcp]
 ---
 
 **Team** answers "what is Abhishek working on?" and "where are we on the sourcing beta?" without anyone writing a status report. Markdrop reads your workspace's meetings and pages in the background and keeps short, dated lines about each person: what they're working on, what they finished, what they committed to and by when, and what's blocking them. Every line links to the meeting or page it came from.
@@ -90,6 +90,18 @@ Select a card to open someone's page: their status and focus, **Working on now**
 ![A person's page: their status and what they're on, a strip of the last 30 days, Working on now and Targets with due dates, each line with the meeting or page it came from, a Timeline by day, Open action items and Recent meetings.](/docs-assets/workspaces/team/person.webp)
 
 A project's page shows its latest status, who is on it, what's being worked on, decisions, open items and blockers.
+
+## Person cards
+
+Hover over a person, or select them, to see their card without leaving the page: an @mention in a page, an avatar on the Team board or a team's member list. The card shows their role, their teams (and which ones they lead), how many documents they created and the newest, the meetings they were in over the last two weeks, their open action items (with how many look [likely done](/workspaces/ask-markdrop#likely-done)), and what Team memory says they're working on. **Open profile** goes to their page. When you ask [Ask](/workspaces/ask-markdrop) about someone, their card shows above the answer.
+
+A card only shows what you can open: a private team you aren't in, a page you can't open or a restricted meeting never appears on it. You only see cards of people in a workspace you're in.
+
+## What changed
+
+Markdrop remembers when you last looked at a workspace, a team or a project (your visit ends once you've been away for half an hour). The **What changed** widget on your [Home](/workspaces/customize-home#widgets), set to the workspace or one team, lists what happened since your previous visit: meetings held with their summaries and the decisions made in them, new and updated pages and files, action items written down, and comment threads with new activity. The first time, it covers the last 7 days. No AI is used.
+
+Ask "What changed since I last looked?" in [Ask](/workspaces/ask-markdrop) for a written summary of the same list. Only what you can open is ever counted or listed.
 
 ## Where the lines come from
 

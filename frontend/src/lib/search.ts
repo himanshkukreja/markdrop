@@ -3,7 +3,7 @@
  *
  *   GET  /api/v1/search?q=&scope=&kind=&owner=&updated=&current=&cursor=&limit=   fuzzy, instant
  *   GET  /api/v1/search/ai-status?scope=                                          can AI search run?
- *   POST /api/v1/search/ask  (SSE)                                                AI search (Haiku 5.5)
+ *   POST /api/v1/search/ask  (SSE)                                                AI answer (Ask's engine)
  *
  * Signed-in only. Every result is already something the caller can open (the server's three walls);
  * the UI never filters for privacy. Kept out of lib/api.ts (that one loads on public pages).
@@ -12,6 +12,7 @@ import { API_BASE, getToken } from "@/lib/api";
 import { openHref, request } from "@/lib/workspaces";
 import { SseParser } from "@/lib/pages-ai/sse";
 import { pushRecent, RECENT_KEY } from "@/lib/searchCore.mjs";
+import type { PersonCardData } from "@/lib/people";
 
 export type SearchKind = "page" | "doc" | "file" | "folder" | "workspace" | "guide";
 export type Marks = Array<[number, number]>;
@@ -152,7 +153,9 @@ export type AskEvent =
   | { type: "status"; stage: "expanding" | "searching" | "answering"; terms?: string[] }
   | { type: "results"; items: SearchItem[] }
   | { type: "delta"; text: string }
-  | { type: "done"; answer: string; citations: Citation[]; ranked: Citation[]; usage?: Record<string, number>; truncated?: boolean }
+  | { type: "done"; answer: string; citations: Citation[]; ranked: Citation[]; usage?: Record<string, number>; truncated?: boolean;
+      /** Ask's engine (AI quality stage 4): its intent, and person cards for a question about a person. */
+      intent?: string | null; people?: PersonCardData[] }
   | { type: "limit"; reason: string; message: string }
   | { type: "error"; detail: string; code?: string };
 

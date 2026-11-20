@@ -388,7 +388,7 @@ class Coverage(AskWorld):
                                  headers=self.session("wm"))
         self.assertEqual(r.status_code, 200, r.text)
         sent = "\n".join(prompt_of(c) for c in self.fake.calls if "untrusted_document" in prompt_of(c))
-        self.assertIn("(slide 6) ", sent)
+        self.assertIn("slide 6", sent)          # ⌘K runs on Ask's engine: passages "[n-sK] slide 6: …"
         self.assertIn("narwhal migration starts in May", sent)
 
     async def test_password_on_then_off_reads_the_file_again(self):

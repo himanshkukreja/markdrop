@@ -602,7 +602,9 @@ class Filter:
     owner: str | None = None            # actions / backlog: owned by
     author: str | None = None           # comments: started or replied
     team: str | None = None             # a team id (only rows tagged with it)
+    project: str | None = None          # a project id (only rows of documents in that project)
     since: date | None = None
+    since_at: datetime | None = None    # an exact moment instead of a day (what changed since someone last looked)
     until: date | None = None
     on: str = "updated"                 # docs: which date the window applies to (created | updated)
     done: bool | None = None            # actions: done / open
@@ -624,12 +626,20 @@ class Result:
 def _window(f: Filter, key: str) -> dict:
     out: dict = {}
     if key == "date":
-        if f.since:
+        if f.since_at is not None:
+            # A meeting has a day, not a time: the moment's own day counts when the moment is before noon (UTC) or within
+            # the last day, else from the next day.
+            at = _aware(f.since_at)
+            same_day = at.hour < 12 or (now_utc() - at) < timedelta(days=1)
+            out["$gte" if same_day else "$gt"] = at.date().isoformat()
+        elif f.since:
             out["$gte"] = f.since.isoformat()
         if f.until:
             out["$lte"] = f.until.isoformat()
         return out
-    if f.since:
+    if f.since_at is not None:
+        out["$gte"] = _aware(f.since_at)
+    elif f.since:
         out["$gte"] = datetime(f.since.year, f.since.month, f.since.day, tzinfo=timezone.utc)
     if f.until:
         out["$lt"] = datetime(f.until.year, f.until.month, f.until.day, tzinfo=timezone.utc) + timedelta(days=1)
@@ -739,6 +749,10 @@ async def query(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
         view = await ctx.team_view(wss[0], actor.user_id)
         if f.team not in view.readable_teams:
             return Result([], 0)
+    if f.project:
+        view = await ctx.team_view(wss[0], actor.user_id)
+        if f.project not in view.readable_projects:
+            return Result([], 0)
     rows = await db[COLL].find(mongo_filter(f)).sort(_sort_of(f)).limit(QUERY_MAX).to_list(length=QUERY_MAX)
     capped = len(rows) >= QUERY_MAX
     if f.kind == "backlog":
@@ -779,6 +793,8 @@ async def query(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
             if d.get("encrypted"):
                 continue
             keep.append(r)
+    if f.project and f.kind != "backlog":
+        keep = [r for r in keep if f.project in [str(p) for p in (ok.get(r.get("doc")) or {}).get("project_ids") or []]]
     # Teams on a row: only those the asker can read (a private team's name stays with its members).
     readable_teams: set[str] = set()
     for ws in {r.get("ws") for r in keep if r.get("ws")}:

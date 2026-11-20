@@ -138,6 +138,7 @@ class Index:
     docs: list[dict] = field(default_factory=list)       # documents rows to add as candidates, in order
     kinds: list[str] = field(default_factory=list)
     limit: int = BLOCK_CHARS
+    cards: list[dict] = field(default_factory=list)       # person cards for the answer (services/person_cards.py)
 
     @property
     def empty(self) -> bool:
@@ -376,7 +377,7 @@ async def build(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
             out.kinds.append("team")
         if t == "person" or (who and t in ("lookup", "person") and not structured and items == "any"):
             for p in who[:MAX_PEOPLE]:
-                sec = await _person_card(db, actor, ctx, p, wss, teams, names)
+                sec = await _person_card(db, actor, ctx, p, wss, teams, names, out.cards)
                 if sec is not None:
                     out.sections.append(sec)
                     out.kinds.append("person")
@@ -534,49 +535,22 @@ async def _backlog_section(db, actor, ctx, tid: str, teams: dict, names: _Names,
     return sec
 
 
-async def _person_card(db, actor, ctx, p: dict, wss: list[str], teams: dict, names: _Names) -> Section | None:
-    """Layer 2: one person, as this asker may see them."""
-    from app.services import workspace_memory
+async def _person_card(db, actor, ctx, p: dict, wss: list[str], teams: dict, names: _Names,
+                       cards: list | None = None) -> Section | None:
+    """Layer 2: one person, as this asker may see them (services/person_cards.py; ``cards`` collects the card)."""
+    from app.services import person_cards
 
     uid = p["id"]
     mem = await db["memberships"].find_one({"user_id": uid, "workspace_id": {"$in": wss}}, {"workspace_id": 1})
     ws = (mem or {}).get("workspace_id") or wss[0]
-    tms = [f"{t['name']}{' (lead)' if uid in (t.get('lead_ids') or []) else ''}" for t in teams.values()
-           if uid in (t.get("member_ids") or [])]
-    sec = Section(f"Person: {p['name']}" + (f" — teams: {', '.join(sorted(tms))}" if tms else " — no team the asker can see"))
-    today = ctx.now.date() if getattr(ctx, "now", None) else datetime.now(timezone.utc).date()
-    created = await ai_index.query(db, actor, ctx, ai_index.Filter(kind="doc", workspaces=wss, creator=uid, limit=8))
-    if created.total:
-        sec.rows.append(Row(None, f"Created {created.total} document{'s' if created.total != 1 else ''} (newest: "
-                            + "; ".join(f"{r.get('title') or 'Untitled'} ({_fmt(r.get('updated'))}"
-                                        + (f", {r['status']}" if r.get("status") else "") + ")" for r in created.rows[:8]) + ")"))
-    since = today - timedelta(days=RECENT_DAYS)
-    met = await ai_index.query(db, actor, ctx, ai_index.Filter(kind="meeting", workspaces=wss, attendee=uid, since=since, limit=10))
-    if met.total:
-        sec.rows.append(Row(None, f"Meetings in the last {RECENT_DAYS} days: {met.total} ("
-                            + "; ".join(f"{_fmt(r.get('date'))} {r.get('mtitle') or r.get('title')}" for r in met.rows[:10]) + ")"))
-    acts = await ai_index.query(db, actor, ctx, ai_index.Filter(kind="action", workspaces=wss, owner=uid, done=False, limit=8))
-    if acts.total:
-        from app.services import likely_done
-
-        evs = await _likely(db, actor, ctx, acts.rows)
-        sec.rows.append(Row(None, f"Open action items: {acts.total}" + (f", {len(evs)} of them likely done (not ticked)" if evs else "")
-                            + " (" + "; ".join(f"{r.get('text')} — {r.get('title')}" + (f", due {_fmt(r['due'])}" if r.get("due") else "")
-                                               + (f" [{likely_done.note(evs[r['_id']])}]" if r["_id"] in evs else "")
-                                               for r in acts.rows[:8]) + ")"))
-    try:
-        info = await workspace_memory.ws_info(db, ws)
-        if info is not None and info.on:
-            prof = await workspace_memory.person_profile(db, actor, ctx, info, uid)
-            if prof:
-                lines = [x.get("text") for x in (prof.get("working_on") or [])[:4]]
-                lines += [x.get("text") for x in (prof.get("updates") or [])[:3]]
-                lines = [x for x in dict.fromkeys(lines) if x]
-                if lines:
-                    sec.rows.append(Row(None, "Team memory, working on / recent: " + "; ".join(lines)))
-    except Exception:
-        log.warning("ask route: person memory failed", exc_info=True)
-    return sec
+    c = await person_cards.card(db, actor, ctx, ws, uid, names=names,
+                                teams={k: t for k, t in teams.items() if t.get("workspace_id") == ws}, big=True)
+    if c is None:
+        return None
+    if cards is not None:
+        cards.append(c)
+    head, rows = person_cards.text_lines(c)
+    return Section(head, [Row(None, r) for r in rows])
 
 
 async def _team_overview(db, actor, ctx, tid: str, teams: dict, names: _Names,

@@ -117,6 +117,7 @@ export function useChat<C>({ transport, persistKey, scope, context, threadId: th
         patch((t) => {
           const a = (e.answer || t.answer || "").trim();
           return { ...t, answer: a, citations: e.citations || [], sources: e.sources ?? t.sources, scopeNote: e.note ?? t.scopeNote,
+            people: e.people?.length ? e.people : t.people,
             state: a ? "done" : "error", note: a ? null : FAILED, stage: null };
         });
       } else if (e.type === "limit") {

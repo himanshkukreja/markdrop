@@ -18,6 +18,7 @@ import {
 } from "@/lib/teams";
 import { ColorSwatches, PeoplePicker, TeamChecklist, TeamTile, VisibilityBadge, useWorkspaceMembers } from "./parts";
 import { Crumbs, ItemRow, MeetingRow, MemoryCard } from "./TeamHome";
+import { markVisit } from "@/lib/people";
 import "./teams.css";
 
 /* ── a project space ── */
@@ -27,6 +28,9 @@ export function ProjectHome({ ws, project: ref }: { ws: string; project: string 
   const [error, setError] = useState<string | null>(null);
   useAssistantHere({ workspace: ws });
   useEffect(() => { getProjectHome(ws, ref).then(setData).catch((e) => setError(e instanceof Error ? e.message : "Couldn't load this project.")); }, [ws, ref]);
+  // "What changed since I last looked" counts from the end of this look (lib/people.ts).
+  const pid = data?.project?.id;
+  useEffect(() => { if (pid) markVisit(ws, { project: pid }); }, [ws, pid]);
   if (error) return <div className="tz-page"><EmptyState icon="layers" title="Can't open this project" description={error} actions={<Button href={browseHref(ws)}>Browse teams</Button>} /></div>;
   if (!data) return <div className="tz-page" aria-busy="true"><Skeleton variant="text" width={240} height={32} /><Skeleton variant="rect" height={240} className="mt-6" /></div>;
   const p = data.project;

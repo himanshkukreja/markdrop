@@ -1992,6 +1992,9 @@ async def ask_documents(ctx: Context, args: dict) -> tuple[str, dict]:
     out = {"answer": done.get("answer") or "", "citations": [ref(c) for c in done.get("citations") or []],
            "results": [ref(c) for c in done.get("ranked") or []], "thread_id": done.get("thread_id"),
            "intent": done.get("intent")}
+    if done.get("people"):
+        # A question about a person: their card(s) too (services/person_cards.py).
+        out["people"] = done["people"]
     text = out["answer"]
     if out["citations"]:
         text += "\n\nSources:\n" + "\n".join(
@@ -3685,8 +3688,9 @@ TOOLS: list[Tool] = [
                       "description": "all | workspace:<workspace id> | mine"},
             "thread_id": {"type": "string", "maxLength": 40,
                           "description": "Continue this conversation (from an earlier answer)."},
-            "intent": {"type": "string", "enum": ["ask", "catch_up", "my_actions"],
-                       "description": "ask (default; detected from the words when left out), catch_up or my_actions."},
+            "intent": {"type": "string", "enum": ["ask", "catch_up", "my_actions", "what_changed"],
+                       "description": "ask (default; detected from the words when left out), catch_up, my_actions or "
+                                      "what_changed (since you last looked)."},
             "page": {"type": "string", "maxLength": 300,
                      "description": "Optional: a document or page (slug or link) to ask about first; then its "
                                     "workspace's meetings (recorded decisions) and documents."},
@@ -3704,7 +3708,8 @@ TOOLS: list[Tool] = [
                 "n": {"type": "integer"}, "title": {"type": "string"}, "url": {"type": "string"},
                 "kind": {"type": "string"}, "id": {"type": "string"}}, ["n", "title", "url"])},
             "thread_id": _NULLABLE_STR,
-            "intent": {"type": "string"}}),
+            "intent": {"type": "string"},
+            "people": {"type": "array", "items": {"type": "object"}}}),
         annotations=_ann(True, False, False),
         handler=ask_documents,
     ),
