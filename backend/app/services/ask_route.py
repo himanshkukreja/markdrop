@@ -51,6 +51,7 @@ _CREATED = re.compile(r"\b(creat\w*|wrote|written|write|authored|new|added|start
 _DONE = re.compile(r"\b(done|completed|finished|closed|ticked)\b", re.I)
 _COUNT = re.compile(r"\bhow many\b|\bnumber of\b|\bcount\b", re.I)
 _LIST = re.compile(r"\b(list|which|all|every|what are|show me)\b", re.I)
+_DECIDE = re.compile(r"\b(decid\w*|decision\w*|agreed)\b", re.I)
 _TEAMISH = re.compile(r"\b(team|teams|squad|department)\b", re.I)
 
 
@@ -364,6 +365,8 @@ async def build(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
             on = "created" if _CREATED.search(q) else "updated"
             team_f = team if team in teams else None
             loose = items == "any"          # a period, not a kind of item: meetings first, a short list of documents
+            if _DECIDE.search(q) and (since or until or team_f):
+                await _decisions_section(db, actor, ctx, out, wss, team_f, teams, since, until, add_docs)
             if meet_wanted and loose:
                 await _meetings_section(db, actor, ctx, out, who, wss, team_f, teams, names, route, since, until, add_docs)
                 meet_wanted = False
@@ -428,6 +431,33 @@ async def build(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
     except Exception:
         log.warning("ask route: index block failed", exc_info=True)
     return out
+
+
+async def _decisions_section(db, actor, ctx, out: Index, wss: list[str], team_f: str | None, teams: dict, since, until,
+                             add_docs, *, limit: int = 40) -> None:
+    """The decisions recorded in the period's meetings (services/meeting_memory.py facts), only from meetings whose
+    page the asker may read (and inside the team, when one is named)."""
+    from app.services import meeting_memory
+
+    q: dict = {"workspace_id": {"$in": wss}, "kind": "decision"}
+    if since or until:
+        q["date"] = {**({"$gte": since.isoformat()} if since else {}), **({"$lte": until.isoformat()} if until else {})}
+    facts = await db[meeting_memory.COLL].find(q, {"doc_id": 1, "date": 1, "meeting_title": 1, "text": 1}).sort(
+        [("date", -1), ("ord", 1)]).limit(400).to_list(length=400)
+    ok = await ai_index.readable_docs(db, actor, ctx, [f.get("doc_id") for f in facts])
+    if team_f:
+        ok = {k: d for k, d in ok.items() if team_f in [str(t) for t in d.get("team_ids") or []]}
+    keep = [f for f in facts if ai_index._oid(f.get("doc_id")) in ok]
+    sec = Section(f"Decisions recorded in meetings{_window_text(since, until)}"
+                  + (f" in team {teams[team_f]['name']}" if team_f else "") + f": {len(keep)}")
+    for f in keep[:limit]:
+        oid = ai_index._oid(f.get("doc_id"))
+        sec.rows.append(Row(f"d:{oid}", f"{_fmt(f.get('date'))} · {f.get('meeting_title') or 'Meeting'}: {f.get('text')}"))
+    if len(keep) > limit:
+        sec.tail = f"(+{len(keep) - limit} more not listed)"
+    out.sections.append(sec)
+    add_docs([ok[ai_index._oid(f.get("doc_id"))] for f in keep[:8]])
+    out.kinds.append("decisions")
 
 
 async def _meetings_section(db, actor, ctx, out: Index, who: list[dict], wss: list[str], team_f: str | None, teams: dict,

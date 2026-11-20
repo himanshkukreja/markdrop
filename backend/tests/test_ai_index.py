@@ -239,7 +239,9 @@ class Vectors(IndexWorld):
         await self.reindex()
         await ai_vectors.tick(self.db)
         self.assertEqual(await self.db[ai_vectors.COLL].count_documents({}), 2)
-        self.assertEqual(await self.db[ai_usage.REQUESTS].count_documents({"feature": "embeddings"}), 2)
+        # Both items' chunks go in one call (packed across items), billed under "embeddings".
+        self.assertEqual([k for k, _t in fake.calls], ["document"])
+        self.assertEqual(await self.db[ai_usage.REQUESTS].count_documents({"feature": "embeddings"}), 1)
         # Nothing changed: no new embedding calls.
         n = len(fake.calls)
         await ai_vectors.tick(self.db)
@@ -306,6 +308,28 @@ class AskIndex(IndexWorld):
         self.assertIn("Person: Priya Sharma — teams: Platform", p)
         self.assertNotIn("Secret", p)
         _ = secret
+
+    async def test_decisions_in_a_period_only_from_readable_meetings(self):
+        from app.services import meeting_memory
+
+        await meeting_memory.ensure_indexes(self.db)
+        open_page = await self.put("m-open", "Zebra sync", "Notes", owner="wm")
+        closed = await self.put("m-closed", "Zebra 1:1", "Notes", owner="wa", state="P")
+        day = now().date().isoformat()
+        for d, text in ((open_page, "Ship the zebra rollout in two waves."), (closed, "Promote Priya in March.")):
+            await self.db[meeting_memory.COLL].insert_one({
+                "workspace_id": self.W, "meeting_id": str(ObjectId()), "doc_id": d["_id"], "date": day,
+                "meeting_title": d["title"], "kind": "decision", "ord": 0, "text": text})
+        await self.reindex()
+        self.expansion = {"standalone": "What did we decide this week?", "terms": ["decide"], "titles": [],
+                          "route": {"type": "time", "items": "any", "since": (now().date() - timedelta(days=6)).isoformat(),
+                                    "until": day}}
+        self.fake.calls.clear()
+        self.done(await self.ask("wv", "What did we decide this week?"))
+        p = self.answer_prompt()
+        self.assertRegex(p, r"Decisions recorded in meetings between [^\n]*: 1\n")
+        self.assertIn("Ship the zebra rollout in two waves.", p)
+        self.assertNotIn("Promote Priya", p)
 
     async def test_todo_page_item_per_line(self):
         tid = await self.team("Platform", "open", "wm", ["wm", "wa"])

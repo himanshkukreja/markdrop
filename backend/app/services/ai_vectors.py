@@ -52,11 +52,13 @@ DOC_TEXT_CHARS = 60_000
 DEBOUNCE = timedelta(minutes=2)
 PER_TICK = 40                   # documents a tick
 BATCH = 64                      # texts per embedding call
+BATCH_CHARS = 30_000            # characters per embedding call (≈ 7.5k tokens)
 CACHE_WORKSPACES = 8
 QUERY_CACHE = 256
 RESERVE = 0.001
 PASSAGE_CHARS = 700
 TIMEOUT_S = 30.0
+QUERY_TIMEOUT_S = 4.0
 
 
 def now_utc() -> datetime:
@@ -93,14 +95,18 @@ class Voyage:
         body = {"input": texts, "model": self.model, "input_type": kind, "output_dimension": self.dims,
                 "truncation": True}
         last: Exception | None = None
-        for attempt in range(4):
+        # A question waits on its embedding: one quick try (the answer goes on without it). Documents are
+        # embedded in the background: a few tries, waiting out a rate limit.
+        tries, timeout = (1, QUERY_TIMEOUT_S) if kind == "query" else (4, TIMEOUT_S)
+        for attempt in range(tries):
             try:
-                async with httpx.AsyncClient(timeout=TIMEOUT_S) as client:
+                async with httpx.AsyncClient(timeout=timeout) as client:
                     r = await client.post(f"{settings.voyage_api_base.rstrip('/')}/embeddings", json=body,
                                           headers={"Authorization": f"Bearer {self.key}"})
                 if r.status_code == 429 or r.status_code >= 500:
                     last = RuntimeError(f"voyage {r.status_code}")
-                    await asyncio.sleep(1.5 * (attempt + 1))
+                    if attempt + 1 < tries:
+                        await asyncio.sleep(min(30.0, float(r.headers.get("retry-after") or 0) or 10.0 * (attempt + 1)))
                     continue
                 r.raise_for_status()
                 data = r.json()
@@ -108,7 +114,8 @@ class Voyage:
                 return [d["embedding"] for d in rows], int((data.get("usage") or {}).get("total_tokens") or 0)
             except Exception as exc:          # network: retry, then give up (the layer degrades to keywords)
                 last = exc
-                await asyncio.sleep(1.0 * (attempt + 1))
+                if attempt + 1 < tries:
+                    await asyncio.sleep(1.0 * (attempt + 1))
         raise RuntimeError(f"voyage embeddings failed: {type(last).__name__ if last else 'unknown'}")
 
 
@@ -215,30 +222,74 @@ async def _bump(db: AsyncIOMotorDatabase, ws: str) -> None:
     await db[META].update_one({"_id": ws}, {"$inc": {"rev": 1}, "$set": {"at": now_utc()}}, upsert=True)
 
 
+@dataclass
+class _Plan:
+    row: dict
+    want: list[dict]
+    todo: list[dict]
+    stale_keys: bool
+    vecs: dict
+
+
+async def _plan(db: AsyncIOMotorDatabase, row: dict, e: Embedder) -> _Plan:
+    want = await chunks_of(db, row)
+    have = {c["k"]: c for c in await db[COLL].find({"doc": row["doc"]}, {"k": 1, "ch": 1, "model": 1}).to_list(length=1000)}
+    todo = [c for c in want if (have.get(c["k"]) or {}).get("ch") != _h(c["x"]) or (have.get(c["k"]) or {}).get("model") != e.model]
+    return _Plan(row, want, todo, len(have) > len(want), {})
+
+
+async def _write(db: AsyncIOMotorDatabase, p: _Plan, e: Embedder) -> None:
+    oid = p.row["doc"]
+    ops: list = []
+    for c in p.todo:
+        v = p.vecs[c["k"]]
+        ops.append(UpdateOne({"_id": f"{oid}:{c['k']}"}, {"$set": {
+            "ws": p.row.get("ws"), "doc": oid, "k": c["k"], "x": c["x"][:CHUNK_CHARS + 200], "line": c.get("line"),
+            "ch": _h(c["x"]), "v": _pack(v), "model": e.model, "dims": len(v), "at": now_utc()}}, upsert=True))
+    ops.append(DeleteMany({"doc": oid, "k": {"$gte": len(p.want)}}))
+    await db[COLL].bulk_write(ops, ordered=True)
+    await db[ai_index.COLL].update_one({"_id": p.row["_id"], "h": p.row.get("h")}, {"$set": {"vh": p.row.get("h"), "vx": False}})
+    if p.todo or p.stale_keys:
+        await _bump(db, p.row.get("ws"))
+
+
+async def embed_rows(db: AsyncIOMotorDatabase, rows: list[dict], e: Embedder) -> tuple[int, int]:
+    """(Re)embed the changed chunks of these Layer 1 doc rows, packing chunks of several items into each call
+    (at most :data:`BATCH` texts and :data:`BATCH_CHARS` characters); an item is written once all its chunks are
+    in. Stops at the cap or the first failed call. Returns (items written, tokens billed)."""
+    plans = [await _plan(db, r, e) for r in rows]
+    queue = [(p, c) for p in plans for c in p.todo]
+    tokens = written = 0
+    i = 0
+    while i < len(queue):
+        batch, chars = [], 0
+        while i < len(queue) and len(batch) < BATCH and (not batch or chars + len(queue[i][1]["x"]) <= BATCH_CHARS):
+            batch.append(queue[i])
+            chars += len(queue[i][1]["x"])
+            i += 1
+        if not (await ai_usage.check_budget(db, FEATURE, reserve=RESERVE)).ok:
+            break
+        t0 = time.monotonic()
+        try:
+            vecs, n = await e.embed([c["x"] for _p, c in batch], "document")
+        except Exception as exc:
+            log.warning("ai vectors: embedding failed: %s", type(exc).__name__)
+            break
+        tokens += n
+        await _record(db, e, n, kind="document", workspace_id=batch[0][0].row.get("ws"),
+                      ms=round((time.monotonic() - t0) * 1000))
+        for (p, c), v in zip(batch, vecs):
+            p.vecs[c["k"]] = v
+    for p in plans:
+        if all(c["k"] in p.vecs for c in p.todo):
+            await _write(db, p, e)
+            written += 1
+    return written, tokens
+
+
 async def embed_doc(db: AsyncIOMotorDatabase, row: dict, e: Embedder) -> int:
     """(Re)embed one Layer 1 doc row's changed chunks; drop chunks it no longer has. Returns tokens billed."""
-    oid = row["doc"]
-    want = await chunks_of(db, row)
-    have = {c["k"]: c for c in await db[COLL].find({"doc": oid}, {"k": 1, "ch": 1, "model": 1}).to_list(length=1000)}
-    todo = [c for c in want if (have.get(c["k"]) or {}).get("ch") != _h(c["x"]) or (have.get(c["k"]) or {}).get("model") != e.model]
-    tokens = 0
-    ops: list = []
-    for i in range(0, len(todo), BATCH):
-        part = todo[i:i + BATCH]
-        t0 = time.monotonic()
-        vecs, n = await e.embed([c["x"] for c in part], "document")
-        tokens += n
-        await _record(db, e, n, kind="document", workspace_id=row.get("ws"), ms=round((time.monotonic() - t0) * 1000))
-        for c, v in zip(part, vecs):
-            ops.append(UpdateOne({"_id": f"{oid}:{c['k']}"}, {"$set": {
-                "ws": row.get("ws"), "doc": oid, "k": c["k"], "x": c["x"][:CHUNK_CHARS + 200], "line": c.get("line"),
-                "ch": _h(c["x"]), "v": _pack(v), "model": e.model, "dims": len(v), "at": now_utc()}}, upsert=True))
-    ops.append(DeleteMany({"doc": oid, "k": {"$gte": len(want)}}))
-    await db[COLL].bulk_write(ops, ordered=True)
-    await db[ai_index.COLL].update_one({"_id": row["_id"], "h": row.get("h")}, {"$set": {"vh": row.get("h"), "vx": False}})
-    if todo or len(have) > len(want):
-        await _bump(db, row.get("ws"))
-    return tokens
+    return (await embed_rows(db, [row], e))[1]
 
 
 async def drop_doc(db: AsyncIOMotorDatabase, doc_id: Any) -> None:
@@ -278,16 +329,7 @@ async def tick(db: AsyncIOMotorDatabase, *, limit: int = PER_TICK, settle: timed
     if e is None or not await ai_usage.feature_on(db, FEATURE):
         return {"done": 0, "skipped": "off"}
     rows = await stale(db, limit=limit, settle=settle)
-    done = tokens = 0
-    for r in rows:
-        if not (await ai_usage.check_budget(db, FEATURE, reserve=RESERVE)).ok:
-            break
-        try:
-            tokens += await embed_doc(db, r, e)
-            done += 1
-        except Exception as exc:
-            log.warning("ai vectors: %s failed: %s", r.get("doc"), type(exc).__name__)
-            break
+    done, tokens = await embed_rows(db, rows, e) if rows else (0, 0)
     return {"done": done, "tokens": tokens}
 
 
