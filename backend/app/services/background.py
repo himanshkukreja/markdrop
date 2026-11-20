@@ -48,6 +48,10 @@ one API worker runs it (§5.1, §5.5, A6):
                              at a time (and one a stopped process left running), expire uploads never finished
     notion_sync   every 60 s  Connect Notion's Keep in sync (services/notion_import/sync.py: tick): queue an import
                              job for each kept Notion root that is due (every ~15 min; only what changed is read)
+    ai_index      every 30 s  Ask's index (services/ai_index.py): Layer 1 facts — the one-time backfill, what changed
+                             through a path without a hook, the daily sweep; Layer 2 page summaries (Claude Haiku, 2 min
+                             after a page's last save, ``ai_index`` cap; services/ai_summaries.py); Layer 3 embeddings
+                             (Voyage AI, only with MARKDROP_VOYAGE_API_KEY, ``embeddings`` cap; services/ai_vectors.py)
     jira          every 60 s  Jira (services/jira*.py): tick the to-dos Jira moved while their page was
                              being edited; extend the workspaces' Jira webhooks before their 30 days run out
 
@@ -317,6 +321,12 @@ async def _workspace_memory(db: AsyncIOMotorDatabase) -> None:
     await workspace_memory.background(db)
 
 
+async def _ai_index(db: AsyncIOMotorDatabase) -> None:
+    from app.services import ai_index
+
+    await ai_index.background(db)
+
+
 def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
     if not settings.background_workers_enabled or _TASKS:
         return
@@ -331,7 +341,7 @@ def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
                               ("meetings_backfill", 10.0, _meetings_backfill),
                               ("meeting_memory", 15.0, _meeting_memory),
                               ("ask_suggestions", 300.0, _ask_suggestions),
-                              ("workspace_memory", 30.0, _workspace_memory),
+                              ("workspace_memory", 30.0, _workspace_memory), ("ai_index", 30.0, _ai_index),
                               ("jira", 60.0, _jira), ("zoom", 15.0, _zoom),
                               ("hubspot", 300.0, _hubspot), ("hubspot_deals", 60.0, _hubspot_deals), ("pptx_preview", 5.0, _pptx_preview),
                               ("email_retry", 60.0, _email_retry), ("notion_import", 5.0, _notion_import),

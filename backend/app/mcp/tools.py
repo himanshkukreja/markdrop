@@ -1804,38 +1804,149 @@ def _search_scope(scope: str | None) -> tuple[str | None, str]:
         raise ToolError("scope must be mine, workspaces, all or workspace:<workspace id>.")
 
 
-async def search(ctx: Context, args: dict) -> tuple[str, dict]:
-    """Global search (services/search.py): fuzzy over titles, headings, text and file contents of
-    everything the user can open; ids are slugs for fetch."""
+# Pages Markdrop keeps for people (a team's backlog, to-do pages): owned by the lead / the person,
+# but nobody "created" them, so an owner filter leaves them out.
+NOT_SYSTEM_PAGE = {"backlog_team_id": None, "todo_team_id": None, "todo_user_id": None}
+
+
+def system_page(raw: dict) -> str | None:
+    """'team_backlog' / 'to_dos' for a page Markdrop keeps, else None."""
+    if raw.get("backlog_team_id"):
+        return "team_backlog"
+    if raw.get("todo_team_id") or raw.get("todo_user_id"):
+        return "to_dos"
+    return None
+
+
+async def resolve_member(ctx: Context, ws_ids: list[str], value: str) -> str:
+    """A member of one of ``ws_ids`` (workspaces the caller is in): "me", an account id, an
+    email or a name (a unique first name, a full name, or part of one name). Ambiguous → an error
+    naming the candidates, so the caller can pass an id."""
+    from app.services import workspace_memory as wm
+
+    v = (value or "").strip()
+    if v.casefold() in ("me", "myself", "i"):
+        return ctx.user.id
+    people: dict[str, dict] = {}
+    for w in ws_ids:
+        for m in await wm.members_of(ctx.db, w):
+            people.setdefault(m["id"], m)
+    members = list(people.values())
+    for m in members:
+        if m["id"] == v or (m.get("email") or "").casefold() == v.casefold():
+            return m["id"]
+    hit = wm.match_people(v, members, None) or []
+    if not hit and len(v) >= 2:
+        cf = v.casefold()
+        hit = [m for m in members if cf in (m.get("name") or "").casefold()]
+    if len(hit) == 1:
+        return hit[0]["id"]
+    if len(hit) > 1:
+        raise ToolError("More than one person matches “" + v + "”: "
+                        + ", ".join(f"{m.get('name')} (id {m['id']})" for m in hit) + ". Pass the id.")
+    raise ToolError(f"No member of your workspaces matches “{v}” (list_workspace_members shows who is in one).")
+
+
+def _search_row(it: dict) -> dict:
+    fetchable = it["kind"] in _FETCHABLE
+    sn = it.get("snippet") or {}
+    return {
+        "id": it["slug"] if fetchable else it["url"],
+        "title": it.get("title") or it.get("slug") or "Untitled",
+        "url": it.get("web_url") or _absolute(it["url"]),
+        "kind": it["kind"],
+        "snippet": sn.get("text") or "",
+        "workspace": (it.get("workspace") or {}).get("name"),
+        "folder": " / ".join((it.get("folder") or {}).get("path") or []) or None,
+        "owner": (it.get("owner") or {}).get("name"),
+        "updated_at": str(it.get("updated_at") or ""),
+        "fetchable": fetchable,
+    }
+
+
+async def _search_listing(ctx: Context, q, owner_id: str | None) -> list[dict]:
+    """search without words, or by one person: documents, pages and files only, through the same two
+    walls as services/search.run (wall 1: doc_filter, what the caller may read; wall 2: allowed, each
+    shown row re-decided now). With an owner, the pages Markdrop keeps (backlogs, to-dos) are left out
+    and so are rows whose owner the caller may not see (the presence rule: no name shown)."""
     from app.services import search as search_service
 
-    query = args["query"].replace("\x00", "").strip()[: search_service.MAX_Q]
+    actor, actx = actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp")
+    if not actor.user_id:
+        return []
+    w = await search_service.world_of(ctx.db, actor, actx)
+    filt = await search_service.doc_filter(ctx.db, actor, actx, w.member_ws, q)
+    if filt is None:
+        return []
+    clauses = [filt, {"hidden_in_listings": {"$ne": True}}]
+    if owner_id:
+        clauses += [{"owner_id": owner_id}, NOT_SYSTEM_PAGE]
+    proj = {**search_service._DOC_PROJECTION, "team_ids": 1, "project_ids": 1,
+            "backlog_team_id": 1, "todo_team_id": 1, "todo_user_id": 1}
+    rows = await ctx.db["documents"].find({"$and": clauses}, proj).sort([("updated_at", -1), ("_id", -1)]).limit(
+        search_service.MAX_SCAN).to_list(length=search_service.MAX_SCAN)
+    cands = [search_service._doc_cand(r, actor.user_id) for r in rows]
+    terms = search_service.terms_of(q.text)
+    if terms.tokens:
+        cands = await search_service.rank_text(ctx.db, cands, q.text, q, actx.now)
+        cands.sort(key=lambda c: (-c.score, -(c.updated.timestamp() if c.updated else 0)))
+    shown = []
+    for c in cands:
+        if len(shown) >= q.limit:
+            break
+        if await search_service.allowed(ctx.db, w, c):
+            shown.append(c)
+    shaped = await search_service.Shaper(ctx.db, w).shape(shown, terms, snippets=bool(terms.tokens))
+    out = []
+    for c in shown:
+        it = shaped.get(c.key)
+        if it is None:
+            continue
+        if owner_id and not (it.get("owner") or {}).get("name") and not (it.get("owner") or {}).get("is_you"):
+            continue
+        out.append(it)
+    return out
+
+
+async def search(ctx: Context, args: dict) -> tuple[str, dict]:
+    """Global search (services/search.py): fuzzy over titles, headings, text and file contents of
+    everything the user can open; ids are slugs for fetch. Without a query (when owner, updated or
+    space narrows it), or with a person as owner, documents, pages and files newest first (or best
+    match first) through the same access checks (_search_listing)."""
+    from app.services import search as search_service
+
+    query = (args.get("query") or "").replace("\x00", "").strip()[: search_service.MAX_Q]
     ws, owner = _search_scope(args.get("scope"))
     try:
         kinds = search_service.parse_kinds(args.get("kind")) or frozenset(_FETCHABLE)
     except ValueError as exc:
         raise ToolError(str(exc))
     limit = max(1, min(search_service.MAX_LIMIT, int(args.get("limit") or 20)))
-    q = search_service.Query(q=query, scope=ws, kinds=kinds, owner=args.get("owner") or owner,
-                             updated=args.get("updated") or "any", limit=limit, trash=False)
-    res = await search_service.run(ctx.db, actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp"), q)
-    results = []
-    for it in res["items"]:
-        fetchable = it["kind"] in _FETCHABLE
-        sn = it.get("snippet") or {}
-        results.append({
-            "id": it["slug"] if fetchable else it["url"],
-            "title": it.get("title") or it.get("slug") or "Untitled",
-            "url": it.get("web_url") or _absolute(it["url"]),
-            "kind": it["kind"],
-            "snippet": sn.get("text") or "",
-            "workspace": (it.get("workspace") or {}).get("name"),
-            "folder": " / ".join((it.get("folder") or {}).get("path") or []) or None,
-            "owner": (it.get("owner") or {}).get("name"),
-            "updated_at": str(it.get("updated_at") or ""),
-            "fetchable": fetchable,
-        })
-    out = {"results": results}
+    updated = args.get("updated") or "any"
+    who = (args.get("owner") or "").strip()
+    person = None                      # another member: their documents only
+    if who.casefold() == "me":
+        owner = "me"
+    elif who and who.casefold() != "anyone":
+        w = await search_service.world_of(ctx.db, actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp"))
+        uid = await resolve_member(ctx, [ws] if ws else list(w.member_ws), who)
+        if uid == ctx.user.id:
+            owner = "me"
+        else:
+            person = uid
+    q = search_service.Query(q=query, scope=ws, kinds=kinds, owner=owner, updated=updated, limit=limit, trash=False)
+    if query and person is None:
+        res = await search_service.run(ctx.db, actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp"), q)
+        items = res["items"]
+    else:
+        if not query and owner != "me" and person is None and updated == "any" and not access_service.SPACE.get():
+            raise ToolError("Give a query, or leave it out and filter instead: owner (a person's name, email or "
+                            "id, or me), updated (week, month) or space.")
+        if not kinds & search_service.DOC_KINDS:
+            raise ToolError("Without a query, or with a person as owner, search lists documents, pages and files "
+                            "only (kind page, doc or file).")
+        items = await _search_listing(ctx, q, person or (ctx.user.id if owner == "me" else None))
+    out = {"results": [_search_row(it) for it in items]}
     # ChatGPT's search/fetch contract: the text block is the JSON result itself.
     return json.dumps(out), out
 
@@ -2046,6 +2157,81 @@ async def list_workspace_members(ctx: Context, args: dict) -> tuple[str, dict]:
             + "\nMention one in a page as :person[Name]{id=\"<id>\"}."), out
 
 
+def _date_clause(field: str, after: str | None, before: str | None) -> dict | None:
+    """Mongo bounds on ``field`` from ISO dates (YYYY-MM-DD, or a date-time; UTC unless it says):
+    on or after ``after``, on or before ``before`` (a date covers that whole day)."""
+    rng: dict = {}
+    for arg, value in (("after", after), ("before", before)):
+        v = (value or "").strip()
+        if not v:
+            continue
+        try:
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
+                day = datetime.fromisoformat(v)
+                if arg == "after":
+                    rng["$gte"] = day
+                else:
+                    rng["$lt"] = day + timedelta(days=1)
+                continue
+            dt = datetime.fromisoformat(v.replace("Z", "+00:00"))
+        except ValueError:
+            raise ToolError(f"{field.split('_')[0]}_{arg} must be an ISO date (YYYY-MM-DD) or date-time.")
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        rng["$gte" if arg == "after" else "$lte"] = dt
+    return {field: rng} if rng else None
+
+
+async def _readable_team(ctx: Context, ws_id: str, ref: str) -> str:
+    """A team of the workspace the caller can read, by id, slug or name; a private team they aren't in
+    is the same "no such team" as one that doesn't exist."""
+    from app.services import teams as teams_service
+
+    row = await teams_service.get_team(ctx.db, ws_id, (ref or "").strip())
+    view = await access_service.Ctx(ctx.db).team_view(ws_id, ctx.user.id)
+    if row is None or str(row["_id"]) not in view.readable_teams:
+        raise ToolError(f"No team “{ref}” you can open in that workspace (list_teams shows them).")
+    return str(row["_id"])
+
+
+async def _filtered_items(ctx: Context, ws_id: str, *, folder: str, q: str | None, cursor: str | None,
+                          limit: int, access_level: str | None, extra: list[dict]) -> dict:
+    """services/workspace_items.items with more filters (``extra``): the same readable filter
+    (access.readable_filter) and the same per-row discoverable check, newest first, the same cursor.
+    Only rows the caller can open (an admin's placeholders for others' private items never match a filter)."""
+    from app.services import folder as folder_service
+    from app.services import urls as urls_service
+    from app.services import workspace_items as wi
+    from app.services.library import search_filter
+
+    actor, actx = access_service.Actor.of(ctx.user), access_service.Ctx(ctx.db)
+    limit = max(1, min(wi.MAX_ITEMS_PAGE, int(limit or 50)))
+    rf = await access_service.readable_filter(actor, ws_id, actx)
+    clauses: list[dict | None] = [wi.NOT_HIDDEN, await wi.space_extra(actor, actx, ws_id, None)]
+    if folder in ("root", "unfiled"):
+        clauses.append({"folder_id": None})
+    elif folder and folder != "all":
+        await folder_service._get_owned(ctx.db, ws_id, folder)
+        clauses.append({"folder_id": folder})
+    if folder in ("all", "", None) and not q:
+        hide = await wi._hidden_ids(ctx.db, ws_id)
+        if hide:
+            clauses.append({"folder_id": {"$nin": sorted(hide)}})
+    clauses += [search_filter(q), wi.decode_cursor(cursor), wi.access_clause(access_level), *extra]
+    query = {"$and": [*rf.base, rf.readable, *[c for c in clauses if c]]}
+    rows = await ctx.db["documents"].find(query, wi.LIST_PROJECTION).sort(
+        [("updated_at", -1), ("_id", -1)]).limit(limit + 1).to_list(length=limit + 1)
+    more = len(rows) > limit
+    rows = rows[:limit]
+    folders = wi.folder_index(await folder_service.list_folders(ctx.db, ws_id))
+    names = await wi.owner_cards(ctx.db, [r.get("owner_id") for r in rows])
+    hosts = urls_service.HostCache(ctx.db)
+    kids = await wi.with_children(ctx.db, [r["_id"] for r in rows])
+    out = [await wi.item_for(ctx.db, raw, actor, actx, names=names, folders=folders, hosts=hosts, kids=kids)
+           for raw in rows if await access_service.discoverable(actor, raw, actx)]
+    return {"items": out, "next_cursor": wi.encode_cursor(rows[-1].get("updated_at"), rows[-1]["_id"]) if more and rows else None}
+
+
 async def list_workspace_items(ctx: Context, args: dict) -> tuple[str, dict]:
     from app.services import workspace_items
 
@@ -2053,20 +2239,57 @@ async def list_workspace_items(ctx: Context, args: dict) -> tuple[str, dict]:
     folder = "all"
     if args.get("folder"):
         folder = await resolve_folder(ctx, ws_id, args["folder"]) or "root"
+    cursor = (args.get("cursor") or "").strip() or None
+    if cursor:
+        try:
+            workspace_items.decode_cursor(cursor)
+        except HTTPException:
+            raise ToolError("That cursor isn't one this tool gave: pass the next_cursor of the previous call "
+                            "exactly (with the same filters), or leave it out to start again.")
+    extra: list[dict] = []
+    if args.get("owner"):
+        uid = await resolve_member(ctx, [ws_id], args["owner"])
+        # The backlog / to-do pages Markdrop keeps for a person weren't created by them.
+        extra += [{"owner_id": uid}, NOT_SYSTEM_PAGE]
+    for f in ("created", "updated"):
+        c = _date_clause(f"{f}_at", args.get(f"{f}_after"), args.get(f"{f}_before"))
+        if c:
+            extra.append(c)
+    token = None
+    if args.get("team"):
+        # A team the caller can read: the same narrowing as space=team:<id>.
+        token = access_service.SPACE.set(f"team:{await _readable_team(ctx, ws_id, args['team'])}")
     try:
-        res = await workspace_items.items(
-            ctx.db, access_service.Actor.of(ctx.user), access_service.Ctx(ctx.db), ws_id,
-            folder=folder, q=args.get("query"), cursor=args.get("cursor"),
-            limit=int(args.get("limit") or 50), access_level=args.get("access") or None)
+        if extra:
+            res = await _filtered_items(ctx, ws_id, folder=folder, q=args.get("query"), cursor=cursor,
+                                        limit=int(args.get("limit") or 50), access_level=args.get("access") or None,
+                                        extra=extra)
+        else:
+            res = await workspace_items.items(
+                ctx.db, access_service.Actor.of(ctx.user), access_service.Ctx(ctx.db), ws_id,
+                folder=folder, q=args.get("query"), cursor=cursor,
+                limit=int(args.get("limit") or 50), access_level=args.get("access") or None)
     except HTTPException as exc:
         raise ToolError(http_message(exc))
+    finally:
+        if token is not None:
+            access_service.SPACE.reset(token)
+    shown = [i for i in res["items"] if not i["redacted"]]
+    sys_rows = {r["slug"]: system_page(r) for r in await ctx.db["documents"].find(
+        {"slug": {"$in": [i["slug"] for i in shown]}, **{"$or": [{k: {"$nin": [None]}} for k in NOT_SYSTEM_PAGE]}},
+        {"slug": 1, **{k: 1 for k in NOT_SYSTEM_PAGE}}).to_list(length=len(shown) or 1)} if shown else {}
     items = [{
         "slug": i["slug"], "title": i["title"], "kind": i["kind"], "url": i["url"],
         "markdrop_url": i["markdrop_url"], "access": i["access"], "redacted": i["redacted"],
         "folder": (i["folder"] or {}).get("path") if i.get("folder") else None,
+        # Names as every listing shows them to the workspace's members (workspace_items.owner_cards).
         "owner": "you" if i["owner"]["is_you"] else (i["owner"]["name"] or "someone else"),
+        "created_at": iso(i.get("created_at")),
         "updated_at": iso(i.get("updated_at")),
-    } for i in res["items"] if not i["redacted"]]
+        # Its teams the user can read (teams.labels); [] = company-wide or only teams they can't open.
+        "teams": [t["name"] for t in i.get("teams") or [] if t.get("kind") == "team" and t.get("name")],
+        "system_page": sys_rows.get(i["slug"]),
+    } for i in shown]
     if args.get("previews") and items:
         # What each item's card shows (services/card_preview.py), as text: the same read
         # decision as opening it, a few items at a time.
@@ -2080,12 +2303,24 @@ async def list_workspace_items(ctx: Context, args: dict) -> tuple[str, dict]:
                                                      slugs[k:k + card_preview.MAX_SLUGS], wait=3.0))
         for i in items:
             i["preview"] = card_preview.as_text(found.get(i["slug"]) or {})
-    out = {"items": items, "next_cursor": res["next_cursor"]}
-    if not items:
+    nxt = res["next_cursor"]
+    out = {"items": items, "next_cursor": nxt}
+    if not items and not nxt:
         return "Nothing here that the user can open.", out
-    return f"{len(items)} item(s):\n" + "\n".join(
-        f"- {i['title'] or i['slug']} (by {i['owner']}): {i['url']}"
-        + (f"\n  {i['preview']}" if i.get("preview") else "") for i in items), out
+
+    def line(i: dict) -> str:
+        bits = [f"by {i['owner']}", f"created {(i['created_at'] or '')[:10]}", f"updated {(i['updated_at'] or '')[:10]}"]
+        if i["teams"]:
+            bits.append("team " + ", ".join(i["teams"]))
+        if i["system_page"]:
+            bits.append("system page: " + ("team backlog" if i["system_page"] == "team_backlog" else "to-dos"))
+        return (f"- {i['title'] or i['slug']} ({'; '.join(b for b in bits if not b.endswith(' '))}): {i['url']}"
+                + (f"\n  {i['preview']}" if i.get("preview") else ""))
+
+    text = f"{len(items)} item(s), newest first:\n" + "\n".join(line(i) for i in items)
+    if nxt:
+        text += f"\nMore items: call list_workspace_items again with cursor={nxt!r} (and the same filters)."
+    return text, out
 
 
 async def add_to_workspace(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -3393,18 +3628,24 @@ TOOLS: list[Tool] = [
                      "headings, text and file contents (HTML, PDF), with typos, partial words and any word order. "
                      "Encrypted and password-protected items match by title only. scope: all (default), mine, "
                      "workspaces or workspace:<id>; kind: page, doc, file, folder, workspace, guide (comma-separated); "
-                     "updated: any, week, month. Returns ids to pass to fetch."),
+                     "updated: any, week, month; owner: me, anyone, or a person (name, email or id: what they own, "
+                     "e.g. \"everything Arun created\"; the backlog and to-do pages Markdrop keeps for people don't "
+                     "count). query may be left out when owner, updated or space narrows it: then documents, pages "
+                     "and files newest first. Returns ids to pass to fetch."),
         scope=READ,
         input_schema={"type": "object", "properties": {
-            "query": {"type": "string", "minLength": 1, "maxLength": 200},
+            "query": {"type": "string", "maxLength": 200,
+                      "description": "Words to find. Optional when owner, updated or space is given."},
             "scope": {"type": "string", "maxLength": 40, "default": "all",
                       "description": "all | mine | workspaces | workspace:<workspace id>"},
             "kind": {"type": "string", "maxLength": 80,
                      "description": "page, doc, file, folder, workspace or guide; comma-separated. Default: page,doc,file."},
-            "owner": {"type": "string", "enum": ["anyone", "me"]},
+            "owner": {"type": "string", "maxLength": 200, "description": (
+                "anyone (default), me, or a member of the user's workspaces by name (a unique first name is "
+                "enough), email or id (list_workspace_members): only what that person owns.")},
             "updated": {"type": "string", "enum": ["any", "week", "month"], "default": "any"},
             "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20}},
-            "required": ["query"]},
+            "required": []},
         output_schema=_out({"results": {"type": "array", "items": _out({
             "id": {"type": "string"}, "title": {"type": "string"}, "url": {"type": "string"},
             "kind": {"type": "string"}, "snippet": {"type": "string"}, "workspace": _NULLABLE_STR,
@@ -3899,7 +4140,12 @@ _WS_ITEM = _out({
     "slug": {"type": "string"}, "title": _NULLABLE_STR, "kind": {"type": "string"},
     "url": {"type": "string"}, "markdrop_url": {"type": "string"}, "access": _ACCESS_OUT,
     "redacted": {"type": "boolean"}, "folder": _NULLABLE_STR, "owner": {"type": "string"},
-    "updated_at": _NULLABLE_STR,
+    "created_at": _NULLABLE_STR, "updated_at": _NULLABLE_STR,
+    "teams": {"type": "array", "items": {"type": "string"},
+              "description": "Its teams the user can open ([] = company-wide)."},
+    "system_page": {"type": ["string", "null"], "enum": ["team_backlog", "to_dos", None], "description": (
+        "Set on the pages Markdrop keeps itself (a team's backlog, a person's to-do page): their owner "
+        "didn't write them, so the owner filter leaves them out.")},
     "preview": {"type": ["string", "null"], "description": (
         "Only with previews=true: the start of the item as plain text, what its card in the app's "
         "Cards view shows (headings and first lines, a sheet's first cells, a text file's first "
@@ -3964,7 +4210,12 @@ TOOLS += [
         name="list_workspace_items",
         title="List a workspace's documents",
         description=("Documents and files in a workspace (or one folder of it) that the user can open, "
-                     "newest first, with their canonical links (custom domain when live) and who owns each. "
+                     "newest first (most recently updated), with their canonical links (custom domain when live), "
+                     "who owns each, when it was created and updated, and its teams. Filter by owner (a member's "
+                     "name, email or id: what they created; the backlog and to-do pages Markdrop keeps don't "
+                     "count), team, created_after / created_before, updated_after / updated_before (ISO dates, "
+                     "both ends inclusive), access or query (title words). A page at a time: when next_cursor is "
+                     "set, pass it back exactly as cursor, with the same filters, for the next page. "
                      "previews=true adds the start of each item as plain text (what its card shows in the "
                      "app's Cards view); it is slower, so ask for it with a small limit."),
         scope=READ,
@@ -3976,7 +4227,21 @@ TOOLS += [
                 "shared with), 'workspace' (members) or 'link' (anyone with the link, with or without a "
                 "password).")},
             "query": {"type": "string", "maxLength": 200},
-            "cursor": {"type": "string", "maxLength": 300},
+            "owner": {"type": "string", "maxLength": 200, "description": (
+                "Optional: only items this member owns: their name (a unique first name is enough), email, "
+                "id (list_workspace_members) or me.")},
+            "team": {"type": "string", "maxLength": 200,
+                     "description": "Optional: only this team's items: its id, slug or name (list_teams)."},
+            "created_after": {"type": "string", "maxLength": 40,
+                              "description": "Optional: created on or after this ISO date (YYYY-MM-DD) or date-time."},
+            "created_before": {"type": "string", "maxLength": 40,
+                               "description": "Optional: created on or before this ISO date (the whole day) or date-time."},
+            "updated_after": {"type": "string", "maxLength": 40,
+                              "description": "Optional: last updated on or after this ISO date or date-time."},
+            "updated_before": {"type": "string", "maxLength": 40,
+                               "description": "Optional: last updated on or before this ISO date (the whole day) or date-time."},
+            "cursor": {"type": "string", "maxLength": 300,
+                       "description": "Optional: the next_cursor of the previous call, exactly (same filters)."},
             "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50},
             "previews": {"type": "boolean", "default": False,
                          "description": "Add each item's opening text as `preview`."},
@@ -4207,6 +4472,10 @@ TOOLS += BACKLOG_TOOLS
 from app.mcp.dashboard_tools import DASHBOARD_TOOLS  # noqa: E402
 
 TOOLS += DASHBOARD_TOOLS
+# Ask's index (list_items, person_card, team_overview): app/mcp/index_tools.py.
+from app.mcp.index_tools import INDEX_TOOLS  # noqa: E402
+
+TOOLS += INDEX_TOOLS
 add_space(TOOLS)
 
 for _t in TOOLS:

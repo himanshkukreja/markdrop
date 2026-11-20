@@ -243,6 +243,7 @@ async def index_doc(db: AsyncIOMotorDatabase, doc_id: Any) -> bool:
     if raw is None or raw.get("template"):
         await db[COLL].delete_one({"_id": oid})
         await search_chunks.drop(db, oid)
+        await _ai_index(db, oid)
         return False
     # Markdown → words for a 20,000-character page is real CPU: off the event loop (it held every
     # request for its length on each autosave; perf/scale's loop monitor caught it).
@@ -272,7 +273,15 @@ async def index_doc(db: AsyncIOMotorDatabase, doc_id: Any) -> bool:
         if old and old.get("ax") == "done":
             row.pop("ax")          # the around text follows the embedding pages' saves, not the file's
     await db[COLL].update_one({"_id": oid}, {"$set": row}, upsert=True)
+    await _ai_index(db, oid)
     return True
+
+
+async def _ai_index(db: AsyncIOMotorDatabase, oid: ObjectId) -> None:
+    """Ask's index (services/ai_index.py) follows every (re)index: its facts rows for this document."""
+    from app.services import ai_index
+
+    await ai_index.index_doc(db, oid)
 
 
 async def index_guide_page(db: AsyncIOMotorDatabase, page_id: Any) -> bool:
@@ -292,6 +301,9 @@ async def drop(db: AsyncIOMotorDatabase, doc_id: Any) -> None:
         await db[COLL].delete_one({"_id": oid})
         await search_chunks.drop(db, oid)
         await search_chunks.drop_gate(db, oid)
+        from app.services import ai_index
+
+        await ai_index.drop(db, oid)
     except Exception:
         pass
 

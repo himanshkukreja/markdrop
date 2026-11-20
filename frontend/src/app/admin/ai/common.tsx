@@ -131,6 +131,7 @@ export const FEATURE_LABEL: Record<string, string> = {
   docs_ask: "Docs Ask AI", docs_editor: "Guides editor AI", pages_ai: "Pages AI", search_ai: "AI search",
   analytics_ai: "Analytics AI", meetings_ai: "Meetings AI", ask_suggestions: "Ask suggestions",
   workspace_memory: "Team memory", jira_ai: "Jira drafts", comments_ai: "Comments AI", zoom_transcribe: "Zoom transcription",
+  ai_index: "AI index summaries", embeddings: "Semantic search embeddings",
 };
 export const featureLabel = (k: string | null | undefined) => (k ? FEATURE_LABEL[k] ?? k : "—");
 

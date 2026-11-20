@@ -262,8 +262,47 @@ async def _row(ctx: Context, ref: str) -> tuple[dict, dict]:
     return row, raw
 
 
+MAX_TITLE_SCAN = 200
+
+
+async def _by_title(ctx: Context, title: str, *, workspace: str | None, date: str | None) -> tuple[dict, dict] | None:
+    """The newest meeting called ``title`` (any case; else the newest whose title contains it) that the
+    caller can read (meetings.readable), in their workspaces (or ``workspace``), on ``date`` when given."""
+    t = " ".join((title or "").split())
+    if not t:
+        return None
+    if workspace:
+        ws_ids = [await _ws(ctx, workspace)]
+    else:
+        ws_ids = [m["workspace_id"] for m in await ctx.db["memberships"].find(
+            {"user_id": ctx.user.id}, {"workspace_id": 1}).to_list(length=500)]
+    if not ws_ids:
+        return None
+    base: dict[str, Any] = {"workspace_id": {"$in": ws_ids}}
+    if date:
+        base["date"] = date
+    actor, actx = actor_of(ctx), _actx(ctx)
+    for rx in (f"^{re.escape(t)}$", re.escape(t)):
+        cur = ctx.db[meetings.COLL].find({**base, "title": {"$regex": rx, "$options": "i"}}).sort(
+            [("date", -1), ("time", -1), ("created_at", -1), ("_id", -1)]).limit(MAX_TITLE_SCAN)
+        async for row in cur:
+            raw = await meetings.readable(ctx.db, row, actor, actx)
+            if raw is not None:
+                return row, raw
+    return None
+
+
 async def get_meeting(ctx: Context, args: dict) -> tuple[str, dict]:
-    row, raw = await _row(ctx, args["meeting"])
+    ref = args["meeting"]
+    try:
+        row, raw = await _row(ctx, ref)
+    except ToolError:
+        # Not an id, slug or link the caller can open: a title (newest readable match).
+        got = await _by_title(ctx, ref, workspace=args.get("workspace"), date=args.get("date"))
+        if got is None:
+            raise ToolError("Meeting not found (or the user can't open it): no meeting with that id, link or title "
+                            + (f"on {args['date']} " if args.get("date") else "") + "that the user can open. See list_meetings.")
+        row, raw = got
     actor, actx = actor_of(ctx), _actx(ctx)
     m = _meeting_out(await meetings.shape(ctx.db, row, raw, actor, actx))
     from app.services import pages
@@ -573,10 +612,16 @@ MEETING_TOOLS: list[Tool] = [
         title="Read a meeting",
         description=("One meeting: its page's Markdown (summary, decisions, action items…) and, with transcript=true, "
                      f"its transcript lines ({MAX_TRANSCRIPT_RETURN} at a time from from_segment), each with a link to that moment. "
-                     "With a kept recording: its chapters (seconds into the video, from the notes' sections)."),
+                     "With a kept recording: its chapters (seconds into the video, from the notes' sections). "
+                     "meeting: its id, page slug or link, or its title (any case; the newest one the user can open, "
+                     "narrowed by date and workspace when given)."),
         scope=READ,
         input_schema={"type": "object", "properties": {
-            "meeting": _MEETING_REF,
+            "meeting": {**_MEETING_REF, "description": (
+                "A meeting's id (from list_meetings), its page's slug or link, or its title.")},
+            "date": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$",
+                     "description": "Optional, with a title: the meeting's date (YYYY-MM-DD), when it repeats."},
+            "workspace": {**_WORKSPACE_ARG, "description": "Optional, with a title: only this workspace's meetings."},
             "transcript": {"type": "boolean", "default": False},
             "from_segment": {"type": "integer", "minimum": 1, "default": 1},
         }, "required": ["meeting"]},

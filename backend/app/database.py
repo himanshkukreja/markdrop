@@ -266,6 +266,12 @@ async def connect() -> None:
         from app.services import search_index as _search_index
 
         await _search_index.ensure_indexes(db)
+        # Ask's index (services/ai_index.py, ai_summaries.py, ai_vectors.py).
+        from app.services import ai_index as _ai_index, ai_summaries as _ai_summaries, ai_vectors as _ai_vectors
+
+        await _ai_index.ensure_indexes(db)
+        await _ai_summaries.ensure_indexes(db)
+        await _ai_vectors.ensure_indexes(db)
         from app.services import search_log as _search_log
 
         await _search_log.ensure_indexes(db)

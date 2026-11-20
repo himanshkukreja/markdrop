@@ -766,6 +766,22 @@ class Settings(BaseSettings):
     comments_ai_enabled: bool = True
     comments_ai_daily_usd: float = 2.0
     comments_ai_monthly_usd: float = 20.0
+    # Ask's index (AI quality stage 2, .work/briefs/ai-quality-phase2.md): Layer 1 facts (no AI,
+    # services/ai_index.py), Layer 2 page summaries (Claude Haiku, ledger feature "ai_index",
+    # services/ai_summaries.py), Layer 3 semantic search (Voyage AI embeddings, ledger feature
+    # "embeddings", services/ai_vectors.py). Layer 3 is OFF until MARKDROP_VOYAGE_API_KEY is set; Ask
+    # works without it. Costs are internal accounting only, never shown to users.
+    ai_index_enabled: bool = True
+    ai_index_daily_usd: float = 1.0
+    ai_index_monthly_usd: float = 10.0
+    voyage_api_key: str = ""
+    voyage_api_base: str = "https://api.voyageai.com/v1"
+    voyage_model: str = "voyage-3.5-lite"
+    voyage_dims: int = 1024
+    voyage_usd_per_mtok: float = 0.02       # voyage-3.5-lite, pay as you go (internal accounting only)
+    embeddings_enabled: bool = True
+    embeddings_daily_usd: float = 1.0
+    embeddings_monthly_usd: float = 10.0
 
     # ── Push notifications (Web Push: services/webpush.py, services/push.py) ──
     # The server's VAPID key pair (RFC 8292). Generate one with

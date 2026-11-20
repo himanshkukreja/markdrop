@@ -44,14 +44,14 @@ import asyncio
 import json
 import logging
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, AsyncIterator
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.services import (access, ai_log, ai_usage, ask_context, docs_agent, meetings, pages_ai, search, search_ai,
-                          search_chunks, search_index, urls)
+from app.services import (access, ai_log, ai_usage, ask_context, ask_route, docs_agent, meetings, pages_ai, search,
+                          search_ai, search_chunks, search_index, urls)
 from app.services import search_text as st
 from app.services import ai_output
 
@@ -108,7 +108,18 @@ RECORDS_RULE = ("Markdrop's records: an item's tag may also carry created_by (wh
                 "its action items, open and done, with the person who owns each; a document may bring its comment "
                 "threads (who said what, when: cite them as that item [n]). These come from Markdrop itself and are "
                 "reliable: answer who wrote / created / owns, when, which team and what status from them rather than "
-                "guessing from the text. <untrusted_people> lists the workspace members the question names.")
+                "guessing from the text. An item's summary is a short description of the whole item; its excerpt and passages "
+                "are its own words. <untrusted_people> lists the workspace members the question names.")
+
+INDEX_RULE = ("<untrusted_index>, when present, holds Markdrop's own records queried for this question: exact counts and "
+              "complete lists (documents someone created, meetings someone attended or held in a period, action "
+              "items by owner (open or done), comment threads, a team's backlog), a person card or a team overview — already limited to "
+              "what this person can open. Take its counts and lists as exact and complete: answer \"how many\" with its "
+              "number and \"which\" with its list rather than counting the items yourself, and cite a listed item as its "
+              "[n] when it shows one (a line without [n] is cited by the item it names, or needs no citation). Pages Markdrop "
+              "keeps itself (team backlogs, to-do lists) are never something a person created. When an action item is still "
+              "open but a later meeting, page or status shows the work was done, call it \"likely done\" with that evidence "
+              "and date; never call it done yourself.")
 
 SHAPE_RULE = ("Shape: lead with the direct answer. \"How many…?\" starts with the number (\"Seven: …\"), counted from "
               "the items, then the list; when the items may not show them all, say \"at least\". A question asking for "
@@ -127,10 +138,16 @@ META_RULE = ("Write the facts plainly: never talk about the items, excerpts, can
 
 EXPAND_SYSTEM = """You help a keyword search engine inside Markdrop, a workspace app with meetings, documents, pages, files and guides. A person asked a question; when it follows earlier questions in a conversation, those come first for context.
 
-Return only JSON, no prose and no code fence: {"standalone": "...", "terms": [...], "titles": [...]}
+Return only JSON, no prose and no code fence: {"standalone": "...", "terms": [...], "titles": [...], "route": {...}}
 - "standalone": the question rewritten so it makes sense on its own (resolve "it", "that meeting", "and Bo?" from the conversation). The question itself when it already does.
 - "terms": up to 8 short search terms (1-3 words each): the key words, their synonyms and spelling variants, related words a document or meeting about it would use. Fix obvious typos.
 - "titles": up to 3 titles such a document or meeting could plausibly have.
+- "route": how to look it up, {"type": "...", "items": "...", "people": [...], "team": "...", "since": "...", "until": "...", "title": "..."}:
+  "type": "count" (how many…), "list" (which / list / all… — several items), "person" (about one person: what they work on, own, did, who they are), "time" (what happened or changed in a period), "team" (about a team: who is on it, what it does), else "lookup" (a fact, a reason, a summary).
+  "items": what it asks about: "documents" (docs, pages, PRDs, specs, files someone wrote or that changed), "meetings", "action_items" (tasks, commitments, to-dos), "comments" (comments, feedback threads), "backlog" (a team's backlog), or "any".
+  "people": the people it asks about, as written ("Arun", "Rahul Das"); "team": a team it names, else "".
+  "since" / "until": YYYY-MM-DD bounds of the period it names ("last two weeks", "yesterday", "in October"), from today's date given with the question; "" when it names none.
+  "title": a word the items' titles share when it asks for a kind of document or a meeting series ("PRD", "RFC", "Eng standup"), else "".
 Use the language of the question. Never answer the question itself."""
 
 ANSWER_SYSTEM = f"""You are Ask, the assistant in a person's Markdrop (their workspaces and files). They asked about their own meetings, documents, pages, files and guides. A search found candidate items they can open; each arrives inside an <untrusted_document n="…"> tag with its title, kind, where it lives and an excerpt. A meeting may also bring transcript lines labelled [n-sK] time Speaker: words; a file or video may bring passages labelled [n-sK] with where they are (a page, slide, sheet, section, or a minute of a video).
@@ -140,6 +157,8 @@ ANSWER_SYSTEM = f"""You are Ask, the assistant in a person's Markdrop (their wor
 {YOU_RULE}
 
 {RECORDS_RULE}
+
+{INDEX_RULE}
 
 Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with the numbers of the items that are relevant to the question, most relevant first (at most 12). Leave out items that are not relevant. If none are, write <ranking></ranking>.
@@ -1083,12 +1102,15 @@ async def _action_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: ac
     return out, withheld
 
 
-async def _expand(run: search_ai.Run, question: str, history: str) -> tuple[str, list[str]]:
-    content = (history + "\n\n" if history else "") + f"Search: {question}"
+async def _expand(run: search_ai.Run, question: str, history: str,
+                  today: "date | None" = None) -> tuple[str, list[str], dict | None]:
+    day = f"Today is {today.isoformat()} ({today.strftime('%A')}).\n" if today else ""
+    content = (history + "\n\n" if history else "") + day + f"Search: {question}"
     # Thinking off: a few dozen tokens of JSON, and Haiku 5.5's thinking would share the small cap.
     params = {**_params(EXPAND_SYSTEM, [content], EXPAND_MAX_TOKENS), "thinking": dict(ai_output.NO_THINKING)}
     raw, _stop = await _stream(run, params)
     standalone = question
+    route = None
     m = re.search(r"\{.*\}", raw or "", re.S)
     if m:
         try:
@@ -1096,9 +1118,10 @@ async def _expand(run: search_ai.Run, question: str, history: str) -> tuple[str,
             s = data.get("standalone") if isinstance(data, dict) else None
             if isinstance(s, str) and st.words(s):
                 standalone = re.sub(r"\s+", " ", s).strip()[:MAX_QUESTION]
+            route = data.get("route") if isinstance(data, dict) and isinstance(data.get("route"), dict) else None
         except Exception:
             pass
-    return standalone, search_ai.parse_terms(raw, standalone)
+    return standalone, search_ai.parse_terms(raw, standalone), route
 
 
 def _personal_cands(mine: "ask_me.Personal | None", uid: str, keep=None) -> list[search.Cand]:
@@ -1155,10 +1178,19 @@ async def named_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
 
 async def _ask_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, standalone: str,
                        terms: list[str], scope: str | None, keep=None, *, you=None,
-                       mine=None, people: "ask_context.People | None" = None) -> tuple[list[Source], int, int]:
+                       mine=None, people: "ask_context.People | None" = None,
+                       index: "ask_route.Index | None" = None) -> tuple[list[Source], int, int]:
     q = search.Query(q=standalone, scope=scope, snippets=True)
     cands, w = await search_ai.retrieve(db, actor, ctx, q, [standalone, *terms], keep=keep)
     first = _personal_cands(mine, actor.user_id, keep)
+    # The documents the index block lists (already decided readable, services/ai_index.query) come first, so
+    # its rows can point at numbered items.
+    seen_ = {c.key for c in first}
+    for raw in (index.docs if index is not None else []):
+        c = search._doc_cand(raw, actor.user_id)
+        if c.key not in seen_ and (keep is None or keep(c)):
+            first.append(c)
+            seen_.add(c.key)
     seen_ = {c.key for c in first}
     first += [c for c in await named_meetings(db, actor, ctx, w, standalone, scope, keep) if c.key not in seen_]
     # ── Team memory hook (feat/workspace-memory: services/workspace_memory.py) ─────────────────────
@@ -1196,6 +1228,56 @@ async def _ask_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
     if keep is None and scope and not ctx.space:
         sources += await _brief_sources(db, scope, len(sources))
     return sources, len(cands), withheld
+
+
+SUMMARY_SOURCES = 30
+SEMANTIC_PASSAGES = 8
+
+
+async def _index_pass(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, sources: list[Source]) -> None:
+    """Ask's index on the numbered items (services/ask_route.py, ai_summaries.py, ai_vectors.py): a team's backlog
+    page or a to-do page item per line; each document's two-line summary first; the best semantic passage of the
+    items the meaning search found (only with Layer 3 on). Every source here is already decided readable."""
+    from app.services import ai_summaries
+
+    docs = [s for s in sources if s.tag == "document" and s.cand is not None and s.cand.kind in search.DOC_KINDS
+            and (s.cand.raw or {}).get("_id") is not None]
+    if not docs:
+        return
+    ids = [s.cand.raw["_id"] for s in docs]
+    raws = {r["_id"]: r for r in await db["documents"].find(
+        {"_id": {"$in": ids}, "$or": [{"backlog_team_id": {"$ne": None}}, {"todo_team_id": {"$ne": None}},
+                                      {"todo_user_id": {"$ne": None}}]}).to_list(length=len(ids))}
+    for s in docs:
+        raw = raws.get(s.cand.raw["_id"])
+        if raw is None:
+            continue
+        txt = await ask_route.system_text(db, actor, ctx, raw)
+        if txt:
+            s.text = txt
+    sums = await ai_summaries.get(db, [s.cand.raw["_id"] for s in docs[:SUMMARY_SOURCES]
+                                       if s.cand.raw["_id"] not in raws and s.attrs.get("kind") != "meeting transcript"])
+    shown = 0
+    for s in docs:
+        sm = sums.get(s.cand.raw["_id"])
+        if sm and s.attrs.get("kind") != "meeting":
+            s.attrs["summary"] = sm
+        sem = (s.cand.extra or {}).get("semantic")
+        if sem and shown < SEMANTIC_PASSAGES and s.cand.raw["_id"] not in raws and not s.lines:
+            text = re.sub(r"\s+", " ", sem.get("text") or "").strip()
+            title = (s.attrs.get("title") or "").strip()
+            if title and text.startswith(title):
+                text = text[len(title):].strip()
+            if text and text[:120] not in (s.text or ""):
+                s.text = (s.text + "\n\n" if s.text else "") + "Best-matching passage: " + (
+                    text if len(text) <= ask_route_passage() else text[:ask_route_passage()].rsplit(" ", 1)[0] + "…")
+                shown += 1
+
+
+def ask_route_passage() -> int:
+    from app.services import ai_vectors
+
+    return ai_vectors.PASSAGE_CHARS
 
 
 BRIEF_SOURCES = 6
@@ -1496,6 +1578,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
         terms: list[str] = []
         standalone = question
         people = ask_context.People()
+        index = ask_route.Index()
         profile_only = (intent == "ask" and you is not None and not history and ask_me.is_personal(question)
                         and ask_me.is_profile(question) and not (ask_me.wants_meetings(question) or ask_me.wants_work(question)))
         if profile_only:
@@ -1505,7 +1588,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
         elif intent in ("ask", "page"):
             yield ev("status", stage="understanding")
             try:
-                standalone, terms = await _expand(run, question, history)
+                standalone, terms, route_raw = await _expand(run, question, history, ctx.now.date())
             except pages_ai.Upstream as exc:
                 await run.record("error", error_code=exc.code, stage="expand")
                 yield ev("error", detail=exc.detail, code="upstream")
@@ -1518,6 +1601,16 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
                 log.warning("ask: name resolution failed", exc_info=True)
                 people = ask_context.People()
             terms = [*terms, *(t for t in people.terms if t.casefold() not in {x.casefold() for x in terms})]
+            # Light routing (services/ask_route.py): count / list / time / person / team questions read Markdrop's
+            # records first — exact tables, a person card, the team overview.
+            route = ask_route.parse(route_raw, about, ctx.now.date())
+            if intent == "ask":
+                try:
+                    index = await ask_route.build(db, actor, ctx, about, route, people, scope,
+                                                  narrowed=keep is not None or mine)
+                except Exception:
+                    log.warning("ask: index block failed", exc_info=True)
+            run.meta.update(route=route.as_meta(), index=index.kinds)
             yield ev("status", stage="searching", terms=terms)
             # About the asker: their meetings and recent work, inside the scope ("Ask my files": only their
             # own items outside any workspace, so no meetings).
@@ -1531,7 +1624,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
                 system = PAGE_SYSTEM
             else:
                 sources, _found, withheld = await _ask_sources(db, actor, ctx, standalone, terms, scope, keep,
-                                                               you=you, mine=finds, people=people)
+                                                               you=you, mine=finds, people=people, index=index)
                 system = ANSWER_SYSTEM
             run.meta.update(candidates=len(sources), terms=len(terms), withheld=withheld, personal=personal,
                             mine_meetings=len(finds.meetings), mine_work=len(finds.work))
@@ -1546,7 +1639,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
             run.meta.update(candidates=len(sources), withheld=withheld)
         about_me = you is not None and intent in ("ask", "page") and ask_me.is_personal(
             question if standalone == question else f"{question}\n{standalone}")
-        if not sources and not about_me:
+        if not sources and not about_me and index.empty:
             yield ev("results", items=[])
             yield await finish(WITHHELD if withheld else EMPTY[intent], [], [], stop="no_candidates", record=True)
             return
@@ -1560,6 +1653,12 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
                     await ask_context.add_comments(db, actor, ctx, sources)
             except Exception:
                 log.warning("ask: source records failed", exc_info=True)
+        if intent in ("ask", "page") and sources:
+            try:
+                await _index_pass(db, actor, ctx, sources)
+            except Exception:
+                log.warning("ask: index pass failed", exc_info=True)
+        index_text = index.render({s.key: s.n for s in sources}) if not index.empty else ""
         yield ev("status", stage="answering")
         by_n = {s.n: s for s in sources}
         run.log["context"] = [{"kind": s.item.get("kind"), "title": s.item.get("title") or s.attrs.get("title"),
@@ -1573,7 +1672,8 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
         if intent == "page":
             asked = (f"The page is item [1], titled: {page_raw.get('title') or '(untitled)'}\n"
                      + where_in_page(context) + asked)
-        params = _params(system, [_context(sources), "\n\n".join(x for x in (history, asked) if x)], ANSWER_MAX_TOKENS)
+        params = _params(system, [_context(sources), index_text, "\n\n".join(x for x in (history, asked) if x)],
+                         ANSWER_MAX_TOKENS)
         raw, stop, ranked = "", None, []
         try:
             async for kind, value in _relay(run, params):

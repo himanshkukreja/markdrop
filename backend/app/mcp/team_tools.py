@@ -77,9 +77,32 @@ def _bullets(title: str, items: list[dict]) -> str:
     return f"{title}:\n" + "\n".join(rows)
 
 
+async def _space_team(ctx: Context, ws: wm.WsInfo, space: str | None) -> dict | None:
+    """The team a ``space`` of team:<id> names, when the caller can read it (teams.TeamView); a private
+    team they aren't in is "no such team", like one that doesn't exist. None for any other space."""
+    from app.services import teams as teams_service
+
+    try:
+        sp = teams_service.parse_space(space)
+    except ValueError as exc:
+        raise ToolError(str(exc))
+    if sp.kind != "team":
+        return None
+    view = await access_service.Ctx(ctx.db, surface="mcp").team_view(ws.id, ctx.user.id)
+    if sp.id not in view.readable_teams or sp.id not in view.teams:
+        raise ToolError("No team you can open with that id in this workspace (list_teams shows them).")
+    return view.teams[sp.id]
+
+
 async def list_team(ctx: Context, args: dict) -> tuple[str, dict]:
     ws, role = await _ws(ctx, args["workspace"])
+    team = await _space_team(ctx, ws, args.get("space"))
     got = await wm.team(ctx.db, actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp"), ws, role)
+    if team is not None:
+        # space=team:<id>: that team's members (and who leads it), not the whole workspace.
+        member_ids, leads = list(team.get("member_ids") or []), set(team.get("lead_ids") or [])
+        got = {**got, "people": [p for p in got["people"] if p["id"] in set(member_ids)],
+               "blockers": [b for b in got["blockers"] if (b.get("person") or {}).get("id") in set(member_ids)]}
     people = [{"id": p["id"], "name": p["name"], "role": p.get("role"), "status": p["status"]["label"],
                "status_state": p["status"]["state"], "reason": p["status"].get("reason"),
                "now": (p.get("now") or {}).get("text"), "open_items": p["open_items"], "overdue": p["overdue"],
@@ -93,6 +116,8 @@ async def list_team(ctx: Context, args: dict) -> tuple[str, dict]:
     groups = await team_extras.list_groups(ctx.db, ws.id)
     for p in people:
         p["groups"] = [g["name"] for g in groups if p["id"] in g["member_ids"]]
+        if team is not None:
+            p["lead"] = p["id"] in leads
     week = await team_extras.this_week(ctx.db, ws)
     out = {"workspace": ws.name, "people": people, "projects": projects, "groups": [g["name"] for g in groups],
            "this_week": ({"from": week["from"], "to": week["to"],
@@ -103,9 +128,12 @@ async def list_team(ctx: Context, args: dict) -> tuple[str, dict]:
            "blockers": [{"person": b["person"]["name"], "text": b["text"], "since": b.get("since"),
                          "waiting_on": (b.get("waiting_on") or {}).get("name")} for b in got["blockers"]],
            "url": _abs(f"/team/{ws.id}")}
-    lines = [f"Team in {ws.name} ({len(people)} people):"]
+    if team is not None:
+        out["team"] = {"id": str(team["_id"]), "name": team.get("name")}
+    lines = [f"{team.get('name')} team in {ws.name} ({len(people)} people):" if team is not None
+             else f"Team in {ws.name} ({len(people)} people):"]
     for p in people:
-        lines.append(f"- {p['name']}: {p['status']}" + (f" — {p['reason']}" if p.get("reason") else "")
+        lines.append(f"- {p['name']}" + (" (lead)" if p.get("lead") else "") + f": {p['status']}" + (f" — {p['reason']}" if p.get("reason") else "")
                      + (f". Now: {p['now']}" if p.get("now") else "") + (f". {p['open_items']} open item(s)" if p["open_items"] else ""))
     if projects:
         lines.append("Projects: " + "; ".join(f"{p['name']}" + (f" ({p['status']})" if p.get("status") else "") for p in projects))
@@ -418,6 +446,8 @@ TEAM_TOOLS = [
                      "with due dates, open items, their groups; current blockers; recurring projects; this week's "
                      "summary (highlights, due this week, overdue). Built from the "
                      "workspace's meetings and pages by Team memory, filtered to what the user can open. "
+                     "With space=team:<team id> (list_teams): only that team's members, each with lead true/false "
+                     "(a private team only for its members and workspace admins). "
                      "Workspace members only; the workspace must have Team memory on."),
         scope=READ,
         input_schema={"type": "object", "properties": {"workspace": _WS}, "required": ["workspace"]},
@@ -426,7 +456,8 @@ TEAM_TOOLS = [
                             "projects": {"type": "array", "items": {"type": "object"}},
                             "blockers": {"type": "array", "items": {"type": "object"}},
                             "groups": {"type": "array", "items": _STR},
-                            "this_week": {"type": ["object", "null"]}},
+                            "this_week": {"type": ["object", "null"]},
+                            "team": {"type": "object", "description": "With space=team:<id>: the team listed."}},
                            ["workspace", "people", "projects"]),
         annotations=_ann(True, False, True),
         handler=list_team,

@@ -276,6 +276,14 @@ async def retrieve(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ct
                 by_key[c.key] = c
         if spec >= 0.5 and ranked[0].key not in heads:
             heads.append(ranked[0].key)        # each specific term's best hit is always a candidate
+    # Layer 3 (services/ai_vectors.py, only with a Voyage key): the question's meaning against the chunks of
+    # the readable candidates (access decided before scoring), fused like one more ranking; the best chunk
+    # travels with the candidate as a passage.
+    for r, (c, hit) in enumerate(await _semantic(db, actor, cands, texts[0] if texts else "")):
+        fused[c.key] = fused.get(c.key, 0.0) + SEMANTIC_WEIGHT / (RRF_K + r + 1)
+        if c.key not in by_key:
+            by_key[c.key] = c
+        by_key[c.key].extra["semantic"] = {"text": hit.text, "line": hit.line, "score": round(hit.score, 4)}
     order = sorted(fused, key=lambda k: -fused[k])
     order = [*heads[:HEADS], *(k for k in order if k not in heads[:HEADS])]
     out: list[search.Cand] = []
@@ -289,6 +297,33 @@ async def retrieve(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ct
         if len(out) >= MAX_CANDIDATES:
             break
     return out, w
+
+
+SEMANTIC_WEIGHT = 1.5
+SEMANTIC_K = 40
+
+
+async def _semantic(db: AsyncIOMotorDatabase, actor: access.Actor, cands: list[search.Cand],
+                    text: str) -> list[tuple[search.Cand, Any]]:
+    """[(candidate, ai_vectors.Hit)] best first; [] when Layer 3 is off. Only candidates with text inside a
+    workspace (never encrypted / password-protected) are scored."""
+    from app.services import ai_vectors
+
+    if not text or not ai_vectors.configured():
+        return []
+    allowed: dict = {}
+    by_id: dict = {}
+    for c in cands:
+        if c.kind not in search.DOC_KINDS or not c.ws_id or c.content_id is None or (c.raw or {}).get("encrypted"):
+            continue
+        allowed[c.raw["_id"]] = c.ws_id
+        by_id[c.raw["_id"]] = c
+    try:
+        hits = await ai_vectors.search(db, allowed, text, k=SEMANTIC_K, user_id=actor.user_id)
+    except Exception:
+        log.warning("search ai: semantic search failed", exc_info=True)
+        return []
+    return [(by_id[h.doc], h) for h in hits if h.doc in by_id]
 
 
 async def _ai_workspaces(db: AsyncIOMotorDatabase, cands: list[search.Cand]) -> set[str]:

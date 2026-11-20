@@ -330,6 +330,9 @@ async def recount(db, doc_id: str) -> dict:
     oid = _oid(doc_id)
     if oid is not None:
         await db["documents"].update_one({"_id": oid}, {"$set": {"comment_counts": counts}})
+        from app.services import ai_index
+
+        ai_index.touch_comments(db, oid)      # Ask's index: the item's comment threads
     return counts
 
 

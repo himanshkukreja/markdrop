@@ -1025,6 +1025,10 @@ async def build_page(db: AsyncIOMotorDatabase, team_id: str, *, apply: bool = Tr
 async def _build(db: AsyncIOMotorDatabase, team: dict, *, apply: bool = True) -> Built:
     tid = str(team["_id"])
     out = Built(tid)
+    if apply:
+        from app.services import ai_index
+
+        ai_index.touch_backlog(db, tid)       # Ask's index: the team's items as rows
     items = await db[ITEMS].find({"team_id": tid, "orphan": {"$ne": True}}).to_list(length=MAX_ITEMS)
     ok = await _open_docs(db, items)
     people = await _people(db, team["workspace_id"])

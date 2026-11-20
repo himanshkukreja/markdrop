@@ -420,6 +420,10 @@ FEATURES: dict[str, str] = {
     "team_backlog": "Team backlog",
     # Not Claude: Deepgram speech-to-text for Zoom meetings without a transcript (services/zoom_media.py).
     "zoom_transcribe": "Zoom transcription",
+    # Ask's index (services/ai_summaries.py: page summaries, Claude) and semantic search (services/ai_vectors.py:
+    # Voyage AI embeddings, not Claude).
+    "ai_index": "AI index summaries",
+    "embeddings": "Semantic search embeddings",
 }
 
 SETTINGS = "ai_settings"
@@ -446,6 +450,8 @@ _CONFIG: dict[str, tuple[str, str, tuple[str, ...]]] = {
     "comments_ai": ("comments_ai_daily_usd", "comments_ai_monthly_usd", ("comments_ai_enabled",)),
     "team_backlog": ("team_backlog_daily_usd", "team_backlog_monthly_usd", ("team_backlog_enabled",)),
     "zoom_transcribe": ("zoom_transcribe_daily_usd", "zoom_transcribe_monthly_usd", ("zoom_transcribe_enabled",)),
+    "ai_index": ("ai_index_daily_usd", "ai_index_monthly_usd", ("ai_index_enabled",)),
+    "embeddings": ("embeddings_daily_usd", "embeddings_monthly_usd", ("embeddings_enabled",)),
 }
 
 _cache: dict[tuple[str, str], tuple[float, Any]] = {}
