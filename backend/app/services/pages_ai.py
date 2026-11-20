@@ -472,7 +472,7 @@ PAGE_SYNTAX = """Page Markdown is GitHub Markdown plus directives:
 - Nesting ":::indent" … ":::"; tables with a header row; ``` code blocks and ```mermaid diagrams.
 - People: :person[Name]{id="<user id>"}. Dates: :date[YYYY-MM-DD]. Colour: :span[text]{color="red"} or :span[text]{bg="yellow"}; underline :u[text]. Colours: gray, brown, orange, yellow, green, blue, purple, pink, red.
 - Markdrop items: '::markdrop{src="<slug>" mode="card"}' and mentions ':markdrop[Title]{src="<slug>"}'. Images: '![alt](asset:<id>)'. Bookmarks: '::bookmark{url="https://…"}'. Web embeds: '::embed{src="https://…"}'.
-- Block options at the end of a block: '{#b-k3x9a1 color="green"}'."""
+- Block options at the end of a block: '{color="green"}'. A block may carry an anchor id like '{#b-…}': keep an existing one exactly, never make one up."""
 
 GUIDE_SYNTAX = """Guide pages are Markdown documentation pages: GitHub Markdown (headings, lists, "- [ ]" to-dos, tables, code blocks, links, images) plus docs directives such as ":::note" … ":::", ":::warning[Title]", "::::steps", ":kbd[Ctrl+K]", '::video{src="…"}' and heading ids "{#some-id}"."""
 
@@ -573,7 +573,12 @@ def write_prompt(t: Target, *, prompt: str, before: str | None, after: str | Non
     ctx_text, trimmed = fit_context(t.body, PAGE_TOKENS, anchor_of(t.body, before, after))
     parts = [f"Task: write new content for this page at the writer's cursor. The writer asked for: {prompt}",
              "Use the page as context. Write only the new blocks that go at the cursor, so they fit between the "
-             "text before and after it; don't repeat what's already on the page."]
+             "text before and after it; don't repeat what's already on the page.",
+             "Ground it in the page: use the facts the page gives that bear on the request, exactly as the page "
+             "states them. Where the request needs something the page doesn't settle (an owner, a date, a number, a "
+             "channel, a commitment or promise), don't make it up: keep that part general, and only for a detail the "
+             "writer must decide leave a short placeholder in brackets, like [owner] (a few at most). Write only what "
+             "was asked for, no extra callouts or tips."]
     if before:
         parts.append("Text just before the cursor:\n" + wrap("before", before))
     if after:
@@ -585,8 +590,10 @@ def notes_prompt(*, notes: str, title: str | None, template: dict | None) -> Pro
     from app.services import page_templates
 
     parts = ["Task: turn the notes below into a well-structured page. Keep every fact, name, number, link and "
-             "decision from the notes; don't add facts that aren't in them. Use headings, lists, to-dos, tables and "
-             "callouts where they help a reader."]
+             "decision from the notes; don't add facts that aren't in them: no currency or units the notes don't "
+             "give, no order, cause or condition between things the notes don't link, and no open questions the "
+             "notes don't raise. Say each fact once. Use headings, lists, to-dos, tables and callouts where they "
+             "help a reader."]
     if title:
         parts.append(f"The page's title is {title!r}. It's shown above the page: don't repeat it as a heading.")
     if template is not None and template.get("id") != "blank":
@@ -695,6 +702,31 @@ def clean(raw: str, source: str = "") -> str:
     if m and not _FENCED.match(source.strip()) and not re.search(r"^```", m.group(1), re.M):
         out = m.group(1).strip()
     return out
+
+
+_BLOCK_ID = re.compile(r"#(b-[A-Za-z0-9]{4,12})\b")
+_OPTS = re.compile(r"[ \t]*\{([^{}\n]*)\}[ \t]*$", re.M)
+
+
+def drop_new_ids(text: str, known: str | None) -> str:
+    """Block anchor ids ``{#b-…}`` in a suggestion that aren't on the page are made up (often copied from the
+    syntax notes): they're removed, keeping the block's other options. Ids the page has stay."""
+    if "#b-" not in (text or ""):
+        return text
+    have = set(_BLOCK_ID.findall(known or ""))
+
+    def opts(m: re.Match) -> str:
+        inner = m.group(1)
+        if "#b-" not in inner:
+            return m.group(0)
+        kept = _BLOCK_ID.sub(lambda i: i.group(0) if i.group(1) in have else "", inner).strip()
+        if kept == inner.strip():
+            return m.group(0)
+        lead = m.group(0)[: len(m.group(0)) - len(m.group(0).lstrip(" \t"))]
+        return f"{lead}{{{' '.join(kept.split())}}}" if kept else ""
+
+    out = _OPTS.sub(opts, text)
+    return re.sub(r"\n{3,}", "\n\n", out).strip("\n") if out != text else out
 
 
 _LINK = re.compile(r"(!?)\[((?:\\.|[^\]\\\n])*)\]\(([^)\s]*)(\s+\"[^\"\n]*\")?\)")
@@ -1053,6 +1085,7 @@ async def stream_suggestion(job: Job, prompt: Prompt, *, trimmed: bool = False,
             yield ev("error", detail="AI can't help with this one.", code="refused")
             return
         body = finish(raw) if finish else clean(raw, job.source)
+        body = drop_new_ids(body, job.target.body if job.target is not None else job.source)
         if cut_note:
             body = ai_output.finish(body, stop)
         if not body.strip():
@@ -1366,7 +1399,9 @@ _TEXT_ATTRS = {"summary", "title", "label", "description", "caption", "alt"}
 _ATTR = re.compile(r"""([#.][\w-]+)|([A-Za-z_][\w-]*)\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'}]+))|([A-Za-z_][\w-]*)""")
 _DIR_LINE = re.compile(r"^(\s*)(:{2,})([A-Za-z][\w-]*)?(\[(?:\\.|[^\]\\\n])*\])?(\{[^}\n]*\})?\s*$")
 _CODE_SPAN = re.compile(r"(`+)([\s\S]*?[^`]|)\1(?!`)")
-_MATH = re.compile(r"\$\$?[^$\n]+\$\$?")
+# Inline math as it is written (pandoc's rule): "$" then no space and no digit, closing "$" with no space before
+# it and no digit after it. "$12 a seat, $99 minimum" is two prices, not math: a translation may move the symbol.
+_MATH = re.compile(r"\$\$[^$\n]+\$\$|\$(?![\s\d$])[^$\n]*?(?<!\s)\$(?!\d)")
 _IMG = re.compile(r"!\[(?:\\.|[^\]\\\n])*\]\(([^)\n]*)\)")
 _LNK = re.compile(r"\[(?:\\.|[^\]\\\n])*\]\(([^)\n]*)\)")
 _INLINE_DIR = re.compile(r"(?<![\w:]):([A-Za-z][\w-]*)(\[(?:\\.|[^\]\\\n])*\])?(\{[^}\n]*\})?")
@@ -1455,7 +1490,8 @@ def skeleton(md: str) -> list[tuple]:
         for m in _INLINE_DIR.finditer(s):
             if not (m.group(2) or m.group(3)):
                 continue
-            label = m.group(2) if m.group(1) in _EXACT_LABELS else None
+            # A label is translated, but it can't vanish: ":markdrop[]" or ":span[]" shows nothing.
+            label = m.group(2) if m.group(1) in _EXACT_LABELS else ("[text]" if (m.group(2) or "[]") != "[]" else m.group(2))
             toks.append(("idir", m.group(1), label, _attr_sig(m.group(3))))
         s = _INLINE_DIR.sub(lambda m: " " if (m.group(2) or m.group(3)) else m.group(0), s)
         t = _TRAILER.search(s)
