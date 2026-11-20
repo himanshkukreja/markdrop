@@ -46,6 +46,8 @@ ROWS = 25                   # rows shown per section (the count is exact either 
 CAND_DOCS = 12              # listed documents that join the candidates
 MAX_PEOPLE = 3
 BLOCK_CHARS = 9000
+BLOCK_CHARS_PLAN = 14000
+BLOCK_CHARS_TEAM = 12000      # a team overview (roster, memory, blockers, brief, backlog, members' items, meetings…)      # with the planner's lookups (services/ask_plan.py)
 RECENT_DAYS = 14
 _CREATED = re.compile(r"\b(creat\w*|wrote|written|write|authored|new|added|started|drafted)\b", re.I)
 _DONE = re.compile(r"\b(done|completed|finished|closed|ticked)\b", re.I)
@@ -53,6 +55,9 @@ _COUNT = re.compile(r"\bhow many\b|\bnumber of\b|\bcount\b", re.I)
 _LIST = re.compile(r"\b(list|which|all|every|what are|show me)\b", re.I)
 _DECIDE = re.compile(r"\b(decid\w*|decision\w*|agreed)\b", re.I)
 _TEAMISH = re.compile(r"\b(team|teams|squad|department)\b", re.I)
+# Multi-step wording the expansion may not flag: two questions in one, comparisons, follow-through checks.
+_HARD = re.compile(r"\bcompare\b|\bversus\b|\bvs\.?\s|,?\s+and\s+(?:is|are|was|were|has|have|who|what|when|where|which|how|"
+                   r"did|does|do)\b|\bstatus report\b|\bdelivered\b|\bfollowed through\b", re.I)
 
 
 # ── The route ─────────────────────────────────────────────────────────────────
@@ -67,10 +72,11 @@ class Route:
     until: date | None = None
     items: str = "any"
     title: str | None = None
+    hard: bool = False             # several lookups put together: the planner (services/ask_plan.py)
 
     def as_meta(self) -> dict:
         return {"type": self.type, "items": self.items, "people": len(self.people), "team": bool(self.team),
-                "window": bool(self.since or self.until)}
+                "window": bool(self.since or self.until), "hard": self.hard}
 
 
 def _date(v: Any, today: date) -> date | None:
@@ -106,6 +112,7 @@ def parse(data: Any, question: str, today: date) -> Route:
         r.since, r.until = r.until, r.since
     if r.type == "lookup" and (r.since or r.until) and r.items != "any":
         r.type = "time"
+    r.hard = d.get("hard") is True or bool(_HARD.search(question or ""))
     return r
 
 
@@ -130,6 +137,7 @@ class Index:
     sections: list[Section] = field(default_factory=list)
     docs: list[dict] = field(default_factory=list)       # documents rows to add as candidates, in order
     kinds: list[str] = field(default_factory=list)
+    limit: int = BLOCK_CHARS
 
     @property
     def empty(self) -> bool:
@@ -151,7 +159,7 @@ class Index:
             if s.tail:
                 lines.append(s.tail)
             text = "\n".join(lines)
-            if used + len(text) > BLOCK_CHARS and used:
+            if used + len(text) > self.limit and used:
                 break
             parts.append(text)
             used += len(text)
@@ -268,14 +276,28 @@ async def _meeting_line(row: dict, names: _Names) -> str:
     return s
 
 
-def _action_line(row: dict) -> str:
+def _action_line(row: dict, ev: dict | None = None) -> str:
+    """``ev``: the evidence that this open item looks done (services/likely_done.py) — "open — likely done: …"."""
+    from app.services import likely_done
+
     where = row.get("title") or "a page"
-    s = f"[{'done' if row.get('done') else 'open'}] {row.get('text')} — {where}"
+    state = "done" if row.get("done") else ("open — " + likely_done.note(ev) if ev else "open")
+    s = f"[{state}] {row.get('text')} — {where}"
     if row.get("date"):
         s += f", {_fmt(row['date'])}"
     if row.get("due"):
         s += f" (due {_fmt(row['due'])})"
     return s
+
+
+async def _likely(db, actor, ctx, rows: list[dict]) -> dict[str, dict]:
+    from app.services import likely_done
+
+    try:
+        return await likely_done.for_rows(db, actor, ctx, rows)
+    except Exception:
+        log.warning("ask route: likely-done failed", exc_info=True)
+        return {}
 
 
 def _people_ids(people: ask_context.People, route: Route, members: dict[str, str]) -> list[dict]:
@@ -398,12 +420,13 @@ async def build(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
                     f = ai_index.Filter(kind="action", workspaces=wss, owner=(p or {}).get("id"), team=team_f,
                                         since=since, until=until, done=done, limit=40)
                     res = await ai_index.query(db, actor, ctx, f)
+                    evs = {} if done else await _likely(db, actor, ctx, res.rows)
                     head = (f"{'Done' if done else 'Open'} action items" + (f" owned by {p['name']}" if p else "")
                             + (f" in team {teams[team_f]['name']}" if team_f else "") + _window_text(since, until)
-                            + f": {res.total}")
+                            + f": {res.total}" + (f" ({len(evs)} of them likely done, not ticked)" if evs else ""))
                     sec = Section(head)
-                    for r in res.rows:
-                        sec.rows.append(Row(f"d:{r['doc']}", _action_line(r)))
+                    for r in sorted(res.rows, key=lambda r: r["_id"] in evs):
+                        sec.rows.append(Row(f"d:{r['doc']}", _action_line(r, evs.get(r["_id"]))))
                     out.sections.append(sec)
                     add_docs(res.rows)
                     out.kinds.append("actions")
@@ -430,6 +453,8 @@ async def build(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
                         out.kinds.append("backlog")
     except Exception:
         log.warning("ask route: index block failed", exc_info=True)
+    if "team" in out.kinds:
+        out.limit = BLOCK_CHARS_TEAM
     return out
 
 
@@ -532,9 +557,13 @@ async def _person_card(db, actor, ctx, p: dict, wss: list[str], teams: dict, nam
                             + "; ".join(f"{_fmt(r.get('date'))} {r.get('mtitle') or r.get('title')}" for r in met.rows[:10]) + ")"))
     acts = await ai_index.query(db, actor, ctx, ai_index.Filter(kind="action", workspaces=wss, owner=uid, done=False, limit=8))
     if acts.total:
-        sec.rows.append(Row(None, f"Open action items: {acts.total} ("
-                            + "; ".join(f"{r.get('text')} — {r.get('title')}" + (f", due {_fmt(r['due'])}" if r.get("due") else "")
-                                        for r in acts.rows[:8]) + ")"))
+        from app.services import likely_done
+
+        evs = await _likely(db, actor, ctx, acts.rows)
+        sec.rows.append(Row(None, f"Open action items: {acts.total}" + (f", {len(evs)} of them likely done (not ticked)" if evs else "")
+                            + " (" + "; ".join(f"{r.get('text')} — {r.get('title')}" + (f", due {_fmt(r['due'])}" if r.get("due") else "")
+                                               + (f" [{likely_done.note(evs[r['_id']])}]" if r["_id"] in evs else "")
+                                               for r in acts.rows[:8]) + ")"))
     try:
         info = await workspace_memory.ws_info(db, ws)
         if info is not None and info.on:
@@ -567,12 +596,27 @@ async def _team_overview(db, actor, ctx, tid: str, teams: dict, names: _Names,
         if info is not None and info.on:
             v = await workspace_memory.visible(db, actor, ctx, ws)
             sec = Section("What each member is working on (Team memory):")
+            blk = Section(f"Blocked or waiting, last {RECENT_DAYS} days (Team memory):")
             for m in members:
-                ln = workspace_memory.now_line(v.by_subject(m), None, now)
+                facts = v.by_subject(m)
+                ln = workspace_memory.now_line(facts, None, now)
                 if ln and ln.get("text"):
                     sec.rows.append(Row(None, f"{names.names.get(m, 'Former member')}: {ln['text']}"))
+                for f in [f for f in facts if f.get("kind") == "blocker" and f.get("status") != "stale"
+                          and workspace_memory._fresh(f, now, RECENT_DAYS)][:2]:
+                    blk.rows.append(Row(None, f"{names.names.get(m, 'Former member')}: {workspace_memory._text(f)}"))
+            # Others waiting on this team's members (their blockers name a member).
+            mset = set(members)
+            for f in v.facts:
+                wo = f.get("waiting_on") or {}
+                if (f.get("kind") == "blocker" and f.get("subject") not in mset and wo.get("id") in mset
+                        and f.get("status") != "stale" and workspace_memory._fresh(f, now, RECENT_DAYS) and len(blk.rows) < 12):
+                    blk.rows.append(Row(None, f"{names.names.get(f['subject'], 'Someone')} (not in the team) waits on "
+                                        f"{names.names.get(wo['id'], 'a member')}: {workspace_memory._text(f)}"))
             if sec.rows:
                 out.append(sec)
+            if blk.rows:
+                out.append(blk)
     except Exception:
         log.warning("ask route: team memory failed", exc_info=True)
     try:
@@ -587,6 +631,19 @@ async def _team_overview(db, actor, ctx, tid: str, teams: dict, names: _Names,
     bl = await _backlog_section(db, actor, ctx, tid, teams, names)
     if bl is not None:
         out.append(bl)
+    # The members' own open action items, from any meeting or page the asker can read (a member's item from another
+    # team's call isn't on this team's backlog), likely-done ones marked.
+    rows: list[dict] = []
+    for m in members[:15]:
+        res = await ai_index.query(db, actor, ctx, ai_index.Filter(kind="action", workspaces=[ws], owner=m, done=False, limit=6))
+        rows += res.rows
+    if rows:
+        evs = await _likely(db, actor, ctx, rows)
+        sec = Section(f"Open action items of the members: {len(rows)}" + (f" ({len(evs)} likely done, not ticked)" if evs else ""))
+        for r in sorted(rows, key=lambda r: (r["_id"] in evs, str(r.get("owner") or ""))):
+            owner = names.names.get(r.get("owner") or "") if await names.sees(r.get("_doc")) else None
+            sec.rows.append(Row(f"d:{r['doc']}", (f"{owner}: " if owner else "") + _action_line(r, evs.get(r["_id"]))))
+        out.append(sec)
     since = now.date() - timedelta(days=RECENT_DAYS)
     met = await ai_index.query(db, actor, ctx, ai_index.Filter(kind="meeting", workspaces=[ws], team=tid, since=since, limit=15))
     from app.services import ai_summaries

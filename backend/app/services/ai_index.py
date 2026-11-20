@@ -48,7 +48,7 @@ log = logging.getLogger("markdrop.ai_index")
 
 COLL = "ai_facts"
 META = "ai_index_meta"
-VERSION = 1                     # bump to re-index every row (a changed row shape)
+VERSION = 2                     # bump to re-index every row (a changed row shape; 2: action rows carry their block id)
 MAX_EDITORS = 20
 MAX_ATTENDEES = 60
 MAX_ACTIONS_PER_DOC = 80
@@ -67,6 +67,7 @@ _ISO = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
 _DUE = re.compile(r"(?:·\s*)?\bdue\s+(?::date\[)?([^\]·{}\[]{3,30}?)\]?(?=\s*(?:\[#|\{#|·|$))", re.I)
 _TASK = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\[( |x|X)\]\s+(.+?)\s*$")
 _HEADING = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*$")
+_BLOCK = re.compile(r"\{#(b-[A-Za-z0-9_-]{2,40})[^}]*\}\s*$")
 
 
 def now_utc() -> datetime:
@@ -167,7 +168,8 @@ def due_of(text: str, base: date | None = None) -> str | None:
 
 def task_rows(content: str | None, *, meeting: bool) -> list[dict]:
     """The page's task lines worth a row: a meeting page's whole "Action items" section; on other pages, the
-    tasks that @mention someone. [{done, text, owner, owner_name, due, n}]"""
+    tasks that @mention someone. [{done, text, owner, owner_name, due, block}] (``block``: the line's block id, the task's
+    identity on to-do and backlog pages and for "likely done", services/likely_done.py)"""
     out: list[dict] = []
     inside = False
     fence = False
@@ -194,8 +196,9 @@ def task_rows(content: str | None, *, meeting: bool) -> list[dict]:
         if not text:
             continue
         name, uid = (people[0] if people else (None, None))
+        blk = _BLOCK.search(body)
         out.append({"done": m.group(1) != " ", "text": _short(text, TEXT_CHARS), "owner": uid or None,
-                    "owner_name": (name or "").strip() or None, "due": due_of(body)})
+                    "owner_name": (name or "").strip() or None, "due": due_of(body), "block": blk.group(1) if blk else None})
         if len(out) >= MAX_ACTIONS_PER_DOC:
             break
     return out

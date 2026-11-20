@@ -361,8 +361,9 @@ def _fmt_day(d: Any) -> str:
     return TP._fmt_day(str(d or "")[:10])
 
 
-def item_line(it: dict, shown: list[dict], people: dict[str, str]) -> str:
-    """One item's task line (``shown``: the sources this page may name, newest first)."""
+def item_line(it: dict, shown: list[dict], people: dict[str, str], note: str | None = None) -> str:
+    """One item's task line (``shown``: the sources this page may name, newest first; ``note``: " · likely done: …"
+    for an open item that looks done, services/likely_done.py — its box is the Tick)."""
     from app.services import meetings
 
     meta = []
@@ -386,7 +387,10 @@ def item_line(it: dict, shown: list[dict], people: dict[str, str]) -> str:
     if first:
         meta.append(f"first seen {_fmt_day(first)}")
     box = "x" if st == "done" else " "
-    return f"- [{box}] {it.get('text') or 'Untitled'}" + (f" — {' · '.join(meta)}" if meta else "") + f" {{#{it['block']}}}"
+    tail = f" — {' · '.join(meta)}" if meta else ""
+    if note and st in ("open", "in_progress"):
+        tail += note if meta else " — " + note.removeprefix(" · ")
+    return f"- [{box}] {it.get('text') or 'Untitled'}" + tail + f" {{#{it['block']}}}"
 
 
 def section_markdown(groups: dict[str, list[str]], open_counts: dict[str, int]) -> str:
@@ -1051,7 +1055,23 @@ async def _build(db: AsyncIOMotorDatabase, team: dict, *, apply: bool = True) ->
         groups.setdefault(cat, []).append((_sort_key(it, srcs), it, srcs))
         if st in ("open", "in_progress"):
             opens[cat] = opens.get(cat, 0) + 1
-    lines = {k: [item_line(it, srcs, people) for _k, it, srcs in sorted(v, key=lambda x: x[0])] for k, v in groups.items()}
+    # "Likely done" notes (services/likely_done.py): evidence the whole team may open (the page is the team's).
+    notes: dict[str, str] = {}
+    try:
+        from app.services import likely_done
+
+        pairs = [(s.get("doc_id"), s.get("key"), s.get("text")) for v in groups.values() for _k, it, srcs in v
+                 if (it.get("status") or "open") in ("open", "in_progress") for s in srcs if s.get("kind") == "action"]
+        by_src = await likely_done.page_notes(db, pairs, list(team.get("member_ids") or []))
+        for v in groups.values():
+            for _k, it, srcs in v:
+                n = next((by_src[s.get("key")] for s in srcs if s.get("key") in by_src), None)
+                if n:
+                    notes[str(it["_id"])] = n
+    except Exception:
+        log.warning("backlog: likely-done notes failed", exc_info=True)
+    lines = {k: [item_line(it, srcs, people, notes.get(str(it["_id"]))) for _k, it, srcs in sorted(v, key=lambda x: x[0])]
+             for k, v in groups.items()}
     out.shown = sum(len(v) for v in lines.values())
     out.open = sum(opens.values())
     out.counts = {k: opens.get(k, 0) for k, _l in CATEGORIES}

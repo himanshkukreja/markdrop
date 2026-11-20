@@ -86,7 +86,7 @@ export interface AskThreadFull { id: string; title: string; updated_at: string |
 export type AskResultItem = SearchItem & { n: number; task?: string | null };
 
 export type AskEvent =
-  | { type: "status"; stage: "understanding" | "searching" | "answering"; terms?: string[] }
+  | { type: "status"; stage: "understanding" | "planning" | "searching" | "answering"; terms?: string[] }
   | { type: "results"; items: AskResultItem[]; note?: string | null }
   | { type: "delta"; text: string }
   | { type: "done"; request_id: string; thread_id: string | null; intent: AskIntent | "page" | "meetings"; answer: string; citations: AskCitation[]; ranked: AskResultItem[]; truncated?: boolean;

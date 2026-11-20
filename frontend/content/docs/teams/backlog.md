@@ -3,7 +3,7 @@ title: Team backlog
 description: One shared page per team with every action item and customer ask from its calls, sorted into categories after every call. Filter, edit and comment.
 updated: 2026-11-20
 nav: Backlog
-keywords: [backlog, team backlog, product backlog, action items, customer asks, feature requests, bugs, improvements, follow-ups, questions, categories, auto categorized, triage, sales calls, customer calls, dedupe, mentioned in calls, filter, filter bar, hide done, export csv, copy list, in progress, won't do, refresh backlog, team settings, private calls, team_backlog, update_backlog_item, refresh_team_backlog]
+keywords: [likely done, looks done, backlog, team backlog, product backlog, action items, customer asks, feature requests, bugs, improvements, follow-ups, questions, categories, auto categorized, triage, sales calls, customer calls, dedupe, mentioned in calls, filter, filter bar, hide done, export csv, copy list, in progress, won't do, refresh backlog, team settings, private calls, team_backlog, update_backlog_item, refresh_team_backlog]
 ---
 
 Every team (not General) gets one page, **"Team — Backlog"**, that everyone in the team shares. After every call filed to the team, Markdrop adds what came up on it: each action item, plus the customer asks said on the call that nobody turned into an action item, such as a feature someone wants, a bug they hit or an integration they need. Each one is sorted into a category, and the same ask from several calls becomes one item.
@@ -40,6 +40,7 @@ Each item is a checkbox line with:
 - **The owner**, when someone was named on the action item.
 - **Where it came from**: a link to the action item on the meeting page, or to the moment in the transcript for a customer ask. When it came up on more than one call, the line says how many, for example **3 calls**, and links the latest.
 - **First seen**: the date of the first call it came up on.
+- **Likely done**, when a later call or page shows an open item was done, with that evidence and its date. Markdrop never ticks it: tick its checkbox if it's done. The note appears only when everyone in the team can open where the evidence came from.
 
 Items you tick stay for 30 days, so you can untick them.
 
@@ -104,6 +105,7 @@ With the [hosted MCP server](/ai/hosted-mcp), an AI app can:
 
 - list a team's backlog by category, status and company (`team_backlog`), with only the items from calls you can open;
 - change an item's category, status, owner or text (`update_backlog_item`), which wins like an edit on the page, and ticks the call's action item when you mark it done;
-- re-read every call in the team now (`refresh_team_backlog`, team leads).
+- re-read every call in the team now (`refresh_team_backlog`, team leads);
+- list the open items that look done, with their evidence (`likely_done`), or say one isn't (`dismiss_likely_done`).
 
 See [MCP tools](/ai/tools#teams).

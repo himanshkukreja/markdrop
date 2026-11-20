@@ -117,9 +117,12 @@ INDEX_RULE = ("<untrusted_index>, when present, holds Markdrop's own records que
               "what this person can open. Take its counts and lists as exact and complete: answer \"how many\" with its "
               "number and \"which\" with its list rather than counting the items yourself, and cite a listed item as its "
               "[n] when it shows one (a line without [n] is cited by the item it names, or needs no citation). Pages Markdrop "
-              "keeps itself (team backlogs, to-do lists) are never something a person created. When an action item is still "
-              "open but a later meeting, page or status shows the work was done, call it \"likely done\" with that evidence "
-              "and date; never call it done yourself.")
+              "keeps itself (team backlogs, to-do lists) are never something a person created. An action item marked \"open — "
+              "likely done: …\" (here or on a meeting's action items) is unticked but something later shows it was probably "
+              "done: put the truly open ones first, then the likely-done ones as \"likely done (not ticked yet)\" with that "
+              "evidence and date; never call them done, never count them as still to do. Likewise, when an item is still open "
+              "but a later meeting, page or status you were given shows the work was done, call it \"likely done\" with that "
+              "evidence and date.")
 
 SHAPE_RULE = ("Shape: lead with the direct answer. \"How many…?\" starts with the number (\"Seven: …\"), counted from "
               "the items, then the list; when the items may not show them all, say \"at least\". A question asking for "
@@ -131,7 +134,8 @@ SHAPE_RULE = ("Shape: lead with the direct answer. \"How many…?\" starts with 
               "Verma: …; Rahul Das: …\"), never picking one silently or asking which one. Write the facts plainly: never "
               "talk about the items, excerpts, candidates, search results, records, tags or how they are labelled "
               "(\"the excerpt shows\", \"among the items\", \"item 3\", \"the records say\", \"tagged to\"), and never "
-              "correct yourself mid-answer — decide, then write.")
+              "correct yourself mid-answer — decide, then write. When nothing you were given answers the question, say you can't "
+              "find it in what they can open — never that it doesn't exist — and don't fill the gap with loosely related items.")
 
 META_RULE = ("Write the facts plainly: never talk about the items, excerpts, candidates or how they are labelled, and "
              "never correct yourself mid-answer.")
@@ -142,12 +146,13 @@ Return only JSON, no prose and no code fence: {"standalone": "...", "terms": [..
 - "standalone": the question rewritten so it makes sense on its own (resolve "it", "that meeting", "and Bo?" from the conversation). The question itself when it already does.
 - "terms": up to 8 short search terms (1-3 words each): the key words, their synonyms and spelling variants, related words a document or meeting about it would use. Fix obvious typos.
 - "titles": up to 3 titles such a document or meeting could plausibly have.
-- "route": how to look it up, {"type": "...", "items": "...", "people": [...], "team": "...", "since": "...", "until": "...", "title": "..."}:
+- "route": how to look it up, {"type": "...", "items": "...", "people": [...], "team": "...", "since": "...", "until": "...", "title": "...", "hard": false}:
   "type": "count" (how many…), "list" (which / list / all… — several items), "person" (about one person: what they work on, own, did, who they are), "time" (what happened or changed in a period), "team" (about a team: who is on it, what it does), else "lookup" (a fact, a reason, a summary).
   "items": what it asks about: "documents" (docs, pages, PRDs, specs, files someone wrote or that changed), "meetings", "action_items" (tasks, commitments, to-dos), "comments" (comments, feedback threads), "backlog" (a team's backlog), or "any".
   "people": the people it asks about, as written ("Arun", "Rahul Das"); "team": a team it names, else "".
   "since" / "until": YYYY-MM-DD bounds of the period it names ("last two weeks", "yesterday", "in October"), from today's date given with the question; "" when it names none.
   "title": a word the items' titles share when it asks for a kind of document or a meeting series ("PRD", "RFC", "Eng standup"), else "".
+  "hard": true only when answering needs several different lookups put together: two or more distinct questions in one ("…, and who owns it?"), comparing people, teams or periods, checking whether someone delivered each thing they committed to, or a status report across everything one person owns; else false. One person's or one team's overview ("what is this team working on?", "what is Neha doing?"), a list, a count, a lookup or a summary of one thing is never hard.
 Use the language of the question. Never answer the question itself."""
 
 ANSWER_SYSTEM = f"""You are Ask, the assistant in a person's Markdrop (their workspaces and files). They asked about their own meetings, documents, pages, files and guides. A search found candidate items they can open; each arrives inside an <untrusted_document n="…"> tag with its title, kind, where it lives and an excerpt. A meeting may also bring transcript lines labelled [n-sK] time Speaker: words; a file or video may bring passages labelled [n-sK] with where they are (a page, slide, sheet, section, or a minute of a video).
@@ -202,7 +207,7 @@ ACTIONS_SYSTEM = f"""You are Ask, the assistant in a person's Markdrop (their wo
 
 Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with every task's number, most urgent first (overdue or due soon first, then newest).
-2. Then a blank line and the answer: at most 180 words of plain Markdown — one short sentence on how many there are, then a bullet per task (grouped by page or meeting when several share one), each in a few words and citing it as [n], with its due date when it has one. Never invent tasks, dates or owners. {META_RULE}
+2. Then a blank line and the answer: at most 180 words of plain Markdown — one short sentence on how many there are, then a bullet per task (grouped by page or meeting when several share one), each in a few words and citing it as [n], with its due date when it has one. A task whose tag carries likely_done is still unticked, but something later shows it was probably done: list those last, under "Likely done (not ticked yet)", each with that evidence and its date, and say they can be ticked; never call them done, and never count them as still to do. Never invent tasks, dates or owners. {META_RULE}
 
 Write in English, even when the question mixes Hindi (or another language) with English in Latin letters ("Hinglish"); answer in another language only when the whole question is written in it."""
 
@@ -271,9 +276,9 @@ def detect_intent(question: str) -> str:
 # ── Model calls ───────────────────────────────────────────────────────────────
 
 
-def _params(system: str, blocks: list[str], max_tokens: int) -> dict:
+def _params(system: str, blocks: list[str], max_tokens: int, model: str | None = None) -> dict:
     return {
-        "model": MODEL,
+        "model": model or MODEL,
         "max_tokens": max_tokens,
         "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
         "messages": [{"role": "user", "content": [{"type": "text", "text": b} for b in blocks if b]}],
@@ -301,7 +306,7 @@ async def _stream(run: search_ai.Run, params: dict, on_text=None) -> tuple[str, 
     except Exception as exc:
         log.warning("ask request %s failed: %s", run.request_id, type(exc).__name__)
         raise pages_ai._upstream(exc) from None
-    run.meter.add(getattr(message_, "usage", None))
+    run.meter.add(getattr(message_, "usage", None), params.get("model"))
     return pages_ai._text_of(message_) or "".join(chunks), getattr(message_, "stop_reason", None)
 
 
@@ -1081,7 +1086,10 @@ async def _action_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: ac
     cands = [(c, t) for c, t in cands if c.key in keep_keys]
     shaped = await search.Shaper(db, w).shape([c for c, _ in cands], search.terms_of(""), snippets=False)
     mdocs = await _meeting_docs(db, [c for c, _ in cands])
+    from app.services import likely_done
+
     out: list[Source] = []
+    want: dict[str, int] = {}
     for c, tasks in cands:
         item = shaped.get(c.key)
         if not item:
@@ -1094,11 +1102,24 @@ async def _action_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: ac
             attrs = {"title": item.get("title") or c.title or "(untitled)",
                      "kind": "meeting" if c.key in mdocs else c.kind, "where": _where(c, w.ws_names),
                      "updated": c.updated.strftime("%Y-%m-%d") if c.updated else None}
+            if anchor or text:
+                lk = likely_done.key_of(c.raw.get("_id"), anchor, text)
+                want[lk] = n
             out.append(Source(n, c, item={**item, "key": c.key, "n": n, "task": text,
                                           "url": f"{base}#{anchor}" if anchor else base,
                                           "web_url": f"{base}#{anchor}" if anchor else base,
                                           "snippet": {"text": text, "marks": []}},
                               text=text, tag="task", attrs=attrs))
+    # Unticked but likely done (services/likely_done.py): evidence the asker may open.
+    try:
+        evs = await likely_done.for_keys(db, actor, ctx, want)
+    except Exception:
+        log.warning("ask: likely-done failed", exc_info=True)
+        evs = {}
+    for src in out:
+        ev = evs.get(src.n)
+        if ev:
+            src.attrs["likely_done"] = likely_done.note(ev)[len("likely done: "):]
     return out, withheld
 
 
@@ -1579,6 +1600,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
         standalone = question
         people = ask_context.People()
         index = ask_route.Index()
+        answer_model: str | None = None
         profile_only = (intent == "ask" and you is not None and not history and ask_me.is_personal(question)
                         and ask_me.is_profile(question) and not (ask_me.wants_meetings(question) or ask_me.wants_work(question)))
         if profile_only:
@@ -1610,6 +1632,17 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
                                                   narrowed=keep is not None or mine)
                 except Exception:
                     log.warning("ask: index block failed", exc_info=True)
+                # Hard questions (several lookups put together): the planner's short lookup loop, and its model
+                # answers (services/ask_plan.py). Everything else stays on Haiku.
+                if route.hard and keep is None and not mine and await _planner_ok(db):
+                    yield ev("status", stage="planning")
+                    planned = await _plan(db, actor, ctx, run, about, scope, index, you)
+                    if planned is not None:
+                        answer_model = settings_planner_model() if _planner_answers() else None
+                        index.sections += planned.sections
+                        index.docs += [d for d in planned.docs if all(d["_id"] != x["_id"] for x in index.docs)]
+                        index.kinds.append("plan")
+                        index.limit = ask_route.BLOCK_CHARS_PLAN
             run.meta.update(route=route.as_meta(), index=index.kinds)
             yield ev("status", stage="searching", terms=terms)
             # About the asker: their meetings and recent work, inside the scope ("Ask my files": only their
@@ -1673,7 +1706,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
             asked = (f"The page is item [1], titled: {page_raw.get('title') or '(untitled)'}\n"
                      + where_in_page(context) + asked)
         params = _params(system, [_context(sources), index_text, "\n\n".join(x for x in (history, asked) if x)],
-                         ANSWER_MAX_TOKENS)
+                         ANSWER_MAX_TOKENS, answer_model)
         raw, stop, ranked = "", None, []
         try:
             async for kind, value in _relay(run, params):
@@ -1714,6 +1747,46 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
 
 
 EMPTY_Q = {"ask": "", "page": "", "catch_up": "Catch me up on this week", "my_actions": "What are my open action items?"}
+
+
+def settings_planner_model() -> str:
+    from app.config import get_settings
+
+    return get_settings().ask_planner_model or "claude-sonnet-5-5"
+
+
+def _planner_answers() -> bool:
+    from app.config import get_settings
+
+    return bool(get_settings().ask_planner_answers)
+
+
+async def _planner_ok(db: AsyncIOMotorDatabase) -> bool:
+    """The planner is on and the budget has room for a hard question (else it is answered on Haiku like any other)."""
+    from app.config import get_settings
+    from app.services import ask_plan
+
+    if not get_settings().ask_planner_enabled:
+        return False
+    try:
+        return (await ai_usage.check_budget(db, FEATURE, reserve=ask_plan.RESERVE)).ok
+    except Exception:
+        return False
+
+
+async def _plan(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, run: search_ai.Run, question: str,
+                scope: str | None, index: "ask_route.Index", you) -> "ask_route.Index | None":
+    from app.services import ask_plan
+
+    ai_usage.hold_request(FEATURE, ask_plan.RESERVE)
+    try:
+        return await ask_plan.plan(db, actor, ctx, run, question, scope=scope, already=index, you=you,
+                                   model=settings_planner_model())
+    except Exception:
+        log.warning("ask: planner failed", exc_info=True)
+        return None
+    finally:
+        ai_usage.release_request(FEATURE, ask_plan.RESERVE)
 
 
 async def answer(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, question: str, *,

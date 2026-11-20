@@ -136,10 +136,16 @@ def action_items(content: str | None, *, limit: int = MAX_ACTIONS) -> list[tuple
     return out
 
 
-def actions_text(items: list[tuple[bool, str]]) -> str:
+def _nkey(text: str | None) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", (text or "").casefold()).strip()[:60]
+
+
+def actions_text(items: list[tuple[bool, str]], notes: dict[str, str] | None = None) -> str:
+    """``notes``: {normalised text: "likely done: …"} for open items that look done (services/likely_done.py)."""
     if not items:
         return ""
-    lines = [f"- [{'done' if done else 'open'}] {text}" for done, text in items]
+    lines = [f"- [{'done' if done else 'open'}] {text}"
+             + (f" ({(notes or {})[_nkey(text)]})" if not done and _nkey(text) in (notes or {}) else "") for done, text in items]
     n_open = sum(1 for d, _ in items if not d)
     return (f"Action items on this meeting's page ({n_open} open, {len(items) - n_open} done; the person named first "
             f"owns it):\n" + "\n".join(lines))
@@ -225,7 +231,7 @@ async def annotate(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ct
                 a["comments"] = f"{int(counts.get('open') or 0)} open, {int(counts.get('resolved') or 0)} resolved"
         if meeting and not transcript:
             content = await pages.content_for(actor, raw, ctx)
-            txt = actions_text(action_items(content))
+            txt = actions_text(action_items(content), await _likely_notes(db, actor, ctx, raw["_id"]))
             if txt:
                 s.text = txt + ("\n\n" + s.text if s.text else "")
         if a:
@@ -234,6 +240,20 @@ async def annotate(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ct
         if a or meeting:
             done += 1
     return done
+
+
+async def _likely_notes(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, doc_id: Any) -> dict[str, str]:
+    """{normalised action text: "likely done: …"} for this (readable) meeting page's open items whose evidence the
+    asker may open (services/likely_done.py)."""
+    from app.services import ai_index, likely_done
+
+    try:
+        rows = await db[ai_index.COLL].find({"t": "action", "doc": doc_id, "done": False}).to_list(length=200)
+        evs = await likely_done.for_rows(db, actor, ctx, rows)
+    except Exception:
+        log.warning("ask: likely-done notes failed", exc_info=True)
+        return {}
+    return {_nkey(r.get("text")): likely_done.note(evs[r["_id"]]) for r in rows if r["_id"] in evs}
 
 
 # ── R3: comments as a source ──────────────────────────────────────────────────

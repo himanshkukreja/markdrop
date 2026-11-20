@@ -99,6 +99,7 @@ export const SUGGESTION_ICONS = { catch_up: "calendar", my_actions: "checkSquare
 
 export const STAGES = {
   understanding: "Understanding your question…",
+  planning: "Looking up each part of your question…",
   searching: "Looking through everything you can open…",
   answering: "Writing an answer…",
 };

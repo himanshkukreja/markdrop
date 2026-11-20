@@ -272,6 +272,9 @@ async def connect() -> None:
         await _ai_index.ensure_indexes(db)
         await _ai_summaries.ensure_indexes(db)
         await _ai_vectors.ensure_indexes(db)
+        from app.services import likely_done as _likely_done
+
+        await _likely_done.ensure_indexes(db)
         from app.services import search_log as _search_log
 
         await _search_log.ensure_indexes(db)

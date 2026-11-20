@@ -4,7 +4,9 @@ READ: ``list_items`` (exact lists and counts from Markdrop's records: documents 
 meetings someone attended or held in a period, action items by owner, comment threads, a team's backlog),
 ``person_card`` (one person: teams, what they created, recent meetings, open action items, what Team memory says
 they are working on), ``team_overview`` (a team: roster and lead, who is working on what, latest brief, open
-backlog by category, the last two weeks of meetings, recent documents).
+backlog by category, the last two weeks of meetings, recent documents), ``likely_done`` (open action items that look
+done but aren't ticked, with the evidence — services/likely_done.py). WRITE: ``dismiss_likely_done`` (it isn't done:
+the note goes for everyone; ticking stays ``tick_todo`` / the page's checkbox — Markdrop never ticks on its own).
 
 The same rows Ask reads, decided per caller the same way (access.discoverable per item, comment permissions,
 teams only those the caller can read, names only where the caller may see people on the item).
@@ -16,9 +18,9 @@ from datetime import date
 
 from fastapi import HTTPException
 
-from app.mcp.auth import READ
+from app.mcp.auth import READ, WRITE
 from app.mcp.tools import Context, Tool, ToolError, _ann, _out, actor_of, http_message, public_url
-from app.services import access, ai_index, ai_summaries, ask_context, ask_route
+from app.services import access, ai_index, ai_summaries, ask_context, ask_route, likely_done
 
 _O = {"type": "object"}
 _WS = {"type": "string", "description": "Workspace id or name (list_workspaces)."}
@@ -115,6 +117,7 @@ async def list_items(ctx: Context, args: dict) -> tuple[str, dict]:
     await names.load([ws])
     teams_ = await ask_route._team_names(actx, ctx.user.id, [ws])
     sums = await ai_summaries.get(ctx.db, [r["doc"] for r in res.rows if r.get("doc") is not None]) if kind in ("doc", "meeting") else {}
+    evs = await ask_route._likely(ctx.db, actor, actx, res.rows) if kind == "action" else {}
     items, lines = [], []
     for r in res.rows:
         raw = r.get("_doc") or {}
@@ -135,10 +138,12 @@ async def list_items(ctx: Context, args: dict) -> tuple[str, dict]:
             lines.append(f"- {it['date']} · {it['title']}" + (f" ({', '.join(it['attendees'][:8])})" if it["attendees"] else "")
                          + f" · {it['url']}")
         elif kind == "action":
+            ev = evs.get(r["_id"])
             it.update(text=r.get("text"), done=bool(r.get("done")), owner=(r.get("owner_name") if sees else None),
-                      due=r.get("due"), date=r.get("date"), on=r.get("title"))
+                      due=r.get("due"), date=r.get("date"), on=r.get("title"), block=r.get("block"),
+                      likely_done=_ev_out(ev) if ev else None)
             lines.append(f"- [{'x' if it['done'] else ' '}] {it['text']} — {it['on']}, {it['date'] or ''}"
-                         + (f" (due {it['due']})" if it["due"] else ""))
+                         + (f" (due {it['due']})" if it["due"] else "") + (f" · {likely_done.note(ev)}" if ev else ""))
         elif kind == "comment":
             it.update(status=r.get("status"), text=r.get("text"), updated_at=_iso(r.get("updated")),
                       author=names.names.get(r.get("author") or "") if sees else None, on=raw.get("title"))
@@ -151,6 +156,52 @@ async def list_items(ctx: Context, args: dict) -> tuple[str, dict]:
     head = f"{res.total}{'+' if res.capped else ''} {args.get('kind') or 'documents'}" + (f" ({p['name']})" if p else "") + "."
     more = f"\n(+{res.total - len(items)} more; raise limit to see them)" if res.total > len(items) else ""
     return head + ("\n" + "\n".join(lines) if lines else "") + more, {"count": res.total, "capped": res.capped, "items": items}
+
+
+def _ev_out(ev: dict) -> dict:
+    return {"evidence": ev.get("text"), "source": ev.get("title"), "date": ev.get("date")}
+
+
+async def likely_done_tool(ctx: Context, args: dict) -> tuple[str, dict]:
+    ws = await _ws(ctx, args["workspace"])
+    actor, actx = actor_of(ctx), access.Ctx(ctx.db, surface="mcp")
+    p = await _person(ctx, ws, args.get("person"))
+    team = await _team(ctx, actx, ws, args.get("team"))
+    f = ai_index.Filter(kind="action", workspaces=[ws], owner=p["id"] if p else None, done=False,
+                        team=str(team["_id"]) if team else None, limit=ai_index.QUERY_MAX)
+    res = await ai_index.query(ctx.db, actor, actx, f)
+    evs = await ask_route._likely(ctx.db, actor, actx, res.rows)
+    names = ask_route._Names(ctx.db, actor, actx)
+    await names.load([ws])
+    items, lines = [], []
+    for r in res.rows:
+        ev = evs.get(r["_id"])
+        if not ev:
+            continue
+        raw = r.get("_doc") or {}
+        owner = names.names.get(r.get("owner") or "") if await names.sees(raw) else None
+        items.append({"key": likely_done.key_of(r["doc"], r.get("block"), r.get("text")), "text": r.get("text"),
+                      "owner": owner, "on": r.get("title"), "block": r.get("block"),
+                      "url": public_url(raw["slug"]) + (f"#{r['block']}" if r.get("block") else "") if raw.get("slug") else None,
+                      **_ev_out(ev)})
+        lines.append(f"- {r.get('text')}" + (f" ({owner})" if owner else "") + f" — {r.get('title')} · {likely_done.note(ev)}")
+    head = f"{len(items)} open action item{'s' if len(items) != 1 else ''} look done but aren't ticked."
+    tip = "\nTick one with tick_todo (block) or its checkbox; dismiss_likely_done if it isn't done." if items else ""
+    return head + ("\n" + "\n".join(lines) if lines else "") + tip, {"count": len(items), "items": items}
+
+
+async def dismiss_likely_done(ctx: Context, args: dict) -> tuple[str, dict]:
+    key = str(args.get("key") or "").strip()
+    row = await ctx.db[likely_done.COLL].find_one({"_id": key}) if key else None
+    if row is None:
+        raise ToolError("No such likely-done item. likely_done lists them with their key.")
+    actor, actx = actor_of(ctx), access.Ctx(ctx.db, surface="mcp")
+    raw = await ctx.db["documents"].find_one({"_id": row.get("doc"), "deleted_at": None})
+    # Only someone who can edit the page holding the item, or the item's owner, may say it isn't done.
+    if raw is None or not ((await access.can(actor, raw, "edit_content", actx)).allowed or row.get("owner") == ctx.user.id):
+        raise ToolError("You can't change that item.")
+    ok = await likely_done.dismiss(ctx.db, key, ctx.user.id)
+    return ("Dismissed: it won't be shown as likely done again." if ok else "Already dismissed."), {"dismissed": ok}
 
 
 async def person_card(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -214,4 +265,20 @@ INDEX_TOOLS = [
          output_schema=_out({"team": {"type": ["string", "null"]}, "team_id": {"type": "string"},
                              "sections": {"type": "array", "items": _O}}),
          annotations=_ann(True, False, True), handler=team_overview),
+    Tool(name="likely_done", title="Action items that look done but aren't ticked",
+         description=("Open (unticked) action items that something later shows were probably done — a meeting where it was "
+                      "reported done, the document it asked for, a published page — each with that evidence, its source and "
+                      "date, and its key. Only evidence you can open. Filter by person (owner) or team. Markdrop never ticks "
+                      "them: tick with tick_todo or the checkbox; dismiss_likely_done when it isn't done."),
+         scope=READ, input_schema={"type": "object", "properties": {"workspace": _WS, "person": _PERSON, "team": _TEAM},
+                                   "required": ["workspace"]},
+         output_schema=_out({"count": {"type": "integer"}, "items": {"type": "array", "items": _O}}),
+         annotations=_ann(True, False, True), handler=likely_done_tool),
+    Tool(name="dismiss_likely_done", title="Say a likely-done item isn't done",
+         description=("Remove the \"likely done\" note from an action item (key from likely_done) for everyone; it won't be "
+                      "suggested again. For the item's owner or someone who can edit its page."),
+         scope=WRITE, input_schema={"type": "object", "properties": {"key": {"type": "string", "maxLength": 120}},
+                                    "required": ["key"]},
+         output_schema=_out({"dismissed": {"type": "boolean"}}),
+         annotations=_ann(False, False, True), handler=dismiss_likely_done),
 ]

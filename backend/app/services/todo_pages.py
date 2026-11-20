@@ -495,7 +495,8 @@ def _attr(v: str) -> str:
     return re.sub(r"\s+", " ", (v or "").replace('"', "'").replace("\\", "")).strip()[:150]
 
 
-def item_line(it: Item, done: bool) -> str:
+def item_line(it: Item, done: bool, note: str | None = None) -> str:
+    """``note``: " · likely done: …" for an open item that looks done (services/likely_done.py); its box is the Tick."""
     from app.services import meetings
 
     parts = [it.text]
@@ -503,7 +504,7 @@ def item_line(it: Item, done: bool) -> str:
         parts.append(f"due {it.due}")
     call = meetings.md_inline(it.meeting_title)[:120] + (f" · {_fmt_day(it.date)}" if it.date and it.source == "call" else "")
     link = f"[{call}](/{it.meeting_slug}#{it.block})"
-    tail = f" — {link}" + (f" · {it.moment}" if it.moment else "")
+    tail = f" — {link}" + (f" · {it.moment}" if it.moment else "") + (note if note and not done else "")
     return f"- [{'x' if done else ' '}] {' · '.join(parts)}{tail} {{#{it.block}}}"
 
 
@@ -516,7 +517,8 @@ class Section:
     lines: list[str]
 
 
-def sections(items: list[Item], state: dict[str, bool], shown: Callable[[Item, bool], bool]) -> list[Section]:
+def sections(items: list[Item], state: dict[str, bool], shown: Callable[[Item, bool], bool],
+             notes: dict[str, str] | None = None) -> list[Section]:
     groups: dict[str, list[Item]] = {}
     names: dict[str, str] = {}
     for it in items:
@@ -530,7 +532,8 @@ def sections(items: list[Item], state: dict[str, bool], shown: Callable[[Item, b
         opened = [it for it in visible if not state[it.block]]
         closed = [it for it in visible if state[it.block]]
         last = None if key == PAGES_KEY else (max((it.date or "" for it in its), default="") or None)
-        out.append(Section(key, names[key], len(opened), last, [item_line(it, state[it.block]) for it in opened + closed]))
+        out.append(Section(key, names[key], len(opened), last, [item_line(it, state[it.block], (notes or {}).get(it.block))
+                                                                for it in opened + closed]))
     out.sort(key=lambda s: (s.key == PAGES_KEY, s.key == "internal", -(int((s.last_call or "0000-00-00").replace("-", "")) or 0),
                             s.name.casefold()))
     return out
@@ -760,7 +763,17 @@ async def _build(db: AsyncIOMotorDatabase, team: dict, user, out: Built, apply: 
     def shown(it: Item, done: bool) -> bool:
         return (not done) or (when[it.block] is not None and when[it.block] > now - DONE_SHOWN)
 
-    secs = sections(got.items, state, shown)
+    # "Likely done" notes on open items (services/likely_done.py): evidence the person and the team's leads (who read
+    # this page) may all open.
+    notes: dict[str, str] = {}
+    try:
+        from app.services import likely_done
+
+        notes = await likely_done.page_notes(db, [(it.meeting_doc_id, it.block, it.text) for it in got.items
+                                                  if not state[it.block]], [uid, *(team.get("lead_ids") or [])])
+    except Exception:
+        log.warning("todos: likely-done notes failed", exc_info=True)
+    secs = sections(got.items, state, shown, notes)
     out.items = sum(1 for it in got.items if shown(it, state[it.block]))
     out.added = sum(1 for it in got.items if it.block not in stored and shown(it, state[it.block]))
     out.open = sum(s.open for s in secs)

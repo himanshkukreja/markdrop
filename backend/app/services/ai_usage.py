@@ -87,6 +87,10 @@ PRICING: dict[str, Pricing] = {
         long=Tier(input=0.50, output=2.50, cache_write_5m=0.625, cache_write_1h=1.00, cache_read=0.05),
         threshold=100_000,
     ),
+    # Claude Sonnet 5.5 (platform.claude.com pricing, checked 2026-11-20): Ask's planner for routed hard questions.
+    "claude-sonnet-5-5": Pricing(
+        base=Tier(input=2.0, output=10.0, cache_write_5m=2.50, cache_write_1h=4.0, cache_read=0.20),
+    ),
 }
 # A model missing from the table is priced high on purpose: an unknown price
 # must make the budget trip early, never late.
@@ -167,10 +171,13 @@ class Meter:
     cost_usd: float = 0.0
     long_calls: int = 0
     max_prompt: int = 0
+    models: dict[str, int] = field(default_factory=dict)     # calls per model, when a request mixes models
 
-    def add(self, usage: Any) -> dict[str, int]:
+    def add(self, usage: Any, model: str | None = None) -> dict[str, int]:
+        """``model``: the call's model when it isn't the meter's (priced at its own rates)."""
         u = normalize_usage(usage)
-        usd, tier = call_cost(self.model, u)
+        usd, tier = call_cost(model or self.model, u)
+        self.models[model or self.model] = self.models.get(model or self.model, 0) + 1
         self.calls += 1
         for k in self.tokens:
             self.tokens[k] += u[k]
@@ -271,6 +278,8 @@ async def record(
         "ts": ts,
         "day": day_key(ts),
         "model": meter.model,
+        # A request that mixed models (Ask's planner, services/ask_plan.py): calls per model.
+        **({"models": dict(meter.models)} if len(meter.models) > 1 else {}),
         "priced": known,
         "calls": meter.calls,
         "usage": dict(meter.tokens),

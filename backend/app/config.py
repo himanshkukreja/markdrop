@@ -659,6 +659,13 @@ class Settings(BaseSettings):
     search_ai_enabled: bool = True
     search_ai_daily_usd: float = 2.0
     search_ai_monthly_usd: float = 20.0
+    # Ask's planner (services/ask_plan.py): the questions the router marks hard (multi-step) get a short lookup loop
+    # and their answer from this model; everything else stays on Haiku. Off: every question on Haiku.
+    ask_planner_enabled: bool = True
+    ask_planner_model: str = "claude-sonnet-5-5"
+    # The planner's model also writes the answer; off (default): Haiku answers from the planner's lookups (eval 2026-11-20:
+    # the same quality on hard questions at a quarter of the cost).
+    ask_planner_answers: bool = False
     # Analytics AI (ledger feature "analytics_ai": the analytics home's story, Ask and content gaps,
     # services/analytics_ai_home.py, and the per-document AI): kill switch and spend caps
     # (owner decision 2026-11-05: $2 a day, $20 a month; the admin AI tab overrides them).

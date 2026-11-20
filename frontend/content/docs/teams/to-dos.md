@@ -3,7 +3,7 @@ title: Personal to-do pages
 description: Your action items from the team's calls and the tasks on its pages that mention you, on one page. Create or refresh it in one click.
 updated: 2026-11-20
 nav: To-do pages
-keywords: [to-dos, todos, to do list, my to-dos, create my to-dos, refresh to-dos, create for everyone, page tasks, task mentions, action items, personal to-do page, per person, per company, hubspot company, internal, tick, check off, sync, two-way, team leads, private, backfill, my_todos, team_todos, tick_todo, refresh_my_todos]
+keywords: [likely done, looks done, not ticked, to-dos, todos, to do list, my to-dos, create my to-dos, refresh to-dos, create for everyone, page tasks, task mentions, action items, personal to-do page, per person, per company, hubspot company, internal, tick, check off, sync, two-way, team leads, private, backfill, my_todos, team_todos, tick_todo, refresh_my_todos]
 ---
 
 Every member of a team (not General) gets one page, **"Your Name — To-dos"**, with their action items from the team's calls and the tasks on the team's pages that mention them. Markdrop keeps it up to date after every call in the team, including imported, Zoom and Google Meet calls, whenever someone changes a call's action items, and whenever someone edits a task on one of the team's pages.
@@ -39,6 +39,10 @@ A ticked item stays on the page for two weeks, so you can untick it. A page with
 
 Write your own to-dos and notes above or below Markdrop's section. Markdrop never changes them. It only rewrites what's between the section's heading and its closing line.
 
+### Likely done
+
+When a later call or page shows one of your open items was done (the document it asked for is up, someone said it shipped), the item's line ends with **likely done** and that evidence, for example *likely done: the SSO PRD draft is up (Nov 19)*. Markdrop never ticks it for you: tick its checkbox if it's done. The note only appears when everyone who can read your page (you and your team's leads) can open where the evidence came from.
+
 ## Tick it anywhere
 
 Your open to-dos also show in the **My to-dos** widget on your [Home](/workspaces/customize-home), where you can tick them.
@@ -71,4 +75,4 @@ Everyone in a team gets a page as soon as the team has a call with action items,
 
 ## From an AI app
 
-With the [hosted MCP server](/ai/hosted-mcp), an AI app can list your to-dos (`my_todos`, by team, with done items on request), show a lead every member's open items (`team_todos`), tick one or open it again (`tick_todo`, by its block id or a few of its words), and create or refresh yours in a team (`refresh_my_todos`, which says how many items are new and open). Ticking from an AI app updates the call too. See [MCP tools](/ai/tools#teams).
+With the [hosted MCP server](/ai/hosted-mcp), an AI app can list your to-dos (`my_todos`, by team, with done items on request), show a lead every member's open items (`team_todos`), tick one or open it again (`tick_todo`, by its block id or a few of its words), list the open items that look done with their evidence (`likely_done`) or say one isn't (`dismiss_likely_done`), and create or refresh yours in a team (`refresh_my_todos`, which says how many items are new and open). Ticking from an AI app updates the call too. See [MCP tools](/ai/tools#teams).

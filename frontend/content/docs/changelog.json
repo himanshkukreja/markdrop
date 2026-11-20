@@ -24,6 +24,25 @@
   "next": [],
   "entries": [
     {
+      "id": "ask-likely-done-multi-part",
+      "date": "2026-11-20",
+      "title": "Ask spots work that's likely done and handles questions with several parts",
+      "kind": "improved",
+      "area": "Ask",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "Action items that look finished but aren't ticked are marked likely done, with the evidence, in Ask and on to-do and backlog pages. Questions with several parts get each part looked up before the answer.",
+      "body": "- **Likely done.** When a later call or page shows an open action item was done (the document it asked for is up, someone said it shipped), Markdrop notes it as likely done, with that evidence and date. Ask lists those after the items still to do, and to-do and backlog pages show the note on the item's line, where one click on its checkbox ticks it. Nothing is ever ticked for you, and the note only shows evidence you can open.\n- **Questions with several parts.** \"Compare what Product and Engineering did this month\" or \"What did Rahul commit to, and has he delivered each one?\" are looked up part by part (lists, people, teams, the meetings and documents they point to) before Ask answers.\n- **Teams.** Asking inside a team also shows who is blocked and the members' own open action items.\n- **New MCP tools.** `likely_done` lists open items that look done with their evidence; `dismiss_likely_done` says one isn't. `list_items` marks likely-done action items.",
+      "docs": [
+        "/workspaces/ask-markdrop",
+        "/teams/to-dos",
+        "/teams/backlog",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "ask-index-counts-people-teams",
       "date": "2026-11-20",
       "title": "Ask counts exactly and knows people and teams",

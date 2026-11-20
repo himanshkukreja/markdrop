@@ -223,6 +223,7 @@ export function toSource(it, link) {
 
 const STAGES = {
   understanding: "Reading your question…",
+  planning: "Looking up each part of your question…",
   searching: { doc: "Looking in this page and your meetings…", meetings: "Finding the meetings…", folder: "Searching this folder…", workspace: "Searching the workspace…", mine: "Searching your files…", everything: "Searching everything you can open…" },
   answering: "Writing the answer…",
 };

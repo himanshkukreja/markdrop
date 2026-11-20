@@ -54,7 +54,7 @@ PROFILES = "memory_profiles"
 CORRECTIONS = "memory_corrections"
 PROJECTS = "memory_projects"
 STATE = "memory_state"
-VERSION = 1                       # bump to re-extract every source
+VERSION = 2                       # bump to re-extract every source (2: also marks open items "likely done")
 
 KINDS = ("working_on", "update", "blocker", "decision", "action_item", "target", "status", "role")
 COMMIT_KINDS = ("action_item", "target")    # commitments: one group when deduping (a dated one wins)
@@ -258,7 +258,9 @@ Rules:
 - "project": reuse a name from the known projects when it is the same work; otherwise a 1-4 word name of the product, feature or initiative; null when it isn't about one.
 - "cite": the [sN] line it comes from, for meetings; null for documents.
 - At most 4 facts per person per kind. Skip small talk, greetings and anything unclear. An empty list is fine.
-- Statements listed inside <corrections> were marked wrong by the person: never state them again."""
+- Statements listed inside <corrections> were marked wrong by the person: never state them again.
+
+Open items: when <untrusted_open_items> lists action items recorded earlier and still unticked (labelled a1, a2, …), also return "done": [{"item": "a2", "evidence": "what in this source shows it is done, at most 20 words", "cite": "sN or null"}] for each item THIS source clearly shows as already done: the thing it asked for exists (this document is it, or the source says it is up, out, sent, published, shipped, approved or finished; an item asking to add something to this document, and the document has it), or someone says it is done. Not for items only discussed, planned, in progress, half done or blocked; when unsure, leave it out. Without open items, or when none is done, "done" is [] or left out."""
 
 
 def _people_block(members: list[dict]) -> str:
@@ -309,6 +311,7 @@ class Run:
         self.meter = ai_usage.Meter(MODEL)
         self.watch = ai_usage.Stopwatch()
         self.log: dict = {}   # readable content for the AI request log (services/ai_log.write)
+        self.raw: str | None = None
 
     async def record(self, outcome: str, **extra) -> None:
         try:
@@ -346,13 +349,45 @@ def facts_markdown(facts: list[dict] | None) -> str:
 
 
 async def _extract_json(run: Run, blocks: list[str]) -> list[dict] | None:
-    """The model's facts (parsed), retrying once with more room when it ran out mid-JSON."""
+    """The model's facts (parsed), retrying once with more room when it ran out mid-JSON. The raw reply stays on
+    ``run.raw`` (its "done" list: services/likely_done.py)."""
     params = _params(blocks)
     raw, stop = await _call(run, params)
     if ai_output.was_cut(stop):
         params = _params(blocks, ai_output.retry_cap(EXTRACT_MAX_TOKENS, sync=True))
         raw, stop = await _call(run, params)
+    run.raw = raw
     return parse_facts(raw)
+
+
+async def _open_items_block(db: AsyncIOMotorDatabase, ws_id: str, owners: list[str], before: Any, exclude_doc: Any,
+                            members: list[dict]) -> tuple[list[dict], str | None]:
+    """The open action items this source may show done (services/likely_done.py), as a prompt block."""
+    from app.services import likely_done
+
+    try:
+        items = await likely_done.open_items(db, ws_id, owners, before=before, exclude_doc=exclude_doc)
+    except Exception:
+        log.warning("workspace memory: open items failed", exc_info=True)
+        return [], None
+    if not items:
+        return [], None
+    names = {m["id"]: m["name"] for m in members}
+    return items, _wrap("open_items", likely_done.items_block(items, names))
+
+
+async def _record_done(db: AsyncIOMotorDatabase, ws_id: str, src_key: str, run: "Run | None", items: list[dict],
+                       source: dict) -> int:
+    from app.services import likely_done
+
+    if not items and not await db[likely_done.COLL].find_one({"source_key": src_key}, {"_id": 1}):
+        return 0
+    try:
+        done = likely_done.parse_done(getattr(run, "raw", None), len(items)) if run is not None else []
+        return await likely_done.record(db, ws_id, src_key, source, items, done)
+    except Exception:
+        log.warning("workspace memory: likely-done record failed", exc_info=True)
+        return 0
 
 
 _JSON = re.compile(r"\{.*\}", re.S)
@@ -687,6 +722,8 @@ async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, membe
     if not (tdoc and not tdoc.get("deleted_at")):
         sent_transcript, transcript = False, ""
     outcome, cost, chars = "free", 0.0, 0
+    open_items: list[dict] = []
+    run = None
     if recorded or transcript:
         people = people_index(members)
         attendees = []
@@ -700,13 +737,17 @@ async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, membe
         head = (f"Kind: meeting\nTitle: {clean(row.get('title'), 200)}\n"
                 f"Date: {row.get('date') or ''}{(' (' + mday.strftime('%A') + ')') if mday else ''}\n"
                 f"Series: {clean(row.get('series'), 120) or '-'}\nAttendees: {', '.join(x for x in attendees if x)[:1500]}")
+        # Open items of the people in the call, from earlier sources: the call may show them done (likely_done).
+        owners = [a.get("user_id") for a in row.get("attendees") or [] if a.get("user_id")]
+        open_items, open_block = await _open_items_block(db, ws.id, owners, row.get("date") or base, page["_id"], members)
         blocks = [
             "Workspace members:\n" + _people_block(members),
             "Known projects: " + (", ".join(await _known_projects(db, ws.id)) or "(none yet)"),
             ("<corrections>\n" + corr + "\n</corrections>") if corr else "<corrections>\n(none)\n</corrections>",
             _wrap("meeting", head + ("\n\nRecorded notes:\n" + recorded if recorded else "")
                   + ("\n\nTranscript:\n" + transcript if transcript else "")),
-            "Extract the facts. JSON only.",
+            *([open_block] if open_block else []),
+            "Extract the facts" + (" and which open items it shows done" if open_block else "") + ". JSON only.",
         ]
         chars = sum(len(b) for b in blocks)
         reason = await budget_reason(db)
@@ -764,6 +805,9 @@ async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, membe
                           "due": due, "due_text": g.get("due_text"), "waiting_on": _waiting(g.get("waiting_on"), people),
                           **({"key_text": twin["text"]} if twin is not None else {})})
     when = _day(row.get("date")) or _aware(row.get("created_at")) or now_utc()
+    if outcome == "ok" or not open_items:
+        await _record_done(db, ws.id, src_key, run, open_items,
+                           {"doc": page["_id"], "title": row.get("title") or page.get("title"), "date": row.get("date")})
     source = {"type": "meeting", "doc_id": page["_id"], "meeting_id": str(row["_id"])}
     if sent_transcript and tdoc is not None:
         source["also"] = [tdoc["_id"]]
@@ -857,6 +901,8 @@ async def extract_page(db: AsyncIOMotorDatabase, ws: WsInfo, raw: dict, members:
     _l, body = page_props.split(content)
     text = st.markdown_text(_PERSON_ANY.sub(lambda p: "@" + p.group(1), body))
     outcome, cost, chars = "free", 0.0, 0
+    open_items: list[dict] = []
+    run = None
     if len(st.words(text)) >= MIN_PAGE_WORDS:
         names = {m["id"]: m["name"] for m in members}
         editors = [names[e] for e in await _editors(db, raw) if e in names]
@@ -869,12 +915,17 @@ async def extract_page(db: AsyncIOMotorDatabase, ws: WsInfo, raw: dict, members:
                 f"Mentions: {', '.join(dict.fromkeys(mentioned)) or '-'}")
         subjects = [x for x in dict.fromkeys([raw.get("owner_id"), *[m["id"] for m in members if m["name"] in editors]]) if x]
         corr = await _corrections_block(db, ws.id, subjects, names)
+        # Open items of its author, editors and the people it mentions: the page may be the thing they asked for.
+        owners = [raw.get("owner_id"), *await _editors(db, raw), *[pid for _n, pid in _PERSON.findall(content)]]
+        open_items, open_block = await _open_items_block(db, ws.id, [o for o in owners if o in names],
+                                                         _aware(raw.get("updated_at")) or now_utc(), raw["_id"], members)
         blocks = [
             "Workspace members:\n" + _people_block(members),
             "Known projects: " + (", ".join(await _known_projects(db, ws.id)) or "(none yet)"),
             ("<corrections>\n" + corr + "\n</corrections>") if corr else "<corrections>\n(none)\n</corrections>",
             _wrap("document", head + "\n\nText:\n" + text[:PAGE_CHARS]),
-            "Extract the facts. JSON only.",
+            *([open_block] if open_block else []),
+            "Extract the facts" + (" and which open items it shows done" if open_block else "") + ". JSON only.",
         ]
         chars = sum(len(b) for b in blocks)
         reason = await budget_reason(db)
@@ -922,6 +973,9 @@ async def extract_page(db: AsyncIOMotorDatabase, ws: WsInfo, raw: dict, members:
                           "due": due_of(g, base) if g["kind"] in ("target", "action_item") else None,
                           "due_text": g.get("due_text"), "waiting_on": _waiting(g.get("waiting_on"), people)})
     when = _aware(raw.get("updated_at")) or now_utc()
+    if outcome == "ok" or not open_items:
+        await _record_done(db, ws.id, src_key, run, open_items,
+                           {"doc": raw["_id"], "title": raw.get("title"), "date": (when.date().isoformat())})
     source = {"type": "page" if raw.get("editor") == "blocks" else "doc", "doc_id": raw["_id"]}
     n = await _write_facts(db, ws.id, src_key, facts, when=when, source=source, members=members)
     await _mark(db, src_key, ws.id, page_hash(raw), _aware(raw.get("updated_at")), n, cost, outcome)
