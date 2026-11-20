@@ -229,9 +229,6 @@ export default function PrivacyPage() {
         <Li>Deepgram (speech-to-text, only for workspaces that turn on Zoom&rsquo;s Transcribe and keep recordings): the audio of a Zoom
           meeting that has no transcript, to write one. Sent with Deepgram&rsquo;s model-improvement program opted out; Markdrop keeps
           only how many minutes were transcribed.</Li>
-        <Li>Voyage AI (search by meaning for Ask, once it&rsquo;s set up): the text of pages, documents, meeting notes and
-          transcripts in workspaces with AI features on, and the questions people ask, to compute the search index Ask uses
-          to find items by meaning. Markdrop keeps that index with your workspace and deletes an item&rsquo;s part of it with the item.</Li>
         <Li>Resend and Brevo (sign-in and notification email).</Li>
         <Li>PostHog and Google (analytics, as above).</Li>
         <Li>Anthropic (AI in pages, guides, search, Ask, meetings, Team, analytics, Jira drafts and HubSpot deal suggestions, which are powered by Anthropic&rsquo;s Claude models): when you use an AI feature, the text it needs is sent to Anthropic&rsquo;s API to answer. For AI search and Ask, that is your question (and earlier questions in the same conversation) and short excerpts of the matching items you can open; for a workspace's Ask suggestions, the meeting topics, decisions and action items and the page titles and headings every member of it can open (never encrypted items, and only the title of a password-protected one). Nothing sent is used to train models: Anthropic doesn&rsquo;t train on data sent through its commercial API. Encrypted items are never sent. We keep only usage counts (tokens, cost, which feature), not the text sent. The one exception: your Ask conversations (questions, answers and their sources) are kept for you alone, so you can return to them, and deleted 90 days after the last question or when you clear them.</Li>

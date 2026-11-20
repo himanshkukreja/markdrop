@@ -26,15 +26,15 @@
     {
       "id": "ask-index-counts-people-teams",
       "date": "2026-11-20",
-      "title": "Ask counts exactly, knows people and teams, and finds things by meaning",
+      "title": "Ask counts exactly and knows people and teams",
       "kind": "improved",
       "area": "Ask",
       "products": [
         "web",
         "mcp"
       ],
-      "summary": "Ask now keeps an index of Markdrop's own records, so how-many, which and when questions are answered from the full list, a question about a person gets their card, and asking inside a team starts from the team's overview. Pages get two-line summaries, and Ask can find items by meaning.",
-      "body": "- **Exact counts and lists.** \"How many documents has Arun created?\", \"Which meetings did Neha attend in the last two weeks?\", \"What changed in the last 2 days?\" are answered from Markdrop's records of everything you can open, not from the first search results. Backlog and to-do pages never count as something a person created.\n- **People and teams.** A question about someone gets their card: teams, what they created, recent meetings, open action items and what they're working on. Asking inside a team starts from its overview: roster and lead, who's on what, the latest brief, the open backlog and the last two weeks of meetings. Backlog and to-do pages are read item by item.\n- **Summaries and meaning.** Every page gets a two-line summary shortly after it changes, and once semantic search is set up Ask also finds items that answer your question in other words.\n- **New MCP tools.** `list_items`, `person_card` and `team_overview` give AI apps the same exact lists, cards and overviews. `search` works without a query when an owner narrows it, `list_workspace_items` filters by owner, team and dates, `get_meeting` takes a title, and `list_team` lists one team's members.\n- **Private stays private.** Every count, list, card and overview is worked out for you when you ask: what you can't open is never counted, listed or named.",
+      "summary": "Ask now keeps an index of Markdrop's own records, so how-many, which and when questions are answered from the full list, a question about a person gets their card, and asking inside a team starts from the team's overview. Pages get two-line summaries.",
+      "body": "- **Exact counts and lists.** \"How many documents has Arun created?\", \"Which meetings did Neha attend in the last two weeks?\", \"What changed in the last 2 days?\" are answered from Markdrop's records of everything you can open, not from the first search results. Backlog and to-do pages never count as something a person created.\n- **People and teams.** A question about someone gets their card: teams, what they created, recent meetings, open action items and what they're working on. Asking inside a team starts from its overview: roster and lead, who's on what, the latest brief, the open backlog and the last two weeks of meetings. Backlog and to-do pages are read item by item.\n- **Summaries.** Every page gets a two-line summary shortly after it changes.\n- **New MCP tools.** `list_items`, `person_card` and `team_overview` give AI apps the same exact lists, cards and overviews. `search` works without a query when an owner narrows it, `list_workspace_items` filters by owner, team and dates, `get_meeting` takes a title, and `list_team` lists one team's members.\n- **Private stays private.** Every count, list, card and overview is worked out for you when you ask: what you can't open is never counted, listed or named.",
       "docs": [
         "/workspaces/ask-markdrop",
         "/ai/tools"
