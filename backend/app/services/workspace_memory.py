@@ -702,6 +702,50 @@ async def _meeting_free_facts(db: AsyncIOMotorDatabase, row: dict, page: dict, b
     return out
 
 
+def meeting_blocks(row: dict, members: list[dict], attendees: list[str], projects: list[str], corr: str,
+                   recorded: str, transcript: str, open_block: str | None) -> list[str]:
+    """The extraction prompt's user blocks for one meeting (pure: the eval harness builds the same prompt)."""
+    mday = _day(row.get("date"))
+    head = (f"Kind: meeting\nTitle: {clean(row.get('title'), 200)}\n"
+            f"Date: {row.get('date') or ''}{(' (' + mday.strftime('%A') + ')') if mday else ''}\n"
+            f"Series: {clean(row.get('series'), 120) or '-'}\nAttendees: {', '.join(x for x in attendees if x)[:1500]}")
+    return [
+        "Workspace members:\n" + _people_block(members),
+        "Known projects: " + (", ".join(projects) or "(none yet)"),
+        ("<corrections>\n" + corr + "\n</corrections>") if corr else "<corrections>\n(none)\n</corrections>",
+        _wrap("meeting", head + ("\n\nRecorded notes:\n" + recorded if recorded else "")
+              + ("\n\nTranscript:\n" + transcript if transcript else "")),
+        *([open_block] if open_block else []),
+        "Extract the facts" + (" and which open items it shows done" if open_block else "") + ". JSON only.",
+    ]
+
+
+def merge_ai_facts(facts: list[dict], got: list[dict], people, n_segments: int, base: date) -> None:
+    """Add the model's facts (``parse_facts``) to the meeting's free ones: members only, deadlines resolved, a
+    commitment the meeting already recorded kept once (pure)."""
+    for g in got:
+        m = people.match(g["person"])
+        if m is None:
+            continue
+        seg = g["seg"] if g["seg"] and 1 <= g["seg"] <= n_segments else None
+        due = due_of(g, base) if g["kind"] in COMMIT_KINDS else None
+        twin = None
+        if g["kind"] in COMMIT_KINDS:
+            same = [f for f in facts if f["subject"] == m["id"] and f["kind"] in COMMIT_KINDS
+                    and jaccard(norm(f.get("key_text") or f["text"]), norm(g["text"])) >= 0.5]
+            if same:
+                # Already recorded. When the meeting's own item has no deadline and this one does,
+                # this one is kept as its dated twin (same correction key, same cluster): the
+                # board shows the dated line to whoever can read where the date came from.
+                twin = next((f for f in same if f.get("origin") == "meeting_fact"), None)
+                if not (due and twin is not None and not any(f.get("due") for f in same)):
+                    continue
+        facts.append({"subject": m["id"], "kind": "target" if due else g["kind"], "text": g["text"],
+                      "project": g["project"], "seg": seg, "confidence": g["confidence"], "origin": "ai",
+                      "due": due, "due_text": g.get("due_text"), "waiting_on": _waiting(g.get("waiting_on"), people),
+                      **({"key_text": twin["text"]} if twin is not None else {})})
+
+
 async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, members: list[dict]) -> dict:
     """One meeting's facts: free ones, then (when it has anything to read) one Haiku call."""
     from app.services import meetings
@@ -733,22 +777,11 @@ async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, membe
         subjects = [m["id"] for m in members]
         names = {m["id"]: m["name"] for m in members}
         corr = await _corrections_block(db, ws.id, subjects, names)
-        mday = _day(row.get("date"))
-        head = (f"Kind: meeting\nTitle: {clean(row.get('title'), 200)}\n"
-                f"Date: {row.get('date') or ''}{(' (' + mday.strftime('%A') + ')') if mday else ''}\n"
-                f"Series: {clean(row.get('series'), 120) or '-'}\nAttendees: {', '.join(x for x in attendees if x)[:1500]}")
         # Open items of the people in the call, from earlier sources: the call may show them done (likely_done).
         owners = [a.get("user_id") for a in row.get("attendees") or [] if a.get("user_id")]
         open_items, open_block = await _open_items_block(db, ws.id, owners, row.get("date") or base, page["_id"], members)
-        blocks = [
-            "Workspace members:\n" + _people_block(members),
-            "Known projects: " + (", ".join(await _known_projects(db, ws.id)) or "(none yet)"),
-            ("<corrections>\n" + corr + "\n</corrections>") if corr else "<corrections>\n(none)\n</corrections>",
-            _wrap("meeting", head + ("\n\nRecorded notes:\n" + recorded if recorded else "")
-                  + ("\n\nTranscript:\n" + transcript if transcript else "")),
-            *([open_block] if open_block else []),
-            "Extract the facts" + (" and which open items it shows done" if open_block else "") + ". JSON only.",
-        ]
+        blocks = meeting_blocks(row, members, attendees, await _known_projects(db, ws.id), corr, recorded, transcript,
+                                open_block)
         chars = sum(len(b) for b in blocks)
         reason = await budget_reason(db)
         if reason:
@@ -782,28 +815,7 @@ async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, membe
         finally:
             ai_usage.release_request(FEATURE, RESERVE)
         outcome = "ok" if got is not None else "unparsed"
-        segs = row.get("segments") or []
-        for g in got or []:
-            m = people.match(g["person"])
-            if m is None:
-                continue
-            seg = g["seg"] if g["seg"] and 1 <= g["seg"] <= len(segs) else None
-            due = due_of(g, base) if g["kind"] in COMMIT_KINDS else None
-            twin = None
-            if g["kind"] in COMMIT_KINDS:
-                same = [f for f in facts if f["subject"] == m["id"] and f["kind"] in COMMIT_KINDS
-                        and jaccard(norm(f.get("key_text") or f["text"]), norm(g["text"])) >= 0.5]
-                if same:
-                    # Already recorded. When the meeting's own item has no deadline and this one does,
-                    # this one is kept as its dated twin (same correction key, same cluster): the
-                    # board shows the dated line to whoever can read where the date came from.
-                    twin = next((f for f in same if f.get("origin") == "meeting_fact"), None)
-                    if not (due and twin is not None and not any(f.get("due") for f in same)):
-                        continue
-            facts.append({"subject": m["id"], "kind": "target" if due else g["kind"], "text": g["text"],
-                          "project": g["project"], "seg": seg, "confidence": g["confidence"], "origin": "ai",
-                          "due": due, "due_text": g.get("due_text"), "waiting_on": _waiting(g.get("waiting_on"), people),
-                          **({"key_text": twin["text"]} if twin is not None else {})})
+        merge_ai_facts(facts, got or [], people, len(row.get("segments") or []), base)
     when = _day(row.get("date")) or _aware(row.get("created_at")) or now_utc()
     if outcome == "ok" or not open_items:
         await _record_done(db, ws.id, src_key, run, open_items,
