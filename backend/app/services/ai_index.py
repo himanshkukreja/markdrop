@@ -48,7 +48,7 @@ log = logging.getLogger("markdrop.ai_index")
 
 COLL = "ai_facts"
 META = "ai_index_meta"
-VERSION = 2                     # bump to re-index every row (a changed row shape; 2: action rows carry their block id)
+VERSION = 3                     # bump to re-index every row (a changed row shape; 2: action rows carry their block id; 3: action text without its owner's name)
 MAX_EDITORS = 20
 MAX_ATTENDEES = 60
 MAX_ACTIONS_PER_DOC = 80
@@ -196,6 +196,10 @@ def task_rows(content: str | None, *, meeting: bool) -> list[dict]:
         if not text:
             continue
         name, uid = (people[0] if people else (None, None))
+        # "@Alex Chen Update the forecast sheet": the owner is its own field, so the text is just the task.
+        lead = (name or "").strip()
+        if lead and text.startswith(lead) and len(text) > len(lead):
+            text = text[len(lead):].lstrip(" :,—–-") or text
         blk = _BLOCK.search(body)
         out.append({"done": m.group(1) != " ", "text": _short(text, TEXT_CHARS), "owner": uid or None,
                     "owner_name": (name or "").strip() or None, "due": due_of(body), "block": blk.group(1) if blk else None})

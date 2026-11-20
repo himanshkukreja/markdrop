@@ -120,7 +120,7 @@ class LikelyDone(Stage3World):
         p = next(c for c in self.fake.calls if c["system"][0]["text"].startswith("You keep a team's memory"))
         text = "\n".join(b["text"] for b in p["messages"][-1]["content"])
         self.assertIn("<untrusted_open_items>", text)
-        self.assertIn("a1: Bo Chen Write the zebra rollout plan", text)
+        self.assertIn("a1: Write the zebra rollout plan — owner Bo Chen", text)
         cand = await self.db[likely_done.COLL].find_one({})
         self.assertEqual((cand["block"], cand["evidence"]["title"]), ("b-ship1", "Zebra rollout plan"))
         # Never ticked: the page still has the open box.
@@ -274,7 +274,7 @@ class TeamOverview(Stage3World):
         self.done(await self.ask("wa", "What is this team working on?", scope={"kind": "team", "workspace": self.W, "team": eng}))
         p = self.answer_prompt()
         self.assertIn("Open action items of the members: 1", p)
-        self.assertIn("Bo Chen: [open] Bo Chen Write the zebra rollout plan", p)
+        self.assertIn("Bo Chen: [open] Write the zebra rollout plan", p)
 
 
 class MCPLikelyDone(Stage3World):

@@ -136,7 +136,7 @@ class Facts(IndexWorld):
         alpha = next(r for r in got.rows if r["title"] == "PRD: Alpha")
         self.assertEqual((alpha["status"], alpha["teams"]), ("Draft", [tid]))
         acts = await self.q("wv", kind="action", owner=self.uid["wm"], done=False)
-        self.assertEqual([(r["text"], r["due"]) for r in acts.rows], [("Bo Chen Write the spec · due 2026-12-01", "2026-12-01")])
+        self.assertEqual([(r["text"], r["due"]) for r in acts.rows], [("Write the spec · due 2026-12-01", "2026-12-01")])
         titled = await self.q("wv", kind="doc", title="prd")
         self.assertEqual(titled.total, 2)
         week = await self.q("wv", kind="doc", since=(now() - timedelta(days=1)).date(), on="created")
