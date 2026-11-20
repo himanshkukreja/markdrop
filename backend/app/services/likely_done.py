@@ -266,14 +266,16 @@ async def page_notes(db: AsyncIOMotorDatabase, items: list[tuple[Any, str | None
     users = [await get_user_by_id(db, r) for r in dict.fromkeys(readers)]
     if not users or any(u is None for u in users):
         return {}                    # a reader we can't decide for: fail closed
-    ctx = access.Ctx(db)
+    # One actor and one Ctx per reader, kept for the whole loop: access.Ctx caches facts by id(actor), and a
+    # throwaway actor's id can be reused by the next one (another person's cached answer).
+    deciders = [(access.Actor.of(u), access.Ctx(db)) for u in users]
     ok: dict[Any, bool] = {}
     for i, d in docs.items():
         good = not d.get("encrypted") and not d.get("template")
-        for u in users:
+        for actor, ctx in deciders:
             if not good:
                 break
-            good = (await access.can(access.Actor.of(u), d, "read", ctx)).allowed
+            good = (await access.can(actor, d, "read", ctx)).allowed
         ok[i] = good
     out = {}
     for c in cands:
