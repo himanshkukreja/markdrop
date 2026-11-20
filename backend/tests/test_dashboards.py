@@ -79,6 +79,7 @@ class Layout(DashWorld):
         self.assertEqual(self.types(await self.dash("wm", self.W), "main"), ["recent", "meetings"])
         # Another person, and the same person without a workspace, are untouched.
         self.assertEqual((await self.dash("owner", self.W))["source"], "default")
+        self.assertEqual((await self.dash("wm", "auto"))["workspace"]["id"], self.W)
         none = await self.dash("wm")
         self.assertEqual((none["source"], none["workspace"]), ("default", None))
         # Reset: back to Default.
@@ -153,7 +154,8 @@ class Presets(DashWorld):
         # Sales without HubSpot: no Deals card; the backlog filters follow-ups.
         d = await self.put("wm", workspace=self.W, preset="sales")
         self.assertNotIn("deals", self.types(d, "main"))
-        self.assertEqual(d["side"][1]["settings"]["category"], "follow_up")
+        self.assertEqual(self.types(d, "main"), ["meetings", "backlog"])
+        self.assertEqual(d["main"][1]["settings"]["category"], "follow_up")
         # Someone in no team: General for brief/memory, no backlog card.
         d = await self.put("wo", workspace=self.W, preset="manager")
         general = self.general

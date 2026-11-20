@@ -5,7 +5,15 @@
 .hm { display: flex; min-width: 0; flex-direction: column; gap: 28px; }
 
 /* ── Greeting ─────────────────────────────────────────────────────────── */
-.hm-hello { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.hm-hello { position: relative; display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+/* Customize (components/home/Dashboard): the header's top right, beside the greeting. */
+.hm-hello__customize { position: absolute; top: 2px; right: 0; }
+.hm-hello__title { padding-right: 112px; }
+/* Phones: the button is its icon (44 px), so the greeting keeps its line. */
+@media (max-width: 519.98px) {
+  .hm-hello__title { padding-right: 48px; }
+  .hm-hello__customize { top: -4px; right: -8px; min-width: 44px; min-height: 44px; gap: 0; padding: 0; justify-content: center; font-size: 0; }
+}
 .hm-hello__title { margin: 0; font-size: 26px; line-height: 32px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
 .hm-hello__sub { margin: 0; font-size: 14px; line-height: 20px; color: var(--text-muted); }
 .hm-hello__pitch { margin: 6px 0 0; max-width: 60ch; font-size: 15px; line-height: 22px; color: var(--text-secondary); }

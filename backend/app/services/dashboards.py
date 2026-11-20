@@ -78,7 +78,7 @@ WIDGETS: dict[str, dict[str, Any]] = {
     "meetings": {"label": "Meetings", "icon": "mic", "workspace": False,
                  "description": "The latest calls with their summaries: every team's, or one team's.",
                  "settings": {"team": _TEAM_OPT, "count": _count(6, 3, 12)}},
-    "brief": {"label": "Team brief", "icon": "newspaper", "workspace": True,
+    "brief": {"label": "Team brief", "icon": "megaphone", "workspace": True,
               "description": "A team's weekly brief: what shipped, what was decided, what's blocked.",
               "settings": {"team": _TEAM_REQ}},
     "memory": {"label": "Who's doing what", "icon": "users", "workspace": True,
@@ -87,13 +87,13 @@ WIDGETS: dict[str, dict[str, Any]] = {
     "deals": {"label": "Deals", "icon": "briefcase", "workspace": True, "needs": "hubspot",
               "description": "Open HubSpot deals with their stage, amount and calls.",
               "settings": {"count": _count(6, 3, 12)}},
-    "activity": {"label": "Activity", "icon": "activity", "workspace": True,
+    "activity": {"label": "Activity", "icon": "wave", "workspace": True,
                  "description": "What's happening across the teams you can see: new pages, files and meetings.",
-                 "settings": {"count": _count(6, 3, 12)}},
+                 "settings": {"count": _count(5, 3, 8)}},
     "views": {"label": "My documents' views", "icon": "chart", "workspace": False,
               "description": "How your published pages and files are read: views, people, top links.",
               "settings": {"range": {"kind": "enum", "label": "Period", "options": ["7d", "30d"], "default": "7d"}}},
-    "pinned": {"label": "Pinned page", "icon": "pin", "workspace": False,
+    "pinned": {"label": "Pinned page", "icon": "doc", "workspace": False,
                "description": "One page you choose, shown right here to read.",
                "settings": {"page": {"kind": "page", "label": "Page", "required": True}}},
     "quick": {"label": "Quick actions", "icon": "zap", "workspace": False,
@@ -115,8 +115,8 @@ PRESETS: dict[str, dict[str, Any]] = {
                  "main": [("meetings", {"count": 9}), ("memory", {"team": "@team"})],
                  "side": [("todos", {}), ("needs_you", {}), ("ask", {})]},
     "sales": {"label": "Sales", "description": "Deals, calls, the backlog of customer asks and your follow-ups.",
-              "main": [("deals", {}), ("meetings", {"team": "@sales"})],
-              "side": [("todos", {}), ("backlog", {"team": "@sales", "category": "follow_up"})]},
+              "main": [("deals", {}), ("meetings", {"team": "@sales"}), ("backlog", {"team": "@sales", "category": "follow_up"})],
+              "side": [("todos", {}), ("needs_you", {})]},
     "manager": {"label": "Manager", "description": "What needs you, the team's brief, who's doing what, backlog and activity.",
                 "main": [("brief", {"team": "@team"}), ("memory", {"team": "@team"}), ("activity", {})],
                 "side": [("needs_you", {}), ("backlog", {"team": "@team"})]},
@@ -445,11 +445,15 @@ async def resolve(db: AsyncIOMotorDatabase, actor, ctx, workspace_id: str | None
 
 
 async def member_workspace(db: AsyncIOMotorDatabase, user_id: str, workspace_id: str | None) -> str | None:
-    """``workspace_id`` when the person belongs to it (None/"" = no workspace); raises LookupError otherwise."""
+    """``workspace_id`` when the person belongs to it (None/"" = no workspace; ``auto`` = the first of theirs, as
+    the sidebar shows it when it has nothing saved); raises LookupError otherwise."""
     from app.services import workspace as ws_service
 
     if not workspace_id:
         return None
+    if workspace_id == "auto":
+        pairs = await ws_service.list_for_user(db, user_id)
+        return pairs[0][0].id if pairs else None
     if not _OID.match(workspace_id) or await ws_service.role_for(db, workspace_id, user_id) is None:
         raise LookupError("Workspace not found")
     return workspace_id

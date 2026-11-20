@@ -239,7 +239,7 @@ function JoinButton({ ws, teamId, onJoined }: { ws: string; teamId: string; onJo
 
 /* ── the brief ── */
 
-function BriefCard({ ws, teamId, teamName, initial, briefId, className }: { ws: string; teamId: string; teamName: string; initial: Brief | null; briefId: string | null; className?: string }) {
+export function BriefCard({ ws, teamId, teamName, initial, briefId, className }: { ws: string; teamId: string; teamName: string; initial: Brief | null; briefId: string | null; className?: string }) {
   const toast = useToast();
   const [brief, setBrief] = useState<Brief | null>(initial);
   const [history, setHistory] = useState<BriefSummary[] | null>(null);

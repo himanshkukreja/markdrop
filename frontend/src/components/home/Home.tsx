@@ -1,19 +1,24 @@
 "use client";
 
 /**
- * Home (/dashboard; the installed app's start screen). A work hub, one purpose per section
- * (.work/home/SPEC.md):
+ * Home (/dashboard; the installed app's start screen). A fixed structure each person fills
+ * (.work/home/SPEC.md, .work/briefs/custom-dashboard.md):
  *
- *   Greeting + Ask bar     ask anything (opens the one assistant, components/assistant), ⌘J anywhere
+ *   Greeting + Ask bar     always there: ask anything (opens the one assistant, components/assistant), ⌘J anywhere
  *   (Turn on notifications) one tap to get mentions / sign-offs on this device (components/push), until "Not now"
- *   Continue               what you opened last, with real previews (lib/cardPreviews, ANYWHERE)
- *   Today | Action items   what needs you now  |  open to-dos that mention you (tick them here)
+ *   Main | Side            their widgets (components/home/Dashboard): Default is Recent, Meetings and Workspaces
+ *                          beside Needs you and My to-dos; Customize adds, moves and removes them
+ *
+ * The widgets drawn here use GET /home and GET /me/recent, both started at once in parallel with the layout:
+ *   Recent pages & files   what you opened last, with real previews (lib/cardPreviews, ANYWHERE)
+ *   Needs you | My to-dos  what needs you now  |  open to-dos that mention you (tick them here)
  *   Meetings               the latest calls across your workspaces; import, connect, ask, open the hub
  *   Workspaces             your teams, with people and counts; + New workspace
+ * The rest load their own data (components/home/widgets).
  *
  * A new account (nothing anywhere yet) gets "Get started" instead: four first steps.
- * Two requests in parallel (GET /me/recent, GET /home); every section has a skeleton of its own shape,
- * previews load only on screen. Every list is the server's, decided for this person.
+ * Every section has a skeleton of its own shape, previews load only on screen. Every list is the
+ * server's, decided for this person.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -43,9 +48,11 @@ import { errorStatus, openHref, type WorkspaceItem } from "@/lib/workspaces";
 import { meetingsHref } from "@/lib/meetings";
 import { track } from "@/lib/track";
 import { getToken } from "@/lib/api";
+import type { Widget } from "@/lib/dashboard";
+import { Dashboard } from "./Dashboard";
 import "./home.css";
 
-const CONTINUE_MAX = 10;
+const CONTINUE_MAX = 12;
 const TODAY_SHOWN = 4;
 const ACTIONS_SHOWN = 5;
 const COVER = /^[a-z0-9][a-z0-9-]{0,39}$/;
@@ -169,6 +176,7 @@ export default function Home() {
     } else openAssistant(question ? { question } : {});
   }, [askWs]);
 
+  const [customizing, setCustomizing] = useState(false);
   const today = mounted ? localDay() : "";
   const [hour, setHour] = useState<number | null>(null);
   useEffect(() => setHour(new Date().getHours()), []);
@@ -177,13 +185,25 @@ export default function Home() {
     return <div className="hm" aria-busy="true"><HomeSkeleton /></div>;
   }
 
+  /** The widgets drawn from GET /home and GET /me/recent (Dashboard draws the rest). */
+  function renderHome(w: Widget, wide: boolean): React.ReactNode | undefined {
+    const n = typeof w.settings.count === "number" ? w.settings.count : undefined;
+    switch (w.type) {
+      case "recent": return <ContinueSection items={recent} count={n} wide={wide} />;
+      case "needs_you": return <TodaySection data={data} meetings={meetingsToday} today={today} count={n} />;
+      case "todos":
+        return <ActionsSection data={data} toast={toast} count={n}
+          onTicked={(a) => setData((d) => d && { ...d, actions: { ...d.actions, items: d.actions.items.filter((x) => x !== a) } })}
+          onUndone={() => { getHome().then(setData).catch(() => {}); }} />;
+      case "meetings": return <MeetingsSection data={data} today={today} onAsk={askMeetings} count={n} wide={wide} />;
+      case "workspaces": return <WorkspacesSection data={data} />;
+      default: return undefined;
+    }
+  }
+
   const firstName = (user.name || "").trim().split(/\s+/)[0] || null;
   const loaded = !!data && recent !== null;
   const meetingsToday = data?.meetings.items.filter((m) => m.date === today) ?? [];
-  // An empty Today or action items shrinks to a one-line strip above the other, full width, so a tall list
-  // beside an empty card doesn't leave a hole under it.
-  const todayEmpty = !!data && meetingsToday.length + data.attention.requests.length + data.attention.notifications.length === 0;
-  const actionsEmpty = !!data && data.actions.items.length === 0;
   const newcomer = loaded && !recent!.length && !data!.workspaces.length && !data!.meetings.items.length && !data!.actions.items.length;
   const facts: string[] = [];
   if (data) {
@@ -197,6 +217,12 @@ export default function Home() {
   return (
     <div className="hm" data-testid="home">
       <header className="hm-hello">
+        {!newcomer && !customizing && (
+          <Button size="sm" variant="ghost" iconLeft="grid" className="hm-hello__customize" data-testid="home-customize"
+            onClick={() => { setCustomizing(true); track("home_action", { what: "customize" }); }}>
+            Customize
+          </Button>
+        )}
         <h1 className="hm-hello__title">
           {hour === null ? "Welcome" : greeting(hour)}{firstName ? <>, <span className="ph-sensitive ph-mask">{firstName}</span></> : ""}
         </h1>
@@ -227,17 +253,7 @@ export default function Home() {
       {newcomer ? (
         <GetStarted />
       ) : (
-        <>
-          <ContinueSection items={recent} />
-          <div className={cx("hm-pair", todayEmpty !== actionsEmpty && "hm-pair--one")}>
-            <TodaySection data={data} meetings={meetingsToday} today={today} compact={todayEmpty && !actionsEmpty} />
-            <ActionsSection data={data} toast={toast} compact={actionsEmpty && !todayEmpty}
-              onTicked={(a) => setData((d) => d && { ...d, actions: { ...d.actions, items: d.actions.items.filter((x) => x !== a) } })}
-              onUndone={() => { getHome().then(setData).catch(() => {}); }} />
-          </div>
-          <MeetingsSection data={data} today={today} onAsk={askMeetings} />
-          <WorkspacesSection data={data} />
-        </>
+        <Dashboard userId={user.id} renderHome={renderHome} editing={customizing} onEditing={setCustomizing} />
       )}
     </div>
   );
@@ -457,16 +473,44 @@ function Rail({ label, children, testId }: { label: string; children: React.Reac
 
 /* ── Continue ──────────────────────────────────────────────────────────── */
 
-function ContinueSection({ items }: { items: PersonalItem[] | null }) {
-  if (items && !items.length) return null;
+function ContinueSection({ items: all, count = 8, wide = true }: { items: PersonalItem[] | null; count?: number; wide?: boolean }) {
+  const items = all ? all.slice(0, count) : null;
   return (
     <Section id="continue" title="Continue where you left off" action={items && items.length > 3 ? <SeeAll href="/recent">All recent</SeeAll> : null}>
-      <Rail label="Recently opened" testId="home-continue-list">
-        {items === null
-          ? [0, 1, 2, 3].map((i) => <li key={i} className="hm-card hm-card--item" aria-hidden><Skeleton height={124} variant="rect" /><span className="hm-card__body"><Skeleton width="70%" /><Skeleton width="40%" height={10} /></span></li>)
-          : items.map((it) => <ContinueCard key={it.slug} it={it} />)}
-      </Rail>
+      {items && !items.length ? (
+        <Quiet icon="history" title="Nothing opened yet" text="Pages and files you open show up here, wherever they live." />
+      ) : !wide ? (
+        items === null ? <RowsSkeleton n={4} /> : (
+          <ul className="hm-list" data-testid="home-continue-list">
+            {items.map((it) => <ContinueRow key={it.slug} it={it} />)}
+          </ul>
+        )
+      ) : (
+        <Rail label="Recently opened" testId="home-continue-list">
+          {items === null
+            ? [0, 1, 2, 3].map((i) => <li key={i} className="hm-card hm-card--item" aria-hidden><Skeleton height={124} variant="rect" /><span className="hm-card__body"><Skeleton width="70%" /><Skeleton width="40%" height={10} /></span></li>)
+            : items.map((it) => <ContinueCard key={it.slug} it={it} />)}
+        </Rail>
+      )}
     </Section>
+  );
+}
+
+/** Recent, in the narrow column: one row each. */
+function ContinueRow({ it }: { it: PersonalItem }) {
+  const w = it as unknown as WorkspaceItem;
+  const title = (it.title || "").trim() || it.original_filename || it.slug;
+  const where = it.workspace ? it.workspace.name : "My files";
+  return (
+    <li>
+      <Anchor href={openHref(it.slug, it.url, it.encrypted)} className="hm-row md-focus" data-testid="home-continue-card">
+        <span className="hm-row__lead" aria-hidden style={{ color: tintOf(w) }}><ItemIcon it={w} /></span>
+        <span className="hm-row__main">
+          <span className="hm-row__title ph-sensitive" dir="auto">{title}</span>
+          <span className="hm-row__meta"><span className="ph-sensitive ph-mask">{where}</span>{it.viewed_at ? ` · ${relativeTime(it.viewed_at)}` : ""}</span>
+        </span>
+      </Anchor>
+    </li>
   );
 }
 
@@ -498,7 +542,7 @@ type TodayRow =
   | { k: "request"; r: HomeData["attention"]["requests"][number] }
   | { k: "comment"; c: import("@/lib/comments").MyThread };
 
-function TodaySection({ data, meetings, today, compact }: { data: HomeData | null; meetings: HomeMeeting[]; today: string; compact?: boolean }) {
+function TodaySection({ data, meetings, today, compact, count = TODAY_SHOWN }: { data: HomeData | null; meetings: HomeMeeting[]; today: string; compact?: boolean; count?: number }) {
   const router = useRouter();
   const toast = useToast();
   const [all, setAll] = useState(false);
@@ -511,7 +555,7 @@ function TodaySection({ data, meetings, today, compact }: { data: HomeData | nul
     ...waiting.map((c) => ({ k: "comment" as const, c })),
     ...data.attention.notifications.filter((n) => !(n.thread_id && waitingIds.has(n.thread_id))).map((n) => ({ k: "note" as const, n })),
   ] : [];
-  const shown = all ? rows : rows.slice(0, TODAY_SHOWN);
+  const shown = all ? rows : rows.slice(0, count);
   const more = rows.length - shown.length;
   const unread = data ? data.attention.unread : 0;
 
@@ -605,14 +649,14 @@ function TodaySection({ data, meetings, today, compact }: { data: HomeData | nul
 
 /* ── Action items ──────────────────────────────────────────────────────── */
 
-function ActionsSection({ data, onTicked, onUndone, toast, compact }: {
-  data: HomeData | null; onTicked: (a: HomeAction) => void; onUndone: () => void; toast: ReturnType<typeof useToast>; compact?: boolean;
+function ActionsSection({ data, onTicked, onUndone, toast, compact, count = ACTIONS_SHOWN }: {
+  data: HomeData | null; onTicked: (a: HomeAction) => void; onUndone: () => void; toast: ReturnType<typeof useToast>; compact?: boolean; count?: number;
 }) {
   const [all, setAll] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [done, setDone] = useState<Set<string>>(() => new Set());
   const items = data?.actions.items ?? [];
-  const shown = all ? items : items.slice(0, ACTIONS_SHOWN);
+  const shown = all ? items : items.slice(0, count);
   const more = items.length - shown.length;
   const key = (a: HomeAction) => (a.kind === "comment" ? `c:${a.thread_id}` : `${a.slug}#${a.block ?? a.text}`);
 
@@ -720,13 +764,11 @@ function ActionsSection({ data, onTicked, onUndone, toast, compact }: {
 
 /* ── Meetings ──────────────────────────────────────────────────────────── */
 
-function MeetingsSection({ data, today, onAsk }: { data: HomeData | null; today: string; onAsk: (wsId: string) => void }) {
-  const items = data?.meetings.items ?? [];
+function MeetingsSection({ data, today, onAsk, count = 6, wide = true }: { data: HomeData | null; today: string; onAsk: (wsId: string) => void; count?: number; wide?: boolean }) {
+  const items = (data?.meetings.items ?? []).slice(0, count);
   const wss = data?.workspaces ?? [];
   const withMeetings = wss.filter((w) => w.meetings > 0);
   const importable = wss.filter((w) => w.can_import);
-  if (data && !wss.length) return null;
-
   const pick = (list: HomeWorkspace[], make: (w: HomeWorkspace) => MenuEntry): MenuEntry[] => list.map(make);
   const importBtn = importable.length === 1 ? (
     <Button size="sm" variant="secondary" iconLeft="plus" href={`${meetingsHref(importable[0]!.id)}?import=1`} data-testid="home-import-meeting">Import meeting</Button>
@@ -750,10 +792,26 @@ function MeetingsSection({ data, today, onAsk }: { data: HomeData | null; today:
     <Section id="meetings" title="Meetings" action={data ? <>{askBtn}{importBtn}</> : null}>
       {!data ? (
         <Rail label="Meetings">{[0, 1, 2].map((i) => <li key={i} className="hm-card hm-card--meeting" aria-hidden><Skeleton height={64} variant="rect" /><span className="hm-card__body"><Skeleton width="80%" /><Skeleton width="50%" height={10} /><Skeleton width="90%" height={10} /></span></li>)}</Rail>
+      ) : items.length && !wide ? (
+        <ul className="hm-list" data-testid="home-meetings-list">
+          {items.map((m) => (
+            <li key={m.id}>
+              <Anchor href={`/${encodeURIComponent(m.slug)}`} className="hm-row md-focus" data-testid="home-meeting-card">
+                <span className="hm-row__lead hm-row__lead--meeting" aria-hidden><Icon name="mic" size={16} /></span>
+                <span className="hm-row__main">
+                  <span className="hm-row__title ph-sensitive" dir="auto">{meetingTitle(m)}</span>
+                  <span className="hm-row__meta">{[meetingDay(m.date, today), m.time, m.workspace_name].filter(Boolean).join(" · ")}</span>
+                </span>
+              </Anchor>
+            </li>
+          ))}
+        </ul>
       ) : items.length ? (
         <Rail label="Recent meetings" testId="home-meetings-list">
           {items.map((m) => <MeetingCard key={m.id} m={m} today={today} />)}
         </Rail>
+      ) : !wss.length ? (
+        <Quiet icon="mic" title="Meetings live in a workspace" text="Create a workspace to import calls; Markdrop writes the summary, decisions and action items." />
       ) : (
         <Quiet icon="mic" title="Bring your meetings in"
           text="Import a transcript or Google Meet notes. Markdrop writes the summary, the decisions and everyone's action items."

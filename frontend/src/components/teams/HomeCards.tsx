@@ -171,11 +171,11 @@ export function MeetingsCard({ meetings, href, importHref, title = "Meetings", t
 }
 
 /* ── Who's doing what ── */
-export function WhoCard({ memory, href, className }: { memory: MemoryHighlights & { enabled?: boolean }; href: string; className?: string }) {
+export function WhoCard({ memory, href, className, chip }: { memory: MemoryHighlights & { enabled?: boolean }; href: string; className?: string; chip?: string }) {
   const rows = memory.highlights.filter((h) => h.person).slice(0, 8);
   return (
     <section className={cx("th-card", className)} aria-labelledby="th-who" data-testid="team-memory">
-      <div className="th-ch"><h2 id="th-who"><Icon name="users" size={16} /> Who&apos;s doing what</h2><span className="th-chip max-sm:hidden">from pages, meetings &amp; activity</span><Link className="th-lnk" href={href}>People &amp; memory</Link></div>
+      <div className="th-ch"><h2 id="th-who"><Icon name="users" size={16} /> Who&apos;s doing what</h2><span className="th-chip max-sm:hidden">{chip ?? "from pages, meetings & activity"}</span><Link className="th-lnk" href={href}>People &amp; memory</Link></div>
       {rows.length === 0 ? (
         <p className="th-empty">{memory.enabled === false ? "Turn on Team memory in Workspace settings to see who's doing what." : "Who's doing what shows here once the team has meetings and pages."}</p>
       ) : (

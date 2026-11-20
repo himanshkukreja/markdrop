@@ -1,0 +1,145 @@
+/* The customizable Home (components/home/Dashboard.tsx). Tokens only: light and dark come from the theme.
+   Two stacks like the team Overview (teams.css .th-stack): a wide main column and a narrow side column,
+   each its own flex column, so a tall card in one never leaves a hole in the other. Under 1100 px: one
+   column, main then side. Every widget is a card (Home's own sections get the team card's frame here). */
+
+.db { display: flex; min-width: 0; flex-direction: column; gap: 16px; }
+
+.db-grid { display: grid; min-width: 0; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.db-grid--one { grid-template-columns: minmax(0, 1fr); }
+.db-stack { display: flex; min-width: 0; flex-direction: column; gap: 16px; }
+.db-stack > * { min-width: 0; }
+@media (max-width: 1099.98px) { .db-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Home's own sections as cards. */
+.db .hm-sec {
+  gap: 10px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-sm);
+}
+.db .hm-sec__head { min-height: 24px; }
+.db .hm-sec__title { font-size: 14.5px; line-height: 20px; }
+.db .db-slot .hm-sec.hm-sec > .hm-quiet { padding: 4px 0; border: 0; border-radius: 0; }
+.db .hm-rail__track { margin: 0 -16px; padding: 2px 16px 6px; scroll-padding: 0 16px; }
+@media (min-width: 1024px) {
+  .db .hm-rail__track { grid-auto-columns: calc((100% - 24px) / 3); margin: 0; padding: 2px 0 6px; scroll-padding: 0; }
+  .db-grid--one .hm-rail__track { grid-auto-columns: calc((100% - 36px) / 4); }
+}
+.db .hm-rail__arrow--prev { left: -10px; }
+.db .hm-rail__arrow--next { right: -10px; }
+.db .hm-ws { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 744px) { .db .hm-ws { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.db-grid--one .hm-ws { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.db .hm-wscard { min-height: 60px; padding: 10px 12px; border-radius: 12px; box-shadow: none; }
+.db-stack--side .hm-ws { grid-template-columns: minmax(0, 1fr); }
+.db .hm-meet-foot { margin-top: -2px; }
+
+/* The widget frame (widgets.tsx Card) on top of .th-card. */
+.db-card { min-width: 0; }
+.db-card .th-ch h2 > span { min-width: 0; }
+.db-card .th-ch h2 { flex: 0 1 auto; }
+
+.db-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 8px; }
+.db-kpi { min-width: 0; padding: 8px 10px; border-radius: 10px; background: var(--surface-active); }
+.db-kpi dt { overflow: hidden; font-size: 11.5px; color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; }
+.db-kpi dd { margin: 2px 0 0; font-size: 18px; line-height: 24px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.db-views { font-variant-numeric: tabular-nums; }
+
+.db-pinned__body { position: relative; max-height: 420px; overflow: hidden; }
+.db-pinned__body::after {
+  content: ""; position: absolute; inset: auto 0 0; height: 64px; pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--surface));
+}
+.db-pinned__body .md-prose, .db-pinned__body > * { max-width: none; }
+.db-stack--side .db-pinned__body { max-height: 320px; font-size: 14px; }
+/* The card already names the page: its own title reads smaller here. */
+.db-pinned__body h1 { font-size: 22px; line-height: 28px; margin-top: 0; }
+.db-pinned__body h2 { font-size: 18px; line-height: 24px; }
+
+.db-quick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.db-quick--wide { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 639.98px) { .db-quick--wide { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.db-quick__btn {
+  display: flex; min-width: 0; min-height: 44px; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--surface); color: var(--text); font-size: 13.5px; font-weight: 600; text-decoration: none;
+}
+.db-quick__btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-quick__btn svg { flex: none; color: var(--accent-text); }
+.db-quick__btn:hover { border-color: var(--border-strong); background: var(--surface-hover); }
+
+.db-asks { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.db-ask {
+  display: flex; width: 100%; min-height: 40px; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--surface); color: var(--text-secondary); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer;
+}
+.db-ask svg { flex: none; color: var(--accent-text); }
+.db-ask span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-ask:hover { border-color: var(--border-strong); color: var(--text); }
+@media (pointer: coarse) { .db-ask { min-height: 44px; } }
+
+.db-na .th-empty { padding-top: 0; }
+.db-na__acts { display: flex; gap: 8px; margin-top: 4px; }
+
+/* ── Customize ─────────────────────────────────────────────────────────── */
+.db-bar {
+  position: sticky; top: 8px; z-index: 5; display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 8px 12px; padding: 10px 12px 10px 16px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-radius: 14px; background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface)); box-shadow: var(--shadow-md);
+}
+.db-bar__title { display: inline-flex; min-width: 0; align-items: center; gap: 8px; font-size: 14.5px; font-weight: 700; color: var(--text); }
+.db-bar__title svg { flex: none; color: var(--accent-text); }
+.db-bar__ws { overflow: hidden; font-weight: 500; color: var(--text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+.db-bar__acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+.db-slot { display: flex; min-width: 0; flex-direction: column; }
+.db-slot--edit { border-radius: 16px; outline: 1.5px dashed color-mix(in srgb, var(--accent) 45%, var(--border-strong)); outline-offset: 3px; }
+.db-slot--edit .db-slot__body { opacity: .82; pointer-events: none; user-select: none; }
+.db-ctl {
+  display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px;
+  margin-bottom: 6px; padding: 2px 2px 2px 8px;
+}
+.db-ctl__name { display: inline-flex; min-width: 0; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--text-secondary); text-transform: none; }
+.db-ctl__name svg { flex: none; color: var(--text-muted); }
+.db-ctl__btns { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-left: auto; }
+.db-ctl__across { white-space: nowrap; }
+/* One column (phones, tablets): there's no "side" to see, so it says where the card will go. */
+@media (max-width: 1099.98px) { .db-ctl__across { font-size: 12px; } }
+
+.db-add {
+  display: flex; min-height: 48px; align-items: center; justify-content: center; gap: 8px; padding: 0 12px;
+  border: 1.5px dashed var(--border-strong); border-radius: 14px; background: transparent; color: var(--accent-text);
+  font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;
+}
+.db-add:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+.db-add:disabled { color: var(--text-muted); cursor: not-allowed; }
+.db-empty { margin: 0; padding: 16px; border-radius: 14px; background: var(--surface-active); font-size: 13px; color: var(--text-muted); text-align: center; }
+.db-nothing { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 32px 16px; color: var(--text-muted); }
+.db-nothing p { margin: 0; }
+
+/* The catalog (+ Add widget). */
+.db-cat { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+@media (max-width: 639.98px) { .db-cat { grid-template-columns: minmax(0, 1fr); } }
+.db-cat__item {
+  display: flex; width: 100%; height: 100%; min-height: 72px; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--border);
+  border-radius: 12px; background: var(--surface); color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.db-cat__item:hover:not(:disabled) { border-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 40%, var(--surface)); }
+.db-cat__item:disabled { cursor: not-allowed; opacity: .55; }
+.db-cat__ico { display: inline-grid; flex: none; width: 36px; height: 36px; place-items: center; border-radius: 10px; background: var(--accent-soft); color: var(--accent-text); }
+.db-cat__text { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.db-cat__name { font-size: 14px; font-weight: 600; color: var(--text); }
+.db-cat__na { font-weight: 500; color: var(--text-muted); }
+.db-cat__desc { font-size: 12.5px; line-height: 17px; color: var(--text-muted); }
+
+/* Settings. */
+.db-fields { display: flex; flex-direction: column; gap: 14px; }
+.db-pagepick { display: flex; flex-direction: column; gap: 8px; }
+.db-pagepick__now { display: flex; min-width: 0; align-items: center; gap: 6px; margin: 0; padding: 8px 10px; border-radius: 10px; background: var(--surface-active); font-size: 13.5px; font-weight: 600; }
+.db-pagepick__list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; max-height: 240px; overflow: auto; }
+.db-pagepick__hit {
+  display: flex; width: 100%; min-height: 40px; align-items: center; gap: 8px; padding: 6px 8px; border: 0; border-radius: 8px;
+  background: none; color: var(--text); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer;
+}
+.db-pagepick__hit:hover, .db-pagepick__hit.is-on { background: var(--surface-hover); }
+.db-pagepick__hit.is-on { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.db-pagepick__where { margin-left: auto; flex: none; font-size: 12px; color: var(--text-muted); }
+
+@media (prefers-reduced-motion: reduce) { .db-slot--edit .db-slot__body { transition: none; } }

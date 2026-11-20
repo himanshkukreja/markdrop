@@ -408,6 +408,13 @@ jobs:
         working-directory: frontend/e2e/pages/real
         run: node home-redirect.mjs
 
+      # The customizable Home: Default, Customize (add, move, across, reload), settings, templates + Undo + Reset,
+      # a widget that isn't available any more, the workspace default, phones and MCP, ~30 s, on the real job.
+      - name: dashboard.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'real' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: node dashboard.mjs
+
       # Admin roles: the Admin link for admins only (account menu, sidebar, phone drawer), and an owner
       # adding and removing an admin in Admin › Admins, ~40 s, on the real job.
       - name: admin-roles.mjs on ${{ matrix.browser }}

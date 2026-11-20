@@ -78,7 +78,8 @@ async def get_dashboard(request: Request, workspace: Optional[str] = Query(None,
                         db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
     """Your Home in this workspace: ``main`` and ``side`` (each widget ``{id, type, settings, available}``;
     ``note`` says why one isn't available), ``source`` (``mine``, ``workspace`` = the admins' default, or
-    ``default``), the widget ``catalog`` and the ``presets`` (templates). 404 for a workspace you're not in."""
+    ``default``), the widget ``catalog`` and the ``presets`` (templates). ``workspace=auto``: your first
+    workspace (none: the Home without one). 404 for a workspace you're not in."""
     actor, ctx = _ac(request, user, db)
     ws = await _ws(db, user, workspace)
     return jsonable_encoder(await D.resolve(db, actor, ctx, ws))
