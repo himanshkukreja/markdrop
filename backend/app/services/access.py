@@ -206,6 +206,10 @@ class Ctx:
     _roles: dict = field(default_factory=dict, repr=False)
     _grants: dict = field(default_factory=dict, repr=False)
     _facts: dict = field(default_factory=dict, repr=False)
+    # Every actor whose decisions are cached here, by id(): holding them means an id in a cache key can't be
+    # reused by another actor while this Ctx lives (CPython reuses a freed object's id), so one person's cached
+    # facts or password decision can never be read back for someone else (found 2026-11-20, likely_done).
+    _actors: dict = field(default_factory=dict, repr=False)
     _inherit: dict = field(default_factory=dict, repr=False)
     _grants_sub: dict = field(default_factory=dict, repr=False)
     _teams: dict = field(default_factory=dict, repr=False)
@@ -460,8 +464,14 @@ async def _secret_ok(secret: str | None, hashed: str | None) -> bool:
     return await security.check(secret, hashed)
 
 
+def _actor_key(ctx: Ctx, actor: Actor) -> int:
+    """``id(actor)`` for a cache key, with the actor kept alive for the Ctx's lifetime (see ``Ctx._actors``)."""
+    ctx._actors.setdefault(id(actor), actor)
+    return id(actor)
+
+
 async def facts(actor: Actor, doc: dict, ctx: Ctx) -> Facts:
-    key = (id(actor), str(doc.get("_id")), doc.get("slug"))
+    key = (_actor_key(ctx, actor), str(doc.get("_id")), doc.get("slug"))
     cached = ctx._facts.get(key)
     if cached is not None:
         return cached
@@ -689,7 +699,7 @@ async def _read(actor: Actor, doc: dict, f: Facts, ctx: Ctx) -> Decision:
     # A sub-page asks for the password of the page its access comes from, and
     # wrong guesses count against that page (one budget for the whole family).
     pw_doc = f.pw_doc or doc
-    cache_key = ("pw", id(actor), str(doc.get("_id")))
+    cache_key = ("pw", _actor_key(ctx, actor), str(doc.get("_id")))
     if cache_key in ctx._facts:
         return ctx._facts[cache_key]
     if await password_attempts.blocked(pw_doc.get("slug") or "", ctx.ip):

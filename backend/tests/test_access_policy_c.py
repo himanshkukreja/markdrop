@@ -819,3 +819,42 @@ class OtherSurfaces(AccessWorld):
 
     async def test_c256_c262_stack_ui(self):
         self.skipTest("[S] #256-#262: tenant branding, editor unlock, gates, phone widths (frontend/browser)")
+
+
+class CtxActorReuse(AccessWorld):
+    """access.Ctx caches facts and password decisions by id(actor). CPython reuses a freed object's id, so a
+    short-lived actor per reader on one Ctx could read back the previous reader's cached decision (found
+    2026-11-20 in likely_done). The Ctx keeps every cached actor alive, so that can't happen."""
+
+    async def _user(self, who):
+        from app.services import user as user_service
+
+        return await user_service.get_user_by_id(self.db, self.uid[who])
+
+    async def test_a_new_actor_never_reads_a_freed_actors_decision(self):
+        member, stranger = await self._user("wv"), await self._user("stranger")
+        doc = None
+        for state in ["W", "RW", "UL", "RL", "L", "P", "UP"]:
+            d = await self.mkdoc(state, grants=False)
+            if (await access.can(access.Actor.of(member), d, "read", access.Ctx(self.db))).allowed and \
+                    not (await access.can(access.Actor.of(stranger), d, "read", access.Ctx(self.db))).allowed:
+                doc = d
+                break
+        self.assertIsNotNone(doc, "no state where the member reads and the stranger doesn't")
+        import gc
+
+        ctx = access.Ctx(self.db)
+        reused = 0
+        for _ in range(200):
+            a = access.Actor.of(member)
+            ok = (await access.can(a, doc, "read", ctx)).allowed
+            self.assertTrue(ok)
+            freed = id(a)
+            del a
+            gc.collect()
+            b = access.Actor.of(stranger)
+            reused += id(b) == freed
+            self.assertFalse((await access.can(b, doc, "read", ctx)).allowed)
+            del b
+        # The actors are held by the Ctx, so no id was handed on (without that, CPython reuses them here).
+        self.assertEqual(reused, 0)
