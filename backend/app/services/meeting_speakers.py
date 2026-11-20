@@ -141,13 +141,9 @@ def grounded(name: str, people: list[str], said: str) -> str | None:
 
 
 def parse(raw: str) -> list[dict] | None:
-    m = re.search(r"\{.*\}", raw or "", re.S)
-    if not m:
-        return None
-    try:
-        data = json.loads(m.group(0))
-    except ValueError:
-        return None
+    from app.services import ai_output
+
+    data = ai_output.json_object(raw)
     rows = data.get("speakers") if isinstance(data, dict) else None
     if not isinstance(rows, list):
         return None
@@ -177,6 +173,24 @@ def guesses_of(answers: list[dict], unnamed: list[str], names: dict[str, str], t
     rest = [lab for lab in unnamed if lab not in names]
     medium = [{**r, "confidence": "high"} for r in answers if str(r.get("confidence") or "").lower() == "medium"]
     return decide(medium, rest, [*taken, *names.values()], people, said)
+
+
+def by_elimination(answers: list[dict], unnamed: list[str], names: dict[str, str], taken: list[str], people: list[str],
+                   said: str) -> dict[str, str]:
+    """The last label left, named when exactly one person who joined is left too and the model's own answer for it
+    (at any confidence) is that person: the host who opened the call is often only "medium" (eval 2026-11-21: the
+    host of an escalation stayed "Speaker 1", so every action item they took had no owner)."""
+    rest = [lab for lab in unnamed if lab not in names]
+    used = {n.casefold() for n in [*taken, *names.values()]}
+    left = [p for p in people if p.casefold() not in used]
+    if len(rest) != 1 or len(left) != 1:
+        return {}
+    for r in answers:
+        if _clean(r.get("label") or r.get("speaker")) == rest[0] and r.get("name"):
+            name = grounded(str(r["name"]), people, said)
+            if name and name.casefold() == left[0].casefold():
+                return {rest[0]: left[0]}
+    return {}
 
 
 async def name_speakers(db: AsyncIOMotorDatabase, *, workspace_id: str, user_id: str | None,
@@ -232,6 +246,7 @@ async def name_speakers(db: AsyncIOMotorDatabase, *, workspace_id: str, user_id:
             await run.record("error", error_code="bad_json")
             return Naming(reason="bad_output")
         names = decide(answers, unnamed, taken, people, f"{title or ''}\n{text}")
+        names.update(by_elimination(answers, unnamed, names, taken, people, f"{title or ''}\n{text}"))
         guesses = guesses_of(answers, unnamed, names, taken, people, f"{title or ''}\n{text}")
         run.log.update(output=json.dumps(names), results={"unnamed": len(unnamed), "named": len(names)})
         await run.record("ok", named=len(names))

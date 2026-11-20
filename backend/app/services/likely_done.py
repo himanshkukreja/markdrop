@@ -31,7 +31,6 @@ workspace_id, doc (the page holding the task), block, text, owner, evidence {doc
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import re
 from datetime import date, datetime, timedelta, timezone
@@ -139,13 +138,11 @@ def items_block(items: list[dict], names: dict[str, str]) -> str:
 
 def parse_done(raw: str | None, n_items: int) -> list[dict]:
     """[{i, evidence, seg}] from the extraction's JSON ``done`` list (bounded, checked)."""
-    m = re.search(r"\{.*\}", raw or "", re.S)
-    if not m or n_items <= 0:
+    from app.services import ai_output
+
+    if n_items <= 0:
         return []
-    try:
-        data = json.loads(m.group(0))
-    except Exception:
-        return []
+    data = ai_output.json_object(raw)
     got = data.get("done") if isinstance(data, dict) else None
     out, seen = [], set()
     for d in (got if isinstance(got, list) else [])[:n_items]:
@@ -195,6 +192,29 @@ async def record(db: AsyncIOMotorDatabase, workspace_id: str, src_key: str, sour
     if touched:
         await _refresh_pages(db, touched)
     return len(keep)
+
+
+async def for_facts(db: AsyncIOMotorDatabase, workspace_id: str, facts: list[dict]) -> set[str]:
+    """Ids of Team-memory commitments (action items, targets) that have a live (not dismissed) likely-done candidate:
+    same page, same owner, nearly the same words. The weekly brief leaves them out of "due" and "overdue" (they are
+    not ticked: the item itself still shows its "likely done" note where it lives)."""
+    from app.services import workspace_memory as wm
+
+    todo = [f for f in facts if f.get("kind") in ("action_item", "target")]
+    docs = {s.get("doc_id") for f in todo for s in f.get("sources") or [] if s.get("doc_id") is not None}
+    if not docs or not workspace_id:
+        return set()
+    rows = await db[COLL].find({"workspace_id": workspace_id, "doc": {"$in": list(docs)}, "dismissed_at": None},
+                               {"doc": 1, "owner": 1, "text": 1}).to_list(length=2000)
+    out: set[str] = set()
+    for f in todo:
+        mine = {s.get("doc_id") for s in f.get("sources") or []}
+        for r in rows:
+            if r.get("doc") in mine and r.get("owner") == f.get("subject") and any(
+                    wm.jaccard(wm.norm(r.get("text")), wm.norm(t)) >= 0.5 for t in (f.get("text"), f.get("alt_text")) if t):
+                out.add(str(f["_id"]))
+                break
+    return out
 
 
 async def _refresh_pages(db: AsyncIOMotorDatabase, touched: list[dict]) -> None:

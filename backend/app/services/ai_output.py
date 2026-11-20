@@ -25,6 +25,9 @@ and the spend caps (checked before the request) still apply.
 
 from __future__ import annotations
 
+import json
+import re
+
 MAX_TOKENS = "max_tokens"
 
 # The smallest cap for an answer a person reads (thinking plus the answer).
@@ -74,3 +77,27 @@ def split_cites(text: str | None) -> str:
     import re
 
     return _CITE_LIST.sub(lambda m: "".join(f"[{x.strip()}]" for x in re.split(r"[,;]", m.group(1))), text or "")
+
+
+# ── Reading a JSON answer ─────────────────────────────────────────────────────
+
+_OBJECT = re.compile(r"\{.*\}", re.S)
+_CONTINUATION = re.compile(r"\\[ \t]*\r?\n")
+_TRAILING_COMMA = re.compile(r",(\s*[}\]])")
+
+
+def json_object(raw: str | None) -> dict | None:
+    """The JSON object in a model's answer (its outermost ``{…}``), or None. Read leniently: raw newlines and tabs
+    inside strings, and — only when the strict read fails — line-continuation backslashes ("[\\" at a line's end, seen
+    from Haiku 5.5 in long notes, eval 2026-11-21: one meeting in ten came back unreadable) and trailing commas."""
+    m = _OBJECT.search(raw or "")
+    if not m:
+        return None
+    text = m.group(0)
+    for attempt in (text, _TRAILING_COMMA.sub(r"\1", _CONTINUATION.sub("\n", text))):
+        try:
+            data = json.loads(attempt, strict=False)
+        except ValueError:
+            continue
+        return data if isinstance(data, dict) else None
+    return None

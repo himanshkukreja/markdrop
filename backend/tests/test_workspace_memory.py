@@ -132,12 +132,26 @@ def _pin_today(test, day: date):
     test.addCleanup(p.stop)
 
 
+class Lenient(unittest.TestCase):
+    def test_line_continuations_and_trailing_commas_are_read(self):
+        # Haiku 5.5 sometimes ends JSON lines with a backslash (a whole meeting's notes came back unreadable).
+        raw = '{"facts": [\\\n{"person": "Bo Chen", "kind": "update", "text": "Shipped the export", "cite": "s3"},\\\n]}'
+        got = wm.parse_facts(raw)
+        self.assertEqual([(f["person"], f["text"], f["seg"]) for f in got], [("Bo Chen", "Shipped the export", 3)])
+        self.assertIsNone(wm.parse_facts("no json"))
+        from app.services import ai_output
+        self.assertEqual(ai_output.json_object('Here: {"a": "two\nlines"}'), {"a": "two\nlines"})
+        self.assertIsNone(ai_output.json_object('{"a": [1, 2'))
+        self.assertIsNone(ai_output.json_object("[1, 2]"))
+
+
 class Due(unittest.TestCase):
     def test_resolve(self):
         b = date(2026, 11, 3)  # Tuesday
         cases = {"by Thursday": "2026-11-05", "early next week": "2026-11-09", "end of month": "2026-11-30",
                  "Nov 12": "2026-11-12", "in 3 days": "2026-11-06", "tomorrow": "2026-11-04", "this week": "2026-11-06",
-                 "next Monday": "2026-11-09", "by Tuesday": "2026-11-10", "someday": None}
+                 "next Monday": "2026-11-09", "by Tuesday": "2026-11-10", "someday": None,
+                 "every Friday": None, "weekly on Mondays": None}
         for text, want in cases.items():
             got = wm.resolve_due(text, b)
             self.assertEqual(got.isoformat() if got else None, want, text)
@@ -773,6 +787,25 @@ class ThisWeek(TeamWorld):
         dec = await self.fact("wm", "decision", "Annual plans get twenty percent off")
         r = await self.http.post(f"/api/v1/team/{self.W}/facts/{dec}/done", headers=self.session("wm"))
         self.assertEqual(r.status_code, 422)
+
+    async def test_likely_done_items_are_not_due_or_overdue(self):
+        from app.services import likely_done
+
+        await self.fact("wa", "action_item", "Send the security questionnaire", due="2026-10-30")
+        await self.fact("wa", "target", "Publish the pricing FAQ", due="2026-11-06")
+        s = await self.compose()
+        self.assertIn("Send the security questionnaire", [x["text"] for x in s["overdue"]])
+        doc = self.proto["sources"][0]["doc_id"]
+        await self.db[likely_done.COLL].insert_one({"_id": f"{doc}:b-x", "workspace_id": self.W, "doc": doc, "block": "b-x",
+                                                    "text": "Send the security questionnaire · due Friday",
+                                                    "owner": self.uid["wa"], "dismissed_at": None})
+        s = await self.compose()
+        self.assertNotIn("Send the security questionnaire", [x["text"] for x in s["overdue"]])
+        self.assertIn("Publish the pricing FAQ", [x["text"] for x in s["due"]])
+        # Someone said it isn't done (dismissed): back on the list.
+        await self.db[likely_done.COLL].update_one({"_id": f"{doc}:b-x"}, {"$set": {"dismissed_at": datetime.now(timezone.utc)}})
+        s = await self.compose()
+        self.assertIn("Send the security questionnaire", [x["text"] for x in s["overdue"]])
 
     async def test_ticked_page_task_is_done(self):
         wmid = self.uid["wm"]

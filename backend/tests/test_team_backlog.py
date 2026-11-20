@@ -110,6 +110,9 @@ class Fill(BacklogWorld):
         acme = await self.call("Acme renewal")
         raw = await self.page()
         self.assertIsNotNone(raw)
+        # The model is told who in the call is a member and who is a guest (internal ideas aren't customer asks).
+        sent = self.backlog_calls()[0]["messages"][0]["content"][0]["text"]
+        self.assertRegex(sent, r"People: .*\((member|guest)\)")
         self.assertEqual((raw["title"], raw["team_ids"], raw["backlog_team_id"]), ("Sales — Backlog", [self.sales], self.sales))
         body = raw["content"]
         reg = TB.region(body)

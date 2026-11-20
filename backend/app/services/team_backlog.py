@@ -458,15 +458,15 @@ GEN_SYSTEM = """You keep a team's backlog in Markdrop, a workspace app, from the
 
 Do two things:
 1. Put each action item in exactly one category.
-2. Find the customer asks said in the call that are NOT already an action item: a feature someone asked for, a bug or problem they hit, an integration they need, an improvement, a question that still needs an answer, a follow-up the team owes them. Skip small talk, things already done in the call, and anything an action item already covers. At most 12; none is fine.
+2. Find the customer asks said in the call that are NOT already an action item: a feature a customer, prospect or partner asked for, a bug or problem they hit, an integration they need (a partner's integration counts), an improvement, a question of theirs that still needs an answer, a follow-up the team owes them. Only what a guest (a customer, prospect or partner; "People" marks each person member or guest) asked for or hit, or a real problem with the product someone hit; ideas the team's own members float are not asks, and internal calls with no guests (standups, 1:1s, team syncs) usually have none. Skip small talk, questions answered in the call, things already done in the call, the customer's own to-dos, internal process talk, and anything an action item already covers. At most 12; none is fine.
 
 Categories (use the key):
 - feature: a new capability someone asked for ("Export to CSV", "SSO with Okta", an integration).
-- bug: something broken or not working as it should.
+- bug: something broken or not working as it should (also an action item to investigate or fix such a problem).
 - improvement: a small change or addition to something that exists.
 - task: internal work for the team.
-- follow_up: something owed to a customer or prospect (send the proposal, share pricing, book a demo, reply).
-- question: a question that still needs an answer.
+- follow_up: something the team owes a customer, prospect or partner (send the proposal, share pricing, book a demo, reply). A task the customer or partner does themselves is a task, not a follow_up.
+- question: a question still waiting for an answer from the team.
 
 Write each ask in English as a short line (under 120 characters), starting with what is wanted ("Export reports to CSV", "Login fails on Safari"). Name the customer's company only when it matters.
 
@@ -582,11 +582,7 @@ async def _model(db: AsyncIOMotorDatabase, workspace_id: str, kind: str, system:
         ai_usage.release_request(FEATURE, RESERVE)
     data = None
     if outcome == "ok":
-        m = re.search(r"\{.*\}", raw or "", re.S)
-        try:
-            data = json.loads(m.group(0)) if m else None
-        except Exception:
-            data = None
+        data = ai_output.json_object(raw)
         if not isinstance(data, dict):
             outcome, data = "unparsed", None
     try:
@@ -616,8 +612,14 @@ async def meeting_ai(db: AsyncIOMotorDatabase, mrow: dict, actions: list["Cand"]
         return got
     ids = {f"A{k + 1}": a for k, a in enumerate(actions)}
     acts = "\n".join(f"{i}: {TP._PERSON.sub(lambda m: m.group(1), a.text)}" for i, a in ids.items()) or "(none)"
-    user_text = (f"<untrusted_meeting>\nTitle: {mrow.get('title') or 'Meeting'}\nDate: {mrow.get('date') or ''}\n\n"
-                 f"Action items:\n{acts}\n\n{notes}\n</untrusted_meeting>")
+    # Who is a member and who is a guest (eval 2026-11-21: without it, internal calls and the team's own ideas came
+    # back as "customer asks" — 13 of 37 extracted asks were noise).
+    who = ", ".join(f"{clean_text(a.get('name'))[:80]} ({'member' if a.get('user_id') else 'guest'})"
+                    for a in (mrow.get("attendees") or [])[:40] if clean_text(a.get("name")))
+    kind = (mrow.get("generated") or {}).get("type") or mrow.get("type")
+    user_text = (f"<untrusted_meeting>\nTitle: {mrow.get('title') or 'Meeting'}\nDate: {mrow.get('date') or ''}\n"
+                 + (f"Kind of call: {kind}\n" if kind else "") + (f"People: {who}\n" if who else "")
+                 + f"\nAction items:\n{acts}\n\n{notes}\n</untrusted_meeting>")
     data = await _model(db, mrow["workspace_id"], "categorize", GEN_SYSTEM, user_text, MAX_TOKENS,
                         f"sorted the call '{(mrow.get('title') or 'Meeting')[:80]}'")
     if data is None:

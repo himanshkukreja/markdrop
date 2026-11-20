@@ -567,6 +567,22 @@ class NamingRules(MediaWorld):
         self.assertIsNone(meeting_speakers.grounded("Speaker 2", people, said))
         self.assertIsNone(meeting_speakers.parse("no json here"))
 
+    def test_the_last_label_by_elimination_only_when_the_model_agrees(self):
+        # The host opened the call ("medium"); everyone else is named: the last label left is the last person left.
+        people = ["Neha Kapoor", "Lisa Moreno", "Kabir Malhotra"]
+        said = "[Speaker 1] Hi Lisa, I have Kabir from our engineering team."
+        ans = [{"label": "Speaker 1", "name": "Neha Kapoor", "confidence": "medium"},
+               {"label": "Speaker 2", "name": "Lisa Moreno", "confidence": "high"},
+               {"label": "Speaker 3", "name": "Kabir Malhotra", "confidence": "high"}]
+        labels = ["Speaker 1", "Speaker 2", "Speaker 3"]
+        names = meeting_speakers.decide(ans, labels, [], people, said)
+        self.assertEqual(meeting_speakers.by_elimination(ans, labels, names, [], people, said), {"Speaker 1": "Neha Kapoor"})
+        # The model guessed someone else, or nothing: no name. Two people left (one never spoke): no name.
+        other = [{**ans[0], "name": "Lisa Moreno"}, *ans[1:]]
+        self.assertEqual(meeting_speakers.by_elimination(other, labels, names, [], people, said), {})
+        self.assertEqual(meeting_speakers.by_elimination([{**ans[0], "name": None}, *ans[1:]], labels, names, [], people, said), {})
+        self.assertEqual(meeting_speakers.by_elimination(ans, labels, names, [], [*people, "Gary Holt"], said), {})
+
     def test_excerpt_keeps_the_opening_each_unnamed_speaker_and_the_end(self):
         lines = [("Jason Chad", f"line {i}") for i in range(200)]
         lines[120] = ("Speaker 2", "the quiet one")
