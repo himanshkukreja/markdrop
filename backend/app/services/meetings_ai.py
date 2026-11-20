@@ -61,10 +61,11 @@ REDUCE_MAX_TOKENS = 3500
 # notes per DETAILS_CHARS_PER_WORD characters of transcript), and the cap follows the Details (three
 # tokens a word covers the JSON, the citations and thinking). Below ai_output.RETRY_CEILING, so a
 # cut answer is still asked again with more room.
-DETAILS_MIN_WORDS = 200
-DETAILS_MAX_WORDS = 2500
-#: Transcript characters per word of Details (20 until the 2026-11-21 eval: judged "far too long" on 8 of 10 calls).
-DETAILS_CHARS_PER_WORD = 40
+DETAILS_MIN_WORDS = 250
+DETAILS_MAX_WORDS = 4000
+#: Transcript characters per word of Details. The owner chose Google-Meet-depth notes; the 2026-11-21 eval judged them
+#: "far too long" on 8 of 10 calls and tried 40, but the length stays the owner's call (kept at 20 until they decide).
+DETAILS_CHARS_PER_WORD = 20
 DETAILS_MAX_TOKENS = 12000
 RESERVE_DETAILS = 0.08
 # Haiku 5.5 thinks before answering even at effort "low", and thinking counts against max_tokens
