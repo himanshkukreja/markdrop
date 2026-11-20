@@ -267,6 +267,11 @@ class Cards(ListWorld):
 
     async def test_queries_per_page_are_bounded(self):
         await self.seed([{"title": f"M{i}", "date": f"2026-09-{1 + i % 28:02d}", "restricted": i % 5 == 0} for i in range(90)])
+        # The save hooks' background indexing (search index, Ask's index) reads documents too: let it finish first.
+        from app.services import ai_index, search_index
+
+        await search_index.drain()
+        await ai_index.drain()
         counts = []
         for limit in (10, 40):
             await self.db.command({"profile": 0})
