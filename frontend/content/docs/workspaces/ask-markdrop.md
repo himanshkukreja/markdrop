@@ -1,8 +1,8 @@
 ---
 title: Ask
 description: "One assistant, named after what it asks: your workspace, your own files or the page you are on. Its own page, live suggestions and cited sources."
-updated: 2026-11-07
-keywords: [ask, what ask can read, whole transcript, long meetings, word, docx, powerpoint, pptx, slides, excel, xlsx, csv, pdf pages, video captions, about me, about yourself, who am i, what did i say, my last standup, my last sync-up, my meetings, my documents, what have i been working on, my email, my workspaces, my role, ask your workspace, ask any page, ask my files, ask this page, ask page, full page, suggestions, live suggestions, suggested questions, team suggestions, a team's suggestions, sales team questions, what's happening, updated, topics, history, conversations, ask markdrop, never empty, cut short, slack, /markdrop ask, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, phone, app, side panel]
+updated: 2026-11-20
+keywords: [ask, who wrote, who created, created by, last edited, comments, feedback, status, how many, two people same name, look-alike names, what ask can read, whole transcript, long meetings, word, docx, powerpoint, pptx, slides, excel, xlsx, csv, pdf pages, video captions, about me, about yourself, who am i, what did i say, my last standup, my last sync-up, my meetings, my documents, what have i been working on, my email, my workspaces, my role, ask your workspace, ask any page, ask my files, ask this page, ask page, full page, suggestions, live suggestions, suggested questions, team suggestions, a team's suggestions, sales team questions, what's happening, updated, topics, history, conversations, ask markdrop, never empty, cut short, slack, /markdrop ask, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, phone, app, side panel]
 ---
 
 **Ask** is one assistant, everywhere in Markdrop. Ask a question in plain words and it answers from what you can open, citing where each part came from, so you can check it in one tap. The conversation follows you from screen to screen.
@@ -185,8 +185,8 @@ Ask reads the whole of what you can open, not just the start, and its answers sa
 
 | Item | What Ask reads | Where an answer points |
 | --- | --- | --- |
-| **Meetings** | The notes, and the **whole transcript**: every minute, up to about three and a half hours per meeting | The moment: "at 1:10:00", opening the transcript at that line |
-| **Pages and documents** | Their text, headings and sign-offs | The page |
+| **Meetings** | The notes, the action items (open and done, with who owns each), and the **whole transcript**: every minute, up to about three and a half hours per meeting | The moment: "at 1:10:00", opening the transcript at that line |
+| **Pages and documents** | Their text, headings and sign-offs, who created and last edited them and when, their teams, their status, and their comments | The page |
 | **Word** (`.docx`) | Every section, headings included | The section: "section Refunds" |
 | **PowerPoint** (`.pptx`) | Every slide's text and its speaker notes | The slide: "slide 5", opening the deck there |
 | **Excel** (`.xlsx`) and **CSV** | Sheet names and each sheet's first 200 rows | The sheet: "sheet Budget" |
@@ -197,6 +197,21 @@ Ask reads the whole of what you can open, not just the start, and its answers sa
 
 A file's text is read once, in the background, shortly after it's uploaded or replaced, up to 200,000 characters per file. Old Excel files (`.xls`), password-protected Office files and encrypted PDFs aren't read: they're found by name. A video without captions is found by its title and the pages it's on. To make a video's words searchable, [add its captions](/files/video-and-audio#captions).
 
+### Who, when, which team
+
+Ask knows what Markdrop knows about each item, not only what its text says: who created it and when, who edited it last, which teams it belongs to, its **Status** (a page property, or a "Status:" line near the top) and its comment threads. So you can ask:
+
+- "Which documents did Rahul write?" or "How many documents has Arun created this month?"
+- "Which PRDs are still in review?"
+- "What feedback did Meera leave on the billing PRD?" or "What comments are open on the launch plan?"
+- "What action items from the incident review are still open?"
+
+**Comments count as sources.** Open comment threads on the items Ask reads come with them (who said what, and when), and a question about something said only in a comment finds the item it's on. Comments are read only on items whose comments you can see.
+
+**Two people, one name.** When a name in your question fits more than one person in the workspace ("Rahul" with Rahul Verma and Rahul Das), Ask answers for each of them, by full name, instead of picking one. A name nobody has ("Arun Kapoor" when the workspace has Arun Sharma and Arjun Kapoor) gets the same treatment. Ask only mentions the teams you can see: a private team stays private.
+
+**Answers that fit the question.** "How many…" starts with the number. A list question gets the whole list it can see, grouped by person, team or status, instead of a short sample.
+
 ## What Ask reads
 
 Ask finds items with the same search as [Search](/workspaces/search), so it sees exactly what you can open:
@@ -206,10 +221,11 @@ Ask finds items with the same search as [Search](/workspaces/search), so it sees
 - **A folder only narrows.** **This folder** never reads anything you couldn't open anyway.
 - **My files is only yours.** **Ask my files** reads only items you own that aren't in a workspace.
 - **Protected items stay protected.** [End-to-end encrypted](/sharing/end-to-end-encryption) items are never read, and **This page** isn't offered on them. A password-protected item is read by its title only.
+- **People's names stay in their circle.** Who created or edited an item, and which teams it's in, is read only when you could see it on the item itself: names inside the workspace, teams you can see.
 - **AI off means off.** Nothing is read from a workspace whose admin turned [AI features](/pages/ai#turn-ai-off-for-a-workspace) off.
 
 :::note[What is sent to AI]
-Ask sends your question, earlier questions in the same conversation, the heading of the section you're in and any text you selected, your own name, email, workspaces and the names you appear under in meetings, and short excerpts of the matching items you can open. Transcripts are sent only to answer you. For a workspace's suggestions, it sends the meeting topics, decisions and action items and the page titles and headings that every member can open. Nothing is used to train models. See [AI and your data](/security/ai-and-your-data).
+Ask sends your question, earlier questions in the same conversation, the heading of the section you're in and any text you selected, your own name, email, workspaces and the names you appear under in meetings, short excerpts of the matching items you can open, with who created and edited them, their teams, status and comments, and the names and teams of the workspace members your question names. Transcripts are sent only to answer you. For a workspace's suggestions, it sends the meeting topics, decisions and action items and the page titles and headings that every member can open. Nothing is used to train models. See [AI and your data](/security/ai-and-your-data).
 :::
 
 ## AI limits

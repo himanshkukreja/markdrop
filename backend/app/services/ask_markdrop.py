@@ -50,8 +50,8 @@ from typing import Any, AsyncIterator
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.services import (access, ai_log, ai_usage, docs_agent, meetings, pages_ai, search, search_ai, search_chunks,
-                          search_index, urls)
+from app.services import (access, ai_log, ai_usage, ask_context, docs_agent, meetings, pages_ai, search, search_ai,
+                          search_chunks, search_index, urls)
 from app.services import search_text as st
 from app.services import ai_output
 
@@ -103,6 +103,28 @@ YOU_RULE = ("Who is asking: <untrusted_you> is the person's own account (name, e
             "plainly, as facts; never mention the notes, the \"(you)\" markers or how items are labelled. A to-do or action "
             "item belongs to the person @mentioned on it, not to whoever wrote the page.")
 
+RECORDS_RULE = ("Markdrop's records: an item's tag may also carry created_by (who created it in Markdrop), created, "
+                "last_edited_by, teams, status and comments (its open / resolved comment threads); a meeting may list "
+                "its action items, open and done, with the person who owns each; a document may bring its comment "
+                "threads (who said what, when: cite them as that item [n]). These come from Markdrop itself and are "
+                "reliable: answer who wrote / created / owns, when, which team and what status from them rather than "
+                "guessing from the text. <untrusted_people> lists the workspace members the question names.")
+
+SHAPE_RULE = ("Shape: lead with the direct answer. \"How many…?\" starts with the number (\"Seven: …\"), counted from "
+              "the items, then the list; when the items may not show them all, say \"at least\". A question asking for "
+              "several things (which, what are, list, all, everything) gets every match the items show, one short bullet "
+              "each, grouped by person, team or status when it spans several — up to about 300 words and 25 bullets; "
+              "anything else at most 160 words. Give each point only what the question asks about: bring in a record "
+              "(created date, team, comments, last edit) only when it answers the question. When a name fits several "
+              "members (see <untrusted_people>), answer for each of them by full name (\"There are two Rahuls — Rahul "
+              "Verma: …; Rahul Das: …\"), never picking one silently or asking which one. Write the facts plainly: never "
+              "talk about the items, excerpts, candidates, search results, records, tags or how they are labelled "
+              "(\"the excerpt shows\", \"among the items\", \"item 3\", \"the records say\", \"tagged to\"), and never "
+              "correct yourself mid-answer — decide, then write.")
+
+META_RULE = ("Write the facts plainly: never talk about the items, excerpts, candidates or how they are labelled, and "
+             "never correct yourself mid-answer.")
+
 EXPAND_SYSTEM = """You help a keyword search engine inside Markdrop, a workspace app with meetings, documents, pages, files and guides. A person asked a question; when it follows earlier questions in a conversation, those come first for context.
 
 Return only JSON, no prose and no code fence: {"standalone": "...", "terms": [...], "titles": [...]}
@@ -117,9 +139,11 @@ ANSWER_SYSTEM = f"""You are Ask, the assistant in a person's Markdrop (their wor
 
 {YOU_RULE}
 
+{RECORDS_RULE}
+
 Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with the numbers of the items that are relevant to the question, most relevant first (at most 12). Leave out items that are not relevant. If none are, write <ranking></ranking>.
-2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings; short bullet lists are fine), from the items only. Cite every claim right after it: an item as [n], a transcript line or a passage as [n-sK] (transcript lines are the best evidence of what was said; a passage tells the reader which page, slide, sheet or minute). Use only labels shown in the items, one per bracket: a line or passage can be cited as [n-sK] only when it is listed with that label; otherwise cite its item [n]. When items disagree, the newer one wins and you say so. If the items don't answer the question, say so in one sentence and name the closest ones with their [n]. Never invent facts, names, dates, links or items that aren't listed.
+2. Then a blank line and the answer in plain Markdown (no headings; bullet lists are fine), from the items only. {SHAPE_RULE} Cite every claim right after it: an item as [n], a transcript line or a passage as [n-sK] (transcript lines are the best evidence of what was said; a passage tells the reader which page, slide, sheet or minute). Use only labels shown in the items, one per bracket: a line or passage can be cited as [n-sK] only when it is listed with that label; otherwise cite its item [n]. When items disagree, the newer one wins and you say so. If the items don't answer the question, say so in one sentence and name the closest ones with their [n]. Never invent facts, names, dates, links or items that aren't listed.
 
 Write in English, even when the question mixes Hindi (or another language) with English in Latin letters ("Hinglish"); answer in another language only when the whole question is written in it."""
 
@@ -129,9 +153,11 @@ PAGE_SYSTEM = f"""You are Ask AI inside a page in Markdrop, a workspace app with
 
 {YOU_RULE}
 
+{RECORDS_RULE}
+
 Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with the numbers of the items that are relevant to the question, most relevant first (at most 12). If none are, write <ranking></ranking>.
-2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings; short bullet lists are fine). For questions about when or why something was decided, who decided or owns it, or what was discussed or being worked on: answer from the meetings first and always name the meeting and its date (for example "on Oct 28, 2026 (Daily Standup)"); when meetings disagree, the later one wins and you say so. For questions about the page itself, answer from item [1]. Cite every claim right after it: an item as [n], a transcript line as [n-sK]. Use only labels shown in the items, one per bracket: a line can be cited as [n-sK] only when it is listed with that label; otherwise cite its item [n]. If the items don't answer the question, say so in one sentence. Never invent facts, names, dates, links or items that aren't listed.
+2. Then a blank line and the answer in plain Markdown (no headings; bullet lists are fine). {SHAPE_RULE} For questions about when or why something was decided, who decided or owns it, or what was discussed or being worked on: answer from the meetings first and always name the meeting and its date (for example "on Oct 28, 2026 (Daily Standup)"); when meetings disagree, the later one wins and you say so. For questions about the page itself, answer from item [1]. Cite every claim right after it: an item as [n], a transcript line as [n-sK]. Use only labels shown in the items, one per bracket: a line can be cited as [n-sK] only when it is listed with that label; otherwise cite its item [n]. If the items don't answer the question, say so in one sentence. Never invent facts, names, dates, links or items that aren't listed.
 
 Write in English, even when the question mixes Hindi (or another language) with English in Latin letters ("Hinglish"); answer in another language only when the whole question is written in it."""
 
@@ -141,9 +167,11 @@ CATCHUP_SYSTEM = f"""You are Ask, the assistant in a person's Markdrop (their wo
 
 {YOU_RULE}
 
+{RECORDS_RULE}
+
 Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with the numbers of the items worth reading, most important first (at most 12).
-2. Then a blank line and a catch-up: at most 180 words of plain Markdown, a short bullet list grouped by theme (decisions and meetings first, then what changed in documents), every bullet citing its items as [n]. Only what the items say; never invent anything. End with one line naming what most needs their attention, if anything does.
+2. Then a blank line and a catch-up: at most 180 words of plain Markdown, a short bullet list grouped by theme (decisions and meetings first, then what changed in documents), every bullet citing its items as [n]. Only what the items say; never invent anything. {META_RULE} End with one line naming what most needs their attention, if anything does.
 
 Write in English, even when the question mixes Hindi (or another language) with English in Latin letters ("Hinglish"); answer in another language only when the whole question is written in it."""
 
@@ -155,7 +183,7 @@ ACTIONS_SYSTEM = f"""You are Ask, the assistant in a person's Markdrop (their wo
 
 Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with every task's number, most urgent first (overdue or due soon first, then newest).
-2. Then a blank line and the answer: at most 180 words of plain Markdown — one short sentence on how many there are, then a bullet per task (grouped by page or meeting when several share one), each in a few words and citing it as [n], with its due date when it has one. Never invent tasks, dates or owners.
+2. Then a blank line and the answer: at most 180 words of plain Markdown — one short sentence on how many there are, then a bullet per task (grouped by page or meeting when several share one), each in a few words and citing it as [n], with its due date when it has one. Never invent tasks, dates or owners. {META_RULE}
 
 Write in English, even when the question mixes Hindi (or another language) with English in Latin letters ("Hinglish"); answer in another language only when the whole question is written in it."""
 
@@ -366,6 +394,7 @@ class Source:
         self.n, self.cand, self.item, self.text, self.tag = n, cand, item, text, tag
         self.attrs = attrs or {}
         self.lines: dict[int, dict] = {}      # transcript line K → {moment, url, slug}
+        self.comment_threads: list[str] = []  # comment threads a comment search matched (services/ask_context.py)
 
     @property
     def key(self) -> str:
@@ -1126,7 +1155,7 @@ async def named_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
 
 async def _ask_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, standalone: str,
                        terms: list[str], scope: str | None, keep=None, *, you=None,
-                       mine=None) -> tuple[list[Source], int, int]:
+                       mine=None, people: "ask_context.People | None" = None) -> tuple[list[Source], int, int]:
     q = search.Query(q=standalone, scope=scope, snippets=True)
     cands, w = await search_ai.retrieve(db, actor, ctx, q, [standalone, *terms], keep=keep)
     first = _personal_cands(mine, actor.user_id, keep)
@@ -1140,10 +1169,21 @@ async def _ask_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
     seen_ = {c.key for c in first}
     first += [c for c, _t in mem if c.key not in seen_]
     # ── end Team memory hook ──────────────────────────────────────────────────────────────────────
+    # Comments as a source (services/ask_context.py): documents whose comment threads match the question.
+    try:
+        ccands, matched = await ask_context.comment_cands(db, actor, ctx, w, standalone, terms, scope, keep,
+                                                          people=people.named if people else None)
+    except Exception:
+        log.warning("ask: comment search failed", exc_info=True)
+        ccands, matched = [], {}
+    seen_ = {c.key for c in first}
+    first += [c for c in ccands if c.key not in seen_]
     seen = {c.key for c in first}
     cands = [*first, *(c for c in cands if c.key not in seen)][:MAX_CANDIDATES]
     kept, withheld = await _ai_off(db, cands)
     sources = await _sources_from(db, actor, ctx, w, kept, standalone, you=you, mine=mine, expanded=terms)
+    for src in sources:
+        src.comment_threads = matched.get(src.key) or []
     _team_memory_text(sources, mem)
     # ── Jira hook (services/jira_team.py): questions about tickets read the asker's own Jira ─────────
     if keep is None:
@@ -1455,6 +1495,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
     try:
         terms: list[str] = []
         standalone = question
+        people = ask_context.People()
         profile_only = (intent == "ask" and you is not None and not history and ask_me.is_personal(question)
                         and ask_me.is_profile(question) and not (ask_me.wants_meetings(question) or ask_me.wants_work(question)))
         if profile_only:
@@ -1469,8 +1510,15 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
                 await run.record("error", error_code=exc.code, stage="expand")
                 yield ev("error", detail=exc.detail, code="upstream")
                 return
-            yield ev("status", stage="searching", terms=terms)
             about = question if standalone == question else f"{question}\n{standalone}"
+            # The names it uses, against the members: both Rahuls when it says "Rahul" (services/ask_context.py).
+            try:
+                people = await ask_context.people_in(db, actor, ctx, about, scope)
+            except Exception:
+                log.warning("ask: name resolution failed", exc_info=True)
+                people = ask_context.People()
+            terms = [*terms, *(t for t in people.terms if t.casefold() not in {x.casefold() for x in terms})]
+            yield ev("status", stage="searching", terms=terms)
             # About the asker: their meetings and recent work, inside the scope ("Ask my files": only their
             # own items outside any workspace, so no meetings).
             finds = await ask_me.personal(db, actor, ctx, you, about,
@@ -1483,7 +1531,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
                 system = PAGE_SYSTEM
             else:
                 sources, _found, withheld = await _ask_sources(db, actor, ctx, standalone, terms, scope, keep,
-                                                               you=you, mine=finds)
+                                                               you=you, mine=finds, people=people)
                 system = ANSWER_SYSTEM
             run.meta.update(candidates=len(sources), terms=len(terms), withheld=withheld, personal=personal,
                             mine_meetings=len(finds.meetings), mine_work=len(finds.work))
@@ -1503,12 +1551,22 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
             yield await finish(WITHHELD if withheld else EMPTY[intent], [], [], stop="no_candidates", record=True)
             return
 
+        # Markdrop's own records on each item (creator, dates, teams, status, comments, a meeting's action
+        # items) and, for a question, the items' comment threads (services/ask_context.py).
+        if intent in ("ask", "page", "catch_up") and sources:
+            try:
+                await ask_context.annotate(db, actor, ctx, sources)
+                if intent != "catch_up":
+                    await ask_context.add_comments(db, actor, ctx, sources)
+            except Exception:
+                log.warning("ask: source records failed", exc_info=True)
         yield ev("status", stage="answering")
         by_n = {s.n: s for s in sources}
         run.log["context"] = [{"kind": s.item.get("kind"), "title": s.item.get("title") or s.attrs.get("title"),
                                "id": s.item.get("key"), "url": s.item.get("web_url") or s.item.get("url")}
                               for s in sources]
         asked = ((you.block() + "\n\n" if you is not None else "")
+                 + (people.note + "\n\n" if people.note else "")
                  + f"The question (from the person asking, not from a document): {question}"
                  + (f"\n(As a standalone question: {standalone})" if standalone != question else "")
                  + ("\nThe question mixes Hindi and English: write the answer in English." if ask_me.is_hinglish(question) else ""))

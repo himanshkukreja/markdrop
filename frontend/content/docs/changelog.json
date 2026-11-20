@@ -54,6 +54,22 @@
       ]
     },
     {
+      "id": "ask-knows-who-and-comments",
+      "date": "2026-11-20",
+      "title": "Ask knows who wrote what, reads comments and tells two Rahuls apart",
+      "kind": "improved",
+      "area": "Ask",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "Ask now reads who created and last edited each item, its teams, its status and its comments, lists a meeting's open and done action items, answers for every person a name fits, and shapes answers to the question: the number first for \"how many\", the whole list for a list question.",
+      "body": "- **Who, when, which team.** \"Which documents did Rahul Das write?\" and \"Which PRDs are still in review?\" are answered from Markdrop's own records of each item (who created and last edited it, when, its teams and its Status), not guessed from its text.\n- **Comments are sources.** Open comment threads come with the items Ask reads, and a question about something said only in a comment finds the item it's on. Only comments you can see are read.\n- **Two people, one name.** When a name fits two people in the workspace, Ask answers for each of them by full name instead of picking one. Private teams stay private.\n- **Answers that fit.** \"How many…\" starts with the number; a list question gets the whole list, grouped by person, team or status. The same in `ask_documents`.",
+      "docs": [
+        "/workspaces/ask-markdrop"
+      ]
+    },
+    {
       "id": "team-backlog",
       "date": "2026-11-19",
       "title": "Team backlog: every call's action items and customer asks on one shared page",
