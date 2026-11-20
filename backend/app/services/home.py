@@ -68,7 +68,9 @@ async def actions(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx
     filt = await search.doc_filter(db, actor, ctx, w.member_ws, search.Query(q=""))
     if filt is None or not uid:
         return {"items": [], "more": False, "hidden": 0}
-    filt["$and"].append({"kind": {"$ne": "artifact"}, "editor": "blocks", "encrypted": {"$ne": True}, "deleted_at": None})
+    # A team's backlog and to-do pages repeat the calls' own action items (todo_pages, team_backlog): not here.
+    filt["$and"].append({"kind": {"$ne": "artifact"}, "editor": "blocks", "encrypted": {"$ne": True}, "deleted_at": None,
+                         "backlog_team_id": None, "todo_team_id": None})
     lines: dict | None = None
     if await search_index.todos_ready(db):
         # The pages with an open to-do for the caller and those to-dos, from the search index (``td`` is

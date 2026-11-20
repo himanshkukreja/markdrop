@@ -1012,7 +1012,9 @@ async def _action_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: ac
         filt["$and"].append({"owner_id": uid, "workspace_id": None})
     filt["$and"].append({"content": {"$regex": re.escape(f'id="{uid}"')}})
     # Mentions (:person[…]{id=…}) live in block pages only; the rest of the filter is search's wall 1.
-    filt["$and"].append({"kind": {"$ne": "artifact"}, "editor": "blocks", "encrypted": {"$ne": True}, "deleted_at": None})
+    # A team's backlog and to-do pages repeat the calls' own action items: not counted twice.
+    filt["$and"].append({"kind": {"$ne": "artifact"}, "editor": "blocks", "encrypted": {"$ne": True}, "deleted_at": None,
+                         "backlog_team_id": None, "todo_team_id": None})
     proj = {**search._DOC_PROJECTION, "content": 1}
     rows = await db["documents"].find(filt, proj).sort("updated_at", -1).limit(ACTIONS_SCAN).to_list(length=ACTIONS_SCAN)
     cands: list[tuple[search.Cand, list]] = []
