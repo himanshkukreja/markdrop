@@ -4804,6 +4804,70 @@
     "bytes": 80222,
     "kind": "image"
   },
+  "/docs-assets/workspaces/customize-home/customize.dark.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 17.67,
+    "bytes": 698630,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/customize-home/customize.dark.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 17.67,
+    "bytes": 721119,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/customize-home/customize.dark.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 66160,
+    "kind": "poster"
+  },
+  "/docs-assets/workspaces/customize-home/customize.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 17.63,
+    "bytes": 709801,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/customize-home/customize.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 17.63,
+    "bytes": 755358,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/customize-home/customize.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 65132,
+    "kind": "poster"
+  },
+  "/docs-assets/workspaces/customize-home/default.dark.webp": {
+    "w": 2256,
+    "h": 2012,
+    "bytes": 138844,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/customize-home/default.webp": {
+    "w": 2256,
+    "h": 2012,
+    "bytes": 142122,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/customize-home/edit.dark.webp": {
+    "w": 2240,
+    "h": 1510,
+    "bytes": 139908,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/customize-home/edit.webp": {
+    "w": 2240,
+    "h": 1510,
+    "bytes": 140830,
+    "kind": "image"
+  },
   "/docs-assets/workspaces/folder-access/share-folder.mp4": {
     "w": 1440,
     "h": 900,

@@ -24,6 +24,21 @@
   "next": [],
   "entries": [
     {
+      "id": "customize-home",
+      "date": "2026-11-20",
+      "title": "Customize your Home",
+      "kind": "new",
+      "area": "Home",
+      "products": [
+        "web"
+      ],
+      "summary": "Your Home is now yours to arrange: pick the widgets, put them in the wide main column or the narrow side column, and start from a template such as Writer, Meetings first, Sales or Manager.",
+      "body": "- **Customize.** Every widget gets up and down, **Move to side** or **Move to main**, settings and remove. **Add widget** opens the catalog: Needs you, My to-dos, Team backlog, Recent pages & files, Favorites, a folder, Meetings, a team's brief, Who's doing what, Deals, Activity, your documents' views, a pinned page, quick actions and Ask suggestions.\n- **Templates.** Default, Writer, Meetings first, Sales and Manager fill in your own team and newest page. **Reset to default** goes back.\n- **Workspace default.** Admins can set the Home that members who haven't customized theirs see.\n- **From your AI assistant.** The `get_dashboard` and `set_dashboard` MCP tools read and change your Home.",
+      "docs": [
+        "/workspaces/customize-home"
+      ]
+    },
+    {
       "id": "session-replay-privacy",
       "date": "2026-11-20",
       "title": "Privacy: what Markdrop's session replays show",

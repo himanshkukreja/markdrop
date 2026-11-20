@@ -12,7 +12,7 @@ Once you sign in, Markdrop opens on your **home**: what needs you today, what yo
 
 ## Your home
 
-**Home**, at the top of the sidebar (and the screen the [installed app](/get-started/install-app) opens on), is in this order:
+**Home**, at the top of the sidebar (and the screen the [installed app](/get-started/install-app) opens on), shows the greeting and the Ask bar, then your widgets. Everyone starts with the Default Home below; **Customize** at the top right lets you add, move and remove widgets or start from a template (see [Customize your Home](/workspaces/customize-home)). Default is:
 
 ![The home: a greeting with the date and what's waiting, the Ask bar with Catch me up, My action items and Ask my meetings, Continue where you left off as preview cards, Today with a meeting, an access request and a mention, two action items, and the latest meetings.](/docs-assets/get-started/tour/home.webp)
 
@@ -25,6 +25,8 @@ Once you sign in, Markdrop opens on your **home**: what needs you today, what yo
 | **Your action items** | Every open to-do that @mentions you, in meeting notes or any page you can open, newest first: by the meeting's date for meeting notes, by the page's last change for other pages. The first five show; **Show more** lists the rest. Tick the box to mark it done on its page (**Undo** puts it back); select the text to open the page at that to-do. A box you can't tick is on a page you can't edit. |
 | **Meetings** | The latest meetings across your workspaces, with their date, time, people and summary. **Ask** asks about them, **Import meeting** brings one in, **Open Meetings** opens the workspace's [Meetings](/workspaces/meetings) page, and **Connect Google Meet** shows until you've connected it. |
 | **Workspaces** | Each of your workspaces with its people, how many items you can open and its meetings. **New workspace** creates one. |
+
+On a wide screen, **Today** and **Your action items** sit in a narrow column beside the others.
 
 A new account sees **Get started** instead: write a page, upload a file, create a workspace or connect your tools.
 

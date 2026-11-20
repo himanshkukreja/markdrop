@@ -253,6 +253,7 @@
       "tab": "platform",
       "pages": [
         "/workspaces/create",
+        "/workspaces/customize-home",
         "/workspaces/members-and-roles",
         "/workspaces/privacy",
         "/workspaces/folders",

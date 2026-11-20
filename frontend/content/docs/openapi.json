@@ -3,7 +3,7 @@
   "info": {
     "title": "Markdrop",
     "version": "0.1.0",
-    "x-markdrop-exported": "2026-11-19"
+    "x-markdrop-exported": "2026-11-20"
   },
   "paths": {
     "/api/v1/trash": {
@@ -29488,6 +29488,260 @@
         }
       }
     },
+    "/api/v1/me/dashboard": {
+      "get": {
+        "tags": [
+          "home"
+        ],
+        "summary": "Get Dashboard",
+        "description": "Your Home in this workspace: ``main`` and ``side`` (each widget ``{id, type, settings, available}``;\n``note`` says why one isn't available), ``source`` (``mine``, ``workspace`` = the admins' default, or\n``default``), the widget ``catalog`` and the ``presets`` (templates). ``workspace=auto``: your first\nworkspace (none: the Home without one). 404 for a workspace you're not in.",
+        "operationId": "get_dashboard_api_v1_me_dashboard_get",
+        "parameters": [
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "put": {
+        "tags": [
+          "home"
+        ],
+        "summary": "Put Dashboard",
+        "description": "Save your Home: both columns (at most 16 widgets in all), or a template made concrete for you. 422\nnames what's wrong (an unknown type or setting, a team or folder that isn't in the workspace).",
+        "operationId": "put_dashboard_api_v1_me_dashboard_put",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LayoutBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "home"
+        ],
+        "summary": "Reset Dashboard",
+        "description": "Reset to default: forget your layout, so you see the workspace's default (else Default) again.",
+        "operationId": "reset_dashboard_api_v1_me_dashboard_delete",
+        "parameters": [
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/dashboard-default": {
+      "put": {
+        "tags": [
+          "home"
+        ],
+        "summary": "Put Workspace Default",
+        "description": "Workspace admins: the Home members see until they customize their own. A template keeps its\nplaceholders (each member's first team, newest page), filled in for each member.",
+        "operationId": "put_workspace_default_api_v1_workspaces__workspace_id__dashboard_default_put",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DefaultBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "home"
+        ],
+        "summary": "Clear Workspace Default",
+        "description": "Workspace admins: forget the workspace's default Home (members who never customized see Default).",
+        "operationId": "clear_workspace_default_api_v1_workspaces__workspace_id__dashboard_default_delete",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/oauth/requests/{request_id}": {
       "get": {
         "tags": [
@@ -32251,6 +32505,54 @@
           "approve"
         ],
         "title": "Decision"
+      },
+      "DefaultBody": {
+        "properties": {
+          "main": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Widget"
+                },
+                "type": "array",
+                "maxItems": 16
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Main"
+          },
+          "side": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Widget"
+                },
+                "type": "array",
+                "maxItems": 16
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side"
+          },
+          "preset": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preset"
+          }
+        },
+        "type": "object",
+        "title": "DefaultBody"
       },
       "Destination": {
         "properties": {
@@ -36877,6 +37179,70 @@
           "auth"
         ],
         "title": "Keys"
+      },
+      "LayoutBody": {
+        "properties": {
+          "workspace": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace",
+            "description": "The workspace's id; leave out for the Home without a workspace."
+          },
+          "main": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Widget"
+                },
+                "type": "array",
+                "maxItems": 16
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Main",
+            "description": "The wide column, top to bottom."
+          },
+          "side": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Widget"
+                },
+                "type": "array",
+                "maxItems": 16
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side",
+            "description": "The narrow column, top to bottom."
+          },
+          "preset": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preset",
+            "description": "Start from a template instead: default, writer, meetings, sales, manager."
+          }
+        },
+        "type": "object",
+        "title": "LayoutBody"
       },
       "Leads": {
         "properties": {
@@ -41717,6 +42083,40 @@
         },
         "type": "object",
         "title": "WebAppBody"
+      },
+      "Widget": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 12
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Kept when it's a short id; new widgets get one."
+          },
+          "type": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Type",
+            "description": "One of the catalog's types (GET returns the catalog)."
+          },
+          "settings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Settings",
+            "description": "The type's settings: team, folder, page, count, category, status, range."
+          }
+        },
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "Widget"
       },
       "WorkspaceCreate": {
         "properties": {
