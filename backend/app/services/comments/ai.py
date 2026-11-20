@@ -49,7 +49,10 @@ CACHE = "comment_ai_cache"
 MAX_THREADS = 60
 MAX_MESSAGES = 8
 MSG_CHARS = 500
-PAGE_CHARS = 8000
+PAGE_CHARS = 8000            # Summarize/Apply context; @AI gets the page up to ASK_PAGE_CHARS
+ASK_PAGE_CHARS = 30_000      # ≈ 7.5k tokens: most pages whole; longer ones as the parts that matter to the question
+SUMMARY_MESSAGES = 16        # per thread when there are few threads (first + latest), else MAX_MESSAGES
+SUMMARY_BUDGET = 60_000      # characters of thread text a summary sends at most
 BLOCK_CHARS = 2000
 WS_ITEMS = 4
 WS_ITEM_CHARS = 1500
@@ -276,7 +279,10 @@ async def _as_open(db, floor: str | None, page: dict, row: dict) -> bool:
             and not eff.get("read_password_hash") and not row.get("expires_at") and teams_service.company_wide(row))
 
 
-async def page_text(db, raw: dict, floor: str | None, chars: int = PAGE_CHARS) -> str:
+async def page_text(db, raw: dict, floor: str | None, chars: int = PAGE_CHARS, *, question: str = "",
+                    near: str = "") -> str:
+    """The page as plain text. Longer than ``chars``: with a ``question``, the parts that matter to it (and the
+    paragraph the thread is on, ``near``) in page order, gaps marked; without one, the start."""
     from app.services import pages
     from app.services import search_text as st
 
@@ -284,7 +290,64 @@ async def page_text(db, raw: dict, floor: str | None, chars: int = PAGE_CHARS) -
     md = pages.strip_ref_labels(md) or ""
     if floor == "public":
         md = pages.redact_people(md) or ""
-    return st.markdown_text(md)[:chars]
+    text = st.markdown_text(md)
+    if len(text) <= chars or not (question or near).strip():
+        return text[:chars]
+    return relevant_parts(text, question, near, chars)
+
+
+_WORD = re.compile(r"[^\W_]{3,}", re.U)
+_STOP = frozenset("the and for are but not you all any can had her was one our out has have this that with what "
+                  "when where which who how why does did its from they them then than there their about into will "
+                  "would should could may might more most some such only also just over under very".split())
+GAP = "[…]"
+
+
+def relevant_parts(text: str, question: str, near: str, chars: int) -> str:
+    """Paragraphs of ``text`` that share the most words with the question (rarer words count more), the one
+    holding ``near``, and the page's start, in page order, until ``chars``; skipped stretches become ``[…]``."""
+    paras = [p for p in re.split(r"\n\s*\n", text) if p.strip()]
+    words = lambda t: {w for w in (x.casefold() for x in _WORD.findall(t)) if w not in _STOP}  # noqa: E731
+    q = words(question)
+    df: dict[str, int] = {}
+    sets = []
+    for p in paras:
+        ws = words(p)
+        sets.append(ws)
+        for w in ws & q:
+            df[w] = df.get(w, 0) + 1
+    near_key = " ".join(near.split())[:120].casefold()
+    score = []
+    for i, ws in enumerate(sets):
+        sc = sum(1.0 / df[w] for w in ws & q)
+        if near_key and near_key in " ".join(paras[i].split()).casefold():
+            sc += 100
+        if i < 2:
+            sc += 0.5            # the title and the opening say what the page is
+        score.append(sc)
+    chosen: set[int] = set()
+    used = 0
+    for i in sorted(range(len(paras)), key=lambda i: (-score[i], i)):
+        if score[i] <= 0 and chosen:
+            break
+        if used + len(paras[i]) > chars:
+            continue
+        chosen.add(i)
+        used += len(paras[i]) + 2
+    for i in sorted(chosen, key=lambda i: -score[i]):   # then the paragraphs around them, while there's room
+        for j in (i - 1, i + 1):
+            if 0 <= j < len(paras) and j not in chosen and used + len(paras[j]) <= chars:
+                chosen.add(j)
+                used += len(paras[j]) + 2
+    out, last = [], -1
+    for i in sorted(chosen):
+        if i != last + 1:
+            out.append(GAP)
+        out.append(paras[i])
+        last = i
+    if last != len(paras) - 1:
+        out.append(GAP)
+    return "\n\n".join(out)
 
 
 async def _workspace_items(db, actor, ctx, raw: dict, floor: str | None, question: str) -> list[dict]:
@@ -347,6 +410,19 @@ async def _thread_lines(db, thread: dict, *, limit: int = MAX_MESSAGES) -> list[
     for m in rows:
         who = "Markdrop AI" if m.get("ai") else (m.get("author_name") or "Someone")
         out.append(f"{who}: {_line(m.get('body'), MSG_CHARS)}")
+    return out
+
+
+def _about(thread: dict, n: int = 200) -> str:
+    """What a thread is about: its quote and, when the quote is only part of it, the block it sits in (a bare
+    "for 12 months" says little on its own)."""
+    quote = _quote_of(thread)
+    if not quote:
+        return ""
+    block = str((thread.get("anchor") or {}).get("block_text") or "")
+    out = f"About: \"{_line(quote, n)}\""
+    if block and " ".join(block.split()) != " ".join(quote.split()):
+        out += f" (in: \"{_line(block, 2 * n)}\")"
     return out
 
 
@@ -429,6 +505,8 @@ Each thread is numbered and says whether it is open or resolved, what text it is
 - decided: what the threads settled (resolved threads, accepted suggested edits, explicit agreements). One line each.
 - open: questions and requests still unanswered or undecided. One line each.
 - waiting: who the discussion is waiting on and for what (an assignee, someone asked a direct question or @mentioned who hasn't answered). Use the exact name as it appears in the threads; never invent a person.
+A thread's later messages settle its earlier questions: when someone answers or confirms in the thread ("confirmed", "agreed", "decided", a clear answer from the owner or an assignee), that is decided even if the thread is still open, and it isn't open or waiting any more. Only what is still unanswered at the end of a thread is open.
+Say what each thread is about in the document's own terms (the passage and the sentence around it), and never move a fact from one thread to another.
 Each line cites the threads it comes from by number. Keep lines under 25 words, plain text, no Markdown. Merge threads about the same thing. Leave a list empty rather than pad it.
 {DATA_RULE}"""
 _LINE_ITEM = {"type": "object", "properties": {"text": {"type": "string"},
@@ -473,6 +551,7 @@ async def summarize(db, actor, raw: dict, ctx, *, refresh: bool = False) -> dict
         out = {"decided": [], "open": [], "waiting": [], "counts": counts, "generated_at": None, "empty": True}
         return {**out, "cached": False}
     names = await _names(db, {t.get("assignee") for t in threads if t.get("assignee")})
+    per = SUMMARY_MESSAGES if len(threads) <= 20 else MAX_MESSAGES
     blocks, by_n = [], {}
     for n, t in enumerate(threads, 1):
         by_n[n] = str(t["_id"])
@@ -480,11 +559,17 @@ async def summarize(db, actor, raw: dict, ctx, *, refresh: bool = False) -> dict
         head = (f"Thread {n} · {t.get('status')}"
                 + (f" · assigned to {names.get(t.get('assignee'), 'someone')}" if t.get("assignee") else "")
                 + (f" · suggested edit {s.get('state')}" if s else ""))
-        about = _quote_of(t)
-        lines = await _thread_lines(db, t)
-        blocks.append(head + "\n" + _wrap("thread", (f"About: {_line(about, 200)}\n" if about else "")
-                                          + "\n".join(lines), n=n))
-    content = f"Document: {_line(raw.get('title') or 'Untitled', 160)}\n\n" + "\n\n".join(blocks)
+        about = _about(t)
+        lines = await _thread_lines(db, t, limit=per)
+        blocks.append(head + "\n" + _wrap("thread", (f"{about}\n" if about else "") + "\n".join(lines), n=n))
+    content = f"Document: {_line(raw.get('title') or 'Untitled', 160)}\n\n"
+    budget = SUMMARY_BUDGET
+    for b in blocks:
+        if len(b) > budget:
+            content += "\n\n(More threads left out: too long to send.)"
+            break
+        content += b + "\n\n"
+        budget -= len(b) + 2
     text = await _call(db, kind="summary", actor=actor, raw=raw,
                        params=_params(SUMMARY_SYSTEM, content, 3000, SUMMARY_SCHEMA),
                        log_in={"kind": "summary", "input": f"{len(threads)} threads",
@@ -521,8 +606,8 @@ async def _names(db, ids: set[str]) -> dict[str, str]:
 
 ASK_SYSTEM = f"""You are Markdrop AI, answering a question someone asked you in a comment thread on a document. Everyone in the thread reads your answer.
 
-Answer from the document (item [1]), the thread, and the other items of the workspace you are given ([2], [3]…). Cite them as [1], [2] after the sentence that uses them. When they don't answer it, say so plainly and suggest who or what could; never invent facts, names, dates or numbers.
-Be brief: 1-4 short sentences or a short list, plain Markdown (bold, lists, `code`), no headings.
+Answer from the document (item [1]), the thread, and the other items of the workspace you are given ([2], [3]…). Cite them as [1], [2] after the sentence that uses them. The thread is a source too: when someone in it already answered or settled the question, give that answer and say who. A long document may come as its relevant parts with "[…]" where text was left out: don't claim the document lacks something it may say in a part you weren't given; say you couldn't find it. When nothing you have answers it, say so plainly and suggest who or what could; never invent facts, names, dates or numbers, and say "proposes" rather than "states" for what a draft only proposes.
+Lead with the answer. Be brief: 1-4 short sentences or a short list, plain Markdown (bold, lists, `code`), no headings.
 {DATA_RULE}"""
 
 
@@ -556,14 +641,15 @@ async def ask(db, actor, raw: dict, ctx, thread_id: str, question: str | None = 
     if not re.search(r"\w", q):
         raise _err(422, "Ask a question after @AI.", "empty_question")
     floor = await _floor(db, raw)
-    page = await page_text(db, raw, floor)
-    others = await _workspace_items(db, actor, ctx, raw, floor, q)
     lines = await _thread_lines(db, t, limit=12)
+    page = await page_text(db, raw, floor, ASK_PAGE_CHARS, question=q + " " + _quote_of(t),
+                           near=str((t.get("anchor") or {}).get("block_text") or _quote_of(t)))
+    others = await _workspace_items(db, actor, ctx, raw, floor, q)
     parts = [_wrap("document", page, n=1, title=_line(raw.get("title") or "Untitled", 160))]
     for i, it in enumerate(others, 2):
         parts.append(_wrap("document", it["text"], n=i, title=_line(it["title"], 160)))
-    quote = _quote_of(t)
-    parts.append(_wrap("thread", (f"About: {_line(quote, 300)}\n" if quote else "") + "\n".join(lines)))
+    about = _about(t, 300)
+    parts.append(_wrap("thread", (f"{about}\n" if about else "") + "\n".join(lines)))
     parts.append(f"The question (from {_line(_actor_name(actor), 60)}): {q}")
     text = await _call(db, kind="ask", actor=actor, raw=raw, params=_params(ASK_SYSTEM, "\n\n".join(parts), 2500),
                        log_in={"kind": "ask", "input": q, "description": "Answered @AI in a comment thread",
@@ -681,7 +767,7 @@ events.on(_on_message, kinds=["thread_created", "replied"], name="b.ai.at_ai")
 TONE_SYSTEM = f"""You check a comment someone is about to post on a colleague's document, before they post it.
 
 Decide whether it is clear and kind enough to post as is. Flag only real problems: harsh or sarcastic wording, blame, all-caps shouting, a request so vague the author can't act on it. Direct, short, critical-but-fair comments are fine: don't flag them. Don't nitpick grammar.
-When there is a problem, write a rewrite that keeps the meaning, every concrete point, @mentions and Markdown exactly, in the same language, and is no longer than needed.
+When there is a problem, write a rewrite that keeps the meaning, every concrete point and question, @mentions and Markdown exactly, in the same language, and is no longer than needed. The rewrite says only what the original says, more kindly: never add claims, reasons, numbers or requests it doesn't make. For a comment too vague to act on, the rewrite asks what the author wants to know or changed, without guessing specifics.
 {DATA_RULE}
 Return JSON: {{"ok": true|false, "issues": ["short phrase", …], "rewrite": "…" or ""}}."""
 TONE_SCHEMA = {"type": "object", "properties": {"ok": {"type": "boolean"},
