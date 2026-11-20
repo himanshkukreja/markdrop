@@ -803,7 +803,7 @@ class Details(MeetingsWorld):
         hour, w_hour = meetings_ai.details_budget(60_000)
         huge, w_huge = meetings_ai.details_budget(1_000_000)
         self.assertEqual(w_small, meetings_ai.DETAILS_MIN_WORDS)
-        self.assertEqual(w_hour, 3000)
+        self.assertEqual(w_hour, 60_000 // meetings_ai.DETAILS_CHARS_PER_WORD)
         self.assertEqual(w_huge, meetings_ai.DETAILS_MAX_WORDS)
         self.assertLess(small, hour)
         self.assertLessEqual(huge, meetings_ai.DETAILS_MAX_TOKENS)
@@ -842,7 +842,7 @@ class Details(MeetingsWorld):
         # The merge never carries the details (they'd be cut to its budget): they're kept as written.
         self.assertTrue(reduce_["system"][0]["text"].startswith("You merge partial"))
         self.assertNotIn("Said in part", prompt_of(reduce_))
-        self.assertIn("up to 8 sentences", prompt_of(reduce_))
+        self.assertIn("up to 6 sentences", prompt_of(reduce_))
         c = (await self.doc(m["slug"]))["content"]
         heads = re.findall(r"^### (Part \d+ topic)$", c, re.M)
         self.assertEqual(heads, [f"Part {k} topic" for k in range(1, n + 1)])

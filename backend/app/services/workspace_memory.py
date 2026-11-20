@@ -67,8 +67,10 @@ DEBOUNCE = timedelta(minutes=10)    # a page is read this long after its last sa
 NOW_DAYS = 14                       # "working on" decays after this unless reinforced
 UPDATES_DAYS = 30
 MAX_SOURCES_PER_TICK = 8
-MAX_CHARS_PER_TICK = 120_000
-MEETING_CHARS = 40_000
+MAX_CHARS_PER_TICK = 240_000
+# A meeting's transcript sent whole up to this (the start and the end beyond it). 40k until the 2026-11-21 eval: an
+# 85-minute call lost its middle, and with it a third of the facts (coverage 0.79 there; ~$0.002 more a long call).
+MEETING_CHARS = 100_000
 PAGE_CHARS = 12_000
 MIN_PAGE_WORDS = 40
 MAX_FACTS_PER_SOURCE = 40
@@ -250,7 +252,7 @@ Kinds:
 - decision: a decision this person made or clearly owns.
 - action_item: a task they committed to or were asked to do, without a firm deadline (not ones listed as already recorded); with a deadline it is a target.
 - status: the state of a project as this person reported it ("Checkout redesign is in QA; launch on Nov 12").
-- role: their role or area when it is clearly stated ("Leads the mobile app").
+- role: a role or area that is news in this source ("Now leads the mobile app", "Takes over the Meridian account"); never from a job title in introductions or the member list.
 
 Rules:
 - Only people in the member list. A transcript line is about its speaker unless the speaker talks about someone else by name. A document is about its author and editors only when the text says what they are doing; never guess.
@@ -258,9 +260,10 @@ Rules:
 - "project": reuse a name from the known projects when it is the same work; otherwise a 1-4 word name of the product, feature or initiative; null when it isn't about one.
 - "cite": the [sN] line it comes from, for meetings; null for documents.
 - At most 4 facts per person per kind. Skip small talk, greetings and anything unclear. An empty list is fine.
+- Every fact is about the person's own work. Skip descriptions of the product, the customer or the market, and offers or maybes ("happy to help if…"). One fact per piece of work: don't repeat a commitment as working_on too, and don't split one task in two.
 - Statements listed inside <corrections> were marked wrong by the person: never state them again.
 
-Open items: when <untrusted_open_items> lists action items recorded earlier and still unticked (labelled a1, a2, …), also return "done": [{"item": "a2", "evidence": "what in this source shows it is done, at most 20 words", "cite": "sN or null"}] for each item THIS source clearly shows as already done: the thing it asked for exists (this document is it, or the source says it is up, out, sent, published, shipped, approved or finished; an item asking to add something to this document, and the document has it), or someone says it is done. Not for items only discussed, planned, in progress, half done or blocked; when unsure, leave it out. Without open items, or when none is done, "done" is [] or left out."""
+Open items: when <untrusted_open_items> lists action items recorded earlier and still unticked (labelled a1, a2, …), go through every one of them and also return "done": [{"item": "a2", "evidence": "what in this source shows it is done, at most 20 words", "cite": "sN or null"}] for each item THIS source clearly shows as already done: the thing it asked for exists (this document is it, or the source says it is up, out, sent, published, shipped, approved or finished; an item asking to add something to this document, and the document has it), or someone says it is done. Not for items only discussed, planned, in progress, half done or blocked; when unsure, leave it out. Without open items, or when none is done, "done" is [] or left out."""
 
 
 def _people_block(members: list[dict]) -> str:
@@ -390,19 +393,12 @@ async def _record_done(db: AsyncIOMotorDatabase, ws_id: str, src_key: str, run: 
         return 0
 
 
-_JSON = re.compile(r"\{.*\}", re.S)
 
 
 def parse_facts(raw: str | None) -> list[dict] | None:
     """[{person, kind, text, project, cite, confidence}] from the model's JSON (bounded, checked);
     None when the reply isn't usable."""
-    m = _JSON.search(raw or "")
-    if not m:
-        return None
-    try:
-        data = json.loads(m.group(0))
-    except Exception:
-        return None
+    data = ai_output.json_object(raw)
     items = data.get("facts") if isinstance(data, dict) else None
     if not isinstance(items, list):
         return None
@@ -474,6 +470,9 @@ def resolve_due(text: str | None, base: date) -> date | None:
     if not t:
         return None
     t = _hinglish(re.sub(r"\s*\btak\b", "", t)).strip()
+    # A recurring commitment ("every Friday", "weekly") has no single deadline: never "overdue" (eval 2026-11-21).
+    if re.search(r"\b(every|each|weekly|daily|biweekly|fortnightly|monthly|recurring)\b", t):
+        return None
     # "EOD Friday" is Friday's end of day.
     t = re.sub(r"\b(?:eod|cob|end of (?:the )?day)\s+(?:on\s+)?(?=(?:mon|tue|wed|thu|fri|sat|sun))", "", t)
     m = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", t)
@@ -702,6 +701,50 @@ async def _meeting_free_facts(db: AsyncIOMotorDatabase, row: dict, page: dict, b
     return out
 
 
+def meeting_blocks(row: dict, members: list[dict], attendees: list[str], projects: list[str], corr: str,
+                   recorded: str, transcript: str, open_block: str | None) -> list[str]:
+    """The extraction prompt's user blocks for one meeting (pure: the eval harness builds the same prompt)."""
+    mday = _day(row.get("date"))
+    head = (f"Kind: meeting\nTitle: {clean(row.get('title'), 200)}\n"
+            f"Date: {row.get('date') or ''}{(' (' + mday.strftime('%A') + ')') if mday else ''}\n"
+            f"Series: {clean(row.get('series'), 120) or '-'}\nAttendees: {', '.join(x for x in attendees if x)[:1500]}")
+    return [
+        "Workspace members:\n" + _people_block(members),
+        "Known projects: " + (", ".join(projects) or "(none yet)"),
+        ("<corrections>\n" + corr + "\n</corrections>") if corr else "<corrections>\n(none)\n</corrections>",
+        _wrap("meeting", head + ("\n\nRecorded notes:\n" + recorded if recorded else "")
+              + ("\n\nTranscript:\n" + transcript if transcript else "")),
+        *([open_block] if open_block else []),
+        "Extract the facts" + (" and which open items it shows done" if open_block else "") + ". JSON only.",
+    ]
+
+
+def merge_ai_facts(facts: list[dict], got: list[dict], people, n_segments: int, base: date) -> None:
+    """Add the model's facts (``parse_facts``) to the meeting's free ones: members only, deadlines resolved, a
+    commitment the meeting already recorded kept once (pure)."""
+    for g in got:
+        m = people.match(g["person"])
+        if m is None:
+            continue
+        seg = g["seg"] if g["seg"] and 1 <= g["seg"] <= n_segments else None
+        due = due_of(g, base) if g["kind"] in COMMIT_KINDS else None
+        twin = None
+        if g["kind"] in COMMIT_KINDS:
+            same = [f for f in facts if f["subject"] == m["id"] and f["kind"] in COMMIT_KINDS
+                    and jaccard(norm(f.get("key_text") or f["text"]), norm(g["text"])) >= 0.5]
+            if same:
+                # Already recorded. When the meeting's own item has no deadline and this one does,
+                # this one is kept as its dated twin (same correction key, same cluster): the
+                # board shows the dated line to whoever can read where the date came from.
+                twin = next((f for f in same if f.get("origin") == "meeting_fact"), None)
+                if not (due and twin is not None and not any(f.get("due") for f in same)):
+                    continue
+        facts.append({"subject": m["id"], "kind": "target" if due else g["kind"], "text": g["text"],
+                      "project": g["project"], "seg": seg, "confidence": g["confidence"], "origin": "ai",
+                      "due": due, "due_text": g.get("due_text"), "waiting_on": _waiting(g.get("waiting_on"), people),
+                      **({"key_text": twin["text"]} if twin is not None else {})})
+
+
 async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, members: list[dict]) -> dict:
     """One meeting's facts: free ones, then (when it has anything to read) one Haiku call."""
     from app.services import meetings
@@ -733,22 +776,11 @@ async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, membe
         subjects = [m["id"] for m in members]
         names = {m["id"]: m["name"] for m in members}
         corr = await _corrections_block(db, ws.id, subjects, names)
-        mday = _day(row.get("date"))
-        head = (f"Kind: meeting\nTitle: {clean(row.get('title'), 200)}\n"
-                f"Date: {row.get('date') or ''}{(' (' + mday.strftime('%A') + ')') if mday else ''}\n"
-                f"Series: {clean(row.get('series'), 120) or '-'}\nAttendees: {', '.join(x for x in attendees if x)[:1500]}")
         # Open items of the people in the call, from earlier sources: the call may show them done (likely_done).
         owners = [a.get("user_id") for a in row.get("attendees") or [] if a.get("user_id")]
         open_items, open_block = await _open_items_block(db, ws.id, owners, row.get("date") or base, page["_id"], members)
-        blocks = [
-            "Workspace members:\n" + _people_block(members),
-            "Known projects: " + (", ".join(await _known_projects(db, ws.id)) or "(none yet)"),
-            ("<corrections>\n" + corr + "\n</corrections>") if corr else "<corrections>\n(none)\n</corrections>",
-            _wrap("meeting", head + ("\n\nRecorded notes:\n" + recorded if recorded else "")
-                  + ("\n\nTranscript:\n" + transcript if transcript else "")),
-            *([open_block] if open_block else []),
-            "Extract the facts" + (" and which open items it shows done" if open_block else "") + ". JSON only.",
-        ]
+        blocks = meeting_blocks(row, members, attendees, await _known_projects(db, ws.id), corr, recorded, transcript,
+                                open_block)
         chars = sum(len(b) for b in blocks)
         reason = await budget_reason(db)
         if reason:
@@ -782,28 +814,7 @@ async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, membe
         finally:
             ai_usage.release_request(FEATURE, RESERVE)
         outcome = "ok" if got is not None else "unparsed"
-        segs = row.get("segments") or []
-        for g in got or []:
-            m = people.match(g["person"])
-            if m is None:
-                continue
-            seg = g["seg"] if g["seg"] and 1 <= g["seg"] <= len(segs) else None
-            due = due_of(g, base) if g["kind"] in COMMIT_KINDS else None
-            twin = None
-            if g["kind"] in COMMIT_KINDS:
-                same = [f for f in facts if f["subject"] == m["id"] and f["kind"] in COMMIT_KINDS
-                        and jaccard(norm(f.get("key_text") or f["text"]), norm(g["text"])) >= 0.5]
-                if same:
-                    # Already recorded. When the meeting's own item has no deadline and this one does,
-                    # this one is kept as its dated twin (same correction key, same cluster): the
-                    # board shows the dated line to whoever can read where the date came from.
-                    twin = next((f for f in same if f.get("origin") == "meeting_fact"), None)
-                    if not (due and twin is not None and not any(f.get("due") for f in same)):
-                        continue
-            facts.append({"subject": m["id"], "kind": "target" if due else g["kind"], "text": g["text"],
-                          "project": g["project"], "seg": seg, "confidence": g["confidence"], "origin": "ai",
-                          "due": due, "due_text": g.get("due_text"), "waiting_on": _waiting(g.get("waiting_on"), people),
-                          **({"key_text": twin["text"]} if twin is not None else {})})
+        merge_ai_facts(facts, got or [], people, len(row.get("segments") or []), base)
     when = _day(row.get("date")) or _aware(row.get("created_at")) or now_utc()
     if outcome == "ok" or not open_items:
         await _record_done(db, ws.id, src_key, run, open_items,
