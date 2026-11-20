@@ -4199,6 +4199,10 @@ TOOLS += TODO_TOOLS
 from app.mcp.backlog_tools import BACKLOG_TOOLS  # noqa: E402
 
 TOOLS += BACKLOG_TOOLS
+# Customizable Home (get_dashboard, set_dashboard): app/mcp/dashboard_tools.py.
+from app.mcp.dashboard_tools import DASHBOARD_TOOLS  # noqa: E402
+
+TOOLS += DASHBOARD_TOOLS
 add_space(TOOLS)
 
 for _t in TOOLS:
