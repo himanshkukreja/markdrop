@@ -68,7 +68,7 @@ function whenLabel(ts: string | null): string {
 
 function Who({ v }: { v: VersionSummary }) {
   const a = v.author;
-  if (a.kind === "mcp") return <span className="ph-glyph ph-glyph--ai" aria-hidden><Icon name="sparkle" size={14} /></span>;
+  if (a.kind === "mcp" && !a.name) return <span className="ph-glyph ph-glyph--ai" aria-hidden><Icon name="sparkle" size={14} /></span>;
   if (a.kind === "system") return <span className="ph-glyph" aria-hidden><Icon name="clock" size={14} /></span>;
   return (
     <span className="ph-who">
@@ -76,6 +76,7 @@ function Who({ v }: { v: VersionSummary }) {
       {a.kind === "restore" && <span className="ph-who__badge" aria-hidden><Icon name="rotate" size={10} /></span>}
       {a.kind === "signoff" && <span className="ph-who__badge" aria-hidden><Icon name={v.event?.action === "removed" || v.event?.action === "cleared" ? "x" : "check"} size={10} /></span>}
       {a.kind === "suggestion" && <span className="ph-who__badge" aria-hidden><Icon name="message" size={10} /></span>}
+      {a.kind === "mcp" && <span className="ph-who__badge" aria-hidden><Icon name="sparkle" size={10} /></span>}
     </span>
   );
 }
@@ -387,7 +388,8 @@ function Panel({ slug, title, onClose, onRestored, signInHref, crumbs, href, vie
                           {v.ts ? timeLabel(new Date(v.ts)) : "Earlier"}
                           {v.current && <span className="ph-chip">Current</span>}
                         </span>
-                        <span className="ph-row__who">{authorLine(v, byN)}</span>
+                        <span className="ph-row__who" title={v.author.email ?? undefined}>{authorLine(v, byN)}</span>
+                        {v.author.kind === "mcp" && v.author.email && <span className="ph-row__email">{v.author.email}</span>}
                         {v.event?.type === "suggestion" && v.event.thread_id && (
                           <a
                             className="ph-row__thread"
@@ -511,7 +513,10 @@ function Preview({ slug, version, detail, error, showChanges, byN, signInHref, c
       <div className="ph-meta">
         <span className="ph-meta__when">{whenLabel(version.ts)}</span>
         <span className="ph-meta__dot" aria-hidden>·</span>
-        <span>{authorLine(version, byN)}</span>
+        <span title={version.author.email ?? undefined}>
+          {authorLine(version, byN)}
+          {version.author.kind === "mcp" && version.author.email ? ` (${version.author.email})` : ""}
+        </span>
         {detail && showChanges && !version.current && (
           same && !titleChanged ? (
             <span className="ph-meta__stats">Same as the page now</span>

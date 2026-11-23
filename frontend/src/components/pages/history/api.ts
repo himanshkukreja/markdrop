@@ -17,6 +17,8 @@ export interface VersionAuthor {
   /** What to show: a name, "<app> via MCP", or "Earlier version". */
   label: string;
   picture: string | null;
+  /** The account's email (people who can edit the page see history): shown for an AI app's edit. */
+  email?: string | null;
 }
 
 export interface VersionSummary {

@@ -326,7 +326,8 @@ async def _people(db: AsyncIOMotorDatabase, ids: set[str]) -> dict[str, dict]:
     async for u in db["users"].find({"_id": {"$in": oids}}, {"name": 1, "email": 1, "picture": 1}):
         name = (u.get("name") or "").strip() or (u.get("email") or "").split("@", 1)[0] or "Someone"
         pic = u.get("picture") if isinstance(u.get("picture"), str) and u["picture"].startswith("https://") else None
-        out[str(u["_id"])] = {"name": name[:60], "picture": pic}
+        email = u.get("email") if isinstance(u.get("email"), str) else None
+        out[str(u["_id"])] = {"name": name[:60], "picture": pic, "email": email}
     return out
 
 
@@ -335,7 +336,10 @@ def _author(row: dict, people: dict[str, dict]) -> dict:
     who = people.get(row.get("author_id") or "") or {}
     name = who.get("name") or row.get("author_name")
     if kind == "mcp":
-        label = f"{row.get('client') or 'AI app'} via MCP"
+        # The account the AI app was signed in as made the edit: "Ada Lovelace via Claude" (the app alone only
+        # for old versions without an author).
+        app = row.get("client") or "AI app"
+        label = f"{name} via {app}" if name else f"{app} via MCP"
     elif kind == "system":
         label = "Earlier version"
     elif kind == "signoff":
@@ -348,8 +352,10 @@ def _author(row: dict, people: dict[str, dict]) -> dict:
         label = f"{name or 'Someone'} via Jira"
     else:
         label = name or "Someone"
+    # History is shown to people who can edit the page; the email says which account made a change (an AI
+    # app's edit especially, where the person isn't otherwise visible).
     return {"kind": kind, "id": row.get("author_id"), "name": name, "client": row.get("client"),
-            "label": label, "picture": who.get("picture")}
+            "label": label, "picture": who.get("picture"), "email": who.get("email")}
 
 
 def view(row: dict, people: dict[str, dict], current_sha: str | None = None) -> dict:

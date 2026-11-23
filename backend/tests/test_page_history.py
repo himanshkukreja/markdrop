@@ -171,7 +171,11 @@ class Snapshots(HistoryWorld):
         p = await self.page()
         await self.mcp("owner", "append_blocks", {"document": p["slug"], "markdown": "Added."})
         r = await self.http.get(self.url(p), headers=self.session("owner"))
-        self.assertEqual(r.json()["versions"][0]["author"]["label"], "AI app via MCP")
+        a = r.json()["versions"][0]["author"]
+        # The account the AI app acted for: its name in the label, its email alongside.
+        owner = await self.db["users"].find_one({"_id": ObjectId(self.uid["owner"])})
+        self.assertEqual(a["label"], f"{a['name']} via AI app")
+        self.assertEqual(a["email"], owner["email"])
 
     async def test_delete_takes_the_history(self):
         p = await self.page()
