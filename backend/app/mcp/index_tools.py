@@ -150,8 +150,9 @@ async def list_items(ctx: Context, args: dict) -> tuple[str, dict]:
             lines.append(f"- [{it['status']}] on “{it['on']}”" + (f" by {it['author']}" if it["author"] else "") + f": {it['text']}")
         else:
             it = {"text": r.get("text"), "category": r.get("category"), "status": r.get("status"),
-                  "owner": names.names.get(r.get("owner") or "")}
-            lines.append(f"- [{it['status']}] {it['category']}: {it['text']}" + (f" — {it['owner']}" if it["owner"] else ""))
+                  "priority": r.get("priority") or "medium", "owner": names.names.get(r.get("owner") or "")}
+            lines.append(f"- [{it['status']}] {it['category']}" + (f" ({it['priority']})" if it["priority"] != "medium" else "")
+                         + f": {it['text']}" + (f" — {it['owner']}" if it["owner"] else ""))
         items.append(it)
     head = f"{res.total}{'+' if res.capped else ''} {args.get('kind') or 'documents'}" + (f" ({p['name']})" if p else "") + "."
     more = f"\n(+{res.total - len(items)} more; raise limit to see them)" if res.total > len(items) else ""

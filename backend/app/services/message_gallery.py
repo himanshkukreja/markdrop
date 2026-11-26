@@ -180,6 +180,31 @@ def _team_weekly_slack() -> dict:
     return {"where": "#meetings", "from": "Markdrop", "message": {"blocks": blocks, "text": text}, "users": USERS}
 
 
+BACKLOG_CHANGES = [
+    {"text": "SSO via Okta for the Globex pilot", "from": "medium", "to": "urgent", "speaker": "Riya Sharma", "block": "b-1f2e3d4c5b"},
+    {"text": "Export usage reports to CSV", "from": "medium", "to": "high", "speaker": "Alex Chen", "block": "b-2a3b4c5d6e"},
+    {"text": "Dark mode for the dashboard", "from": "medium", "to": "low", "speaker": "Riya Sharma", "block": "b-3c4d5e6f7a"},
+    {"text": "Salesforce two-way sync", "from": "open", "to": "wont_do", "speaker": "Maya Patel", "block": "b-4d5e6f7a8b"},
+]
+
+
+def backlog_priorities_post(changes: list[dict] | None = None, unmatched: list[dict] | None = None) -> dict:
+    from app.services import team_backlog as TB
+
+    kit = _kit()
+    changes = BACKLOG_CHANGES if changes is None else changes
+    return kit.backlog_priorities(
+        title="Weekly prioritization", url=f"{_base()}/weekly-prioritization-nov-24", day="Nov 24", changes=changes,
+        unmatched=[{"quote": "the Salesforce thing", "speaker": "Sam Lee"}] if unmatched is None else unmatched,
+        backlog_url=f"{_base()}/sales-backlog?items=" + ",".join(c["block"] for c in changes), label=TB.label_of)
+
+
+@entry("slack-backlog-priorities", "slack", "Slack · channel posts", "Priorities updated from a call (team backlog)",
+       "After a team call whose notes decide backlog priorities, in the team's channel")
+def _backlog_priorities() -> dict:
+    return {"where": "#sales", "from": "Markdrop", "message": backlog_priorities_post(), "users": USERS}
+
+
 @entry("slack-dm-action-items", "slack", "Slack · direct messages", "Your action items after a meeting",
        "To each person with an open action item, after every meeting")
 def _dm_action_items() -> dict:

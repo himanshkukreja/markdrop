@@ -36,6 +36,8 @@ _SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._~-]{0,199}$")
 
 BACKLOG_CATEGORIES = ("feature", "bug", "improvement", "task", "follow_up", "question")
 BACKLOG_STATUSES = ("open", "in_progress", "done", "wont_do")
+BACKLOG_PRIORITIES = ("urgent", "high", "medium", "low")
+BACKLOG_SINCE = ("7d", "30d", "90d", "month")
 # Template placeholders, filled in per person (``_Picks``).
 TOKENS = ("@team", "@sales")
 
@@ -61,10 +63,12 @@ WIDGETS: dict[str, dict[str, Any]] = {
               "description": "Open action items that mention you, from meeting notes and any page. Tick them here.",
               "settings": {"count": _count(5, 3, 12)}},
     "backlog": {"label": "Team backlog", "icon": "list", "workspace": True,
-                "description": "A team's shared backlog from its calls, filtered by category or status.",
+                "description": "A team's shared backlog from its calls, filtered by category, status, priority or date.",
                 "settings": {"team": _TEAM_REQ,
                              "category": {"kind": "enum", "label": "Category", "options": list(BACKLOG_CATEGORIES), "empty": "Every category"},
                              "status": {"kind": "enum", "label": "Status", "options": list(BACKLOG_STATUSES), "empty": "Open and in progress"},
+                             "priority": {"kind": "enum", "label": "Priority", "options": list(BACKLOG_PRIORITIES), "empty": "Any priority"},
+                             "since": {"kind": "enum", "label": "Since", "options": list(BACKLOG_SINCE), "empty": "Any time"},
                              "count": _count(6, 3, 12)}},
     "recent": {"label": "Recent pages & files", "icon": "history", "workspace": False,
                "description": "What you opened last, anywhere, with previews.",

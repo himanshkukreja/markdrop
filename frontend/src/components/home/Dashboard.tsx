@@ -21,7 +21,7 @@ import {
   setWorkspaceDefault, type CatalogEntry, type Dashboard as Dash, type Layout, type Widget,
 } from "@/lib/dashboard";
 import { add, count, move, moveAcross, moves, pickable, remove, update, type SettingField } from "@/lib/dashboardCore.mjs";
-import { CATEGORIES, STATUSES } from "@/lib/backlog.mjs";
+import { CATEGORIES, PRIORITIES, STATUSES } from "@/lib/backlog.mjs";
 import { errorStatus } from "@/lib/workspaces";
 import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
 import { useWorkspaceTree } from "@/lib/workspaceStore";
@@ -51,7 +51,8 @@ const FALLBACK: Layout = {
 
 const ENUM_LABEL: Record<string, string> = {
   ...Object.fromEntries(CATEGORIES.map(([k, l]) => [k, l])), ...Object.fromEntries(STATUSES.map(([k, l]) => [k, l])),
-  "7d": "Last 7 days", "30d": "Last 30 days",
+  ...Object.fromEntries(PRIORITIES.map(([k, l]) => [k, l])),
+  "7d": "Last 7 days", "30d": "Last 30 days", "90d": "Last 90 days", month: "This month",
 };
 
 export interface DashboardProps {

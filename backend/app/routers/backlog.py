@@ -3,7 +3,8 @@
     GET   /api/v1/workspaces/{ws}/teams/{team}/backlog            the page's link and counts (leads: private-call count)
     GET   /api/v1/workspaces/{ws}/teams/{team}/backlog/items      the items as data, filtered, as you may read them
     POST  /api/v1/workspaces/{ws}/teams/{team}/backlog/refresh    leads: re-read every call in the team now
-    PATCH /api/v1/backlog/items/{item_id}                         {category, status, owner, text}: your edit wins
+    POST  /api/v1/workspaces/{ws}/teams/{team}/backlog/priorities members: several priorities at once
+    PATCH /api/v1/backlog/items/{item_id}                         {category, status, owner, text, priority}: your edit wins
 
 Signed in, on markdrop.in only. The page itself is an ordinary page (GET /api/v1/pages/{slug}).
 """
@@ -29,6 +30,8 @@ router = APIRouter(prefix="/api/v1", tags=["backlog"])
 
 Category = Literal["feature", "bug", "improvement", "task", "follow_up", "question"]
 Status = Literal["open", "in_progress", "done", "wont_do"]
+Priority = Literal["urgent", "high", "medium", "low"]
+Sort = Literal["category", "priority", "newest", "oldest", "mentions"]
 
 
 def get_db() -> AsyncIOMotorDatabase:
@@ -78,12 +81,37 @@ async def backlog_status(request: Request, workspace_id: str, team: str, db: Asy
 async def backlog_items(request: Request, workspace_id: str, team: str,
                         category: Optional[Category] = Query(None), status: Optional[Status] = Query(None),
                         company: Optional[str] = Query(None, max_length=120), include_done: bool = Query(True),
+                        priority: Optional[str] = Query(None, max_length=60, description="Any of urgent, high, medium, low (comma-separated)."),
+                        since: Optional[str] = Query(None, max_length=10, description="7d, 30d, 90d, month, or a day (2026-11-01)."),
+                        until: Optional[str] = Query(None, max_length=10, description="A day (inclusive)."),
+                        date_by: Literal["first", "last"] = Query("first", description="Date filters on first seen or last mentioned."),
+                        sort: Optional[Sort] = Query(None),
                         db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
     """The team's backlog items as data, as you may read them: an item shows when you can open one of the calls it
-    came from (items only from calls you can't open are left out; leads get their count as ``private``)."""
+    came from (items only from calls you can't open are left out; leads get their count as ``private``). Each has its
+    ``priority`` (urgent, high, medium, low), who set it (``priority_source``: ai, call, person, default) and — when
+    you can open the call it came from — why."""
     row, lead = await _team_for(request, db, user, workspace_id, team)
+    prios = _priorities(priority)
+    try:
+        lo, hi = TB.parse_since(since), TB.parse_since(until)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="since / until: 7d, 30d, 90d, month or a day like 2026-11-01.")
     return jsonable_encoder(await TB.items_for(db, row, user, lead, category=category, status=status, company=company,
-                                               include_done=include_done))
+                                               include_done=include_done, priority=prios, since=lo, until=hi,
+                                               date_by=date_by, sort=sort))
+
+
+def _priorities(v: Optional[str]) -> Optional[list]:
+    if not v:
+        return None
+    out = []
+    for p in v.split(","):
+        k = TB._priority_key(p)
+        if k is None:
+            raise HTTPException(status_code=422, detail="priority: any of urgent, high, medium, low.")
+        out.append(k)
+    return out
 
 
 @router.post("/workspaces/{workspace_id}/teams/{team}/backlog/refresh")
@@ -99,6 +127,7 @@ async def refresh_backlog(request: Request, workspace_id: str, team: str, db: As
 class ItemPatch(BaseModel):
     category: Optional[Category] = None
     status: Optional[Status] = None
+    priority: Optional[Priority] = None
     owner: Optional[str] = Field(None, max_length=64, description="A workspace member's id; \"\" clears the owner.")
     text: Optional[str] = Field(None, min_length=1, max_length=300)
 
@@ -107,11 +136,32 @@ class ItemPatch(BaseModel):
 @limiter.limit("60/minute")
 async def update_backlog_item(request: Request, item_id: str, body: ItemPatch, db: AsyncIOMotorDatabase = Depends(get_db),
                               user: User = Depends(require_user)):
-    """Change an item's category, status, owner or text (members of its team). Your change wins: the model and the
-    call never change it back. Done ticks the call's action item too. 404: no such item you can read."""
+    """Change an item's category, status, owner, text or priority (members of its team). Your change wins: the model
+    never changes it back, and a call changes its priority only when a later call decides again. Done ticks the call's
+    action item too. 404: no such item you can read."""
     _here(request)
     if len(item_id) > 40:
         raise HTTPException(status_code=404, detail="No such backlog item.")
     sent = body.model_dump(exclude_unset=True)
     return jsonable_encoder(await TB.update_item(db, user, item_id, category=sent.get("category"), status=sent.get("status"),
-                                                 owner=sent.get("owner") or None, owner_set="owner" in sent, text=sent.get("text")))
+                                                 owner=sent.get("owner") or None, owner_set="owner" in sent, text=sent.get("text"),
+                                                 priority=sent.get("priority")))
+
+
+class PriorityChange(BaseModel):
+    id: str = Field(..., min_length=1, max_length=40, description="The item's id, or its block id b-….")
+    priority: Priority
+
+
+class PrioritiesBody(BaseModel):
+    changes: list[PriorityChange] = Field(..., min_length=1, max_length=TB.MAX_CHANGES)
+
+
+@router.post("/workspaces/{workspace_id}/teams/{team}/backlog/priorities")
+@limiter.limit("20/minute")
+async def set_backlog_priorities(request: Request, workspace_id: str, team: str, body: PrioritiesBody,
+                                 db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """Members of the team: set several items' priorities at once (a person's decision: it wins). Returns the
+    ``changed`` items and the ones that ``failed`` (not found, or one you can't read). One page rewrite."""
+    row, _lead = await _team_for(request, db, user, workspace_id, team)
+    return jsonable_encoder(await TB.set_priorities(db, row, user, [c.model_dump() for c in body.changes]))

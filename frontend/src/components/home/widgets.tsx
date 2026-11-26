@@ -153,22 +153,28 @@ export function FolderWidget({ ws, w }: WidgetProps) {
 /* ── Team backlog ── */
 
 const STATUS_ICON: Record<string, string> = { open: "square", in_progress: "clock", done: "checkSquare", wont_do: "x" };
+const PRIORITY_LABEL: Record<string, string> = { urgent: "Urgent", high: "High", medium: "Medium", low: "Low" };
+const SINCE_LABEL: Record<string, string> = { "7d": "Last 7 days", "30d": "Last 30 days", "90d": "Last 90 days", month: "This month" };
 export function BacklogWidget({ ws, w }: WidgetProps) {
   useTeamsSidebar(ws ? [ws] : []);
   const team = typeof w.settings.team === "string" ? w.settings.team : null;
   const cat = (w.settings.category as string | null) ?? null;
   const st = (w.settings.status as string | null) ?? null;
-  const got = useLoad(ws && team ? `${ws}:${team}:${cat}:${st}` : null, () => backlogItems(ws!, team!, { category: cat, status: st }));
+  const pr = (w.settings.priority as string | null) ?? null;
+  const since = (w.settings.since as string | null) ?? null;
+  const got = useLoad(ws && team ? `${ws}:${team}:${cat}:${st}:${pr}:${since}` : null,
+    () => backlogItems(ws!, team!, { category: cat, status: st, priority: pr, since, sort: "priority" }));
   const items: BacklogItemRow[] = got ? got.items : [];
   const name = teamName(ws, team);
   const slot = ws ? teamsSlot(ws) : null;
   const page = slot ? slot.teams.find((t) => t.id === team)?.backlog?.slug : null;
-  const filter = [items[0] && cat ? items[0].category_label : null, st ? items.find((i) => i.status === st)?.status_label ?? null : null].filter(Boolean).join(" · ");
+  const filter = [items[0] && cat ? items[0].category_label : null, st ? items.find((i) => i.status === st)?.status_label ?? null : null,
+    pr ? PRIORITY_LABEL[pr] ?? null : null, since ? SINCE_LABEL[since] ?? null : null].filter(Boolean).join(" · ");
   return (
     <Card w={w} icon="list" title={name ? `${name} backlog` : "Team backlog"} chip={filter || (got ? `${items.length} open` : undefined)}
       action={page ? <Link className="th-lnk" href={`/${enc(page)}?space=${enc(`team:${team}`)}&ws=${enc(ws!)}`}>Open</Link> : null}>
       {got === null ? <Rows /> : got === false ? <Failed /> : items.length === 0 ? (
-        <p className="th-empty"><Icon name="check" size={14} /> Nothing here{cat || st ? " for this filter" : ""}. Items from the team&apos;s calls show up after each one.</p>
+        <p className="th-empty"><Icon name="check" size={14} /> Nothing here{cat || st || pr || since ? " for this filter" : ""}. Items from the team&apos;s calls show up after each one.</p>
       ) : (
         <ul className="th-list">
           {items.slice(0, n(w, 6)).map((it) => (
@@ -176,7 +182,7 @@ export function BacklogWidget({ ws, w }: WidgetProps) {
               <Link className="th-li md-focus" href={it.href ?? "#"} data-testid="home-backlog-item">
                 <span className={cx("th-kico", it.status === "done" && "th-kico--ok")}><Icon name={STATUS_ICON[it.status] ?? "square"} size={15} /></span>
                 <span className="th-tx"><span className="th-t" dir="auto">{it.text}</span>
-                  <span className="th-s">{[it.category_label, it.company, it.owner?.name ? `@${it.owner.name}` : null, it.mentions > 1 ? `${it.mentions} calls` : null].filter(Boolean).join(" · ")}</span></span>
+                  <span className="th-s">{[it.priority && it.priority !== "medium" ? it.priority_label : null, it.category_label, it.company, it.owner?.name ? `@${it.owner.name}` : null, it.mentions > 1 ? `${it.mentions} calls` : null].filter(Boolean).join(" · ")}</span></span>
               </Link>
             </li>
           ))}

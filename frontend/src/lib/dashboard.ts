@@ -88,10 +88,16 @@ export function teamHomeOnce(ws: string, team: string, fresh = false): Promise<T
 export interface BacklogItemRow {
   id: string; block: string; text: string; category: string; category_label: string; status: string; status_label: string;
   owner: { id: string; name: string } | null; company: string | null; mentions: number; href: string | null;
+  priority: string; priority_label: string; priority_source: string; priority_why: string | null;
+  first_seen: string | null; last_seen: string | null;
 }
-export const backlogItems = (ws: string, team: string, q: { category?: string | null; status?: string | null }) => {
+export const backlogItems = (ws: string, team: string,
+  q: { category?: string | null; status?: string | null; priority?: string | null; since?: string | null; sort?: string | null }) => {
   const p = new URLSearchParams();
   if (q.category) p.set("category", q.category);
+  if (q.priority) p.set("priority", q.priority);
+  if (q.since) p.set("since", q.since);
+  if (q.sort) p.set("sort", q.sort);
   if (q.status) p.set("status", q.status);
   else p.set("include_done", "false");
   return request<{ items: BacklogItemRow[]; private: number | null }>(

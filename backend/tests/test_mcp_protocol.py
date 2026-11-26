@@ -179,7 +179,7 @@ class Transport(McpTestCase):
             "add_team_members", "remove_team_members", "move_to_team", "share_to_team", "edit_team_brief",
             "create_project", "route_meeting", "list_favorites", "set_favorite", "my_todos", "team_todos", "tick_todo", "refresh_my_todos",
             # Team backlogs (mcp/backlog_tools.py).
-            "team_backlog", "update_backlog_item", "refresh_team_backlog", "get_dashboard", "set_dashboard",
+            "team_backlog", "update_backlog_item", "set_backlog_priorities", "refresh_team_backlog", "get_dashboard", "set_dashboard",
             # Zoom (mcp/zoom_tools.py).
             "zoom_status", "import_zoom_meetings", "zoom_review",
             # Import from Notion (mcp/notion_tools.py).

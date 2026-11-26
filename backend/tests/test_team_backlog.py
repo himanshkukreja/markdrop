@@ -15,6 +15,7 @@ import io
 import json
 import re
 from contextlib import redirect_stdout
+from datetime import datetime, timezone
 
 from bson import ObjectId
 
@@ -404,3 +405,355 @@ class Mcp(BacklogWorld):
         text, got = await BT.refresh_team_backlog(await ctx("owner"), {"team": "Sales", "workspace": self.W})
         self.assertIn("Refreshed Sales's backlog", text)
         self.assertEqual(got["added"], 0)
+
+
+# ── Priorities (owner, 2026-11-26; brief .work/briefs/backlog-priority-dates.md) ──────────────────────────────────
+
+PRIOS = {   # the (fake) model's priority per item text, with its reason
+    "Send the pricing deck": ("high", "Due Thursday"), "Book the security review": ("low", "No date"),
+    "Export reports to CSV": ("medium", None), "Login fails on Safari": ("urgent", "Blocks logins at Acme"),
+    "Share two references": ("urgent", "Due Friday for the pilot"), "Export the reports as CSV files": ("high", "Asked again"),
+}
+SAID = {    # the priority decisions said in a call
+    "Weekly prioritization": [
+        {"about": "CSV export", "priority": "low", "speaker": "Ada Lovelace", "quote": "the CSV export can wait"},
+        {"about": "Safari login bug", "priority": "high", "speaker": "Bo Chen", "quote": "Safari login is a P1"},
+        {"about": "security review", "priority": "wont_do", "speaker": "Ada Lovelace", "quote": "let's drop the security review"},
+        {"about": "pricing deck", "priority": "urgent", "speaker": "Ada Lovelace", "quote": "the pricing deck is top priority"},
+        {"about": "the Salesforce thing", "priority": "high", "speaker": "Bo Chen", "quote": "the Salesforce thing matters"},
+        {"about": "confidential discount", "priority": "urgent", "speaker": "Bo Chen", "quote": "the confidential discount first"}],
+    "Planning sync": [{"about": "CSV export", "priority": "urgent", "speaker": "Bo Chen", "quote": "CSV is urgent now"}],
+}
+for _t in SAID:
+    GENS.setdefault(_t, {"summary": "Prioritization.", "highlights": [], "decisions": [], "open_questions": [], "topics": [],
+                         "action_items": [], "type": "Internal"})
+WORDS = {"csv": "csv", "safari": "safari", "security": "security", "pricing deck": "pricing deck", "confidential": "confidential"}
+
+
+class PrioWorld(BacklogWorld):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.slack: list[dict] = []
+
+    def script(self, params: dict) -> str:
+        system = params["system"][0]["text"]
+        user = "\n".join(b["text"] for b in params["messages"][-1]["content"] if b.get("type") == "text")
+        if system.startswith("You keep a team's backlog"):
+            got = json.loads(super().script(params))
+            acts = dict(re.findall(r"^(A\d+): (.+)$", user, re.M))
+            for a in got["actions"]:
+                text = re.sub(r" · due .*$", "", acts[a["id"]])
+                a["priority"], a["why"] = PRIOS.get(text, ("medium", None))
+            for a in got["asks"]:
+                a["priority"], a["why"] = PRIOS.get(a["text"], ("medium", None))
+            title = (re.search(r"Title: ([^\n]+)", user) or [None, ""])[1].strip()
+            got["priorities"] = SAID.get(title, [])
+            return json.dumps(got)
+        if system.startswith("You match priority decisions"):
+            items = dict(re.findall(r"^(E\d+): (.+)$", user, re.M))
+            out = []
+            for sid, about, cands in re.findall(r"^(S\d+): (.+?) → .*\n\s+could be: (.+)$", user, re.M):
+                key = next((w for w in WORDS if w in about.lower()), None)
+                hit = next((e for e in [c.strip() for c in cands.split(",")] if key and key in items[e].lower()), None)
+                if hit:
+                    out.append({"decision": sid, "item": hit, "confidence": 0.95})
+            return json.dumps({"matches": out})
+        if system.startswith("You set priorities for a team's open backlog"):
+            ids = re.findall(r"^(I\d+): ", user, re.M)
+            return json.dumps({"items": [{"id": i, "priority": "high", "why": "Came up in a call"} for i in ids]})
+        return super().script(params)
+
+    def patch_slack(self):
+        from unittest import mock
+
+        from app.services import slack, slack_api
+        from app.services import slack_notify as SN
+
+        async def install(_db, _ws):
+            return {"_id": "T0ACME", "post_meetings": True}
+
+        async def shared(_token, _ch):
+            return False
+
+        async def call(method, token, **data):
+            self.slack.append({"method": method, **data})
+            return {"ok": True, "ts": "1.0001", "channel": data.get("channel")}
+
+        for p in (mock.patch.object(slack, "configured", lambda: True), mock.patch.object(slack, "install_for_workspace", install),
+                  mock.patch.object(slack, "bot_token", lambda _i: "xoxb-test"), mock.patch.object(SN, "channel_is_shared", shared),
+                  mock.patch.object(slack_api, "call", call)):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def prio_posts(self) -> list[dict]:
+        return [p for p in self.slack if p["method"] == "chat.postMessage" and "Priorit" in str(p.get("text"))]
+
+    async def set_channel(self):
+        await self.db[T.TEAMS].update_one({"_id": ObjectId(self.sales)}, {"$set": {"slack_channel": {"id": "C9SALES", "name": "sales"}}})
+
+
+class Priorities(PrioWorld):
+    async def test_the_model_sets_priorities_and_the_page_sorts_by_them(self):
+        await self.call("Acme renewal")
+        safari, deck, sec, csv = (await self.item("safari"), await self.item("pricing deck"), await self.item("security review"),
+                                  await self.item("csv"))
+        self.assertEqual((safari["priority"], safari["priority_source"], safari["priority_why"]), ("urgent", "ai", "Blocks logins at Acme"))
+        self.assertEqual((deck["priority"], sec["priority"], csv["priority"]), ("high", "low", "medium"))
+        self.assertEqual(safari["priority_link"]["title"], "Acme renewal")
+        body = (await self.page())["content"]
+        self.assertIn("Login fails on Safari — **Urgent** · ", self.line(body, "Login fails on Safari"))
+        self.assertIn(" — **Low** · ", self.line(body, "Book the security review"))
+        self.assertNotIn("Medium", self.line(body, "Export reports to CSV"))       # Medium isn't written
+        # Inside a category: the most urgent first.
+        await self.call("Globex intro", date="2026-11-04")
+        reg = TB.region((await self.page())["content"])
+        self.assertLess(reg.index("Share two references"), reg.index("Send the pricing deck"))
+        # The same ask again, more urgently: the model raises its own priority (never lowers it).
+        csv = await self.item("csv")
+        self.assertEqual((len(csv["sources"]), csv["priority"], csv["priority_why"]), (2, "high", "Asked again"))
+        # Done items sink into the category's closed "Done" toggle (the category's toggle gets four colons).
+        r = await self.http.patch(f"/api/v1/backlog/items/{deck['_id']}", headers=self.session("wm"), json={"status": "done"})
+        self.assertEqual(r.status_code, 200, r.text)
+        reg = TB.region((await self.page())["content"])
+        self.assertIn('::::details{summary="Follow-up · 1 open" heading="3" open="1"}', reg)
+        self.assertRegex(reg, r':::details\{summary="Done · 1"\}\n- \[x\] Send the pricing deck')
+        parsed = TB.parse_region((await self.page())["content"])
+        self.assertEqual(parsed[deck["block"]].category, "follow_up")
+        self.assertTrue(parsed[deck["block"]].done)
+
+    async def test_a_person_wins_over_the_model_on_the_page_and_the_api(self):
+        await self.call("Acme renewal")
+        # "· High" typed on the line: a person's priority.
+        def edit(c: str) -> str:
+            ln = self.line(c, "Export reports to CSV")
+            return c.replace(ln, ln.replace(" {#", " · Low {#"))
+        await self.edit_page(edit)
+        csv = await self.item("csv")
+        self.assertEqual((csv["priority"], csv["priority_source"], csv["priority_why"]), ("low", "person", "Set by Bo Chen"))
+        # The model reads it again (and a later call asks for it "high"): the person's stays.
+        await self.db["meetings"].update_many({}, {"$unset": {"backlog_ai": ""}})
+        await self.call("Globex intro", date="2026-11-04")
+        self.assertEqual((await self.item("csv"))["priority"], "low")
+        # Taking the word out = Medium (a person's decision too).
+        def clear(c: str) -> str:
+            ln = self.line(c, "Export reports to CSV")
+            return c.replace(ln, ln.replace("**Low** · ", ""))
+        await self.edit_page(clear)
+        self.assertEqual(((await self.item("csv"))["priority"], (await self.item("csv"))["priority_source"]), ("medium", "person"))
+        # The API, and a wrong value.
+        r = await self.http.patch(f"/api/v1/backlog/items/{csv['_id']}", headers=self.session("wm"), json={"priority": "urgent"})
+        self.assertEqual((r.status_code, r.json()["priority"], r.json()["priority_source"]), (200, "urgent", "person"))
+        r = await self.http.patch(f"/api/v1/backlog/items/{csv['_id']}", headers=self.session("wm"), json={"priority": "p0"})
+        self.assertEqual(r.status_code, 422, r.text)
+
+
+class CallDecisions(PrioWorld):
+    async def test_a_call_sets_priorities_posts_to_slack_and_tells_owners(self):
+        from app.services import notifications
+
+        self.patch_slack()
+        await self.set_channel()
+        await self.call("Acme renewal")
+        await self.call("Secret pricing", restricted=True, date="2026-11-04")
+        # Bo set Safari's priority himself before the call: the call is newer and wins.
+        safari = await self.item("safari")
+        r = await self.http.patch(f"/api/v1/backlog/items/{safari['_id']}", headers=self.session("wm"), json={"priority": "low"})
+        self.assertEqual(r.status_code, 200, r.text)
+        today = datetime.now(timezone.utc).date().isoformat()    # an older call is a quiet "past meeting": no Slack post
+        weekly = await self.call("Weekly prioritization", date=today)
+        csv, deck, sec, safari = (await self.item("csv"), await self.item("pricing deck"), await self.item("security review"),
+                                  await self.item("safari"))
+        self.assertEqual((csv["priority"], csv["priority_source"], csv["priority_by"]), ("low", "call", "Ada Lovelace"))
+        self.assertTrue(csv["priority_why"].startswith("Ada Lovelace: “the CSV export can wait” — Weekly prioritization, "))
+        self.assertEqual(csv["priority_link"]["title"], "Weekly prioritization")
+        self.assertEqual((deck["priority"], deck["priority_source"]), ("urgent", "call"))
+        self.assertEqual((sec["status"], sec["status_by"]), ("wont_do", "call"))
+        self.assertEqual((safari["priority"], safari["priority_source"]), ("high", "call"))
+        # Only one matcher call; the restricted call's item was never a candidate (nobody else may name it).
+        matcher = self.backlog_calls("You match priority decisions")
+        self.assertEqual(len(matcher), 1)
+        self.assertNotIn("send the confidential discount", matcher[0]["messages"][0]["content"][0]["text"].lower())
+        mark = (await self.mrow(weekly))["backlog_prio"][self.sales]
+        self.assertEqual(sorted(c["to"] for c in mark["changes"]), ["high", "low", "urgent", "wont_do"])
+        self.assertIn("The Salesforce thing", [u["about"] for u in mark["unmatched"]])
+        self.assertIn("Confidential discount", [u["about"] for u in mark["unmatched"]])
+        # The meeting page lists what changed and what couldn't be matched.
+        mp = await self.mpage(weekly)
+        self.assertIn(TB.M_START, mp["content"])
+        self.assertIn("→ **Urgent** (was High) — Ada Lovelace", mp["content"])
+        self.assertIn("Couldn't match: “the Salesforce thing matters” (High) — Bo Chen", mp["content"])
+        # One Slack message in the team's channel, linking to the changed items.
+        posts = self.prio_posts()
+        self.assertEqual(len(posts), 1)
+        self.assertEqual(posts[0]["channel"], "C9SALES")
+        text = json.dumps(posts[0], ensure_ascii=False)
+        self.assertIn("Priorities updated from", text)
+        self.assertIn("*Send the pricing deck · due Thursday* → *Urgent* (was High) — Ada Lovelace", text)
+        self.assertIn("→ *Won't do* (was Open)", text)
+        self.assertIn("Couldn't match: “the Salesforce thing matters”", text)
+        self.assertIn("?items=", text)
+        self.assertIn(deck["block"], text)
+        self.assertNotIn("Send the confidential discount", text)                  # the restricted call's item
+        # The pricing deck's owner (Bo) is told in the app; nobody else.
+        rows = await self.db[notifications.COLL].find({"kind": "mention", "doc_id": str((await self.page())["_id"])}).to_list(length=20)
+        self.assertEqual([r["user_id"] for r in rows], [self.uid["wm"]])
+        self.assertIn("Send the pricing deck · due Thursday → Urgent (was High) · from Weekly prioritization", rows[0]["extra"]["excerpt"])
+        # Idempotent: syncing again asks nothing and posts nothing.
+        await TB.sync_team(self.db, self.sales)
+        await self.settle()
+        self.assertEqual(len(self.backlog_calls("You match priority decisions")), 1)
+        self.assertEqual(len(self.prio_posts()), 1)
+        # A person changes it after the call: theirs wins; a later call decides again: the call wins.
+        r = await self.http.patch(f"/api/v1/backlog/items/{csv['_id']}", headers=self.session("wm"), json={"priority": "high"})
+        self.assertEqual(r.json()["priority"], "high")
+        await TB.sync_team(self.db, self.sales)
+        await self.settle()
+        self.assertEqual((await self.item("csv"))["priority"], "high")
+        await self.call("Planning sync", date="2099-01-15")
+        csv = await self.item("csv")
+        self.assertEqual((csv["priority"], csv["priority_source"]), ("urgent", "call"))
+        # The items API shows the evidence only to people who can open that call.
+        r = await self.http.get(f"{self.base}/teams/{self.sales}/backlog/items", headers=self.session("wv"))
+        it = next(i for i in r.json()["items"] if i["id"] == str(csv["_id"]))
+        self.assertEqual((it["priority"], it["priority_source"]), ("urgent", "call"))
+        self.assertIn("CSV is urgent now", it["priority_why"])
+
+    async def test_a_restricted_call_never_reaches_slack_and_its_words_stay_with_its_readers(self):
+        self.patch_slack()
+        await self.set_channel()
+        await self.call("Acme renewal")
+        deck = await self.item("pricing deck")
+        r = await self.http.patch(f"/api/v1/backlog/items/{deck['_id']}", headers=self.session("wm"), json={"priority": "low"})
+        self.assertEqual(r.status_code, 200, r.text)
+        await self.call("Weekly prioritization", date=datetime.now(timezone.utc).date().isoformat(), restricted=True)
+        csv = await self.item("csv")
+        self.assertEqual((csv["priority"], csv["priority_source"]), ("low", "call"))
+        self.assertEqual(self.prio_posts(), [])
+        # Ravi (in Sales, not on the call) sees the priority, not the words said in it; the page never has them.
+        r = await self.http.get(f"{self.base}/teams/{self.sales}/backlog/items", headers=self.session("wv"))
+        it = next(i for i in r.json()["items"] if i["id"] == str(csv["_id"]))
+        self.assertEqual((it["priority"], it["priority_why"], it["priority_from"]), ("low", None, None))
+        self.assertNotIn("can wait", (await self.page())["content"])
+        self.assertNotIn("Weekly prioritization", (await self.page())["content"])
+        r = await self.http.get(f"{self.base}/teams/{self.sales}/backlog/items", headers=self.session("owner"))
+        it = next(i for i in r.json()["items"] if i["id"] == str(csv["_id"]))
+        self.assertIn("can wait", it["priority_why"])
+
+    async def test_an_older_call_never_overrides_a_newer_person(self):
+        await self.call("Acme renewal")
+        deck = await self.item("pricing deck")
+        r = await self.http.patch(f"/api/v1/backlog/items/{deck['_id']}", headers=self.session("wm"), json={"priority": "low"})
+        self.assertEqual(r.status_code, 200, r.text)
+        await self.call("Weekly prioritization", date="2026-11-10")          # brought in later, said before
+        self.assertEqual(((await self.item("pricing deck"))["priority"], (await self.item("csv"))["priority"]), ("low", "low"))
+        self.assertEqual((await self.item("csv"))["priority_source"], "call")
+
+    async def test_without_the_model_decisions_wait(self):
+        await self.call("Acme renewal")
+        settings.team_backlog_enabled = False
+        ai_usage.invalidate_settings()
+        await self.call("Weekly prioritization", date="2026-11-10")
+        self.assertEqual((await self.item("csv"))["priority_source"], "ai")
+        settings.team_backlog_enabled = True
+        ai_usage.invalidate_settings()
+        await TB.sync_team(self.db, self.sales)
+        await self.settle()
+        self.assertEqual((await self.item("csv"))["priority_source"], "call")
+
+
+class Filters(PrioWorld):
+    async def test_api_and_mcp_filters_sort_and_set_priorities(self):
+        from app.mcp import backlog_tools as BT
+        from app.mcp.tools import Context, ToolError
+
+        await self.call("Acme renewal")
+        await self.call("Globex intro", date="2026-11-20")
+        await self.call("Secret pricing", restricted=True, date="2026-11-21")
+        url = f"{self.base}/teams/{self.sales}/backlog/items"
+        r = await self.http.get(url, params={"priority": "urgent,high", "sort": "priority"}, headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual([i["priority"] for i in r.json()["items"]], ["urgent", "urgent", "high", "high"])
+        r = await self.http.get(url, params={"since": "2026-11-15"}, headers=self.session("wv"))
+        self.assertEqual([i["text"] for i in r.json()["items"]], ["Share two references · due Friday"])   # not the restricted one
+        r = await self.http.get(url, params={"since": "2026-11-15", "date_by": "last"}, headers=self.session("wv"))
+        self.assertIn("Export reports to CSV", [i["text"] for i in r.json()["items"]])               # mentioned again Nov 20
+        r = await self.http.get(url, params={"until": "2026-11-03"}, headers=self.session("wm"))
+        self.assertEqual(len(r.json()["items"]), 4)
+        for bad in ({"priority": "p1"}, {"since": "1y"}):
+            r = await self.http.get(url, params=bad, headers=self.session("wm"))
+            self.assertEqual(r.status_code, 422, (bad, r.text))
+
+        async def ctx(who: str) -> Context:
+            return Context(db=self.db, user=await self.user(who), client_id="test", scopes=["read", "write"])
+
+        text, data = await BT.team_backlog(await ctx("wm"), {"team": "Sales", "workspace": self.W, "priority": ["urgent"], "sort": "priority"})
+        self.assertEqual({i["priority"] for i in data["items"]}, {"urgent"})
+        self.assertIn("(Urgent", text)
+        safari = await self.item("safari")
+        text, got = await BT.update_backlog_item(await ctx("wm"), {"id": str(safari["_id"]), "priority": "low"})
+        self.assertEqual(got["item"]["priority"], "low")
+        hidden = await self.item("confidential")
+        text, got = await BT.set_backlog_priorities(await ctx("wv"), {"team": "Sales", "workspace": self.W, "changes": [
+            {"id": safari["block"], "priority": "high"}, {"id": str(hidden["_id"]), "priority": "urgent"}]})
+        self.assertEqual([c["priority"] for c in got["changed"]], ["high"])
+        self.assertEqual(got["failed"][0]["error"], "No such backlog item.")      # can't read it: not found, no leak
+        self.assertEqual((await self.item("confidential"))["priority"], "medium")
+        self.assertIn("— **High** · ", self.line((await self.page())["content"], "Login fails on Safari"))
+        with self.assertRaises(ToolError):                                        # Eng's lead: not in Sales
+            await BT.set_backlog_priorities(await ctx("ownv"), {"team": "Sales", "workspace": self.W,
+                                                               "changes": [{"id": safari["block"], "priority": "low"}]})
+        r = await self.http.post(f"{self.base}/teams/{self.sales}/backlog/priorities", headers=self.session("ownv"),
+                                 json={"changes": [{"id": safari["block"], "priority": "low"}]})
+        self.assertEqual(r.status_code, 404, r.text)
+        r = await self.http.post(f"{self.base}/teams/{self.sales}/backlog/priorities", headers=self.session("wm"),
+                                 json={"changes": [{"id": safari["block"], "priority": "urgent"}]})
+        self.assertEqual((r.status_code, r.json()["changed"][0]["priority"]), (200, "urgent"))
+
+    async def test_the_home_widget_takes_priority_and_since(self):
+        from app.services import dashboards
+
+        spec = dashboards.WIDGETS["backlog"]["settings"]
+        self.assertEqual(spec["priority"]["options"], ["urgent", "high", "medium", "low"])
+        self.assertEqual(spec["since"]["options"], ["7d", "30d", "90d", "month"])
+
+
+class Backfill(PrioWorld):
+    async def test_the_script_sets_priorities_for_items_without_one(self):
+        from scripts import backlog_priorities as script
+
+        await self.call("Acme renewal")
+        safari = await self.item("safari")
+        await self.db[TB.ITEMS].update_many({"team_id": self.sales}, {"$unset": {"priority": "", "priority_source": ""}})
+        await self.db[TB.ITEMS].update_one({"_id": safari["_id"]}, {"$set": {"priority": "low", "priority_source": "person"}})
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code, got = await script.run(self.db, self.W, "Sales", False)
+        self.assertEqual((code, got["teams"][0]["items"]), (0, 3))
+        self.assertIn("DRY RUN", out.getvalue())
+        self.assertEqual(await self.db[TB.ITEMS].count_documents({"priority_source": "ai"}), 0)
+        with redirect_stdout(io.StringIO()):
+            code, got = await script.run(self.db, self.W, "Sales", True)
+        self.assertEqual(got["teams"][0]["set"], 3)
+        self.assertEqual((await self.item("csv"))["priority"], "high")
+        self.assertEqual((await self.item("safari"))["priority"], "low")              # a person's is never touched
+        self.assertEqual(len(self.backlog_calls("You set priorities")), 1)
+        with redirect_stdout(io.StringIO()):
+            code, got = await script.run(self.db, self.W, "Sales", True)
+        self.assertEqual(got["teams"][0]["items"], 0)                                 # safe to repeat
+
+
+class Messages(PrioWorld):
+    def test_the_slack_message_and_the_page_parser(self):
+        from app.services import message_gallery as g, slack_preview
+
+        msg = g.backlog_priorities_post()
+        text = json.dumps(msg, ensure_ascii=False)
+        self.assertIn("Priorities updated from <", text)
+        self.assertIn("*SSO via Okta for the Globex pilot* → *Urgent* (was Medium) — Riya Sharma", text)
+        self.assertIn("→ *Won't do* (was Open)", text)
+        self.assertIn("Couldn't match: “the Salesforce thing” — Sam Lee", text)
+        self.assertIn("Open the changed items", text)
+        self.assertTrue(slack_preview.blocks_html(msg["blocks"]))
+        self.assertEqual(TB.parse_line("Export CSV — In progress · **High** · Acme · first seen Nov 3"), ("Export CSV", "in_progress", "high"))
+        self.assertEqual(TB.parse_line("Dark mode · Low"), ("Dark mode", None, "low"))
+        self.assertEqual(TB.parse_since("month", __import__("datetime").date(2026, 11, 26)), "2026-11-01")

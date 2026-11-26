@@ -517,7 +517,8 @@ async def _backlog_section(db, actor, ctx, tid: str, teams: dict, names: _Names,
     from app.services import team_backlog
 
     by_cat: dict[str, list[dict]] = {}
-    for r in res.rows:
+    rank = team_backlog.PRIORITY_RANK
+    for r in sorted(res.rows, key=lambda r: rank.get(r.get("priority") or team_backlog.DEFAULT_PRIORITY, 2)):
         by_cat.setdefault(r.get("category") or "task", []).append(r)
     sec = Section(f"Open backlog items of team {teams[tid]['name']}: {res.total} ("
                   + ", ".join(f"{team_backlog.category_label(c)} {len(v)}" for c, v in by_cat.items()) + ")")
@@ -527,7 +528,10 @@ async def _backlog_section(db, actor, ctx, tid: str, teams: dict, names: _Names,
             if n >= limit:
                 break
             owner = names.names.get(r.get("owner") or "")
-            sec.rows.append(Row(None, f"{team_backlog.category_label(c)}: {r.get('text')}"
+            pr = r.get("priority") or team_backlog.DEFAULT_PRIORITY
+            sec.rows.append(Row(None, f"{team_backlog.category_label(c)}"
+                                + (f" ({team_backlog.PRIORITY_LABEL[pr]})" if pr in team_backlog.PRIORITY_LABEL and pr != team_backlog.DEFAULT_PRIORITY else "")
+                                + f": {r.get('text')}"
                                 + (f" — {owner}" if owner else "") + (" (in progress)" if r.get("status") == "in_progress" else "")))
             n += 1
     if res.total > n:

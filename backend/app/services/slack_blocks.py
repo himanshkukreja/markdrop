@@ -325,6 +325,32 @@ def meeting_items(team_id: str, post_id: str, items: list[dict], url: str) -> li
     return out
 
 
+def backlog_priorities(*, title: str, url: str, day: str | None, changes: list[dict], unmatched: list[dict],
+                       backlog_url: str, label: Any = None, shown: int = 20) -> dict:
+    """The team channel's message after a call changed backlog priorities (services/team_backlog.py): each change
+    ("SSO via Okta → *Urgent* (was Medium) — Jason"), what couldn't be matched, and a link to the backlog page
+    filtered to the changed items."""
+    name = label or (lambda k: str(k or "").replace("_", " ").capitalize())
+    lines = []
+    for c in changes[:shown]:
+        lines.append(f"*{esc(cut(c.get('text'), 140))}* → *{esc(name(c.get('to')))}* (was {esc(name(c.get('from')))})"
+                     + (f" — {esc(c['speaker'])}" if c.get("speaker") else ""))
+    if len(changes) > shown:
+        lines.append(f"+{len(changes) - shown} more on the backlog page")
+    miss = [f"Couldn't match: “{esc(cut(u.get('quote') or u.get('about'), 140))}”" + (f" — {esc(u['speaker'])}" if u.get("speaker") else "")
+            for u in unmatched[:shown]]
+    head = f"*Priorities updated from {link(url, cut(title, 120))}*" + (f" ({esc(day)})" if day else "")
+    if not changes:
+        head = f"*Priority decisions in {link(url, cut(title, 120))}*" + (f" ({esc(day)})" if day else "")
+    blocks = [section(head),
+              section(bullets(lines)) if lines else None,
+              section(bullets(miss)) if miss else None,
+              context("Nothing was changed for these: say them again in a call with the item's name, or set them on the backlog page.") if miss else None,
+              actions(open_button(backlog_url, "Open the changed items" if changes else "Open the backlog", primary=True))]
+    n = len(changes)
+    return message(blocks, f"Priorities updated from {title}: {plural(n, 'change')}" if n else f"Priority decisions in {title}")
+
+
 def meeting_post(team_id: str, post_id: str, *, title: str, url: str, when: str | None, summary: str | None,
                  decisions: list[str], items: list[dict], day: str | None = None, duration: str | None = None,
                  series: str | None = None, people: list[str] | None = None, people_total: int | None = None,

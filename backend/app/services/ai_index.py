@@ -373,7 +373,7 @@ async def index_backlog(db: AsyncIOMotorDatabase, team_id: str) -> int:
                 "_id": f"b:{it['_id']}", "t": "backlog", "v": VERSION, "ws": (team or {}).get("workspace_id"),
                 "team": team_id, "item": it["_id"], "text": _short(team_backlog.norm_display(it.get("text")), TEXT_CHARS),
                 "category": it.get("category") or team_backlog.DEFAULT_CATEGORY, "status": it.get("status") or "open",
-                "owner": it.get("owner_id"), "manual": bool(it.get("manual")),
+                "priority": team_backlog.priority_of(it), "owner": it.get("owner_id"), "manual": bool(it.get("manual")),
                 "docs": [s.get("doc_id") for s in it.get("sources") or [] if s.get("doc_id") is not None],
                 "first_seen": _aware(it.get("first_seen")), "updated": _aware(it.get("updated_at")), "at": now_utc()},
                 upsert=True))
