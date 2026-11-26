@@ -863,7 +863,7 @@
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "•  *SSO login fails on Safari* → *Urgent* (was High) — Riya Sharma\n•  *Salesforce integration for deal notes* → *High* (was Medium) — Riya Sharma\n•  *Dark mode for reports* → *Won't do* (was Low) — Alex Chen\n•  *Does the API support webhooks?* → *Low* (was Medium) — Alex Chen"
+      "text": "•  *SSO login fails on Safari* → *Urgent* (was High) — Riya Sharma\n•  *Salesforce integration for deal notes* → *High* (was Medium) — Riya Sharma\n•  *Dark mode for reports* → *Won't do* (was Open) — Alex Chen\n•  *Does the API support webhooks?* → *Low* (was Medium) — Alex Chen"
      }
     },
     {

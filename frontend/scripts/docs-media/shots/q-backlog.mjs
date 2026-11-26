@@ -185,6 +185,12 @@ export default [
       await h.sleep(500);
       await h.click(line.locator("input[type='checkbox']").first());
       await h.sleep(1500);
+      // Done items move into the category's closed "Done" toggle: open it.
+      const done = h.page.locator("details.pb-details summary:visible", { hasText: /^Done · \d+/ }).first();
+      await done.waitFor({ timeout: 20000 });
+      await done.scrollIntoViewIfNeeded();
+      await h.click(done);
+      await h.sleep(900);
       const link = h.page.locator("li:visible", { hasText: "Send the renewal pricing deck" }).first()
         .locator(`a[href^="/${data().meetings["Northwind renewal call"]}"]`).first();
       // The link wraps onto two lines: aim at its first letters, not its middle.

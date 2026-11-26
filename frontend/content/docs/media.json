@@ -3638,53 +3638,117 @@
   "/docs-assets/teams/backlog/fill.dark.mp4": {
     "w": 1440,
     "h": 900,
-    "duration": 17.97,
-    "bytes": 478838,
+    "duration": 19.83,
+    "bytes": 508268,
     "kind": "clip"
   },
   "/docs-assets/teams/backlog/fill.dark.webm": {
     "w": 1440,
     "h": 900,
-    "duration": 17.97,
-    "bytes": 533454,
+    "duration": 19.83,
+    "bytes": 503333,
     "kind": "clip"
   },
   "/docs-assets/teams/backlog/fill.dark.webp": {
     "w": 1440,
     "h": 900,
-    "bytes": 45780,
+    "bytes": 46256,
     "kind": "poster"
   },
   "/docs-assets/teams/backlog/fill.mp4": {
     "w": 1440,
     "h": 900,
-    "duration": 17.23,
-    "bytes": 507848,
+    "duration": 19.97,
+    "bytes": 493405,
     "kind": "clip"
   },
   "/docs-assets/teams/backlog/fill.webm": {
     "w": 1440,
     "h": 900,
-    "duration": 17.23,
-    "bytes": 537261,
+    "duration": 19.97,
+    "bytes": 524819,
     "kind": "clip"
   },
   "/docs-assets/teams/backlog/fill.webp": {
     "w": 1440,
     "h": 900,
-    "bytes": 47354,
+    "bytes": 46568,
     "kind": "poster"
+  },
+  "/docs-assets/teams/backlog/filters.dark.webp": {
+    "w": 1504,
+    "h": 1280,
+    "bytes": 75120,
+    "kind": "image"
+  },
+  "/docs-assets/teams/backlog/filters.webp": {
+    "w": 1504,
+    "h": 1280,
+    "bytes": 79906,
+    "kind": "image"
   },
   "/docs-assets/teams/backlog/page.dark.webp": {
     "w": 2560,
     "h": 1720,
-    "bytes": 108604,
+    "bytes": 103834,
     "kind": "image"
   },
   "/docs-assets/teams/backlog/page.webp": {
     "w": 2560,
     "h": 1720,
-    "bytes": 115020,
+    "bytes": 110272,
+    "kind": "image"
+  },
+  "/docs-assets/teams/backlog/priorities.dark.mp4": {
+    "w": 1440,
+    "h": 968,
+    "duration": 17.07,
+    "bytes": 440383,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/backlog/priorities.dark.webm": {
+    "w": 1440,
+    "h": 968,
+    "duration": 17.07,
+    "bytes": 436406,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/backlog/priorities.dark.webp": {
+    "w": 1440,
+    "h": 968,
+    "bytes": 72812,
+    "kind": "poster"
+  },
+  "/docs-assets/teams/backlog/priorities.mp4": {
+    "w": 1440,
+    "h": 968,
+    "duration": 17.17,
+    "bytes": 446623,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/backlog/priorities.webm": {
+    "w": 1440,
+    "h": 968,
+    "duration": 17.17,
+    "bytes": 520151,
+    "kind": "clip"
+  },
+  "/docs-assets/teams/backlog/priorities.webp": {
+    "w": 1440,
+    "h": 968,
+    "bytes": 73660,
+    "kind": "poster"
+  },
+  "/docs-assets/teams/backlog/slack.dark.webp": {
+    "w": 1280,
+    "h": 680,
+    "bytes": 57994,
+    "kind": "image"
+  },
+  "/docs-assets/teams/backlog/slack.webp": {
+    "w": 1280,
+    "h": 680,
+    "bytes": 59834,
     "kind": "image"
   },
   "/docs-assets/teams/create-and-manage/browse.dark.webp": {

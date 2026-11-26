@@ -1,6 +1,6 @@
 ---
 title: Team backlog
-description: One shared page per team with every action item and customer ask from its calls, sorted into categories and prioritized after every call. Priorities said in a call update it, and Slack says what changed. Filter by priority and date, group, edit and comment.
+description: One shared page per team with every action item and customer ask from its calls, sorted and prioritized after every call. Filter, group, edit and comment.
 updated: 2026-11-26
 nav: Backlog
 keywords: [likely done, looks done, backlog, team backlog, product backlog, action items, customer asks, feature requests, bugs, improvements, follow-ups, questions, categories, auto categorized, triage, sales calls, customer calls, dedupe, mentioned in calls, filter, filter bar, hide done, export csv, copy list, in progress, won't do, refresh backlog, team settings, private calls, priority, priorities, urgent, high, medium, low, prioritization call, weekly prioritization, p0, p1, date filter, last 7 days, last 30 days, custom range, first seen, last mentioned, group by, group by priority, group by month, group by company, group by owner, slack, couldn't match, team_backlog, update_backlog_item, set_backlog_priorities, refresh_team_backlog]
@@ -78,7 +78,9 @@ The bar above the page filters what you see, in view and while editing:
 - **Hide done**.
 - **Group by**: Category (the page as it is), **Priority**, **Month**, **Company** or **Owner**. Grouping draws the same items under the bar in those groups, with each item's priority chip, status, company, owner, the call and its date. Click a priority chip to change it. Grouping works while you view the page.
 
-![The Sales backlog filtered to Urgent and High items from the last 30 days, grouped by priority](/docs-assets/teams/backlog/filters.webp)
+![The Sales backlog filtered to Urgent and High items from the last 90 days, grouped by priority](/docs-assets/teams/backlog/filters.webp)
+
+::clip{src="/docs-assets/teams/backlog/priorities" theme="both" alt="On the Sales backlog page, Riya clicks the Urgent and High priority chips and picks Last 30 days; the list narrows to the most urgent recent items. She clears them, sets Group by to Priority, and the items regroup under Urgent, High, Medium and Low. She clicks the Medium chip on Share two customer references, picks Urgent, and the item moves under Urgent."}
 
 The bar shows how many items match. The filter and grouping are in the page's address, so copy the link to share exactly what you're looking at, such as every urgent item for one customer this month. **Copy** puts the shown items on the clipboard as a list, and **Export CSV** downloads them with their priority, first seen and last mentioned dates.
 

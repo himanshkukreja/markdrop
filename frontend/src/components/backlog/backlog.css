@@ -39,7 +39,9 @@
 .bl-dot--high { background: var(--warning); }
 .bl-dot--medium { background: var(--accent); }
 .bl-dot--low { background: var(--text-muted); }
-.bl-prio, strong[data-bl-prio] { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border: 1px solid transparent;
+strong[data-bl-prio] { display: inline; padding: 1px 7px; border-radius: var(--radius-full); font-size: 0.8em; font-weight: 650;
+  white-space: nowrap; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.bl-prio { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border: 1px solid transparent;
   border-radius: var(--radius-full); font-size: 11.5px; font-weight: 650; line-height: 18px; vertical-align: 1px; white-space: nowrap;
   background: var(--surface-active); color: var(--text-secondary); }
 .bl-prio--urgent, strong[data-bl-prio="urgent"] { background: var(--danger-soft); color: var(--danger); }

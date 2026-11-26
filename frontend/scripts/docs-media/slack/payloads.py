@@ -132,7 +132,7 @@ from app.services import team_backlog as TB  # noqa: E402
 _changes = [
     {"text": "SSO login fails on Safari", "from": "high", "to": "urgent", "speaker": "Riya Sharma", "block": "b-0a1b2c3d4e"},
     {"text": "Salesforce integration for deal notes", "from": "medium", "to": "high", "speaker": "Riya Sharma", "block": "b-1b2c3d4e5f"},
-    {"text": "Dark mode for reports", "from": "low", "to": "wont_do", "speaker": "Alex Chen", "block": "b-2c3d4e5f6a"},
+    {"text": "Dark mode for reports", "from": "open", "to": "wont_do", "speaker": "Alex Chen", "block": "b-2c3d4e5f6a"},
     {"text": "Does the API support webhooks?", "from": "medium", "to": "low", "speaker": "Alex Chen", "block": "b-3d4e5f6a7b"},
 ]
 backlog_prio = kit.backlog_priorities(

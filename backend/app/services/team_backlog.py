@@ -490,7 +490,7 @@ def intro(team_name: str) -> str:
 
     return (f"Everything that came up in **{meetings.md_inline(team_name)}**'s calls, in one list for the whole team: "
             "action items, feature requests, bugs, improvements and follow-ups. New items land here after every call, "
-            "sorted into categories. Filter it with the bar above.")
+            "sorted into categories with the most urgent first. Filter and group it with the bar above.")
 
 
 def merge(content: str, section: str) -> str:
