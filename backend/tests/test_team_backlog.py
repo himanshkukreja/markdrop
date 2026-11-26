@@ -561,6 +561,8 @@ class CallDecisions(PrioWorld):
         self.assertEqual(r.status_code, 200, r.text)
         today = datetime.now(timezone.utc).date().isoformat()    # an older call is a quiet "past meeting": no Slack post
         weekly = await self.call("Weekly prioritization", date=today)
+        await TB.sync_team(self.db, self.sales)                 # the call's notes may land after its first sync
+        await self.settle()
         csv, deck, sec, safari = (await self.item("csv"), await self.item("pricing deck"), await self.item("security review"),
                                   await self.item("safari"))
         self.assertEqual((csv["priority"], csv["priority_source"], csv["priority_by"]), ("low", "call", "Ada Lovelace"))
