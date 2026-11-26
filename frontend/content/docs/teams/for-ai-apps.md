@@ -4,7 +4,7 @@ description: Let Claude, ChatGPT or Cursor list teams, read a team's home and br
 updated: 2026-11-19
 nav: For AI apps
 prerequisites: [/ai/hosted-mcp]
-keywords: [mcp, teams mcp, list_teams, get_team, create_team, update_team, add_team_members, remove_team_members, move_to_team, move_folder_to_team, share_to_team, get_team_brief, edit_team_brief, list_projects, create_project, route_meeting, list_favorites, set_favorite, general, space, team scope, ai apps, my_todos, team_todos, tick_todo, refresh_my_todos, to-dos, team_backlog, update_backlog_item, refresh_team_backlog, backlog]
+keywords: [mcp, teams mcp, list_teams, get_team, create_team, update_team, add_team_members, remove_team_members, move_to_team, move_folder_to_team, share_to_team, get_team_brief, edit_team_brief, list_projects, create_project, route_meeting, list_favorites, set_favorite, general, space, team scope, ai apps, my_todos, team_todos, tick_todo, refresh_my_todos, to-dos, team_backlog, update_backlog_item, set_backlog_priorities, refresh_team_backlog, backlog]
 ---
 
 Everything on these pages works from an AI app connected to Markdrop's [hosted MCP server](/ai/hosted-mcp). The app acts as you, with your access: it sees the teams and content you can see, and can only change what you could on the website.
@@ -49,8 +49,9 @@ Everything on these pages works from an AI app connected to Markdrop's [hosted M
 | `team_todos` | read | Team leads: every member's open to-dos in the team. | `workspace`, `team`, `person` |
 | `tick_todo` | write | Ticks one of your to-dos, or opens it again with `done: false`. The call's action item follows. | `item`, `done` |
 | `refresh_my_todos` | write | Creates your to-do page in a team, or refreshes it now: your action items from the team's calls and the tasks on its pages that mention you. Returns how many items are new and open. | `team`, `workspace` |
-| `team_backlog` | read | A team's shared backlog: every action item and customer ask from its calls by category (feature request, bug, improvement, task, follow-up, question), with status, owner, company and how many calls mentioned it. Only items from calls you can open. | `team`, `workspace`, `category`, `status`, `company`, `include_done` |
-| `update_backlog_item` | write | Changes a backlog item's category, status, owner or text. Your change wins over the automatic sorting; marking it done ticks the call's action item. | `id`, `category`, `status`, `owner`, `text` |
+| `team_backlog` | read | A team's shared backlog: every action item and customer ask from its calls by category (feature request, bug, improvement, task, follow-up, question), with status, priority (urgent, high, medium, low, who set it and why), owner, company and how many calls mentioned it. Filter by priority and date (first seen or last mentioned); sort by priority or date. Only items from calls you can open. | `team`, `workspace`, `category`, `status`, `company`, `priority`, `since`, `until`, `date_by`, `sort`, `include_done` |
+| `update_backlog_item` | write | Changes a backlog item's category, status, owner, text or priority. Your change wins over the automatic sorting; marking it done ticks the call's action item. | `id`, `category`, `status`, `owner`, `text`, `priority` |
+| `set_backlog_priorities` | write | Sets several backlog items' priorities at once (members of the team), each as your decision. Returns what changed and what failed. | `team`, `workspace`, `changes` |
 | `refresh_team_backlog` | write | Team leads: re-reads every call in the team into its backlog now and rewrites the page. Returns how many items are new and open. | `team`, `workspace` |
 | `list_favorites` | read | The pages, files, teams and projects you starred in a workspace (the sidebar's Favorites). | `workspace` |
 | `set_favorite` | write | Stars or unstars a page or file (`kind: "doc"`), a team or a project. | `workspace`, `kind`, `item`, `on` |

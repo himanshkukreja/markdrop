@@ -3,7 +3,7 @@
   "info": {
     "title": "Markdrop",
     "version": "0.1.0",
-    "x-markdrop-exported": "2026-11-20"
+    "x-markdrop-exported": "2026-11-26"
   },
   "paths": {
     "/api/v1/trash": {
@@ -29252,7 +29252,7 @@
           "backlog"
         ],
         "summary": "Backlog Items",
-        "description": "The team's backlog items as data, as you may read them: an item shows when you can open one of the calls it\ncame from (items only from calls you can't open are left out; leads get their count as ``private``).",
+        "description": "The team's backlog items as data, as you may read them: an item shows when you can open one of the calls it\ncame from (items only from calls you can't open are left out; leads get their count as ``private``). Each has its\n``priority`` (urgent, high, medium, low), who set it (``priority_source``: ai, call, person, default) and — when\nyou can open the call it came from — why.",
         "operationId": "backlog_items_api_v1_workspaces__workspace_id__teams__team__backlog_items_get",
         "parameters": [
           {
@@ -29344,6 +29344,102 @@
               "type": "boolean",
               "default": true,
               "title": "Include Done"
+            }
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Any of urgent, high, medium, low (comma-separated).",
+              "title": "Priority"
+            },
+            "description": "Any of urgent, high, medium, low (comma-separated)."
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 10
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "7d, 30d, 90d, month, or a day (2026-11-01).",
+              "title": "Since"
+            },
+            "description": "7d, 30d, 90d, month, or a day (2026-11-01)."
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 10
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A day (inclusive).",
+              "title": "Until"
+            },
+            "description": "A day (inclusive)."
+          },
+          {
+            "name": "date_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "first",
+                "last"
+              ],
+              "type": "string",
+              "description": "Date filters on first seen or last mentioned.",
+              "default": "first",
+              "title": "Date By"
+            },
+            "description": "Date filters on first seen or last mentioned."
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "category",
+                    "priority",
+                    "newest",
+                    "oldest",
+                    "mentions"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
             }
           }
         ],
@@ -29437,7 +29533,7 @@
           "backlog"
         ],
         "summary": "Update Backlog Item",
-        "description": "Change an item's category, status, owner or text (members of its team). Your change wins: the model and the\ncall never change it back. Done ticks the call's action item too. 404: no such item you can read.",
+        "description": "Change an item's category, status, owner, text or priority (members of its team). Your change wins: the model\nnever changes it back, and a call changes its priority only when a later call decides again. Done ticks the call's\naction item too. 404: no such item you can read.",
         "operationId": "update_backlog_item_api_v1_backlog_items__item_id__patch",
         "parameters": [
           {
@@ -29484,6 +29580,72 @@
           "auth": "token",
           "rateLimits": [
             "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/teams/{team}/backlog/priorities": {
+      "post": {
+        "tags": [
+          "backlog"
+        ],
+        "summary": "Set Backlog Priorities",
+        "description": "Members of the team: set several items' priorities at once (a person's decision: it wins). Returns the\n``changed`` items and the ones that ``failed`` (not found, or one you can't read). One page rewrite.",
+        "operationId": "set_backlog_priorities_api_v1_workspaces__workspace_id__teams__team__backlog_priorities_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "team",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrioritiesBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
           ]
         }
       }
@@ -37214,6 +37376,23 @@
             ],
             "title": "Status"
           },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "urgent",
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
           "owner": {
             "anyOf": [
               {
@@ -39252,6 +39431,51 @@
           "slugs"
         ],
         "title": "PreviewsBody"
+      },
+      "PrioritiesBody": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/PriorityChange"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Changes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "changes"
+        ],
+        "title": "PrioritiesBody"
+      },
+      "PriorityChange": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Id",
+            "description": "The item's id, or its block id b-…."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "urgent",
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Priority"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "priority"
+        ],
+        "title": "PriorityChange"
       },
       "ProjectCreate": {
         "properties": {

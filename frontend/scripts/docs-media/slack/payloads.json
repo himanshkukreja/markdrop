@@ -383,7 +383,7 @@
      "elements": [
       {
        "type": "mrkdwn",
-       "text": "You turned these on in Markdrop · <http://localhost:3000/settings/account#slack|Turn off>"
+       "text": "You turned these on in Markdrop · <http://localhost:3000/settings/integrations/slack|Turn off>"
       }
      ]
     }
@@ -470,7 +470,7 @@
      "elements": [
       {
        "type": "mrkdwn",
-       "text": "You turned these on in Markdrop · <http://localhost:3000/settings/account#slack|Turn off>"
+       "text": "You turned these on in Markdrop · <http://localhost:3000/settings/integrations/slack|Turn off>"
       }
      ]
     }
@@ -540,7 +540,7 @@
      "elements": [
       {
        "type": "mrkdwn",
-       "text": "You turned these on in Markdrop · <http://localhost:3000/settings/account#slack|Turn off>"
+       "text": "You turned these on in Markdrop · <http://localhost:3000/settings/integrations/slack|Turn off>"
       }
      ]
     }
@@ -686,7 +686,7 @@
      "elements": [
       {
        "type": "mrkdwn",
-       "text": "You're linked as *Riya Sharma*. · <http://localhost:3000/settings/account#slack|Slack settings>"
+       "text": "You're linked as *Riya Sharma*. · <http://localhost:3000/settings/integrations/slack|Slack settings>"
       }
      ]
     }
@@ -846,5 +846,60 @@
    "text": "Your action items from Weekly product sync (1)"
   },
   "afterLabel": "Someone who isn't in Markdrop gets only their own items:"
+ },
+ "backlog_priorities": {
+  "where": "#sales",
+  "from": "Markdrop",
+  "message": {
+   "blocks": [
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Priorities updated from <https://markdrop.in/weekly-prioritization-nov-24|Weekly prioritization>* (Nov 24)"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "•  *SSO login fails on Safari* → *Urgent* (was High) — Riya Sharma\n•  *Salesforce integration for deal notes* → *High* (was Medium) — Riya Sharma\n•  *Dark mode for reports* → *Won't do* (was Low) — Alex Chen\n•  *Does the API support webhooks?* → *Low* (was Medium) — Alex Chen"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "•  Couldn't match: “the onboarding thing” — Alex Chen"
+     }
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "Nothing was changed for these: say them again in a call with the item's name, or set them on the backlog page."
+      }
+     ]
+    },
+    {
+     "type": "actions",
+     "elements": [
+      {
+       "type": "button",
+       "text": {
+        "type": "plain_text",
+        "text": "Open the changed items",
+        "emoji": false
+       },
+       "action_id": "md_open",
+       "url": "https://markdrop.in/sales-backlog?items=b-0a1b2c3d4e,b-1b2c3d4e5f,b-2c3d4e5f6a,b-3d4e5f6a7b",
+       "style": "primary"
+      }
+     ]
+    }
+   ],
+   "text": "Priorities updated from Weekly prioritization: 4 changes"
+  }
  }
 }

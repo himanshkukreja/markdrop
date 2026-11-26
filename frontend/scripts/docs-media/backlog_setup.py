@@ -3,8 +3,9 @@
 
 Runs the REAL app in this process against the stack's database, with a fake model (the meetings' notes and the
 backlog's sorting), so the calls land exactly as they would in production: Sales (Riya lead, Alex member), three
-calls (Northwind renewal, Globex intro, Q4 pipeline review) with action items and customer asks, and the team's
-"Sales — Backlog" page sorted into categories. Writes the page's slug and the meetings' slugs to
+calls (Northwind renewal, Globex intro, Q4 pipeline review, plus an older Initech check-in) with action items and customer asks, each given a
+priority, then a "Weekly prioritization" call whose decisions change some of them (and one it couldn't match), and
+the team's "Sales — Backlog" page sorted into categories, most urgent first. Writes the page's slug and the meetings' slugs to
 .data/<N>/backlog.json for the shots (shots/q-backlog.mjs).
 
     STACK_ID=9 backend/.venv/bin/python frontend/scripts/docs-media/backlog_setup.py
@@ -67,6 +68,13 @@ CALLS = {
         "asks": [("Export reports as CSV files", "feature", "s1"), ("Salesforce integration for deal notes", "feature", "s2"),
                  ("Does the API support webhooks?", "question", "s3")],
     },
+    "Initech check-in": {
+        "date": DAY(48), "guest": ("Peter Gibbons", "peter@initech.com"),
+        "lines": ["Peter Gibbons: We need an audit log we can export for compliance.",
+                  "Peter Gibbons: Search is slow on our big workspace.", "Alex Chen: I will send the security whitepaper."],
+        "actions": [("Send the security whitepaper", "Alex Chen", None)],
+        "asks": [("Export the audit log", "feature", "s1"), ("Search is slow on large workspaces", "bug", "s2")],
+    },
     "Q4 pipeline review": {
         "date": DAY(1), "guest": None,
         "lines": ["Riya Sharma: Let's go through the pipeline.", "Alex Chen: I will update the forecast sheet.",
@@ -74,6 +82,31 @@ CALLS = {
         "actions": [("Update the forecast sheet", "Alex Chen", None)],
         "asks": [("Dark mode for reports", "improvement", "s3")],
     },
+    "Weekly prioritization": {
+        "date": DAY(0), "guest": None,
+        "lines": ["Riya Sharma: Safari login is blocking Northwind, that's our top priority.",
+                  "Riya Sharma: The Salesforce integration is a P1 for the Globex pilot.",
+                  "Alex Chen: Dark mode can wait, let's drop it for now.", "Alex Chen: And the onboarding thing can wait too."],
+        "actions": [], "asks": [],
+        "said": [{"about": "Safari login bug", "priority": "urgent", "speaker": "Riya Sharma",
+                  "quote": "Safari login is blocking Northwind, that's our top priority"},
+                 {"about": "Salesforce integration", "priority": "high", "speaker": "Riya Sharma",
+                  "quote": "The Salesforce integration is a P1 for the Globex pilot"},
+                 {"about": "Dark mode", "priority": "wont_do", "speaker": "Alex Chen", "quote": "Dark mode can wait, let's drop it"},
+                 {"about": "the onboarding thing", "priority": "low", "speaker": "Alex Chen", "quote": "the onboarding thing can wait"}],
+    },
+}
+#: The (fake) model's priority for each item, with its reason.
+PRIO = {
+    "Send the renewal pricing deck": ("high", "Due Friday for the Northwind renewal"),
+    "Export usage reports to CSV": ("high", "Asked by Northwind and Globex"),
+    "Export reports as CSV files": ("high", "Asked again by Globex"),
+    "SSO login fails on Safari": ("high", "Customers can't log in"),
+    "Bulk-edit permissions on folders": ("low", "Nice to have"),
+    "Draft the pilot proposal": ("urgent", "Due next week for the Globex pilot"),
+    "Does the API support webhooks?": ("low", "No deadline"),
+    "Dark mode for reports": ("low", "Keeps coming up, no customer waiting"),
+    "Search is slow on large workspaces": ("high", "Initech hits it daily"),
 }
 
 
@@ -93,8 +126,23 @@ def script(params: dict) -> str:
                            "type": "Customer" if call["guest"] else "Review"})
     if system.startswith("You keep a team's backlog") and call:
         acts = re.findall(r"^(A\d+): (.+)$", user, re.M)
-        return json.dumps({"actions": [{"id": i, "category": _cat(t)} for i, t in acts],
-                           "asks": [{"text": t, "category": c, "cite": s} for t, c, s in call["asks"]]})
+
+        def pr(t: str) -> dict:
+            p, why = PRIO.get(re.sub(r" · due .*$", "", t), ("medium", None))
+            return {"priority": p, "why": why}
+
+        return json.dumps({"actions": [{"id": i, "category": _cat(t), **pr(t)} for i, t in acts],
+                           "asks": [{"text": t, "category": c, "cite": s, **pr(t)} for t, c, s in call["asks"]],
+                           "priorities": call.get("said") or []})
+    if system.startswith("You match priority decisions"):
+        items = dict(re.findall(r"^(E\d+): (.+)$", user, re.M))
+        out = []
+        for sid, about, cands in re.findall(r"^(S\d+): (.+?) → .*\n\s+could be: (.+)$", user, re.M):
+            key = {"Safari login bug": "safari", "Salesforce integration": "salesforce", "Dark mode": "dark mode"}.get(about)
+            hit = next((e for e in [c.strip() for c in cands.split(",")] if key and key in items[e].lower()), None)
+            if hit:
+                out.append({"decision": sid, "item": hit, "confidence": 0.94})
+        return json.dumps({"matches": out})
     if system.startswith("You match new backlog items"):
         existing = dict(re.findall(r"^(E\d+): (.+)$", user, re.M))
         same = []
@@ -169,6 +217,8 @@ async def main() -> None:
             sales = r.json()
         tid = sales["id"]
         out = {"team": tid, "meetings": {}}
+        await db[TB.ITEMS].delete_many({"team_id": tid})       # a fresh run: priorities from the calls again
+        await db["meetings"].update_many({"workspace_id": ws}, {"$unset": {"backlog_ai": "", "backlog_prio": ""}})
         for title, c in CALLS.items():
             have = await db["meetings"].find_one({"workspace_id": ws, "title": title})
             if have is None:

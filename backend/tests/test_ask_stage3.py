@@ -190,7 +190,7 @@ class LikelyDone(Stage3World):
         self.assertIn("likely done", line)
         # The backlog reads the line back without taking the note for a status or a text change.
         rest = line.split("] ", 1)[1].rsplit(" {#", 1)[0]
-        self.assertEqual(team_backlog.parse_line(rest), ("Write the plan", None))
+        self.assertEqual(team_backlog.parse_line(rest), ("Write the plan", None, None))
 
 
 class Planner(Stage3World):

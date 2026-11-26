@@ -127,6 +127,19 @@ weekly_blocks, _weekly_text = team_extras.slack_blocks(_wm.WsInfo("6aecc9488c77e
 })
 weekly = {"blocks": weekly_blocks, "text": _weekly_text}
 
+from app.services import team_backlog as TB  # noqa: E402
+
+_changes = [
+    {"text": "SSO login fails on Safari", "from": "high", "to": "urgent", "speaker": "Riya Sharma", "block": "b-0a1b2c3d4e"},
+    {"text": "Salesforce integration for deal notes", "from": "medium", "to": "high", "speaker": "Riya Sharma", "block": "b-1b2c3d4e5f"},
+    {"text": "Dark mode for reports", "from": "low", "to": "wont_do", "speaker": "Alex Chen", "block": "b-2c3d4e5f6a"},
+    {"text": "Does the API support webhooks?", "from": "medium", "to": "low", "speaker": "Alex Chen", "block": "b-3d4e5f6a7b"},
+]
+backlog_prio = kit.backlog_priorities(
+    title="Weekly prioritization", url=f"{BASE}/weekly-prioritization-nov-24", day="Nov 24", changes=_changes,
+    unmatched=[{"quote": "the onboarding thing", "speaker": "Alex Chen"}],
+    backlog_url=f"{BASE}/sales-backlog?items=" + ",".join(c["block"] for c in _changes), label=TB.label_of)
+
 out = {
     # Slack user ids in the messages → the names a reader would see.
     "users": {"U0MAYA": "Maya Patel", "U0ALEX": "Alex Chen", "U0SAM": "Sam Lee"},
@@ -143,6 +156,7 @@ out = {
     "help": {"where": "/markdrop help", "from": "Markdrop", "ephemeral": True, "message": help_msg},
     "dm_action_items": {"where": "Direct message", "from": "Markdrop", "message": ai_member, "after": ai_outside,
                         "afterLabel": "Someone who isn't in Markdrop gets only their own items:"},
+    "backlog_priorities": {"where": "#sales", "from": "Markdrop", "message": backlog_prio},
 }
 # Button values are signed with the throwaway secret above; they mean nothing outside this file.
 (HERE / "payloads.json").write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n")

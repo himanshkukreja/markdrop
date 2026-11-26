@@ -71,7 +71,7 @@ class Layout(DashWorld):
         self.assertEqual(d["source"], "mine")
         self.assertEqual(self.types(d, "main"), ["meetings", "recent"])
         self.assertEqual(d["main"][0]["settings"], {"team": self.sales, "count": 12})          # clamped
-        self.assertEqual(d["side"][0]["settings"], {"team": self.sales, "category": "bug", "status": None, "count": 6})
+        self.assertEqual(d["side"][0]["settings"], {"team": self.sales, "category": "bug", "status": None, "priority": None, "since": None, "count": 6})
         ids = [w["id"] for w in d["main"]]
         # Move: ids are kept.
         d2 = await self.put("wm", workspace=self.W, main=[d["main"][1], d["main"][0]], side=d["side"])
